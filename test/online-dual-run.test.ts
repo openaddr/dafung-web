@@ -784,4 +784,149 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     },
     120_000,
   );
+
+  // ─── 种子直建房·反应窗应答账(#1316 批T2,自 react-reaction-online「#453」例
+  //     尾部落盘腿下移)───────────────────────────────────────────────────────
+  // 场景(与 e2e 同一种子谱):3 座房(seed 2849 经 /room/new 请求体注入,seat2 不入座
+  // 开局 bot 填充)→ 双人类起手识破诡计、bot 起手连环计,选都一结束 bot(draftOrder=
+  // [2,1,0] 先动)宣告连环计开出 [0,1] 双窗 → 窗寿内(本环境 E2E_REACTION_MS=300 缩
+  // 窗)应答齐 → 连环计照常结算。断言=权威应答账(房间落盘 room-record 直读):每被
+  // 询问座位**恰应答一次**(重复应答不重账)→ 结算执行(jinnangUse 落账)。
+  // 【确定性判词(#987 口径)】手动应答腿不进断言面:300ms 缩窗下手点应答与权威超时
+  // 兜底是时序竞速(浏览器 e2e 靠 15s 加长窗避开;层③无加长 env 缝——服务进程级
+  // 单例,env 面属全文件);落盘账不区分手答/代发(同一 reactionRespond use=0 行),
+  // 竞速输了断言面不变、赢了也不多断什么——竞速腿零断言增益,不设。窗内手点试探发
+  // 一发(成交与否两皆等值)+窗收后重复应答两发探针(必被拒),账面「各恰一次」对
+  // 三种到达形态恒等值,零时序依赖。
+  it("种子直建房双人类反应窗:应答齐落盘账两座各恰一次、重复应答不重账、结算执行", async () => {
+    // ⓪ 收前例的房与栈(每例一房一栈,重连例同款收摊配方)
+    await dismissCurrentRoom("应答账例开工前收前例");
+    hostCtrl?.destroy();
+    guestCtrl?.destroy();
+    hostCtrl = null;
+    guestCtrl = null;
+    useNetStore.getState().reset();
+
+    // ① 种子直建房(LobbyApi 无 seed 缝的最小测试缝,判词见下)+ guest 入座。
+    //    seed 缝判词:生产 createRoom 类型面 {seats,target?,guohao?}(#1287 判词
+    //    「对跑层 LobbyApi 无 seed 缝不可迁」正指此);服务器 /room/new 契约本收
+    //    {seed}(e2e 路由拦截补的同一字段)。最小缝 = 同一 REST 通路请求体补 seed
+    //    (api/adoptRoom 私有面 cast,enteredGame/sock 测试缝同族先例)——凭证装配
+    //    与 e2e 拦截回包走同一收敛路径,零第二套装配语义。guohao=魏:种子谱按
+    //    「host=魏/guest=无预设」离线核算(e2e twoClientsWithSeed 同款对齐)。
+    const a = new OnlineController(MAP, "guanzhong");
+    const b = new OnlineController(MAP, "guanzhong");
+    hostCtrl = a;
+    guestCtrl = b;
+    const api = a as unknown as {
+      api: { createRoom(o: Record<string, unknown>): Promise<Record<string, unknown>> };
+      adoptRoom(reply: Record<string, unknown>): Promise<void>;
+    };
+    await api.adoptRoom(await api.api.createRoom({ seats: 3, seed: 2849, guohao: "魏" }));
+    const creds = a as unknown as { roomId: string | null; seatToken: string | null };
+    if (creds.roomId == null || creds.seatToken == null)
+      throw new Error("adoptRoom 后凭证缺席(入座装配断)");
+    roomId = creds.roomId;
+    hostToken = creds.seatToken;
+    const joined = await b.joinRoom(roomId);
+    expect(joined.seat).toBe(1);
+    await until(
+      () => {
+        const net = useNetStore.getState();
+        return (
+          net.roomId === roomId &&
+          net.seats.length === 3 &&
+          net.seats.slice(0, 2).every((s) => s.online)
+        );
+      },
+      "双端入座并在线(第 3 座空席开局 bot 填充)",
+      10_000,
+    );
+
+    // ② 选图 → 开局 → 双人类各自轮到即落子(seat2 bot 由服务器代选)
+    await a.pickMap("guanzhong");
+    await a.startGame();
+    await until(() => hydratedOf(a) && a.engine.phase === "Setup", "host 端水合进 Setup", 15_000);
+    await until(() => hydratedOf(b) && b.engine.phase === "Setup", "guest 端水合进 Setup", 15_000);
+    await until(() => pickReady(a) || pickReady(b), "首轮选都就位", 15_000);
+    await pickCapitalWhenTurn(pickReady(a) ? a : b);
+    await pickCapitalWhenTurn(pickReady(a) ? a : b);
+    await until(
+      () => a.engine.phase === "Playing" && b.engine.phase === "Playing",
+      "双端折叠/水合进 Playing",
+      15_000,
+    );
+
+    // ③ 双人类识破窗到达(seed 2849 谱:bot 宣告连环计开 [0,1] 双窗;per-seat 脱敏
+    //    投影=本座真 id 在列、他人 -1)。announcedCard 取本端 view(权威 cardId)。
+    const viewOf = (c: OnlineController) => c.engine.pendingReaction?.view ?? null;
+    const jinnangQueriedOf = (v: ReturnType<typeof viewOf>): number[] | null =>
+      v?.kind === "jinnang" ? v.queriedBySeat : null; // 锦囊窗才有询问集(march 窗无此字段)
+    await until(
+      () => {
+        const hq = jinnangQueriedOf(viewOf(a));
+        const gq = jinnangQueriedOf(viewOf(b));
+        return hq !== null && hq.includes(0) && hq.length >= 2 && gq !== null && gq.includes(1);
+      },
+      "双人类识破窗(两端各自在列)",
+      30_000,
+      stackDump,
+    );
+    const announcedCard = viewOf(a)!.cardId;
+    if (announcedCard == null) throw new Error("双窗无宣告牌 id:结算留痕断言将失真");
+    // 窗寿内 host 试探手点应答(缩窗下可能已被代发抢先——拒绝即 pushHint,零断言
+    // 依赖,判词见例头注);随后等窗收(应答齐由权威侧定时代发兜底结算推进)。
+    const sock = (a as unknown as { sock: { send(data: string): void; isOpen: boolean } | null })
+      .sock;
+    if (sock == null || !sock.isOpen) throw new Error("socket 未建立,无法派发应答命令");
+    sock.send(cmdMsg({ type: "respondReaction", seat: 0, use: false }));
+    await until(
+      () => viewOf(a) === null && viewOf(b) === null && a.engine.turnPhase !== "AwaitingReaction",
+      "应答齐窗收(权威侧定时代发兜底)",
+      15_000,
+      stackDump,
+    );
+
+    // ④ 窗收后重复应答探针:两发 respondReaction 均被拒(窗已收/已应答)——重复应答
+    //    不得重账(#453/B2 权威面),房间账面「两座各恰一次」由此钉死。
+    sock.send(cmdMsg({ type: "respondReaction", seat: 0, use: false }));
+    sock.send(cmdMsg({ type: "respondReaction", seat: 0, use: false }));
+
+    // ⑤ 权威应答账(房间落盘 room-record 直读):p0/p1 各恰一次 reactionRespond+
+    //    结算执行(jinnangUse 落账宣告牌)。落盘拍有节奏,until 轮询到账即收。
+    const recPath = () => join(tmpDir!, "rooms", `${roomId}.json`);
+    let recordLog: string[] = [];
+    await until(
+      () => {
+        const rec = JSON.parse(readFileSync(recPath(), "utf8")) as {
+          snapshot?: { log?: { detail?: string }[] };
+        };
+        recordLog = (rec.snapshot?.log ?? []).map((l) => l.detail ?? "");
+        return (
+          recordLog.filter((d) => d.includes("reactionRespond") && d.includes("seat=p0")).length ===
+            1 &&
+          recordLog.filter((d) => d.includes("reactionRespond") && d.includes("seat=p1")).length ===
+            1 &&
+          recordLog.some((d) => d.includes("jinnangUse") && d.includes(announcedCard))
+        );
+      },
+      `权威应答账:p0/p1 各恰一次+结算执行(宣告牌=${announcedCard})`,
+      15_000,
+    );
+    // 账面等值断言(窗内手点试探/代发抢先/窗后重复探针三种形态下均恰各一行)
+    expect(
+      recordLog.filter((d) => d.includes("reactionRespond") && d.includes("seat=p0")),
+    ).toHaveLength(1);
+    expect(
+      recordLog.filter((d) => d.includes("reactionRespond") && d.includes("seat=p1")),
+    ).toHaveLength(1);
+    expect(recordLog.some((d) => d.includes("jinnangUse") && d.includes(announcedCard))).toBe(true);
+
+    // ⑥ 收摊(先解散后销毁,判词同 afterAll;清模块变量,afterAll 不重复解散)
+    await dismissCurrentRoom("应答账例收摊");
+    a.destroy();
+    b.destroy();
+    hostCtrl = null;
+    guestCtrl = null;
+  }, 60_000);
 });

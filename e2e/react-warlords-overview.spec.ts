@@ -1,14 +1,17 @@
-// 诸侯详情弹窗(#702,#732 正名,spec #697 ⑥):①行数据与投影逐字一致(城池名/名将名直读,
-// 种植式断言,react-city-ledger 同口径);②四元素钻入(#1096 决议3,#1097):城池 chips→
-// #622 清单/名将 chips→名录/珍宝槽→列表/声列→声望明细,钻入式单层互斥(总览先关
-// 再开目标弹层);③状态挂点(自机行 .self 金描边/破产行 .dead 灰化/
-// 活跃方 .is-active 印金圈);
-// ⑥声列三档概率条与声望明细终态(#1096 决议4/5,#1099):行内条结构性断言(高声望
-// 好运段占优/零声望三等分,宽度比断言勿钉像素)、明细条+三档百分比明文逐字(吃
-// core tierShares 同源现算)+零冗余负向断言(不含『献计』『里程碑』)。
-// ⑤满编 8 行 @844×390 零滚动零截断。(原④「打开不暂停」例已按 #987 零容忍删除
-// 2026-11-05:一日四挂两绿两种签名——点击拦截层修通后快照推进层又挂,时序竞速族;
-// 「弹层开着对局照走」是架构事实(引擎不知弹层),不可靠守卫按纪律删不留台账,#1042 有案。)
+// 诸侯详情弹窗(#702,#732 正名,spec #697 ⑥)。存例 2(几何,永留):
+//   · 声列三档概率条几何腿壳例(#1096 决议4/5,#1099):高声望好运段占优/零声望三等分,
+//     概率条宽度比(getBoundingClientRect,勿钉像素);
+//   · 满编 8 行 @844×390 零滚动零截断(⑤)。
+// 【#1316 批T2 迁 2+切 1(4→2)】「四元素钻入单层互斥」(#1096 决议3,#1097)与「状态
+// 挂点」(.self 金描边/.dead 灰化/.is-active 印金圈)两例下放接线层 test/
+// overview-wiring.test.tsx「诸侯详情接线」组(全 DOM·store 语义);原①「十列数值逐字
+// 对照」切腿——语义腿(行数据/城池名录/名将名/珍宝槽位/题名轮次/Esc 关闭)同迁该
+// 文件「十列行数据语义腿」例,声列概率条宽度比几何腿(假 DOM 无排版引擎不可下放,
+// ADR-0062 断言宪法)留本文件壳例并如实改名;钻入例的明细百分比明文腿(tierShares
+// 同源现算)随语义腿同迁,明细条三段在场计数随钻入例留接线层。
+// (原④「打开不暂停」例已按 #987 零容忍删除 2026-11-05:一日四挂两绿两种签名——
+// 点击拦截层修通后快照推进层又挂,时序竞速族;「弹层开着对局照走」是架构事实
+// (引擎不知弹层),不可靠守卫按纪律删不留台账,#1042 有案。)
 // 停靠纪律:quickStart 可能在行军演出在播时归还——清卷轴必须
 // 「等 fx 排空→再探→无动作」循环收敛,冻结后再补一刀;钉 seed 1010(#949 关中重钓:
 // 原 49 × huanyou 停靠随换图作废,1010 实测开局停在购地决策、无招贤岔路)。总览行无浮签触发元(title 静态浮签除外),无 #704
@@ -19,16 +22,13 @@ import {
   openSoloSetup,
   pickCapital,
   waitMyPause,
-  snap,
   actIfCan,
   waitFxIdle,
   freezeClock,
   unfreezeClock,
-  engineState,
 } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
-import { tierShares } from "../src/core/encounters";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 // 本 spec 各例都是「整局 boot + 种植 + 弹层链」重例:60s 缺省
@@ -66,120 +66,28 @@ function repBarWidths(page: Page, testid: string) {
     .evaluateAll((els) => els.map((el) => (el as HTMLElement).getBoundingClientRect().width));
 }
 
-/** 种植对手席(座位 1)名录载荷:三座无主城 + 一名将 + 两珍宝 + 高声望 +210(#1099
- *  概率条好运段占优断言的种植面;真身份,陈列按 id 回查目录,假 id 当场炸)。
- *  返回逐字期望值(读自引擎 board/hero)。
- *  数值族种植(#1299,判词单源 src/core/planter.ts):高声望 +210/自机钉零=
- *  setReputation(概率条断言面需 softmax 极端形态,薄包 addReputation 唯一写口,
- *  ReputationChanged 时机随公共口广播、战报零染);2 珍宝=giveTreasure(终态替换,
- *  牌堆实例摘 {id,name,level} 与旧写同形)。
- *  布景族种植(#1300,判词单源 src/core/planter.ts):3 座无主城入册=grantProperty
- *  (引擎按购地通路发放、落点与时机不可控,无「授指定城」公共命令;选址=测试侧读
- *  现值,种植件只收终态行);1 将=armHero(无「授指定将」公共命令,机遇效果 grantHero
- *  一途;skillIds 缺省=整池原序,槽位行形状单源 roster #785)。 */
-async function plantSeat1Roster(page: Page) {
+/** 种植声列极端形态(#1099 概率条宽度比断言的种植面):座位 1 高声望 +210(好运段
+ *  结构性占优)/ 自机钉零声望(softmax 零点三段等宽)。
+ *  数值族种植(#1299,判词单源 src/core/planter.ts):setReputation(概率条断言面需
+ *  softmax 极端形态,薄包 addReputation 唯一写口,ReputationChanged 时机随公共口
+ *  广播、战报零染)。【#1316 批T2 切腿】原名录/珍宝/城池种植随语义腿迁出(见文件
+ *  头注),几何壳例只余声望两钉。 */
+async function plantRepExtremes(page: Page) {
   await plant(page, { kind: "setReputation", seat: 1, reputation: 210 });
   await plant(page, { kind: "setReputation", seat: 0, reputation: 0 }); // 自机钉零:softmax 零点三段等宽断言的种植面
-  const deck = (await snap(page)).treasureDeck as {
-    id: string;
-    name: string;
-    level: number;
-  }[];
-  await plant(page, {
-    kind: "giveTreasure",
-    seat: 1,
-    treasures: deck.slice(0, 2).map((r) => ({ id: r.id, name: r.name, level: r.level })),
-  });
-  const plantedIds: string[] = await engineState(
-    page,
-    `(() => {
-    const owned = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
-    const free = e.board.tiles.filter((t) => t.propertyId && !owned.has(t.propertyId));
-    if (free.length < 3) throw new Error("种植失败:无主城不足 3 座(地图/开局变了)");
-    return free.slice(0, 3).map((t) => t.propertyId);
-  })()`,
-  );
-  for (const pid of plantedIds)
-    await plant(page, {
-      kind: "grantProperty",
-      seat: 1,
-      propertyId: pid,
-      level: 0,
-    });
-  const heroId: string = await engineState(page, "window.__dafung.heroDefs()[0].id");
-  await plant(page, { kind: "armHero", seat: 1, heroId });
-  return page.evaluate((plantedIds) => {
-    const e = (window as any).__dafung.getEngine();
-    const p1 = e.players[1];
-    // 城池名逐字期望:按棋盘 index 序(行军顺序,与 #622 清单行序/总览 chips 同源)
-    const names = p1.properties
-      .map((h: any) => {
-        const i = e.board.tiles.findIndex((t: any) => t.propertyId === h.propertyId);
-        return { name: e.board.tiles[i].name, i };
-      })
-      .sort((a: any, b: any) => a.i - b.i)
-      .map((r: any) => r.name);
-    // 名将名:槽位行(#785)只携 heroId,名按目录回查(与 UI 同源)
-    const def = (window as any).__dafung.heroDefs().find((d: any) => d.id === p1.heroes[0].heroId);
-    return {
-      guohao: p1.guohao as string,
-      names: names as string[],
-      plantedIds: plantedIds as string[],
-      hero: def.name as string,
-    };
-  }, plantedIds);
 }
 
-test.describe("总览行数据与投影一致(#702 ①)", () => {
-  // 真实段(ADR-0058):真实开局链(seed1010 停靠)+总览真实点开,行数据与投影逐字
-  // 对照/空槽画空格/概率条宽度比/Esc 关闭即被测环(真身份陈列按 id 回查目录,假 id
-  // 当场炸)。种植判词见 plantSeat1Roster 注(声望极端形态+城将宝无授给公共命令)。
-  test("十列数值逐字对照;城池/名将名录直读,超 3 折叠 +N,空槽画空格", async ({ page }) => {
+test.describe("声列概率条几何腿壳例(#1099;#1316 批T2 切腿后本例只剩几何)", () => {
+  // 真实段(ADR-0058):真实开局链(seed1010 停靠)+总览真实点开,声列三档概率条的
+  // 真排版几何(宽度比,勿钉像素)即被测环——语义腿(行数据/名录/明细明文/Esc 关闭)
+  // 已迁接线层 test/overview-wiring.test.tsx(判词见文件头注),此处只剩几何腿。
+  test("声列三档概率条:种植席好运段占优(>半条),零声望三段等宽", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 1010);
     await freezeForOverview(page);
     try {
-      const planted = await plantSeat1Roster(page);
-      const s = await snap(page);
-      const modal = await openOverview(page);
-
-      // 行集 = 座位集,座序即行序
-      for (let seat = 0; seat < s.players.length; seat++) {
-        const row = page.getByTestId(TESTIDS.warlordsRow(seat));
-        await expect(row).toBeVisible();
-        await expect(page.getByTestId(TESTIDS.warlordsCash(seat))).toHaveText(
-          String(s.players[seat].cash),
-        );
-        await expect(page.getByTestId(TESTIDS.warlordsStamina(seat))).toHaveText(
-          String(s.players[seat].stamina),
-        );
-        await expect(page.getByTestId(TESTIDS.warlordsHand(seat))).toHaveText(
-          String(s.players[seat].jinnangHandCount),
-        );
-        await expect(page.getByTestId(TESTIDS.warlordsRep(seat))).toHaveText(
-          String(s.players[seat].reputation),
-        );
-      }
-
-      // 空槽画空格:自机麾下 0 将 = 三空槽(HERO_CAPACITY 制式)
-      await expect(page.getByTestId(TESTIDS.warlordsHeroes(0))).toHaveText("···");
-
-      // 种植席:名将名逐字(朱砂 chips)+ 两空槽;珍宝计数槽 3 槽 2 满
-      const heroes1 = page.getByTestId(TESTIDS.warlordsHeroes(1));
-      await expect(heroes1.locator(".zl-hnslot:not(.zl-empty)")).toHaveText([planted.hero]);
-      await expect(heroes1.locator(".zl-hnslot.zl-empty")).toHaveCount(2);
-      const gems1 = page.getByTestId(TESTIDS.warlordsGems(1));
-      await expect(gems1.locator(".zl-slot")).toHaveCount(3);
-      await expect(gems1.locator(".zl-slot.zl-full")).toHaveCount(2);
-
-      // 城池名录直读:capital+3 种植 = 4 城 → 前 3 chips 逐字(棋盘 index 序)+ 折叠「+1」
-      const cities1 = page.getByTestId(TESTIDS.warlordsCities(1));
-      await expect(cities1.locator(".zl-cityslot:not(.zl-more)")).toHaveText(
-        planted.names.slice(0, 3),
-      );
-      await expect(cities1.locator(".zl-cityslot.zl-more")).toHaveText(
-        `+${planted.names.length - 3}`,
-      );
+      await plantRepExtremes(page);
+      await openOverview(page);
 
       // 声列三档概率条(#1099):宽度比结构断言,勿钉像素——种植席 +210 好运段
       // 结构性占优(softmax 单调,>半条);自机钉零声望,softmax 零点三段等宽。
@@ -190,117 +98,19 @@ test.describe("总览行数据与投影一致(#702 ①)", () => {
       expect(w0).toHaveLength(3);
       expect(Math.abs(w0[0] - w0[1])).toBeLessThan(0.5);
       expect(Math.abs(w0[1] - w0[2])).toBeLessThan(0.5);
-
-      // 题名行:轮次与快照一致
-      await expect(modal.locator(".zl-round")).toHaveText(`${s.round} 轮`);
-
-      // Esc 关闭(挂载不夺焦,Esc 直关由底件白拿)
-      await page.keyboard.press("Escape");
-      await expect(modal).toHaveCount(0);
     } finally {
       await unfreezeClock(page);
     }
   });
 });
 
-test.describe("四元素钻入(#1096 决议3,#1097)", () => {
-  // 真实段(ADR-0058):四元素钻入真实点击链(chips/槽/声列→目标弹层,总览先关再开
-  // 的单层互斥真实切换)+明细逐字吃 tierShares 同源现算即被测环。种植判词见
-  // plantSeat1Roster 注(钻入陈列的种植前提同源)。
-  test("城池 chips→清单/名将 chips→名录/珍宝槽→列表/声列→明细;单层互斥", async ({ page }) => {
-    test.setTimeout(180_000); // 重例放宽(见文件头注)
-    await quickStart(page, 1010);
-    await freezeForOverview(page);
-    try {
-      const planted = await plantSeat1Roster(page);
-      const s = await snap(page);
-
-      // 城池 chips → #622 清单(单层互斥:总览先关,清单开到对应诸侯)
-      await openOverview(page);
-      await page.getByTestId(TESTIDS.warlordsCities(1)).click();
-      await expect(page.getByTestId(TESTIDS.warlordsOverview)).toHaveCount(0);
-      const ledger = page.getByTestId(TESTIDS.cityLedger);
-      await expect(ledger).toBeVisible();
-      await expect(ledger.getByText(`${planted.guohao}名下城池`)).toBeVisible();
-      for (const id of planted.plantedIds) {
-        await expect(page.getByTestId(TESTIDS.cityLedgerRow(id))).toBeVisible();
-      }
-      await page.getByTestId(TESTIDS.modalClose).click();
-      await expect(ledger).toHaveCount(0);
-
-      // 名将 chips → 名将名录(PileShell 名录,麾下 1 席,卡面出将名)
-      await openOverview(page);
-      await page.getByTestId(TESTIDS.warlordsHeroes(1)).click();
-      await expect(page.getByTestId(TESTIDS.warlordsOverview)).toHaveCount(0);
-      const heroModal = page.getByTestId(TESTIDS.seatHeroModal);
-      await expect(heroModal).toBeVisible();
-      await expect(heroModal.getByText("麾下名将 · 1 席")).toBeVisible();
-      await expect(heroModal.getByText(planted.hero)).toBeVisible();
-      await page.getByTestId(TESTIDS.modalClose).click();
-      await expect(heroModal).toHaveCount(0);
-
-      // 珍宝槽 → 珍宝列表(种植 2 件,陈列 2 卡)
-      await openOverview(page);
-      await page.getByTestId(TESTIDS.warlordsGems(1)).click();
-      await expect(page.getByTestId(TESTIDS.warlordsOverview)).toHaveCount(0);
-      const gemModal = page.getByTestId(TESTIDS.seatGemModal);
-      await expect(gemModal).toBeVisible();
-      await expect(gemModal.getByText("已持有 · 2 件")).toBeVisible();
-      await page.getByTestId(TESTIDS.modalClose).click();
-      await expect(gemModal).toHaveCount(0);
-
-      // 声列 → 声望明细终态(#1099):大数+三段概率条+三档百分比明文(逐字吃
-      // tierShares 同源现算,勿钉像素);零冗余负向断言:不含『献计』『里程碑』字样。
-      await openOverview(page);
-      await page.getByTestId(TESTIDS.warlordsRepCell(1)).click();
-      await expect(page.getByTestId(TESTIDS.warlordsOverview)).toHaveCount(0);
-      const repModal = page.getByTestId(TESTIDS.seatRepModal);
-      await expect(repModal).toBeVisible();
-      await expect(repModal.locator(".sdtl-bignum")).toHaveText(String(s.players[1].reputation));
-      await expect(repModal.locator(".rep-prob-bar > i")).toHaveCount(3);
-      const shares = tierShares(s.players[1].reputation);
-      await expect(repModal.locator(".sdtl-tiers > span")).toHaveText([
-        `好运 ${Math.round(shares.good)}%`,
-        `中性 ${Math.round(shares.neutral)}%`,
-        `霉运 ${Math.round(shares.bad)}%`,
-      ]);
-      await expect(repModal).not.toContainText("献计");
-      await expect(repModal).not.toContainText("里程碑");
-      await page.getByTestId(TESTIDS.modalClose).click();
-      await expect(repModal).toHaveCount(0);
-    } finally {
-      await unfreezeClock(page);
-    }
-  });
-});
-
-test.describe("状态挂点(#702 ③)", () => {
-  // 真实段(ADR-0058):总览真实点开后行状态挂点对引擎状态的 CSS 响应链(.self 金
-  // 描边/.dead 灰化/.is-active 金圈)即被测环。破产印走 armBankrupt 种植件(#1301,
-  // 判词单源 src/core/planter.ts 破产终局族头注:破产态开局不可达(破产清算引擎有
-  // 专属通路但需整局推演到清算,无「即时破产」公共命令),断言面需破产行形态);
-  // .self/.is-active 是真实座位/活跃方的真渲染,零种植。
-  test("自机行 .self 金描边;破产行 .dead 灰化;活跃方 .is-active 印金圈", async ({ page }) => {
-    test.setTimeout(180_000); // 重例放宽(见文件头注)
-    await quickStart(page, 1010);
-    await freezeForOverview(page);
-    try {
-      // 种植破产(对手席;照排灰化=行仍在,非性质抹除)
-      await plant(page, { kind: "armBankrupt", seat: 1 });
-      const s = await snap(page);
-      await openOverview(page);
-      await expect(page.getByTestId(TESTIDS.warlordsRow(0))).toHaveClass(/self/);
-      await expect(page.getByTestId(TESTIDS.warlordsRow(1))).toHaveClass(/dead/);
-      // 活跃方印金圈:Playing 相位下 activeIndex 行挂 .is-active(样式走 .zl-seal 后代)
-      expect(s.phase).toBe("Playing");
-      await expect(page.getByTestId(TESTIDS.warlordsRow(s.activeIndex))).toHaveClass(/is-active/);
-      // 破产行照排:数值列仍逐字可读(灰化不藏数)
-      await expect(page.getByTestId(TESTIDS.warlordsCash(1))).toHaveText(String(s.players[1].cash));
-    } finally {
-      await unfreezeClock(page);
-    }
-  });
-});
+// 「四元素钻入单层互斥」「状态挂点」两例已迁(2026-11-08,#1316 批T2):迁移落点=
+// 接线层 test/overview-wiring.test.tsx「诸侯详情接线」组,判层只看断言面——钻入链
+// (点击→总览先关再开目标弹层+明细 DOM 有无与文本,tierShares 明文吃同源现算)与
+// 行状态挂点(.self/.dead/.is-active 类名+数值文本)全部是「操作过后渲染树/store 里
+// 的语义」,零几何零演出泵;e2e 到达链(真实开局自走+冻结停靠)非断言面,随判层
+// 换轨。声列明细条三段在场计数(非宽度)随钻入例留接线层,概率条宽度比几何腿留
+// 本文件壳例(见上组)。
 
 test.describe("满编 8 行零滚动零截断(#702 ⑤)", () => {
   // 真实段(ADR-0058):真实 8 诸侯开局全链(准备页起兵→定都→对局自走停靠)+总览
