@@ -128,13 +128,21 @@ test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
   }
 });
 
-// 真实段(ADR-0058):冻结后真点「扩军」→真免费升级结算即被测环。force 判词:钉
-// 相位+行动方(同上,无「钉相位」公共命令);己方城种植(升级前提=名下有城,开局
-// 初期自然到不了,断言面需确定己城邻格形态)。
+// 真实段(ADR-0058):冻结后真点「扩军」→真免费升级结算即被测环。授房产走
+// grantProperty 种植件(#1300,判词单源 src/core/planter.ts:己方城种植=升级前提
+// 「名下有城」开局初期自然到不了,断言面需确定己城邻格形态;选址=测试侧读现值)。
+// force 判词:钉相位+行动方(同上,无「钉相位」公共命令,相位族 #1301);落格询问
+// 载荷(lastLandOutcome/pendingLand)=落格结算内部挂起态,无种植件(#1301 载荷族)。
 test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)", async ({ page }) => {
   await quickStart(page);
   await freezeClock(page);
   try {
+    // 己方城选址读现值(非都城无主首格),种植件入册后再钉相位与落格询问载荷。
+    const pid: string = await engineState(
+      page,
+      `(e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(e.players[0].capitalIndex).propertyId && e.findOwner(t.propertyId) == null)).propertyId`,
+    );
+    await plant(page, { kind: "grantProperty", seat: 0, propertyId: pid, level: 0 });
     // #188:先钉活跃座位到人类(0),理由同「购地决策」用例(#421 起冻结先行)
     await force(
       page,
@@ -142,10 +150,8 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
       e.turnPhase = "AwaitingDecision";
       e.activeIndex = 0;
       const me = e.activePlayer;
-      const tile = e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(me.capitalIndex).propertyId && e.findOwner(t.propertyId) == null);
-      me.properties.push({ propertyId: tile.propertyId, level: 0, group: "a", maxLevel: 3 });
-      e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(tile.propertyId), owner: me };
-      e.pendingLand = { kind: "OwnProperty", propertyId: tile.propertyId };
+      e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(${JSON.stringify(pid)}), owner: me };
+      e.pendingLand = { kind: "OwnProperty", propertyId: ${JSON.stringify(pid)} };
     `,
     );
     await expect(page.getByTestId(SCROLL_TESTIDS.upgradeScroll)).toBeVisible();

@@ -9,6 +9,7 @@
 // 像素对照(发布前),e2e 不再养时线哨。
 import { test, expect } from "./fixtures";
 import { quickStart, snap, dismissJinnangIfUp, actIfCan, force } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 // 844×390 标准视口(#732):本 spec 全部用例统一在标准档跑。
@@ -84,23 +85,26 @@ test.describe("全浮层骨架", () => {
   });
 
   // 真实段(ADR-0058):三圆钮计数角标随快照的 poll 对账+点钮开藏品弹层、弹层忠实
-  // 镜像同拍快照、X/Esc 真实关闭的交互链全真。force 判词:珍宝/名将无「授指定件/
-  // 将」公共命令(引擎仅机遇效果 grantTreasure/grantHero 一途,core/encounters.ts,
-  // 无直接授给命令)——珍宝走牌库直写,名将经快照 restoreFromSnapshot 通路回灌
-  // (生产通路本体,联机恢复同一条产线路径,麾下行=槽位全量 #785)。
+  // 镜像同拍快照、X/Esc 真实关闭的交互链全真。种植判词:2 件珍宝=giveTreasureFromDeck
+  // (牌堆源种植件 #1300,判词单源 src/core/planter.ts:真 TreasureDef 实例,终态
+  // 替换——原「起手 2 件+追加 2 件」改终态 2 件无断言变化,本例不变量=弹层镜像随拍
+  // 对账,不锚件数)。force 判词:名将无「授指定将」公共命令(引擎仅机遇效果
+  // grantHero 一途),经快照 restoreFromSnapshot 通路回灌(生产通路本体,联机恢复同
+  // 一条产线路径,麾下行=槽位全量 #785;迁桥上直呼归 #1302)。
   test("三圆钮:计数角标随快照,珍宝/名将点开藏品弹层(#361 双入口接替)", async ({ page }) => {
     test.setTimeout(120_000); // 对局自走 + 多段 toPass 轮询,60s 默认档偏紧(前例同口径)
     await quickStart(page);
     // 退役核销:牌架双入口零残留(#700 接替者=三圆钮)
     await expect(page.getByTestId("rack-treasures")).toHaveCount(0); // testids:allow 退役 testid 零残留断言——常量已随 #361/#700 核销删除,无单源可引
     await expect(page.getByTestId("rack-heroes")).toHaveCount(0); // testids:allow 同上(牌架双入口退役核销)
-    // 种珍宝×2 + 名将×2:珍宝走牌库直写(真 TreasureDef);名将走快照 restore 通路
+    // 种珍宝×2 + 名将×2:珍宝走 giveTreasureFromDeck;名将走快照 restore 通路
     //(快照麾下行=槽位全量(#785):heroId+已授技(全池)+冷却账,restore 原样回灌——
-    //联机恢复同一条产线路径)
+    //联机恢复同一条产线路径;restore 内含珍宝位,后种珍宝会被回灌覆盖,故先珍宝后
+    //restore)
+    await plant(page, { kind: "giveTreasureFromDeck", seat: 0, count: 2 });
     await force(
       page,
       `
-      e.players[0].treasures.push(e.treasureDeck[0], e.treasureDeck[1]);
       const s = e.snapshot();
       s.players[0].heroes.push(
         { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} },

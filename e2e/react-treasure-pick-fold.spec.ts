@@ -11,7 +11,7 @@
 // #1221 L1 残油包:两例改 quickStart({advance:"preRoll"})——布场不依赖行军日志/
 // 已推进回合,落都即冻结,显式 freezeClock 随通路退役。
 import { test, expect, type Page } from "./fixtures";
-import { force, quickStart, snap } from "./react-helpers";
+import { force, quickStart, snap, engineState } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
 
@@ -42,9 +42,11 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
 
   // 真实段(波4 #1217):坐地模式 → 选宝层真渲染首帧几何(双行价签格完整在视口内,
   // 墩住整排)——几何断言即被测环,无操作链。
-  // force 判词(#1217 波4 审计):交涉前置无公共命令可达(珍宝无授宝命令;城池归属
-  // 由购地结算产出;treasureVisitor 仅落格结算内部挂起)——断言面需 5 件珍宝复刻
-  // 审计 12b 现场的坐地双行价签形态,直写。
+  // 种植判词:5 件珍宝=giveTreasureFromDeck(牌堆源,真 TreasureDef 实例保价签 def
+  // 现算真实;终态替换)、授产=grantProperty(城池归属由购地结算产出,无授产公共
+  // 命令;选址=测试侧读现值)——均 #1300,判词单源 src/core/planter.ts。force 判词:
+  // 交涉挂起载荷(treasureVisitor)仅落格结算内部挂起,无种植件;钉相位/活跃方归
+  // #1301(暂留 force)。
   test("交涉坐地起价:首帧第一排卡+双行价签完整在视口内", async ({ page }) => {
     // 城主=人类座位 0,访客=bot 座位 1;5 件珍宝复刻审计 12b 现场(#188 钉决策方)。
     // 冻结推进再动刀(#421/#799/#879 同口径):种植后到断言间看门狗回调不得动现金/牌
@@ -54,21 +56,18 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
     // 防 payOrLiquidate 走清算自救支线劫持交涉结算断言(语义同旧 Math.max 直写)。
     const visitorCash = (await snap(page)).players[1].cash as number;
     await plant(page, { kind: "setCash", seat: 1, cash: Math.max(visitorCash, 5000) });
+    await plant(page, { kind: "giveTreasureFromDeck", seat: 0, count: 5 });
+    const pid: string = await engineState(
+      page,
+      `(e.board.tiles.find((t) => t.propertyId && !e.findOwner(t.propertyId))).propertyId`,
+    );
+    await plant(page, { kind: "grantProperty", seat: 0, propertyId: pid, level: 1 });
     await force(
       page,
       `
       e.phase = "Playing";
       e.activeIndex = 1;
-      const owner = e.players[0];
-      owner.treasures = e.treasureDeck.slice(0, 5);
-      const tile = e.board.tiles.find((t) => t.propertyId && !e.findOwner(t.propertyId));
-      owner.properties.push({
-        propertyId: tile.propertyId,
-        level: 1,
-        maxLevel: 3,
-        group: tile.group ?? "a",
-      });
-      e.treasureVisitor = { def: e.catalog.get(tile.propertyId), ownerIdx: 0 };
+      e.treasureVisitor = { def: e.catalog.get(${JSON.stringify(pid)}), ownerIdx: 0 };
       e.turnPhase = "AwaitingTreasureOwner";
     `,
     );
@@ -80,19 +79,20 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
 
   // 真实段(波4 #1217):变卖弹层首帧价签几何 + 选中→武装→滚底三拍进度区恒在的
   // 真渲染几何——几何断言即被测环。
-  // force 判词:破产态(pendingDebt)由缴支结算产生、债务数值不可钉;珍宝无授宝公共
-  // 命令——断言面需「6 件珍宝+中额债务」的变卖清单形态,直写。
+  // 种植判词:6 件珍宝=giveTreasureFromDeck(牌堆源,真 TreasureDef 实例保变卖清单
+  // def 现算真实;终态替换,#1300,判词单源 src/core/planter.ts)。force 判词:破产态
+  // (pendingDebt)由缴支结算产生、债务数值不可钉(破产终局族 #1301);钉相位/活跃方
+  // 同上(暂留 force)。
   test("破产变卖:首帧价签在视口内;选中+武装+滚底进度区恒在", async ({ page }) => {
     // 冻结推进再动刀(#421/#799 同口径):种植后到断言间看门狗回调不得动 p0 现金
     // ——#1221 L1:preRoll 落都即冻结(点火前已冻),显式 freezeClock 退役。
     await quickStart(page, 1486, { advance: "preRoll" });
+    await plant(page, { kind: "giveTreasureFromDeck", seat: 0, count: 6 });
     await force(
       page,
       `
       e.phase = "Playing";
       e.activeIndex = 0;
-      const me = e.activePlayer;
-      me.treasures = e.treasureDeck.slice(0, 6);
       e.pendingDebt = { amount: 1500, creditor: null };
       e.turnPhase = "AwaitingBankruptcySettle";
     `,

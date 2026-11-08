@@ -11,39 +11,30 @@
 // 留装载陈列 + 先看后选拍板收将的命令接线(卷轴随命令受理收场)。
 // 真实段(ADR-0058)(波5b #1218 标注):装包→装载→招贤陈列→先看后选拍板收将的点击
 // 链全真(装载消费面=main.tsx 顶层注册,无头整局层刻意不装扩展包,替代不了);前置
-// =quickStart(seed 7,postRoll 停靠)种局。force 判词(plantHeroPick):招贤候选无
-// 公共通路——候选只在招贤卷轴语境由引擎产出,断言面需「太史慈居中位+整池预掷」特定
-// 候选形,直写 offeredHeroes/turnPhase 是唯一到达;waitFxIdle+freezeClock(#987 冻结
-// 闸)是到达手段,非字段直改。
+// =quickStart(seed 7,postRoll 停靠)种局。招贤候选经 armHeroOffer 种植件(#1300,判词
+// 单源 src/core/planter.ts:候选只在招贤卷轴语境由引擎随机抽 3 产出,无「指定候选」
+// 公共通路,断言面需「太史慈居中位+整池预掷」特定候选形;扩展包未装载时 heroById
+// 目录回查当场炸,与旧显式 throw 同响)。force 判词:钉 Playing/AwaitingHeroPick
+// 相位=断言前提,引擎自转无「钉相位」公共命令(相位族 #1301);waitFxIdle+freezeClock
+// (#987 冻结闸)是到达手段,非字段直改。
 import { test, expect } from "./fixtures";
 import { quickStart, force, waitFxIdle, freezeClock } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
 import type { Page } from "@playwright/test";
 
-/** 种植招贤候选(示例名将居中位)+ 摆 AwaitingHeroPick:候选取 heroDefs 全量定义
- *  (#378 调试钩子),按 #787 候选行形状 {def, skillIds(预掷授技)} 直写种植——
- *  种植者定预掷结果(e2e 给整池),引擎落定原样入槽不重掷。 */
+/** 种植招贤候选(示例名将居中位)+ 摆 AwaitingHeroPick:候选走 armHeroOffer 终态
+ *  整体替换(候选行 {def, skillIds=全池预掷} 形状单源 recruitment)——种植者定预掷
+ *  结果(e2e 给整池),引擎落定原样入槽不重掷。先种候选后钉相位:同一可见过渡拍
+ *  呈现完整终态(冻结下中间态无消费者,看门狗挂起不代发)。 */
 async function plantHeroPick(page: Page): Promise<void> {
   // #987 冻结闸(#943 竞速点清偿):排空演出→冻结,种植的 AwaitingHeroPick 假相位
   // 不被停靠点残留的已到点链步进覆盖(冻结挂起时钟驱动收幕,fx 在途时冻结=死等)。
   await waitFxIdle(page);
   await freezeClock(page);
-  await force(
-    page,
-    `
-    {
-      const defs = window.__dafung.heroDefs();
-      const taishici = defs.find((h) => h.id === "taishici");
-      if (!taishici) throw new Error("扩展包未装载:名将池无 taishici(#378 装载断言)");
-      e.phase = "Playing";
-      e.activeIndex = 0;
-      const row = (id) => { const d = defs.find((h) => h.id === id); return { def: d, skillIds: [...d.skillPool] }; };
-      e.offeredHeroes = [row("zhouyu"), row("taishici"), row("huatuo")];
-      e.turnPhase = "AwaitingHeroPick";
-    }
-  `,
-  );
+  await plant(page, { kind: "armHeroOffer", heroIds: ["zhouyu", "taishici", "huatuo"] });
+  await force(page, `e.phase = "Playing"; e.activeIndex = 0; e.turnPhase = "AwaitingHeroPick";`);
 }
 
 test.describe("扩展系统骨架(#378 示例名将包全链)", () => {

@@ -25,6 +25,7 @@ import {
   force,
   freezeClock,
   unfreezeClock,
+  engineState,
 } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -73,9 +74,10 @@ function repBarWidths(page: Page, testid: string) {
  *  setReputation(概率条断言面需 softmax 极端形态,薄包 addReputation 唯一写口,
  *  ReputationChanged 时机随公共口广播、战报零染);2 珍宝=giveTreasure(终态替换,
  *  牌堆实例摘 {id,name,level} 与旧写同形)。
- *  force 判词:3 座无主城入册/1 将=引擎按购地/机遇效果通路发放、落点与时机不可控,
- *  无「授指定城/将」公共命令(名将槽位行经快照 restoreFromSnapshot 回灌,联机恢复
- *  同一条产线路径 #785);冻结(freezeClock)是到达手段非字段直改。 */
+ *  布景族种植(#1300,判词单源 src/core/planter.ts):3 座无主城入册=grantProperty
+ *  (引擎按购地通路发放、落点与时机不可控,无「授指定城」公共命令;选址=测试侧读
+ *  现值,种植件只收终态行);1 将=armHero(无「授指定将」公共命令,机遇效果 grantHero
+ *  一途;skillIds 缺省=整池原序,槽位行形状单源 roster #785)。 */
 async function plantSeat1Roster(page: Page) {
   await plant(page, { kind: "setReputation", seat: 1, reputation: 210 });
   await plant(page, { kind: "setReputation", seat: 0, reputation: 0 }); // 自机钉零:softmax 零点三段等宽断言的种植面
@@ -85,22 +87,20 @@ async function plantSeat1Roster(page: Page) {
     seat: 1,
     treasures: deck.slice(0, 2).map((r) => ({ id: r.id, name: r.name, level: r.level })),
   });
-  await force(
+  const plantedIds: string[] = await engineState(
     page,
-    `
-    const p1 = e.players[1];
+    `(() => {
     const owned = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
     const free = e.board.tiles.filter((t) => t.propertyId && !owned.has(t.propertyId));
     if (free.length < 3) throw new Error("种植失败:无主城不足 3 座(地图/开局变了)");
-    p1.plantedIds = free.slice(0, 3).map((t) => t.propertyId);
-    for (const t of free.slice(0, 3)) {
-      p1.properties.push({ propertyId: t.propertyId, level: 0, group: t.group ?? "a", maxLevel: 3 });
-    }
-    const def = window.__dafung.heroDefs()[0];
-    p1.heroes = [{ heroId: def.id, skillIds: [...def.skillPool], lastFired: {} }]; // 槽位行(#785)
-  `,
+    return free.slice(0, 3).map((t) => t.propertyId);
+  })()`,
   );
-  return page.evaluate(() => {
+  for (const pid of plantedIds)
+    await plant(page, { kind: "grantProperty", seat: 1, propertyId: pid, level: 0 });
+  const heroId: string = await engineState(page, "window.__dafung.heroDefs()[0].id");
+  await plant(page, { kind: "armHero", seat: 1, heroId });
+  return page.evaluate((plantedIds) => {
     const e = (window as any).__dafung.getEngine();
     const p1 = e.players[1];
     // 城池名逐字期望:按棋盘 index 序(行军顺序,与 #622 清单行序/总览 chips 同源)
@@ -116,10 +116,10 @@ async function plantSeat1Roster(page: Page) {
     return {
       guohao: p1.guohao as string,
       names: names as string[],
-      plantedIds: p1.plantedIds as string[],
+      plantedIds: plantedIds as string[],
       hero: def.name as string,
     };
-  });
+  }, plantedIds);
 }
 
 test.describe("总览行数据与投影一致(#702 ①)", () => {

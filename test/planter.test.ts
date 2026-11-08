@@ -1,6 +1,7 @@
-// 种植件行为面单测(#1298,#1295 Testing Decisions):数值种下后快照与派生量正确——
-// 塞牌后手牌=指定牌集、jinnangHandCount 派生一致、目录外牌/坏座位/未知指令当场炸
-// (零兜底)。判词单源 src/core/planter.ts 头注;桥/e2e 经同一实现分发(#1298 三层共用)。
+// 种植件行为面单测(#1298/#1299/#1300,#1295 Testing Decisions):数值种下后快照与派生
+// 量正确——塞牌后手牌=指定牌集、jinnangHandCount 派生一致、目录外牌/坏座位/未知指令
+// 当场炸(零兜底)。判词单源 src/core/planter.ts 头注;桥/e2e 经同一实现分发(#1298
+// 三层共用)。#1300 布景族四件(摆位/授房产/名将候选/牌堆源珍宝)同口径。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig } from "@core/authority";
@@ -9,13 +10,20 @@ import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import {
   applyPlant,
+  armHero,
+  armHeroOffer,
   giveJinnang,
   giveTreasure,
+  giveTreasureFromDeck,
+  grantProperty,
+  placePlayer,
   setCash,
   setReputation,
   setStamina,
   type PlantOp,
 } from "@core/planter";
+import { heroById } from "@core/heroes";
+import { createTreasureDeck } from "@core/treasures";
 
 const MAP = loadMap(guanzhongData);
 
@@ -115,6 +123,92 @@ describe("setReputation/setStamina(声望/体力,薄包公共方法)", () => {
   });
 });
 
+describe("placePlayer(摆位布防,裸写形)", () => {
+  it("终态摆位=position 绝对格位(拦检布防的「都城前一格」算式由测试侧读现值拼,种植件只收终态)", () => {
+    const e = makeEngine();
+    placePlayer(e, 1, 5);
+    placePlayer(e, 0, e.board.count - 1); // 0 号格前一格=环序末格
+    expect(e.players[1].position).toBe(5);
+    expect(e.players[0].position).toBe(e.board.count - 1);
+  });
+
+  it("出盘面格位与越界座位当场炸(零兜底:种错的场要响)", () => {
+    const e = makeEngine();
+    expect(() => placePlayer(e, 0, e.board.count)).toThrow();
+    expect(() => placePlayer(e, 0, -1)).toThrow();
+    expect(() => placePlayer(e, 9, 0)).toThrow();
+  });
+});
+
+describe("grantProperty(授房产/等级,裸写形)", () => {
+  it("未持有=入册持有行(group/maxLevel 自城目录派生,行形状单源 PropertyHolding);已持有=改等级(upsert 同一终态语义两面)", () => {
+    const e = makeEngine();
+    const pid = e.board.at(3).propertyId!;
+    grantProperty(e, 0, pid, 1);
+    const def = e.catalog.get(pid)!;
+    expect(e.players[0].properties).toEqual([
+      { propertyId: pid, group: def.group, level: 1, maxLevel: def.maxLevel },
+    ]);
+    grantProperty(e, 0, pid, 3); // 已持有=改等级(bot 城拉级/满级金框形态)
+    expect(e.players[0].properties).toHaveLength(1);
+    expect(e.players[0].properties[0]!.level).toBe(3);
+  });
+
+  it("目录外地块与越界座位当场炸(零兜底:种错的场要响)", () => {
+    const e = makeEngine();
+    expect(() => grantProperty(e, 0, "no-such-city", 1)).toThrow();
+    expect(() => grantProperty(e, 9, e.board.at(3).propertyId!, 1)).toThrow();
+  });
+});
+
+describe("armHero/armHeroOffer(名将/候选,裸写形;判词共一处)", () => {
+  it("armHero=槽位行追加(skillIds 缺省=整池原序,显式=实授子集);armHeroOffer=候选终态整体替换(行=def+全池,行序=陈列序)", () => {
+    const e = makeEngine();
+    armHero(e, 0, "zhouyu"); // 缺省=整池原序(testing.ts armHero 同款签名)
+    expect(e.players[0].heroes).toEqual([
+      { heroId: "zhouyu", skillIds: [...heroById("zhouyu").skillPool], lastFired: {} },
+    ]);
+    armHero(e, 1, "huatuo", ["qingnang"]); // 显式子集(实授只给主动技形,jinnang-use 站点)
+    expect(e.players[1].heroes).toEqual([
+      { heroId: "huatuo", skillIds: ["qingnang"], lastFired: {} },
+    ]);
+    armHeroOffer(e, ["zhouyu", "huatuo", "zhangxingcai"]);
+    expect(e.offeredHeroes).toEqual(
+      ["zhouyu", "huatuo", "zhangxingcai"].map((id) => ({
+        def: heroById(id),
+        skillIds: [...heroById(id).skillPool],
+      })),
+    );
+  });
+
+  it("目录外将与越界座位当场炸(零兜底:种错的场要响)", () => {
+    const e = makeEngine();
+    expect(() => armHero(e, 0, "no-such-hero")).toThrow();
+    expect(() => armHero(e, 9, "zhouyu")).toThrow();
+    expect(() => armHeroOffer(e, ["zhouyu", "no-such-hero"])).toThrow();
+  });
+});
+
+describe("giveTreasureFromDeck(牌堆源珍宝,裸写形)", () => {
+  it("终态=牌堆前 N 件真实例(def 字段全真实,按 def 现算的渲染面不画错);牌堆只读不收缩", () => {
+    const e = makeEngine();
+    e.treasureDeck = createTreasureDeck();
+    const deckDepth = e.treasureDeck.length;
+    giveTreasureFromDeck(e, 0, 3);
+    expect(e.players[0].treasures).toEqual(e.treasureDeck.slice(0, 3));
+    expect(e.treasureDeck).toHaveLength(deckDepth); // slice 非 splice:不扰对局抽珍宝面
+    giveTreasureFromDeck(e, 0, 0); // 0 件=清空终态(与 giveTreasure 空集同款)
+    expect(e.players[0].treasures).toEqual([]);
+  });
+
+  it("count 超牌堆深度与越界座位当场炸(零兜底:静默短发是掩盖)", () => {
+    const e = makeEngine();
+    e.treasureDeck = createTreasureDeck();
+    expect(() => giveTreasureFromDeck(e, 0, e.treasureDeck.length + 1)).toThrow();
+    expect(() => giveTreasureFromDeck(e, 9, 1)).toThrow();
+  });
+});
+
 describe("applyPlant(桥 plant(op) 分发单源)", () => {
   it("giveJinnang 指令与直呼同一实现(终态逐位一致)", () => {
     const a = makeEngine();
@@ -145,6 +239,29 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     expect(b.players[0].cash).toBe(a.players[0].cash);
     expect(b.players[1].reputation).toBe(a.players[1].reputation);
     expect(b.players[0].stamina).toBe(a.players[0].stamina);
+  });
+
+  it("布景族指令(placePlayer/grantProperty/armHero/armHeroOffer/giveTreasureFromDeck)与直呼同一实现", () => {
+    const a = makeEngine();
+    const b = makeEngine();
+    a.treasureDeck = createTreasureDeck();
+    b.treasureDeck = createTreasureDeck();
+    const pid = a.board.at(3).propertyId!;
+    placePlayer(a, 1, 5);
+    grantProperty(a, 0, pid, 2);
+    armHero(a, 1, "zhouyu");
+    armHeroOffer(a, ["zhouyu", "huatuo"]);
+    giveTreasureFromDeck(a, 0, 2);
+    applyPlant(b, { kind: "placePlayer", seat: 1, position: 5 });
+    applyPlant(b, { kind: "grantProperty", seat: 0, propertyId: pid, level: 2 });
+    applyPlant(b, { kind: "armHero", seat: 1, heroId: "zhouyu" });
+    applyPlant(b, { kind: "armHeroOffer", heroIds: ["zhouyu", "huatuo"] });
+    applyPlant(b, { kind: "giveTreasureFromDeck", seat: 0, count: 2 });
+    expect(b.players[1].position).toBe(a.players[1].position);
+    expect(b.players[0].properties).toEqual(a.players[0].properties);
+    expect(b.players[1].heroes).toEqual(a.players[1].heroes);
+    expect(b.offeredHeroes).toEqual(a.offeredHeroes);
+    expect(b.players[0].treasures).toEqual(a.players[0].treasures);
   });
 
   it("未知 kind 当场炸(分发口不吞错)", () => {
