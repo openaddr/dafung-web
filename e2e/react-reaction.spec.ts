@@ -510,37 +510,9 @@ test.describe("反应窗(#281 单机)", () => {
     await waitMyRollDone(page, 0);
   });
 
-  // 真实段(#1216):火攻引出的真出牌窗态内,混排手牌的灰置印「唯反应」与可用牌照常
-  // 可出(禁用态分域)呈现全真——choices 按域分流的呈现接线即被测环(城最多者目标段
-  // 回窗内再验)。前置判词见 soloAtBuyAsk(现金)/grantZhouyuAndPass(授将)与行内
-  // (换牌/升城);停靠升级同唯反应例(parkMyTurn freeze:false,理由见该例头注)。
-  test("出牌阶段混排:反应牌灰置印「唯反应」,可用牌照常可出", async ({ page }) => {
-    await soloAtBuyAsk(page); // 停稳购地卷轴
-    // 购地停靠点换牌:火烧连营可用(城最多者目标段回窗内再验)→ 人类回合 2 出牌阶段窗态升起。
-    // seed 1010 关中:回合 2 时 bot 尚无第二座城(都城 Lv0 不算可毁),唯反应例同款
-    // 把 p1 都城升 Lv.1 立起「可降级」目标,火烧连营方入可用集。
-    // force 判词:换牌=手牌无「发指定牌」公共命令(同 plantAmbush ①);升城=扩军命令
-    // 只作用于活跃座位自身待决决策,bot 都城升级测试不可直呼(同三分支火攻钉子)。
-    await force(
-      page,
-      `
-      e.players[0].jinnangHand = ["火烧连营", "识破诡计"];
-      e.players[1].properties[0].level = 1;
-    `,
-    );
-    await grantZhouyuAndPass(page);
-    await parkMyTurn(page, 60_000, { freeze: false }); // 严格我的回合停靠,同唯反应例
-    // 灰置即重算完成的信号(10s 预算,理由同唯反应例);视觉锚:灰置印「唯反应」,
-    // 可用牌照常可出
-    const shipo = page.getByTestId(TESTIDS.jinnangCard("识破诡计"));
-    await expect
-      .poll(() => shipo.isDisabled(), { timeout: 10_000, message: "反应牌未灰置" })
-      .toBe(true);
-    // 视觉锚:灰置印「唯反应」;可用牌照常可出
-    const huoshao = page.getByTestId(TESTIDS.jinnangCard("火烧连营"));
-    await expect(huoshao).toBeEnabled();
-    await expect(shipo.locator(".reason")).toHaveText("唯反应(反应窗打出)");
-  });
+  // 「出牌阶段混排」例已删(2026-11-08 唯一守环审计 v2):灰置印条+放行接棒由唯反应例
+  // 覆盖,per-card enabled/disabled 分域算术单测在 test/jinnang.test.ts「唯反应牌不进
+  // 出牌阶段」——本例独占面仅「混排下可用牌 enabled」一行,宁缺毋滥删。
 
   // 真实段(#1216):第一道拦检窗(bot 真途经首都开出,前置判词见 plantAmbush)上点
   // 「本回合不再询问」→ 当窗立即代发不用+横幅即收;同一 mover 第二道窗被静默自动代发

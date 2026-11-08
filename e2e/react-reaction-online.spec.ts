@@ -228,20 +228,10 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
     }
   });
 
-  // 真实段(#1216):同全链(bot 真宣告→guest 真被询问),点自己笺=保自己份的过网
-  // 应答与按份结算(guest 不缴 host 照缴)全真——自保应答接线即被测环。
-  test("自保:guest 点自己笺——guest 不缴,host 照缴", async ({ browser }) => {
-    const { host, guest } = await twoClientsWithSeed(browser);
-    try {
-      const before = await awaitReactionWindow(guest);
-      // 点自己笺=保自己份(不与拆份合并,保独立失败定位)
-      await answerReactionWindow(guest, { mode: "counter", card: "识破诡计", seat: 1 });
-      await pollReactionSettled(guest, before, { paid: [0], unpaid: [1] });
-    } finally {
-      await host.context().close();
-      await guest.context().close();
-    }
-  });
+  // 「自保」例已删(2026-11-08 唯一守环审计 v2):过网应答+按份结算接线由横征暴敛例
+  // (guest 替第三席)与降噪/双端时序例覆盖,自保结算语义单测在
+  // test/reaction-window.test.ts——「独立失败定位」是排障便利不是覆盖,整例删。
+  // 超时代发例已迁(#1181):窗内不应答 → 权威侧定时代发「不用」的看门狗语义落点
 
   // 超时代发例已迁(#1181):窗内不应答 → 权威侧定时代发「不用」的看门狗语义落点
   // test/reaction-watchdog.test.ts(room/watchdogs 编排层直驱,ManualClock 手泵;

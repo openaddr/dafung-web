@@ -118,21 +118,9 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await expect(glossary).toHaveCount(0);
   });
 
-  // 真实段(ADR-0058):锦囊卡点开叠层(目录 id 参数化 detail)+关闭的真实交互链
-  // 即被测环——零种植零冻结。
-  test("锦囊详情:点卡开叠层(目录 id 参数化 detail),可关回", async ({ page }) => {
-    await openManual(page);
-    await page.getByTestId(MANUAL_TID.tabJinnang).click();
-    // 点卡墙首卡,detail testid 由卡 testid 反推(MANUAL_TID.card/detail 同 id 工厂,
-    // 不钉具体牌名——目录序重排不影响)
-    const card = page.locator('[data-testid^="manual-card-"]').first();
-    await card.click();
-    const id = (await card.getAttribute("data-testid"))!.slice("manual-card-".length);
-    const detail = page.getByTestId(MANUAL_TID.detail(id));
-    await expect(detail).toBeVisible();
-    await page.getByTestId(TESTIDS.modalClose).click();
-    await expect(detail).toHaveCount(0);
-  });
+  // 「锦囊详情」例已删(2026-11-08 唯一守环审计 v2):点卡开参数化叠层的机制由名将
+  // 详情(携只读契约)与机遇详情(携内容注记)两例守,锦囊签陈列数由五签切换例守
+  // ——本例零内容断言,删。
 
   // 真实段(ADR-0058):霉运卡点开详情,体力代价注记(effect.staminaDelta 与
   // choices 同形制)真实渲染+关闭即被测环——零种植零冻结。

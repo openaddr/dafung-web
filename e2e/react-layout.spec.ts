@@ -1,11 +1,13 @@
 // 全浮层布局冒烟(#700;前身为 react-sidebar.spec.ts→三区骨架版,仪表条退役再改写;
 // #732 全 spec 迁 844×390 标准视口——移动横屏为视觉与回归的唯一标准档,桌面档不设
 // 专项布局断言,ADR-0032 标准分辨率原则):
-// 浮层件可见(顶部条/席位格列/手牌区/右下三圆钮)+ 席位格字段(自机入列)+
-// 浮签(hover/长按/贴缘翻面)+ 签面驻手牌区左端 + 三圆钮计数角标与藏品弹层
-// (#361 双入口接替)
-// + 顶中知会横幅槽(#732:回合横幅入槽/等待条让位回归/同槽互斥排队/都城停条带)。
-import { test, expect, type Page } from "./fixtures";
+// 席位格字段(自机入列)+ 浮签(hover/长按/贴缘翻面)+ 签面驻手牌区左端 +
+// 三圆钮计数角标与藏品弹层(#361 双入口接替)+ 回合胶囊对账与总览/设置弹层。
+// 二次清退(2026-11-08 唯一守环审计 v2)删两例:「浮层件可见」——四件挂载可见的
+// 骨架哨兵面被同 spec 其余例覆盖,挂载失败任何例都响亮红;「回合宣告只刷常驻胶囊」
+// ——12s 采样窗为快池最贵等待之一,#958 全幅横幅退役的复现防线归 visual-compare
+// 像素对照(发布前),e2e 不再养时线哨。
+import { test, expect } from "./fixtures";
 import { quickStart, snap, dismissJinnangIfUp, actIfCan, force } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
@@ -13,36 +15,6 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 test.use({ viewport: { width: 844, height: 390 } });
 
 test.describe("全浮层骨架", () => {
-  // 真实段(ADR-0058):quickStart 真实开局链(谱内 seed 1486,seedSolo 直呼生产
-  // 通路)走到首拍冻结,四浮层件(顶栏/席位格列/手牌区/三圆钮)真实挂载可见即被测
-  // 环。force 判词:钉 AwaitingDecision 空闲态=断言前提(显隐回合联动后 bot 回合
-  // 手牌区整区卸载;引擎自转无「钉相位」公共命令,react-float-skeleton 停车坪同判词)。
-  test("浮层件可见", async ({ page }) => {
-    // 波5b #1218 preRoll 评估采用(种植例):断言面=四浮层件挂载可见,不依赖行军
-    // 日志/已推进回合——落都即冻结(#1221 通路)替代「随机 seed+waitMyPause 自然
-    // 停靠」,停靠点漂移与 bot 链竞速面归零(几何族种植例同批换装)。
-    await quickStart(page, 1486, { advance: "preRoll" });
-    // 钉 AwaitingDecision 空闲态(preRoll 已冻,手牌区显隐沿无丢拍面)
-    await force(
-      page,
-      `
-      e.lastLandOutcome = null;
-      e.pendingLand = null;
-      e.turnPhase = "AwaitingDecision";
-    `,
-    );
-    // 停靠盖板出清(#987):招贤/购地决策面板拦点击,actIfCan 有界清点(warlords ④ 同款)
-    for (let i = 0; i < 10; i++) {
-      if (!(await actIfCan(page))) break;
-    }
-    await expect(page.getByTestId(TESTIDS.topBar)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.seatRail)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.pileButtons)).toBeVisible();
-    // 13 项退役容器零残留段已删(2026-11-07 菜单A:#700 翻面已久,核销断言价值衰减,
-    // 宁缺毋滥;骨架哨兵=上面四个可见面)。
-  });
-
   // 真实段(ADR-0058;#1254 判词:本例守的环=回合宣告管线本身(宣告→fxStore→胶囊),
   // postRoll 已改瞬空钉档,钉档弃播宣告=胶囊失明属机理必然——故到站换非钉档的
   // stopAtOpeningHand(开局宣告正常播,胶囊在座);真实段不变:自走对账+真实点击全真。
@@ -221,56 +193,5 @@ test.describe("全浮层骨架", () => {
     // Esc 关闭(Base UI 底件行为),卸载零残留
     await page.keyboard.press("Escape");
     await expect(page.getByTestId(TESTIDS.heroModal)).toHaveCount(0);
-  });
-});
-
-test.describe("顶中知会槽·常驻回合胶囊(#732/#958)", () => {
-  // 时间线采样观测(零固定 sleep):胶囊常驻(开局首宣告即立),采样拍 ~100-200ms
-  // 必多拍命中;回合宣告只刷胶囊(#958 全幅横幅退役),断言=胶囊随回合轮换换装+
-  // 全幅件零出现。采样拍内随手放行人类决策(dismissJinnangIfUp/actIfCan):对局自走
-  // 不停摆——人类决策停摆则无回合变化可观测。
-  test.setTimeout(120_000);
-  const SAMPLE_MS = 12_000;
-
-  /** 单拍采样:胶囊读数/全幅件在否/等待条在场(读数收进单次 evaluate)。 */
-  function sampleOnce(page: Page) {
-    return page.evaluate(
-      ({ slot, capsule, waiting }) => {
-        const slotEl = document.querySelector(`[data-testid="${slot}"]`);
-        const capsuleEl = slotEl?.querySelector(`[data-testid="${capsule}"]`);
-        return {
-          capsuleText: capsuleEl?.textContent ?? null,
-          turnBands: slotEl ? slotEl.querySelectorAll(".fx-turn-banner").length : 0,
-          waiting: document.querySelector(`[data-testid="${waiting}"]`) != null,
-        };
-      },
-      { slot: TESTIDS.noticeBanner, capsule: TESTIDS.turnCapsule, waiting: TESTIDS.waitingBar },
-    );
-  }
-
-  // 真实段(ADR-0058):真实对局自走 12s 采样窗(引擎自转驱动回合轮换),胶囊换装/
-  // 全幅横幅退役的时线观测即被测环——零种植零冻结,采样拍内真实放行人类决策。
-  test("回合宣告只刷常驻胶囊:随轮换换装,全幅横幅永不出现", async ({ page }) => {
-    test.slow();
-    await quickStart(page);
-    // 时间线采样:每拍先放行人类决策(保对局自走)再读槽,窗口 12s
-    const t0 = Date.now();
-    const samples: Awaited<ReturnType<typeof sampleOnce>>[] = [];
-    while (Date.now() - t0 < SAMPLE_MS) {
-      await dismissJinnangIfUp(page);
-      await actIfCan(page).catch(() => false);
-      samples.push(await sampleOnce(page));
-    }
-    // ① 胶囊常驻在槽(采样窗内必命中)
-    const withCapsule = samples.filter((s) => s.capsuleText != null);
-    expect(withCapsule.length, "采样窗内未观测到回合胶囊").toBeGreaterThan(0);
-    // ② 胶囊随回合轮换换装(不同回合方/轮次=读数变化;quickStart 局人类+bot 多回合)
-    const readings = new Set(withCapsule.map((s) => s.capsuleText));
-    expect(readings.size, "胶囊读数无变化(回合宣告未刷新)").toBeGreaterThan(1);
-    // ③ 全幅横幅退役钉(#958):任何采样时刻零 .fx-turn-banner
-    expect(
-      samples.every((s) => s.turnBands === 0),
-      "全幅回合横幅仍在出场",
-    ).toBe(true);
   });
 });
