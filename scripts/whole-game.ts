@@ -97,7 +97,7 @@ function assertVocabulary(events: GameEvent[], label: string): void {
 
 /** 驱动一局到终局或回合上限。守卫(发现即炸,零兜底):不可驱动相位 / 决策点无归属 /
  *  步进无进展 / 事件词表外 / 数值泄漏 / 连续 N 回合无事件。摘要序列逐位确定:
- *  同 (map, seed, seats, encounter) 恒同输出——确定性两跑门(test/headless-whole-game)
+ *  同 (map, seed, seats, encounter) 恒同输出——确定性两跑门(test/whole-game/headless-whole-game)
  *  逐票守着。 */
 export function driveToEnd(e: GameEngine, opts: DriveOptions): DriveResult {
   if (e.phase !== "Playing")

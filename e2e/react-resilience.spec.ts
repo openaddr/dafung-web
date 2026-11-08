@@ -5,7 +5,7 @@
 // 重走加入流程不崩溃(地板③浏览器运行时事实)。本例走 testUnscaled(联机段对局节奏
 // 由服务器驱动)。
 // 【#1316 批T2 迁 2 例(3→1)】「垃圾串回显」「失效 id 拦截」迁入接线层 test/
-// map-storage-wiring.test.tsx「记忆健壮性接线」组(断言面=localStorage 与渲染语义,
+// test/wiring/map-storage-wiring.test.tsx「记忆健壮性接线」组(断言面=localStorage 与渲染语义,
 // 真 happy-dom localStorage + 内存地图源零假数据,判词在该文件头注)。
 import { testUnscaled as test, expect } from "./fixtures";
 import { newBridgeContext } from "./react-helpers";

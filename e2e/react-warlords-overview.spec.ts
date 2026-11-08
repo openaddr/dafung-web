@@ -4,7 +4,7 @@
 //   · 满编 8 行 @844×390 零滚动零截断(⑤)。
 // 【#1316 批T2 迁 2+切 1(4→2)】「四元素钻入单层互斥」(#1096 决议3,#1097)与「状态
 // 挂点」(.self 金描边/.dead 灰化/.is-active 印金圈)两例下放接线层 test/
-// overview-wiring.test.tsx「诸侯详情接线」组(全 DOM·store 语义);原①「十列数值逐字
+// test/wiring/overview-wiring.test.tsx「诸侯详情接线」组(全 DOM·store 语义);原①「十列数值逐字
 // 对照」切腿——语义腿(行数据/城池名录/名将名/珍宝槽位/题名轮次/Esc 关闭)同迁该
 // 文件「十列行数据语义腿」例,声列概率条宽度比几何腿(假 DOM 无排版引擎不可下放,
 // ADR-0062 断言宪法)留本文件壳例并如实改名;钻入例的明细百分比明文腿(tierShares
@@ -70,7 +70,7 @@ async function plantRepExtremes(page: Page) {
 test.describe("声列概率条几何腿壳例(#1099;#1316 批T2 切腿后本例只剩几何)", () => {
   // 真实段(ADR-0058):真实开局链(seed1010 停靠)+总览真实点开,声列三档概率条的
   // 真排版几何(宽度比,勿钉像素)即被测环——语义腿(行数据/名录/明细明文/Esc 关闭)
-  // 已迁接线层 test/overview-wiring.test.tsx(判词见文件头注),此处只剩几何腿。
+  // 已迁接线层 test/wiring/overview-wiring.test.tsx(判词见文件头注),此处只剩几何腿。
   test("声列三档概率条:种植席好运段占优(>半条),零声望三段等宽", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 1010);
@@ -95,7 +95,7 @@ test.describe("声列概率条几何腿壳例(#1099;#1316 批T2 切腿后本例�
 });
 
 // 「四元素钻入单层互斥」「状态挂点」两例已迁(2026-11-08,#1316 批T2):迁移落点=
-// 接线层 test/overview-wiring.test.tsx「诸侯详情接线」组,判层只看断言面——钻入链
+// 接线层 test/wiring/overview-wiring.test.tsx「诸侯详情接线」组,判层只看断言面——钻入链
 // (点击→总览先关再开目标弹层+明细 DOM 有无与文本,tierShares 明文吃同源现算)与
 // 行状态挂点(.self/.dead/.is-active 类名+数值文本)全部是「操作过后渲染树/store 里
 // 的语义」,零几何零演出泵;e2e 到达链(真实开局自走+冻结停靠)非断言面,随判层

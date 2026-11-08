@@ -1,13 +1,13 @@
 // React 重构 · 单机核心流(阶段 11)。
 // 意图来源(旧 spec → 此处):
 // - play.spec / human.spec(掷骰推进、买地扣款、人类按钮可用性)→ 掷骰/买地/选路测试
-// - invariants.spec(全程不变量 + 终局)→ 引擎态部分下沉 test/invariant-soak.test.ts
+// - invariants.spec(全程不变量 + 终局)→ 引擎态部分下沉 test/whole-game/invariant-soak.test.ts
 //   (GameEngine 直驱多 seed soak,#293 Q1/#304 去浏览器化);UI 显示层由「加速到胜利」
 //   例驱动途中顺带巡检承接
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
 //
 // #1318 批T4 接线迁移:购地决策/扩军决策/bot 托管思考态三例下放接线层
-// (test/solo-wiring.test.tsx,ADR-0062 层④)——断言面全「按钮→命令→DOM/store 面」,
+// (test/wiring/solo-wiring.test.tsx,ADR-0062 层④)——断言面全「按钮→命令→DOM/store 面」,
 // e2e 版为竞速读数服务的 freezeClock+poll 配方随迁失效(接线层零时钟零竞速)。
 // 本文件存例=脊柱②行军自动触发与脊柱⑥加速到胜利(骑局),名册地板永不迁移
 // (ADR-0062 e2e 地板名册)。
@@ -57,7 +57,7 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
 // 被 react-seat-cells ① cellsMatchSnapshot 逐席覆盖(seat-cash-N == 快照现金,
 // 自机格 seat-self/seatRail 结构面同文件 ①② 在守),重复例按宁缺毋滥直删。
 // 「购地决策」「扩军决策」「bot 托管思考态」三例已迁接线层(#1318 批T4,
-// test/solo-wiring.test.tsx:冻结+种植+poll 的竞速读数配方在接线层收敛为
+// test/wiring/solo-wiring.test.tsx:冻结+种植+poll 的竞速读数配方在接线层收敛为
 // 零时钟零竞速直读;被测环=按钮→命令→DOM/store 面不变)。
 
 // 真实段(ADR-0058):现金注资后的整局真实驱动至胜利屏(掷骰/决策清理/endTurn/
@@ -74,7 +74,7 @@ test(
     // 慢池(#1026):全程不变量巡检族(整局全程驱动)——快池门禁 --grep-invert @slow 跳过,
     // 慢池批次收口跑。单例实测 30.3s(#1026 标定)。
     // 锁种子:不锁时随机骰路偶发决策链超长(交涉连环)超出等待窗——TODO 记账的抖动家族,
-    // 锁定后本用例确定性通过;骰路覆盖广度由 test/invariant-soak.test.ts 的多 seed 引擎
+    // 锁定后本用例确定性通过;骰路覆盖广度由 test/whole-game/invariant-soak.test.ts 的多 seed 引擎
     // soak 承担(#293 Q1:全程驱动去浏览器化,本例只承接 UI 显示层巡检)。
     await quickStart(page, 7);
     // 身价=现金+地产:直接把现金推过目标身价,任一次 endTurn 收尾即触发 checkVictory。
@@ -92,7 +92,7 @@ test(
     // 不能立即 break(旧版恰好赶在动画后点到),改为等局面变化后再试,循环上限放宽。
     // 不变量巡检(#293 Q1 承接):原「全程驱动」例下沉 core soak 后,本例驱动到胜利屏途中
     // 顺手盯 UI 数据源——快照喂给仪表条/席位卡的玩家态不越界(现金/身价非负、位置合法、
-    // 破产无残留);引擎态全量口径(含都城位/锦囊残留)在 test/invariant-soak.test.ts。
+    // 破产无残留);引擎态全量口径(含都城位/锦囊残留)在 test/whole-game/invariant-soak.test.ts。
     const tileCount = await page.evaluate(() => (window as any).__dafung.getEngine().board.count);
     for (let i = 0; i < 30 && !(await snap(page)).isOver; i++) {
       const s = await snap(page);

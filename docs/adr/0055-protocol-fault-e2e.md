@@ -4,7 +4,7 @@
 
 ## 背景
 
-联机「对不对」的验证此前压在浏览器 e2e 一层:react-online-{events,secrecy,cutover,autopilot} 四条 spec 混装两类断言——**协议面逻辑**(事件批序/校准形状/保密 redaction/托管语义/断线重连)与 **UI 壳**(横幅可见性/开关交互)。协议面断言坐浏览器层成本畸高:每例要起双页 build、Playwright framereceived 线级捕获、满载下 WS 广播抖动放大墙钟,且故障注入(延迟/丢帧/杀连接)根本进不去——浏览器客户端与服务器之间的网络路径不可编程。本 ADR 记 #1164 收口:真服务器进程 + 无头 WS 客户端 + 故障注入代理的协议级测试层(test/protocol-online.test.ts),浏览器侧只留 UI 壳断言。
+联机「对不对」的验证此前压在浏览器 e2e 一层:react-online-{events,secrecy,cutover,autopilot} 四条 spec 混装两类断言——**协议面逻辑**(事件批序/校准形状/保密 redaction/托管语义/断线重连)与 **UI 壳**(横幅可见性/开关交互)。协议面断言坐浏览器层成本畸高:每例要起双页 build、Playwright framereceived 线级捕获、满载下 WS 广播抖动放大墙钟,且故障注入(延迟/丢帧/杀连接)根本进不去——浏览器客户端与服务器之间的网络路径不可编程。本 ADR 记 #1164 收口:真服务器进程 + 无头 WS 客户端 + 故障注入代理的协议级测试层(test/online/protocol-online.test.ts),浏览器侧只留 UI 壳断言。
 
 参考仓 vera20k(路径见 [ADR-0052](./0052-headless-deterministic-testing.md) 头注)`src/bin/lan-fault-proxy.rs`(94 行)+ `src/net/fault_proxy.rs`。
 
@@ -49,7 +49,7 @@ vera20k 的「丢包率」类参数因此在翻译时改形为「每 N 帧丢 1�
 
 ### 慢例池归属
 
-test/protocol-online.test.ts 整文件入慢例池(判据=「单例实测 ≥3s 且属整局骑局/整局恢复/**真实进程类**」的真实进程支:真 spawn 服务器 ~3s 是文件级固定开销,与 test/server-cmd-error.test.ts 先例同判),默认池不留用例——核心确定性已有两跑门 + check:goldens 管。开关用 **describe 级 skipIf**(server-cmd-error 探针先例:it 全跳时文件级 beforeAll 照跑,describe 级才连钩子一起跳——默认池不白起一台真服务器,并行会话撞口假红)。跑法:`DAFUNG_SLOW=1 bun test test/protocol-online.test.ts`(配方要点见 [开发与测试](../how-to/开发与测试.md)「协议级联机 e2e」节)。
+test/online/protocol-online.test.ts 整文件入慢例池(判据=「单例实测 ≥3s 且属整局骑局/整局恢复/**真实进程类**」的真实进程支:真 spawn 服务器 ~3s 是文件级固定开销,与 test/online/server-cmd-error.test.ts 先例同判),默认池不留用例——核心确定性已有两跑门 + check:goldens 管。开关用 **describe 级 skipIf**(server-cmd-error 探针先例:it 全跳时文件级 beforeAll 照跑,describe 级才连钩子一起跳——默认池不白起一台真服务器,并行会话撞口假红)。跑法:`DAFUNG_SLOW=1 bun test test/online/protocol-online.test.ts`(配方要点见 [开发与测试](../how-to/开发与测试.md)「协议级联机 e2e」节)。
 
 ## react-online 逻辑断言迁移落点总表
 
@@ -57,7 +57,7 @@ test/protocol-online.test.ts 整文件入慢例池(判据=「单例实测 ≥3s 
 
 | 旧 spec(用例)                                                                                              | 迁移去向                                                                                                                                          | 断言面                                                                                                                        |
 | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| react-online-events「事件批下行:开局选都逐转移到达双端,内容与顺序符合批语义」                              | test/protocol-online.test.ts 场景六(整文件迁入,spec 已删)                                                                                         | 批非空、首部齐全、(round,turn) 非降、capitalSelected×2、setupCompleted/gameStarted/turnStarted 收尾链                         |
+| react-online-events「事件批下行:开局选都逐转移到达双端,内容与顺序符合批语义」                              | test/online/protocol-online.test.ts 场景六(整文件迁入,spec 已删)                                                                                  | 批非空、首部齐全、(round,turn) 非降、capitalSelected×2、setupCompleted/gameStarted/turnStarted 收尾链                         |
 | react-online-autopilot「双端托管:推进,host 中途收回即停(冻结),重开推进恢复」                               | 同上 场景七(逻辑面;UI 壳留原文件用例二)                                                                                                           | 托管推进、收回回读复位、收回后滚动静默窗冻结(停点唯一性=权威语义:guest 受控,唯一未受控人类决策门是推进唯一钥匙)、重开恢复推进 |
 | react-online-cutover「托管骑局:零逐步快照,状态下行只走事件批与校准快照」                                   | 同上 场景八(帧形状断言)                                                                                                                           | 每连接首帧=整房摘要豁免,此后逐步快照必须为零(校准判定口径与 server.ts 同源镜像)                                               |
 | react-online-cutover「对局中掉线:元数据走 lobby 指纹通道」                                                 | 同上 场景九(整例迁入)                                                                                                                             | started=true + 他人座位 online=false 翻转、房主未动;重连翻回 online=true                                                      |
@@ -81,15 +81,15 @@ spec 计数:4 文件 5 例 → 2 文件 2 例(events/secrecy 整删;cutover 留�
 
 - `scripts/fault-proxy.ts` — 三旋钮哑管道代理(棒一;运行中可调 + notices/getStats 观测面)。
 - `scripts/online-client.ts` — 无头联机客户端(棒一;棒二补 `frames` 全量下行归档——逐帧审计需要完整帧流,不只是一份 latest 快照)。
-- `test/protocol-online.test.ts` — 十一场景收口门(棒一两例 + 棒二矩阵三例 + 迁移六例;整文件慢例池)。
+- `test/online/protocol-online.test.ts` — 十一场景收口门(棒一两例 + 棒二矩阵三例 + 迁移六例;整文件慢例池)。
 - `e2e/react-online-{autopilot,cutover}.spec.ts` — 删缩后只留 UI 壳断言;events/secrecy 整删。
 - [开发与测试](../how-to/开发与测试.md)「协议级联机 e2e」节 — 何时跑/配方要点/与浏览器 e2e 的分工。
 
 ## 承认的取舍
 
-- **「经故障代理骑到 gameOver 的整局」已收口(#1181)**:本票当时只骑中段(全程墙钟由托管单节拍主导,ADR-0028 统一原则禁加速档,骑局覆盖在 test/room.test.ts 慢池不经代理);#1181 以「zhongyuan 8 城小盘 + target=6000 短目标价 + 4 座(2 真 bot 即时代打,双真人座开局各托管一次,此后全 bot 代打)」配方落成场景十二——零故障代理从开局骑到 gameOver(中段 50ms 延迟扰动一段),双端 gameOver 事件一致、批序非降、重连整房摘要 isOver/winner 面一致,实测整局 ~31s。当时登记的两条后续候选取其一生效(短目标价);yanzhou 夹具图不经服务器地图清单(VALID_MAP_IDS 只认 public/maps),真 spawn 通路不可用。
+- **「经故障代理骑到 gameOver 的整局」已收口(#1181)**:本票当时只骑中段(全程墙钟由托管单节拍主导,ADR-0028 统一原则禁加速档,骑局覆盖在 test/online/room.test.ts 慢池不经代理);#1181 以「zhongyuan 8 城小盘 + target=6000 短目标价 + 4 座(2 真 bot 即时代打,双真人座开局各托管一次,此后全 bot 代打)」配方落成场景十二——零故障代理从开局骑到 gameOver(中段 50ms 延迟扰动一段),双端 gameOver 事件一致、批序非降、重连整房摘要 isOver/winner 面一致,实测整局 ~31s。当时登记的两条后续候选取其一生效(短目标价);yanzhou 夹具图不经服务器地图清单(VALID_MAP_IDS 只认 public/maps),真 spawn 通路不可用。
 
 - **种子局用例(场景十一)绑种子 419 签名**:骰流变动会断相,处置走种子哨兵同款「先红=信号,重钓配方」(开发与测试「种子哨兵与重钓配方」条),不逐例排查。
-- **测试文件间的出处注释漂移(已收口)**:event-feed/downlink-assembly/seat-projection/online-map-rebuild 四文件头注原指 react-online-events/secrecy spec(旧分工),棒二受文件所有权所限未动;主线收口时已以分层跟进提交(#1178 同 PR)改指 test/protocol-online.test.ts 与本 ADR。
+- **测试文件间的出处注释漂移(已收口)**:event-feed/downlink-assembly/seat-projection/online-map-rebuild 四文件头注原指 react-online-events/secrecy spec(旧分工),棒二受文件所有权所限未动;主线收口时已以分层跟进提交(#1178 同 PR)改指 test/online/protocol-online.test.ts 与本 ADR。
 - **冻结类断言的静默阈值(12s)是时长换置信**:阈值必须大于运转时回合间隔上限(托管 2s/拍 × 每回合 2-3 拍 ≈ 6-10s),无决策回合会空转数轮才停在首个含决策的回合——静默只证「推进已停」,停点位置由重连摘要 `decisionOwner`(场景五)/恢复推进反证(场景七)钉死;阈值只影响「若语义被破坏多久能测出」,不影响误报率。
 - **元数据下行断言读态不读车种**:react-online-cutover 原文断言「掉线元数据走 lobby 通道」,Setup/校准流里实测元数据搭校准快照车(server.ts flush 形态:校准拍快照自带 WireRoomFields 且指纹随车更新,lobby 形状只在非校准拍补发)——迁移后断言接受 lobby/snapshot 任一载体,「指纹变化才发」的防重发语义不变。

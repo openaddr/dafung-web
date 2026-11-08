@@ -2,7 +2,7 @@
 // **#1317 批T3 后本 spec 只余名册地板三例**:脊柱③识破自保(mini 签面几何哨 #834+
 // 倒计时弧呈现取证)、半路杀出三分支走查(三环时序语义+拼点签面/fx 时长通道探针
 // #849/#885)、长按开详情(#751 A1 裸指针 700ms 输入时序=真实输入语义);可迁移余量
-// 3 例(不用路径、唯反应灰置、降噪口)已下放接线层 `test/battle-wiring.test.tsx`
+// 3 例(不用路径、唯反应灰置、降噪口)已下放接线层 `test/wiring/battle-wiring.test.tsx`
 // (ADR-0062 层④:窗载荷经 armReaction 种植、应答走 respondReaction 真命令,判词见
 // 该文件头注与 e2e-分类表行注)。引擎结算断言早已下沉(单测守:reaction-window
 // 22 例全回路 + jinnang.test 唯反应 + reaction-watchdog 看门狗 + reaction-mute 静默

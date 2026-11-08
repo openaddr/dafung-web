@@ -20,7 +20,7 @@
 处置只做两种:**整删**(内容全为已迁逻辑且无 UI 壳价值)、**缩**(同 spec 内删已迁用例留壳用例);拿不准归「留」。删前逐条核对落点确实覆盖,核对过程如下(落点 = 文件 + 用例名):
 
 1. **react-extensions「主动技破阵:出牌阶段可发,复用 warDrum 结算步数 +1」→ 删**。
-   核对:引擎结算面(发动后本回合步数 +1、heroSkillActivated 随批、出牌阶段选项可见)由 `test/extension-taishici.test.ts`「主动技『破阵』:出牌阶段选项可见,发动后本回合步数 +1」例钉死;技能卡交互形制(点卡→选中→「出」打出→发技转灰置)由 react-jinnang-use 技能卡例在核心技上同形制钉死;扩展包浏览器侧装载由同文件保留的「招贤」例守(heroDefs 无 taishici 即当场炸)。三面并起来,破阵例零独占断言面。留的「招贤」例价值:招贤卷轴陈列太史慈 = main.tsx 顶层 await 注册扩展的消费面——无头整局层**刻意不装扩展包**(bun test 单进程,顶层装载会污染全局名将池,headless-whole-game.test.ts 头注自述),浏览器侧装载事实只有浏览器能证。
+   核对:引擎结算面(发动后本回合步数 +1、heroSkillActivated 随批、出牌阶段选项可见)由 `test/extensions/extension-taishici.test.ts`「主动技『破阵』:出牌阶段选项可见,发动后本回合步数 +1」例钉死;技能卡交互形制(点卡→选中→「出」打出→发技转灰置)由 react-jinnang-use 技能卡例在核心技上同形制钉死;扩展包浏览器侧装载由同文件保留的「招贤」例守(heroDefs 无 taishici 即当场炸)。三面并起来,破阵例零独占断言面。留的「招贤」例价值:招贤卷轴陈列太史慈 = main.tsx 顶层 await 注册扩展的消费面——无头整局层**刻意不装扩展包**(bun test 单进程,顶层装载会污染全局名将池,test/whole-game/headless-whole-game.test.ts 头注自述),浏览器侧装载事实只有浏览器能证。
 2. **react-hero-dismiss「回池再招=全新实例:重进招贤候选,落定后 lastFired 空账、授技重新预掷」→ 删**。
    核对:全套引擎语义(回池划名 → 重进招贤候选 → 预掷重新 → lastFired 空账)由 `test/hero-dismiss.test.ts`「回池后重进招贤候选;再招=全新实例:预掷重新、lastFired 空账(冷却不遗留)」例逐条覆盖;本例 UI 侧仅有遣散钮两次点击,该通路已由同文件「遣散主链」例守。纯引擎断言经调试钩子直呼(evaluate 内 tryRecruitHero/resolveHeroPick),是「逻辑透过 UI」的典型形态。
 3. **react-jinnang「对局日志与 UI 快照均不落他人牌名」→ 删**。
@@ -35,7 +35,7 @@
 1. **反应窗超时代发看门狗(reactionWait)**——**已迁**:落点 `test/reaction-watchdog.test.ts`(room/watchdogs 编排层直驱,ManualClock 手泵,room.test.ts 停摆看门狗先例同构);断言面=reaction-decline 观测行 + respondReaction use=0 留痕 + 结算照走 + 窗收续推。浏览器原例(react-reaction「超时兜底」/react-reaction-online「超时代发」)**整删**:残留的横幅收回时机面分不清投影定时收与看门狗收,守不住回归,按「骨架例是负资产」不缩即删。
 2. **断线座位反应窗超时**——**已迁**:落点同文件断线例(markSeatOffline=WS close 的房间编排入口;看门狗武装判定不区分在线/离线,断线者超时即「不用」,ADR-0017 后果节;断言面含回合续推不冻结)。真 WS 关闭的传输面接线归 protocol-online([ADR-0055](./0055-protocol-fault-e2e.md));浏览器原例(react-reaction-online「断线座位」)**整删**——原例读房间落盘记录取证,零独占壳面。
 3. **降噪口静默状态机**——**已迁**:静默判定抽纯函数 `src/app/screens/game/reaction-mute.ts`(零行为变更,状态={mutedSeat,seenActor},行动者任何变更即解除且回到原行动者不复燃),单测 `test/reaction-mute.test.ts`。浏览器例留接线:react-reaction「降噪口」**缩**(删已迁引擎台账断言 keep/wasted——不用不耗牌归 reaction-window 单测;留「一次点击两条应答」的静默代发接线与换回合横幅复显),react-reaction-online「联机降噪口」**缩**(缴银结算面下沉,留「立即代发」横幅即时性、过网留痕与窗收)。
-4. **折叠器闭窗算术(#461 面)**——**已迁**:落点 `test/event-fold.test.ts`「闭窗算术以 per-seat 脱敏询问集为分母」(非应答端首答不误闭窗、应答齐才收;投影形状与快照水合咬合原已在 `test/seat-projection.test.ts` §④)。浏览器原例(react-reaction-online「非应答端可应答」)**缩**:删答齐闭窗 poll(已迁),留「非应答端应答过网入账」接线。
+4. **折叠器闭窗算术(#461 面)**——**已迁**:落点 `test/online/event-fold.test.ts`「闭窗算术以 per-seat 脱敏询问集为分母」(非应答端首答不误闭窗、应答齐才收;投影形状与快照水合咬合原已在 `test/online/seat-projection.test.ts` §④)。浏览器原例(react-reaction-online「非应答端可应答」)**缩**:删答齐闭窗 poll(已迁),留「非应答端应答过网入账」接线。
 
 ## #1181 棒一全量重筛(迁移施工波,2026-11-07)
 
@@ -46,7 +46,7 @@
   1. **react-layout「席位格字段:全员一人一格,现金/计数随快照」→ 删**。投影逐席一致面(seat-cash-N == 快照现金)是 react-seat-cells ① `cellsMatchSnapshot` 的真子集(后者覆盖现金 + 五图标计数逐席);自机入列/seatSelf 结构面由同文件 ①② 在守。唯一随例退场的是体力 aria-label 在场断言(非 null 弱断言,无独立回归价值)。
   2. **react-solo「席位格同步:自机格现金与引擎快照停靠态同步」→ 删**。现金面同样被 react-seat-cells ① 覆盖;本例的历史价值(#253/#700 迁移记录、#269 采样竞速定性)已沉淀在注记里,断言面零独占。
 - **缩 5 例**(删已迁结算断言,留接线与可见性壳;残余面各自成话,不产生骨架例):
-  1. **react-extensions「招贤」例**:删选定结算断言(义从 +100 poll、taishici 入槽)——落点 `test/extension-taishici.test.ts`「义从」例;留装载陈列(招贤卷轴陈列太史慈)+ 先看后选拍板收将接线(卷轴随命令受理收场)。
+  1. **react-extensions「招贤」例**:删选定结算断言(义从 +100 poll、taishici 入槽)——落点 `test/extensions/extension-taishici.test.ts`「义从」例;留装载陈列(招贤卷轴陈列太史慈)+ 先看后选拍板收将接线(卷轴随命令受理收场)。
   2. **react-stamina**:删结算字段断言(「城名」降 1 级/skipTurns=1/stamina=100)与都城地板/体力夹紧两处活读——落点 `test/stamina.test.ts`「惩罚结算」「都城规则」;留耗竭留痕在场 poll(点选项 → 处置命令落账的接线证据兼结算同步)+ 卷轴升收/自选降级/体力条回满渲染链。
   3. **react-scrolls 交涉二段式成交例**:删结算留痕全字段对账(fairUpgrade/treasureFair/escrowDeliver 三行)——落点 `test/treasure.test.ts` 公道买卖/坐地起价各例;留 cmd 行断言(点确认成交 → 发 `resolveTreasureOwner{fair,treasureId}` 这条命令的接线证据,接缝判据的壳)+ 金描边/二段式交互面。
   4. **react-scrolls 破产清算例**:删变卖入账 = 指导价的活态等式 poll——落点 `test/bankruptcy.test.ts`「三类变卖入账 = UI 展示价」;留债务进度/选宝弹层二段式/售出清单刷新。

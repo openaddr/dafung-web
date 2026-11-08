@@ -49,7 +49,7 @@
 - `scripts/sim-digest.ts` — 单局逐回合摘要导出 CLI(`--json` 落盘;票二台账语料入口 + 先红诊断取证)。
 - `scripts/sim-batch.ts` — 原整局 while 循环收敛进 driveToEnd(统计逻辑经 onStep 钩子不变)。
 - `src/core/game-events.ts` — +`GAME_EVENT_KINDS` 词表运行时清单(加法,零行为变更;`satisfies` 锚住联合,漏登记新 kind 会在巡检红出来)。
-- `test/headless-whole-game.test.ts` — 确定性两跑门(3 图 × 10 种子 × 4 bot,两跑逐位 + 终局可达)、快照往返门(第 8 笔摘要截断 → 同 config 重建 → 续跑与对照逐位)、摘要器单测、人类座缝验证;**实测全文件 9.3s,进默认池**(单局 zhongyuan ~100ms 量级)。
+- `test/whole-game/headless-whole-game.test.ts` — 确定性两跑门(3 图 × 10 种子 × 4 bot,两跑逐位 + 终局可达)、快照往返门(第 8 笔摘要截断 → 同 config 重建 → 续跑与对照逐位)、摘要器单测、人类座缝验证;**实测全文件 9.3s,进默认池**(单局 zhongyuan ~100ms 量级)。
 - `test/fixtures/maps/yanzhou.json` — 第三语料图(兖州 12 城小盘;仓内内置图仅 guanzhong/zhongyuan 两张,夹具补足「≥3 图」,测试工件不入产品清单)。
 - GLOSSARY「测试」节:无头整局 / 状态摘要 / 黄金台账 / 故障注入代理。
 

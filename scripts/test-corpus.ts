@@ -1,4 +1,4 @@
-// 无头语料单源(全波评审必修收口,#1160):票一测试(test/headless-whole-game)与黄金
+// 无头语料单源(全波评审必修收口,#1160):票一测试(test/whole-game/headless-whole-game)与黄金
 // 台账(scripts/check-goldens)、bot 基准(scripts/sim-bench)消费同一套地图清单与座位
 // 工厂——此前三处复制,「台账与测试语料必须同套」的契约靠「两处同步维护」注释人肉
 // 保证;这里收口成单源后契约由 import 结构自证。种子区间各票自持不收编:票一/二语料
