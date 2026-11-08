@@ -14,9 +14,9 @@
 // =quickStart(seed 7,postRoll 停靠)种局。招贤候选经 armHeroOffer 种植件(#1300,判词
 // 单源 src/core/planter.ts:候选只在招贤卷轴语境由引擎随机抽 3 产出,无「指定候选」
 // 公共通路,断言面需「太史慈居中位+整池预掷」特定候选形;扩展包未装载时 heroById
-// 目录回查当场炸,与旧显式 throw 同响)。force 判词:钉 Playing/AwaitingHeroPick
-// 相位=断言前提,引擎自转无「钉相位」公共命令(相位族 #1301);waitFxIdle+freezeClock
-// (#987 冻结闸)是到达手段,非字段直改。
+// 目录回查当场炸,与旧显式 throw 同响)。相位钉制(Playing/AwaitingHeroPick)=断言
+// 前提,走 armPhase 种植件(#1301:引擎自转无「钉相位」公共命令,判词单源
+// src/core/planter.ts);waitFxIdle+freezeClock(#987 冻结闸)是到达手段,非字段直改。
 import { test, expect } from "./fixtures";
 import { quickStart, waitFxIdle, freezeClock } from "./react-helpers";
 import { plant } from "./helpers/drivers";

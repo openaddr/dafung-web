@@ -76,7 +76,7 @@ async function waitSettledFlags(page: import("@playwright/test").Page) {
 }
 
 // 真实段(ADR-0058):真实开局对局自走到行军换装收敛,氛围层旗锚与棋子槽位的真实
-// 屏幕几何(间距比不变量+扩盒 containment)即被测环——零 force。冻结(freezeClock,
+// 屏幕几何(间距比不变量+扩盒 containment)即被测环——零种植。冻结(freezeClock,
 // #421 调试观测面)是到达手段:钉静止测量态防 bot 行军换装期旗锚暂隐的半换装态
 // 污染读数,非字段直改。
 test(

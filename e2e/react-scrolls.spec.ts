@@ -6,7 +6,8 @@
 // #1217 波4 直通形制(ADR-0058 一环一真):全 7 例头注声明「守的那一环」;前置链
 // 种局化——开局停走 quickStart 直达首停靠(不再付首手整走的真推回合;族种 1486 谱,
 // 城池详情 1217、珍宝城购地 20261105 同谱),被测环前一拍全部经桥种植抵达。逐例复核:
-// 交涉/破产/购地三类前置无真推回合(早经 force 种植,本波补齐判词 5 处,零裸 force)。
+// 交涉/破产/购地三类前置无真推回合(前置构造=桥上种植件,判词单源
+// src/core/planter.ts)。
 // #1221 L1 残油包:全 7 例前置改 quickStart({advance:"preRoll"})——布场均不依赖
 // 行军日志/已推进回合,落都即冻结(时钟冻在自动起摇点火前,零竞速),显式
 // waitFxIdle/freezeClock/unfreezeClock 随通路退役(返回即已冻)。
@@ -361,7 +362,7 @@ test("珍宝城购地:落格弹购地卷轴、差额行「余」、点买收卷"
   // 页面随例终结,同破产清算例口径)。
   await quickStart(page, 20261105, { advance: "preRoll" });
   // 钉相位/行动方走 armPhase(#1301,判词单源 src/core/planter.ts)。断言面需「落无主
-  // 珍宝城」形态,原 force 混装块按 #1302 通道归口四拍等价改写:①摆位=placePlayer
+  // 珍宝城」形态,原混装直写块按 #1302 通道归口四拍等价改写:①摆位=placePlayer
   // 种植件(引擎无「置位」公共命令——行军由骰流驱动,position 只随行军结算改写;
   // 判词单源 src/core/planter.ts);②③公共方法 marchTraverse→settleMarchLanding 走
   // callEngine 直呼(与 rollAndMove 掷定 1 步后的同一段引擎路径;机遇已被 fixtures

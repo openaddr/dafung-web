@@ -46,11 +46,12 @@
 //      类名/DOM 文本/store 状态。
 //
 // 【到达形制换轨判词】e2e 的「quickStart 真实开局链 + parkMyTurn 停车坪 +
-// force eval」在此收敛为:种局配方(模板同款选都链)+ 进程内引擎直写(与
-// force 同语义,免 eval 桥)+ 基类 sync 灌 store。点击全部真点击(合成事件
+// 种植件桥调用」在此收敛为:种局配方(模板同款选都链)+ 进程内引擎直写(与
+// e2e 种植件裸写形同语义,免 eval 桥)+ 基类 sync 灌 store。点击全部真点击(合成事件
 // 冒泡走 React 合成事件通路,模板同款);引擎落账走真命令(submitCommand)。
 //
-// 【种植判词】(e2e force 同构,断言面需要而公共命令到不了的形态才直写):
+// 【种植判词】(与 e2e 种植件裸写形同构,判词单源 src/core/planter.ts;断言面需要
+// 而公共命令到不了的形态才直写):
 //   - 相位钉(AwaitingDecision 空闲态/AwaitingJinnang 出牌窗/Roll):引擎自转
 //     无「钉相位」公共命令,窗态/空闲态即断言前提(pinRackIdle/plantBook/
 //     plantOwnTurn 同判词);
@@ -148,7 +149,7 @@ function clearPending(e: GameEngine): void {
 }
 
 /** 布场①:己方空闲态(AwaitingDecision)——架显隐状态机两例的停车坪(e2e
- *  pinRackIdle 的 force 同构,minus 手牌直写:两例断的正是起手牌/架显隐本身)。
+ *  pinRackIdle 的种植同构,minus 手牌直写:两例断的正是起手牌/架显隐本身)。
  *  activeIndex=0:种局落点随种子谱可停在 bot 席(e2e 以 parkMyTurn 等一轮到人类
  *  停靠;接线层无房间无 bot 链,直写同前提,回合交接写同判词见头注)。 */
 function plantIdleDecision(e: GameEngine): void {

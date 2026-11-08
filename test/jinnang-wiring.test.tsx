@@ -145,11 +145,12 @@ function mount(): HTMLElement {
 }
 
 /** 种局→布场→注册控制器→基类 sync 灌 store→挂屏(每例开头同款一条龙)。
- *  force = 进程内引擎直写 + 重灌 store(e2e force 的无桥同构,判词见模板头注)。 */
+ *  writeEngine = 进程内引擎直写 + 重灌 store(与 e2e 种植件裸写形同语义的无桥同构,
+ *  判词见模板头注;旧名 force 已随 #1303 退役,勿复用)。 */
 function startGame(plant: (e: GameEngine) => void): {
   el: HTMLElement;
   engine: GameEngine;
-  force: (write: (e: GameEngine) => void) => void;
+  writeEngine: (write: (e: GameEngine) => void) => void;
   snap: () => GameSnapshot;
 } {
   const e = seedPlayingEngine();
@@ -163,7 +164,7 @@ function startGame(plant: (e: GameEngine) => void): {
   return {
     el,
     engine: e,
-    force: (write) => {
+    writeEngine: (write) => {
       write(e);
       act(() => {
         c.resync();
@@ -420,7 +421,7 @@ describe("军情密探即时窥探弹层(自 react-jinnang-peek 迁入,#1315 批
   // peekApplied 事件零产出 + 弹层从未打开(负向锁;无表现消费腿——无 peek 可言,
   // fxStore.peek 恒空即弹层零渲染的自门本体)。
   it("被识破:无窥探弹层(识破只护份,窥探从未发生)", () => {
-    const { force, snap } = startGame((e) => {
+    const { writeEngine, snap } = startGame((e) => {
       giveJinnang(e, 0, ["军情密探"]);
       giveJinnang(e, 1, ["识破诡计"]);
       // 只给 seat1 识破诡计(queried 恰 [1]):清走其余座位反应牌,防其他 bot 被询问
@@ -433,7 +434,7 @@ describe("军情密探即时窥探弹层(自 react-jinnang-peek 迁入,#1315 批
         );
       }
     });
-    force((e) => {
+    writeEngine((e) => {
       e.players[1].isBot = false; // 暂翻人:窗不即席代答,留给下面的应答(种植判词见头注)
       e.resolveJinnang("军情密探");
       e.resolveJinnang("军情密探", [1]);

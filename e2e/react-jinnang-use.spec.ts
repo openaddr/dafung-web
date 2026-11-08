@@ -14,8 +14,8 @@
 // 种子复算(#949 换图重钉;seed 67 × 关中图,进程内直扫复算):人类先手
 // (draftOrder=[0,3,2,1]),选都候选取 DOM 首格=0 长安(bot 都:诸侯2=10 长沙、
 // 诸侯3=20 卧龙岗、诸侯4=3 辽东),起手求贤令(自身域恒可用)
-// → **开局出牌阶段=稳定停靠点保留**。灰置/技能卡局面走 force 引擎直写(#237 无天然
-// 种子同时凑齐)。
+// → **开局出牌阶段=稳定停靠点保留**。灰置/技能卡局面走种植件构造(#237 无天然
+// 种子同时凑齐;塞指定锦囊=giveJinnang,判词单源 src/core/planter.ts)。
 // 到站形制(#1256 对账,ADR-0058 种局式直通):startJunshi 前置链从「goto→选图→起兵→
 // 点城确认」UI 旅程换装 quickStart stopAtOpeningHand(seedSolo 桥路)——桥路与旧 UI 链
 // 同 seed 同局(registry 选都口径统一:两路同 seed 必须同局),且 waitMyPause 不代发放行
@@ -26,12 +26,11 @@
 // 人类自动行军以 marchSteps 钉「二」落 2 幽州无主城(plantDemolishableCity 的种植城=
 // +1 晋阳,落格弹购地卷轴,skipUntilNextSeat 可清;钉「一」落 1 晋阳自家种植城,
 // 升级决策同样可清)。
-// #1215 棒2(ADR-0058 一环一真):全族 8 例真实段逐例头注声明;force 判词审计归类
-// (#1302 后余下:jinnangUsedTags 标签额度 1、
-// 防窗反应牌清除 2(归 #1301)——各在种植点/助手头注写一行「force 判词」,均为引擎
-// 到不了的形态;塞指定锦囊站点已迁 giveJinnang #1298,挪城/授等级/名将候选站点已迁
+// #1215 棒2(ADR-0058 一环一真):全族 8 例真实段逐例头注声明;种植判词归一(#1295,
+// force 逃生口随 #1303 退役)——jinnangUsedTags 标签额度、防窗反应牌清除等引擎到不了
+// 的形态一律经种植件构造,塞指定锦囊=giveJinnang #1298,挪城/授等级/名将候选=
 // grantProperty/armHero #1300,判词单源 src/core/planter.ts 头注;本 spec 断言链的
-// 操作段全真,前置种植只造「断言面需要的牌形/布场」)。
+// 操作段全真,前置种植只造「断言面需要的牌形/布场」。
 import { test, expect } from "./fixtures";
 import {
   quickStart,
@@ -151,7 +150,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   });
 
   // 真实段:出牌两击链全真(点牌选中→「出牌」点亮→打出→牌离架),消耗的 UI 表达
-  // 随真命令通路走。force 判词:手牌无公共通路,断言面需 self 域恒可用牌形。
+  // 随真命令通路走。牌形经 giveJinnang 种植(判词单源 src/core/planter.ts)。
   test("求贤令:点牌→出牌点亮→出牌牌离架", async ({ page }) => {
     await startJunshi(page, 67);
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["求贤令"] });
@@ -166,8 +165,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   });
 
   // 真实段:目标段两步链全真(出牌进目标段→点席位选中/再点取消→「出」钮打出→目标
-  // 段收牌离架),金圈呼吸/token 呼吸挂点随真窗态。force 判词:手牌无公共通路需牌形;
-  // 珍宝无授宝公共通路(交涉/探索命令到不了「指定座挂指定宝」),目标门槛需对方有宝。
+  // 段收牌离架),金圈呼吸/token 呼吸挂点随真窗态。手牌/珍宝经 giveJinnang/giveTreasure
+  // 种植(交涉/探索命令到不了「指定座挂指定宝」,判词单源 src/core/planter.ts)。
   test("军情密探:出牌进目标段,点席位选中/再点取消,#417 「出」钮确认打出", async ({ page }) => {
     await startJunshi(page, 67);
     // 先停稳在开局出牌阶段态再种植:发牌在进 Playing 时落账,抢跑会被发牌覆盖。
@@ -207,7 +206,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   });
 
   // 真实段:作罢链全真(进目标段→「作罢」→收回卡牌段、选中清空、牌未消耗的 UI 面)。
-  // force 判词同上例(手牌无公共通路;珍宝无授宝公共通路,目标门槛需对方有宝)。
+  // 种植同上例(giveJinnang/giveTreasure,判词单源 src/core/planter.ts)。
   test("军情密探作罢:目标段收回,回卡牌段选中清空、牌未消耗", async ({ page }) => {
     await startJunshi(page, 67);
     // (塞牌经 giveJinnang #1298;珍宝经 giveTreasure #1299,判词单源 src/core/planter.ts)

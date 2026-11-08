@@ -30,8 +30,9 @@
 // 【到达形制换轨判词】e2e 的「真实开局 + 设置弹层两击开抽屉」链在此收敛为:种局
 // 配方(同 #1284 模板)+ ⚙ 钮真点击直通 openWarReport——设置弹层自身开合是另一
 // 组件的断言面,未读账与抽屉投影的接线在 GameScreen.openWarReport 回调,Host 原样
-// 接线即被测环。force(log 只增、无「指定时刻追加」公共命令,e2e 同判词)换成 store
-// 快照直种:接线层被测面 = store 态 → DOM,组件契约只看 store,直种即被测环本体
+// 接线即被测环。日志条目=store 快照直种(与 e2e injectWarLog 同判词:log 只增、
+// 无「指定时刻追加」公共命令,判词单源 src/core/planter.ts):接线层被测面 = store 态 →
+// DOM,组件契约只看 store,直种即被测环本体
 // (模板第三例同判词);直种条目与真条目同 LogEvent schema,渲染窗感知同形数据。
 //
 // 【断言宪法】本层禁几何(假 DOM 无排版引擎,getBoundingClientRect 恒 0)、禁像素、

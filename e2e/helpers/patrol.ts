@@ -6,7 +6,7 @@
 // 的选都链借放行件)。新代码直接 import 本模块;旧路径 e2e/react-helpers.ts 转门面
 // 逐名转出,全部调用点零改动。
 // 边界:不含等待/沉降语义(waitSettled/waitFxIdle 族在 settle.ts),不含桥直写
-// (force/种局链在 drivers.ts)、场景编排(quickStart 五态在 scenes.ts);本层不
+// (plant/callEngine/种局链在 drivers.ts)、场景编排(quickStart 五态在 scenes.ts);本层不
 // import 其余三层,依赖单向 scenes → drivers → settle → 本层,无环。
 import { expect, type Page } from "@playwright/test";
 import { TESTIDS } from "../../src/app/screens/game/testids";

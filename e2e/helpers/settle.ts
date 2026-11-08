@@ -2,7 +2,7 @@
 // 守什么:「等局面稳」的谓词族——演出排空(waitFxIdle)、快照稳定(waitSettled/
 // waitForSnapChanged)、人类停靠(waitMyRollDone/waitMyPause/parkMyTurn)与时钟
 // 冻结缝(freezeClock/unfreezeClock,parkMyTurn 冻结复核用)。
-// 给谁用:全部 e2e spec;也是上层的到站收尾(scenes 五态出口、drivers.force 写前后
+// 给谁用:全部 e2e spec;也是上层的到站收尾(scenes 五态出口、drivers.plant/callEngine 写前后
 // 排空)。新代码直接 import 本模块;旧路径 e2e/react-helpers.ts 转门面逐名转出。
 // 边界:只等不驱动——清决策点/应答代发归 patrol(本层读数与放行一律经
 // patrol.snap/dismissJinnangIfUp,不设第二读口),回合推进/桥直写归 drivers,
@@ -104,7 +104,7 @@ export async function waitMyPause(page: Page, seat: number, timeout = 30_000): P
 /** 严格「我的回合空闲」停车(#1215 棒1 rack 本地助手,#1216 波3 上收共享):
  *  等待谓词比 waitMyPause 多钉一条 activeIndex===selfSeat(0)——两类 bot 回合中途态
  *  都长着「decisionOwner=我」的脸:①反应窗询问期(bot 火烧连营窗开在 bot 回合尾,
- *  waitMyPause 会当停靠:随后 5s 权威窗看门狗代发「不用」、bot 链走完,force+freeze
+ *  waitMyPause 会当停靠:随后 5s 权威窗看门狗代发「不用」、bot 链走完,种植+freeze
  *  锁进 bot 决策位,架随收沿已收,消费例 toggle/点牌语义整例反转);②珍宝抉择卷轴
  *  (起手珍宝访客落在人类城,卷轴开在 bot 回合里,引擎等人类输入、bot 链悬停,
  *  严格条件永不满足=等待死锁)。故轮询体内先代发放行(卷轴「暂不交易」/横幅「不用」

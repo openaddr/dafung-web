@@ -26,8 +26,8 @@ declare global {
       heroDefs: () => HeroDef[];
       /** 种植件分发口(#1298):op=可序列化种植指令(联合单源 @core/planter),桥内
        *  转发到与单测同一份实现 applyPlant。只应用不重灌——派生量重灌与时序纪律
-       *  (写前后等演出排空)由 e2e 封装 plant()(e2e/helpers/drivers.ts)按 force
-       *  同款脚手架收口;控制台裸用时需手动 __dafung.controller().sync() 刷 UI。 */
+       *  (写前后等演出排空)由 e2e 封装 plant()(e2e/helpers/drivers.ts)
+       *  收口(时序纪律三拍单源,见 drivers 头注);控制台裸用时需手动 __dafung.controller().sync() 刷 UI。 */
       plant: (op: PlantOp) => void;
       /** 当前控制器(交互入口)。 */
       controller: () => GameController | null;
