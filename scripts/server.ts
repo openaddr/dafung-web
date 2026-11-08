@@ -664,7 +664,15 @@ async function handle(req: Request): Promise<Response> {
 }
 
 // ──────────────────────────── WebSocket(升级在 fetch 里做,生命周期在 handlers)────────────────────────────
-Bun.serve<WsSeat>({
+// 编程内起缝(#1283 双端对跑层):导出 Bun.serve 句柄本身,不另设装配函数。判词:本文件
+// 的全部装配(registry/事件批通道/socket 表/落盘目录)是**进程单例长驻设计**——模块作用域
+// 状态被 broadcast/flushRoom/handle/WS 处理器闭包共享,改成「可多次调用的装配函数」要整体
+// 重排数百行闭包链,而双端对跑层同进程一实例即够(多实例零需求);故缝取最小=把已存在的
+// serve 结果导出成句柄。端口与路径复用既有 env 面:PORT=0 即随机临时端口(句柄 .port 取
+// 实际口),ROOMS_DIR/LOGS_DIR/STATIC_DIR/JIYU_CONFIG/EXTENSIONS_DIR 本就可注入——测试在
+// import 前设 env 即完成隔离,生产启动路径(`bun run serve`)零变化。约定:import 本模块即
+// 起服(单例,进程内重复 import 走模块缓存;不要在未设 env 时于测试内 import)。
+export const engineServer = Bun.serve<WsSeat>({
   port: PORT,
   hostname: HOST,
   fetch(req, srv) {
