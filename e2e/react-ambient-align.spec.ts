@@ -75,34 +75,32 @@ async function waitSettledFlags(page: import("@playwright/test").Page) {
   );
 }
 
-// 真实段(ADR-0058):真实开局对局自走到行军换装收敛,氛围层旗锚与棋子槽位的真实
-// 屏幕几何(间距比不变量+扩盒 containment)即被测环——零种植。冻结(freezeClock,
-// #421 调试观测面)是到达手段:钉静止测量态防 bot 行军换装期旗锚暂隐的半换装态
-// 污染读数,非字段直改。
-test(
-  "氛围层装饰与棋子槽位像素对位(矩阵同步不变量,ADR-0039)",
-  { tag: "@slow" },
-  async ({ page }) => {
-    // 慢池(#1026;菜单A 2026-11-07 挪入):单例实测 47.4s>30s——快池门禁 --grep-invert @slow 跳过。
-    test.slow(); // quickStart+冻结收敛,多次等待的预算余量(gesture 族同款)
-    await quickStart(page);
-    // 静止测量钉时钟:冻结后行军在途段走 rAF 自终,装饰收敛到全量在位再量
-    // (不钉则 bot 行军换装期旗锚暂隐,量到半换装态=假挂;city-event 同款口径)。
-    await freezeClock(page);
-    await waitSettledFlags(page);
+// 到站形制(#1328 批T5 到站轴):quickStart preRoll 落都即冻(构造器到站)替代旧
+// 「postRoll 真实对局自走到行军换装收敛」(~47.4s 慢池实测)。被测环=静止态矩阵
+// 对位(间距比不变量+扩盒 containment),preRoll 全员落都、无行军在途=旗锚全量
+// 在位的收敛态本然成立(收敛判据 flags==tokens 即此),零种植。freezeClock 保留为
+// 测量钉(幂等二次冻结):钉静止测量态防任何在途演出的半换装态污染读数,非字段直改。
+test("氛围层装饰与棋子槽位像素对位(矩阵同步不变量,ADR-0039)", async ({ page }) => {
+  // 快池(#1328 实测后定):构造器到站后单例串行 3.7s(<30s 门),到站零 bot 链零
+  // 停靠等待(旧 47.4s=真实自走的负载窗,preRoll 结构性根除)——@slow 摘除回快池。
+  test.slow(); // 多次等待的预算余量(gesture 族同款)
+  await quickStart(page, undefined, { advance: "preRoll" });
+  // 静止测量钉时钟:冻结后行军在途段走 rAF 自终,装饰收敛到全量在位再量
+  // (不钉则 bot 行军换装期旗锚暂隐,量到半换装态=假挂;city-event 同款口径)。
+  await freezeClock(page);
+  await waitSettledFlags(page);
 
-    // 静止态:间距比 ≈ 1(±3%:亚像素舍入在 ~200px 间距上 <1%),且全部锚点在自家扩盒内
-    // #1181 诊断:满载下 waitSettledFlags 放行后仍有 ≤300ms 量级的瞬态未稳窗
-    // (矩阵同步尾拍/换装回装的 ratio+outside 同帧违例,实测 10 轮满载 2 轮命中),
-    // 单次取样会撞上——读数+断言整块包 toPass 在 expect 超时窗内轮询重试,
-    // 读到稳定正确才算过;阈值与语义不变。
-    await expect(async () => {
-      const rest = await measure(page);
-      expect(rest.ratio, "旗锚不足两枚(氛围层未渲染或换装态误判)").not.toBeNull();
-      expect(rest.pairDist).toBeGreaterThan(50); // 取到的对必须真有间距,防全零坐标假绿
-      expect(Math.abs(rest.ratio! - 1)).toBeLessThan(0.03);
-      expect(rest.outside, `旗锚挤出自棋扩盒的棋子:${rest.outside.join(",")}`).toEqual([]);
-    }).toPass();
-    await unfreezeClock(page);
-  },
-);
+  // 静止态:间距比 ≈ 1(±3%:亚像素舍入在 ~200px 间距上 <1%),且全部锚点在自家扩盒内
+  // #1181 诊断:满载下 waitSettledFlags 放行后仍有 ≤300ms 量级的瞬态未稳窗
+  // (矩阵同步尾拍/换装回装的 ratio+outside 同帧违例,实测 10 轮满载 2 轮命中),
+  // 单次取样会撞上——读数+断言整块包 toPass 在 expect 超时窗内轮询重试,
+  // 读到稳定正确才算过;阈值与语义不变。
+  await expect(async () => {
+    const rest = await measure(page);
+    expect(rest.ratio, "旗锚不足两枚(氛围层未渲染或换装态误判)").not.toBeNull();
+    expect(rest.pairDist).toBeGreaterThan(50); // 取到的对必须真有间距,防全零坐标假绿
+    expect(Math.abs(rest.ratio! - 1)).toBeLessThan(0.03);
+    expect(rest.outside, `旗锚挤出自棋扩盒的棋子:${rest.outside.join(",")}`).toEqual([]);
+  }).toPass();
+  await unfreezeClock(page);
+});

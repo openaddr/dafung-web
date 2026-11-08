@@ -92,6 +92,11 @@ export function installDebugHooks(): void {
   // 本体提为局部函数(#1252 中盘构造器示导波):seedSoloToRound 复用同一条开局链,
   // 不复制实现——开局语义单源仍在本注释与 how-to「种局式直通」条。
   const seedSolo = async (opts: { seed?: number; mapId?: string; seats?: number } = {}) => {
+    // 席位旋钮(#1328):seats 缺省=设置屏默认 4(setup-defaults 单源);显式传入须为
+    // 2–8 整数(与设置屏 stepper min/max、引擎「支持 2–8 个座位」同界),非法值响亮
+    // 抛错不静默截断(defaultSetupSeats 对非整数会地板截断=兜底,在旋钮口拦死)。
+    if (opts.seats != null && (!Number.isInteger(opts.seats) || opts.seats < 2 || opts.seats > 8))
+      throw new Error(`seedSolo:seats 须为 2–8 整数(收到 ${String(opts.seats)})`);
     const source = getMapSource();
     // 亚段打点(#1273,常驻轻量诊断;performance.measure 名 df.* 前缀,cost-probe
     // 回读聚合,不进任何门禁)。段界:resolve(参数解析)/loadMapById(fetch+解析+

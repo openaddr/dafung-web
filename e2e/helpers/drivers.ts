@@ -110,8 +110,11 @@ export async function callEngine<R = unknown>(
 }
 
 /** 种局桥调用(#1211):裸开局,不推进不停靠——到站等待与沉降归调用方(settle)。
- *  quickStart stopAtOpeningHand 态的页内本体。 */
-export function seedSolo(page: Page, opts: { seed?: number; mapId?: string }): Promise<void> {
+ *  quickStart stopAtOpeningHand 态的页内本体。seats=席位旋钮透传(#1328,校验在桥)。 */
+export function seedSolo(
+  page: Page,
+  opts: { seed?: number; mapId?: string; seats?: number },
+): Promise<void> {
   return page.evaluate((o) => (window as any).__dafung.seedSolo(o), opts);
 }
 
@@ -120,7 +123,7 @@ export function seedSolo(page: Page, opts: { seed?: number; mapId?: string }): P
  *  冻结必落在定时器点火前。quickStart preRoll 态的页内本体,拆 evaluate 即破性质。 */
 export async function seedSoloFrozen(
   page: Page,
-  opts: { seed?: number; mapId?: string },
+  opts: { seed?: number; mapId?: string; seats?: number },
 ): Promise<void> {
   await page.evaluate(async (o) => {
     const d = (window as any).__dafung;
@@ -134,7 +137,13 @@ export async function seedSoloFrozen(
  *  (waitFxIdle/waitSettled)归调用方(settle)。quickStart midGameRound 态的页内本体。 */
 export function seedSoloToRound(
   page: Page,
-  opts: { seed?: number; mapId?: string; targetRound: number; afterFirstRoll?: boolean },
+  opts: {
+    seed?: number;
+    mapId?: string;
+    seats?: number;
+    targetRound: number;
+    afterFirstRoll?: boolean;
+  },
 ): Promise<{ turnNumber: number; round: number; turnPhase: string }> {
   return page.evaluate((o) => (window as any).__dafung.seedSoloToRound(o), opts);
 }
@@ -146,7 +155,7 @@ export function seedSoloToRound(
  *  静默吞错,evaluate 照常上抛)。setSnapPin 与推进同 evaluate,钉/解钉不跨拍。 */
 export async function seedSoloPastFirstRoll(
   page: Page,
-  opts: { seed?: number; mapId?: string },
+  opts: { seed?: number; mapId?: string; seats?: number },
 ): Promise<void> {
   await page.evaluate(async (o) => {
     const d = (window as any).__dafung;
@@ -155,6 +164,7 @@ export async function seedSoloPastFirstRoll(
       await d.seedSoloToRound({
         seed: o.seed,
         mapId: o.mapId,
+        seats: o.seats,
         targetRound: 1,
         afterFirstRoll: true,
       });

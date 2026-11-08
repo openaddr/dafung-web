@@ -17,19 +17,9 @@
 // 原 49 × huanyou 停靠随换图作废,1010 实测开局停在购地决策、无招贤岔路)。总览行无浮签触发元(title 静态浮签除外),无 #704
 // 残影风险;关闭走 Esc/点外/X 三路(ui/dialog 底件白拿)。
 import { test, expect, type Page } from "./fixtures";
-import {
-  quickStart,
-  openSoloSetup,
-  pickCapital,
-  waitMyPause,
-  actIfCan,
-  waitFxIdle,
-  freezeClock,
-  unfreezeClock,
-} from "./react-helpers";
+import { quickStart, actIfCan, waitFxIdle, freezeClock, unfreezeClock } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 // 本 spec 各例都是「整局 boot + 种植 + 弹层链」重例:60s 缺省
 // 超时装不下,显式放宽——放宽语句必须落在测试体首行(文件顶层调用不生效)。
@@ -113,17 +103,14 @@ test.describe("声列概率条几何腿壳例(#1099;#1316 批T2 切腿后本例�
 // 本文件壳例(见上组)。
 
 test.describe("满编 8 行零滚动零截断(#702 ⑤)", () => {
-  // 真实段(ADR-0058):真实 8 诸侯开局全链(准备页起兵→定都→对局自走停靠)+总览
-  // 真实点开,8 行真渲染几何(零滚动/末行不截断/不出视口)即被测环——零种植
-  // (冻结为到达手段,非字段直改)。
+  // 到站形制(#1328 批T5 到站轴):quickStart(…, seats:8) 席位旋钮构造器到站(preRoll
+  // 落都即冻)替代「设置屏 8 席点击链+waitMyPause 等 7 bot 链」(原 240s 预算随链
+  // 退役,缺省 60s 恒装得下)——8 席配置=桥参数化(校验单源 registry.seedSolo),
+  // 设置屏 8 席通路另有脊柱①旅程例守(react-home-strip);桌面视口开局→切矮横屏的
+  // 视口切换重排路径保留=被测环一部分。被测环不变:8 行真渲染几何(零滚动/末行不
+  // 截断/不出视口)+总览真实点开——零种植(冻结为到达手段,非字段直改)。
   test("8 席 @844×390:8 行全见,容器无滚动,末行下缘不出窗", async ({ page }) => {
-    test.setTimeout(240_000); // 8 人选都链路更重(react-seat-cells 满编例同因)
-    await page.goto("/");
-    await openSoloSetup(page);
-    for (let i = 4; i < 8; i++) await page.getByTestId(`${SETUP_TID.seatCount}-plus`).click(); // 4 → 8
-    await page.getByTestId(SETUP_TID.startGame).click();
-    await pickCapital(page);
-    await waitMyPause(page, 0, 150_000);
+    await quickStart(page, undefined, { seats: 8, advance: "preRoll" });
     // 配置与开局在桌面视口完成,再切矮横屏验收目标形态(react-float-skeleton 同法)
     await page.setViewportSize({ width: 844, height: 390 });
     await settleForOverview(page);
