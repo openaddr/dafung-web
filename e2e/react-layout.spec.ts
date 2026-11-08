@@ -8,7 +8,7 @@
 // ——12s 采样窗为快池最贵等待之一,#958 全幅横幅退役的复现防线归 visual-compare
 // 像素对照(发布前),e2e 不再养时线哨。
 import { test, expect } from "./fixtures";
-import { quickStart, snap, dismissJinnangIfUp, actIfCan, force } from "./react-helpers";
+import { quickStart, snap, dismissJinnangIfUp, actIfCan } from "./react-helpers";
 import { callEngine, plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
@@ -58,7 +58,7 @@ test.describe("全浮层骨架", () => {
   // 真实段(ADR-0058):真实挂载渲染的手牌区结构(签面驻左端/架在区内)+退役
   // testid 零残留即被测环。钉相位走 armPhase(#1301,判词单源 src/core/planter.ts:
   // 钉 AwaitingDecision 空闲态=断言前提,引擎自转无「钉相位」公共命令);清落格
-  // 投影仍直写=落格结算内部挂起态无种植件,内联判词(同 react-float-skeleton)。
+  // 投影走 armLanding(null)(#1303,投影族判词单源 src/core/planter.ts)。
   test("手牌区:签面驻左端,手牌架在区内;现金归席位格零残留", async ({ page }) => {
     // 波5b #1218 加网(「手牌区」负载挂签名,hand-zone 显隐沿丢拍→谓词加网):
     // 显隐沿的竞速本体是「waitMyPause 自然停靠(含 bot 回合询问期假停靠)→钉相位
@@ -67,13 +67,7 @@ test.describe("全浮层骨架", () => {
     await quickStart(page, 1486, { advance: "preRoll" });
     // 钉 AwaitingDecision 空闲态(preRoll 已冻,同上例)
     await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
-    await force(
-      page,
-      `
-      e.lastLandOutcome = null;
-      e.pendingLand = null;
-    `,
-    );
+    await plant(page, { kind: "armLanding", landing: null });
     const zone = page.getByTestId(TESTIDS.handZone);
     await expect(zone).toBeVisible();
     // 签面(testid dice-face 契约不变):文本 ∈ 签/待/一~六

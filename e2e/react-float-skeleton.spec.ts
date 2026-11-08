@@ -10,7 +10,7 @@
 // react-narrow「全浮层件就位」同阈值守;独占的「桌面→844×390 视口切换」到达路径是
 // 纯 CSS 重排非 app 代码,且交付形态 APK 锁横屏、桌面 resize 为不设断言的失修面。
 import { test, expect } from "./fixtures";
-import { quickStart, dismissJinnangIfUp, force, snap } from "./react-helpers";
+import { quickStart, dismissJinnangIfUp, snap } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
@@ -21,9 +21,8 @@ test.describe("顶部浮层几何(#700 ①)", () => {
   // 通路)走到首拍冻结,顶浮层四件(设置/详情/回合胶囊/三圆钮)真实挂载渲染的 DOM
   // 盒模型即被测环——单发 evaluate 读真渲染几何,无操作链。钉相位走 armPhase
   // (#1301,判词单源 src/core/planter.ts:钉 AwaitingDecision 空闲态=断言前提,
-  // 引擎自转无「钉相位」公共命令);清落格投影(防决策卷轴遮顶栏)仍直写=落格
-  // 结算内部挂起态无种植件,内联判词(「空闲且无遮罩」形态引擎到不了,rack 停车坪
-  // 同判词)。
+  // 引擎自转无「钉相位」公共命令);清落格投影(防决策卷轴遮顶栏)走 armLanding
+  // (null)(#1303,投影族判词单源 src/core/planter.ts)。
   test("顶左行序 设置→详情:两钮 32×32 避 safe-area;回合胶囊顶中与钮行同排(#853 chip 退役);三圆钮 44px 贴右下,锦囊默认亮", async ({
     page,
   }) => {
@@ -34,13 +33,7 @@ test.describe("顶部浮层几何(#700 ①)", () => {
     await quickStart(page, 1486, { advance: "preRoll" });
     // 钉 AwaitingDecision 空闲态(preRoll 已冻,只清落格投影防决策卷轴遮顶栏)
     await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
-    await force(
-      page,
-      `
-      e.lastLandOutcome = null;
-      e.pendingLand = null;
-    `,
-    );
+    await plant(page, { kind: "armLanding", landing: null });
     // #1181 诊断:本例是单发 evaluate 几何读数,满载下 quickStart 放行点与浮层首挂/
     // 回合胶囊重挂入场过渡仍有毫秒级竞速窗——读数幂等,整块包 toPass 轮询重试
     // (expect 超时窗内读到稳定正确才算过);阈值与断言语义不变。
@@ -135,13 +128,7 @@ test.describe("锦囊手牌开关(#1006 建组;显隐回合联动+决策保底)"
     // 空闲态 + 清 pendingLand/落格投影——决策卷轴不拦顶栏命中,锦囊钮可点,状态
     // 无限期稳定(preRoll 已冻,无自动推进可竞速)。
     await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
-    await force(
-      page,
-      `
-      e.lastLandOutcome = null;
-      e.pendingLand = null;
-    `,
-    );
+    await plant(page, { kind: "armLanding", landing: null });
     const zone = page.getByTestId(TESTIDS.handZone);
     const toggle = page.getByTestId(TESTIDS.jinnangToggle);
     // 默认亮:开场即挂载,钮亮态

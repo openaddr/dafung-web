@@ -11,7 +11,7 @@
 // 行军日志/已推进回合,落都即冻结(时钟冻在自动起摇点火前,零竞速),显式
 // waitFxIdle/freezeClock/unfreezeClock 随通路退役(返回即已冻)。
 import { test, expect, type Page } from "./fixtures";
-import { quickStart, force, snap, engineState, waitFxIdle } from "./react-helpers";
+import { quickStart, snap, engineState, waitFxIdle } from "./react-helpers";
 import { fmtMoney } from "./react-helpers";
 import { callEngine, plant } from "./helpers/drivers";
 import { guidePriceOf, premiumPriceOf } from "../src/core/treasures";
@@ -101,8 +101,8 @@ test(
  *  劫持交涉结算断言。
  *  授产走 grantProperty、相位/活跃座位/交涉停相位走 armPhase(#1300/#1301,判词单源
  *  src/core/planter.ts:城池归属由购地结算产出(行军+现金约束到不了「指定格指定级」)、
- *  相位/活跃座位无公共命令)。treasureVisitor 仍直写=交涉挂起载荷仅落格结算内部挂起,
- *  无种植件,直写内联判词(#1303 收口缺口盘点)。 */
+ *  相位/活跃座位无公共命令)。交涉挂起载荷走 armVisitor(#1303,判词单源
+ *  src/core/planter.ts:交涉窗由落珍宝城结算产生,「凭空挂交涉」无公共流程)。 */
 async function plantTrade(page: Page): Promise<void> {
   // #1221 L1:preRoll 落都即冻结(同招贤卷轴例,#987/#943 冻结闸随「点火前已冻」退役),
   // 种植的 AwaitingTreasureOwner 停靠态不被迟到链步进覆盖。
@@ -132,12 +132,7 @@ async function plantTrade(page: Page): Promise<void> {
     propertyId: visitPropertyId,
     level: 1,
   });
-  await force(
-    page,
-    `
-    e.treasureVisitor = { def: e.catalog.get(${JSON.stringify(visitPropertyId)}), ownerIdx: 0 };
-  `,
-  );
+  await plant(page, { kind: "armVisitor", propertyId: visitPropertyId, ownerSeat: 0 });
   await plant(page, {
     kind: "armPhase",
     phase: "Playing",
@@ -370,8 +365,9 @@ test("珍宝城购地:落格弹购地卷轴、差额行「余」、点买收卷"
   // 种植件(引擎无「置位」公共命令——行军由骰流驱动,position 只随行军结算改写;
   // 判词单源 src/core/planter.ts);②③公共方法 marchTraverse→settleMarchLanding 走
   // callEngine 直呼(与 rollAndMove 掷定 1 步后的同一段引擎路径;机遇已被 fixtures
-  // 归零,珍宝城=event 城本就免掷);④lastMove=行军投影字段直写残块(无种植件亦无
-  // 公共命令,暂驻 force,同 pendingLand/lastLandOutcome 投影族,#1303 缺口盘点裁决)。
+  // 归零,珍宝城=event 城本就免掷);④lastMove=行军投影回写,路径经 computePath
+  // 读现值拼、applyPresentationMove 公共方法回灌(callEngine 直呼——表现侧设
+  // lastMove 的唯一合法入口,authority 红线 3)。
   // 落无主珍宝城 → 落格固定事件位先探宝(#825)→ 交易链:可购决策挂起(同权,ADR-0024)。
   await plant(page, { kind: "armPhase", phase: "Playing", activeIndex: 0 });
   // 无主珍宝城选址读数(只读):落格=城格,起步=贴邻前一格。
@@ -393,10 +389,11 @@ test("珍宝城购地:落格弹购地卷轴、差额行「余」、点买收卷"
     1,
   ]);
   if (walked !== "landed") throw new Error("marchTraverse=" + walked + "(单格无拦检,契约违反)");
-  await force(
+  const path = await engineState(
     page,
-    `e.lastMove = e.board.computePath(${spot.from}, 1, e.players[0].capitalIndex);`,
+    `e.board.computePath(${spot.from}, 1, e.players[0].capitalIndex)`,
   );
+  await callEngine(page, "applyPresentationMove", [path]);
   await callEngine(page, "settleMarchLanding", [{ $ref: "player", seat: 0 }, spot.land]);
   // 落格即弹购地卷轴(探宝先行、可购决策挂起的 UI 面)
   await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();

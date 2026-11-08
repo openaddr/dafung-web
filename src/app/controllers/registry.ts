@@ -47,7 +47,7 @@ export function getControllerContext(): { board: Board; catalog: MapCatalog } | 
 // 重建旧 src/render/state.ts 的调试入口:控制台可直接读引擎/快照、手动触发重同步。
 // 类型声明见 src/app/debug.d.ts(declare global,零运行时开销)。
 // 分层标注(#1255,ADR-0059 决策 5):本桥面=测试侧四层公共能力的驱动源,e2e 侧
-// 消费封装住 e2e/helpers/drivers.ts(种局/推进/瞬空链 seedSolo 族+force),其上
+// 消费封装住 e2e/helpers/drivers.ts(种局/推进/瞬空链 seedSolo 族+plant/callEngine),其上
 // scenes/settle/patrol 三层与旧路径门面见 e2e/helpers/ 各文件契约头注——新测试
 // 能力经层取用,不散装直呼本桥。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
@@ -276,8 +276,8 @@ export function installDebugHooks(): void {
      *  @core/planter,桥内转发到与单测/无头层**同一份实现** applyPlant——三层共用
      *  场景构造能力,e2e 侧 type-import op 联合,字段写错编译期红)。只出机制+分发:
      *  应用后不重灌派生量——时序纪律(写前等演出排空→写→controller().sync() 重灌
-     *  派生→写后再排空)由 e2e 封装 e2e/helpers/drivers.ts plant() 复用 force 同款
-     *  脚手架收口。经本桥双门禁,生产构建零暴露。 */
+     *  派生→写后再排空)由 e2e 封装 e2e/helpers/drivers.ts plant()/callEngine() 收口
+     *  (三拍判据单源在该头注)。经本桥双门禁,生产构建零暴露。 */
     plant: (op: PlantOp) => {
       const e = getEngine();
       if (e == null) throw new Error("plant:无活动对局(未开局不可种植)");

@@ -1,9 +1,11 @@
 // ──────────────────────────── 驱动层 drivers(ADR-0059 决策 5 四层之一,#1255)────────────────────────────
 // 守什么:调试桥(window.__dafung)的调用封装——桥通道开设(newBridgeContext,双门禁
-// 键注入)、桥挂载等待(waitForEngine)、引擎直写+派生量重灌(force),以及种局/推进
-// 桥链(seedSolo/seedSoloFrozen/seedSoloToRound/seedSoloPastFirstRoll,#1255 起
-// quickStart 五态的页内本体从 scenes 内联 evaluate 抽出为逐链封装)。
-// 给谁用:scenes.quickStart 组装五态;spec 直接用 force/newBridgeContext/waitForEngine。
+// 键注入)、桥挂载等待(waitForEngine)、种植件分发+公共方法直呼(plant/callEngine,
+// 全仓仅存的两条非常规引擎通道,#1303 起),以及种局/推进桥链(seedSolo/
+// seedSoloFrozen/seedSoloToRound/seedSoloPastFirstRoll,#1255 起 quickStart 五态的
+// 页内本体从 scenes 内联 evaluate 抽出为逐链封装)。
+// 给谁用:scenes.quickStart 组装五态;spec 直接用 plant/callEngine/newBridgeContext/
+// waitForEngine。
 // 新代码直接 import 本模块;旧路径 e2e/react-helpers.ts 转门面逐名转出(新封装不进
 // 门面——门面=冻结的旧出口面,新面只长在层内,收缩留给迁移波)。
 // 边界:每个封装=一次 page.evaluate 的桥调用(快进/瞬空的 evaluate 内结构原样保留,
@@ -36,29 +38,20 @@ export async function waitForEngine(page: Page): Promise<void> {
   });
 }
 
-/** 强制引擎进入指定状态并同步 UI(测试专用通道;fn 内以 e 引用引擎)。
- *  #188:收口走控制器 sync(而非 __dafung.sync)——直改引擎后必须连派生量(interactive
- *  /viewSeat)一起重灌,决策卷轴按 interactive 门控;行军自动化后 quickStart 的停靠点
- *  不再保证 interactive=true(bot 回合动画窗内同样会停),漏刷会让强制相位永远不弹卷轴。
- *  #398/#400:单机统一后演出队列与引擎状态解耦(状态随下行拍即时落,动画排队播,
- *  fx.playing 锁语义与联机同构)——直写前后各等队列排空一次:写前等排空防
- *  「播放中 sync 重灌打断转场,表现队列永久挂起」(终局 e2e 实测:mid-playback 直写
- *  后 fx.playing 卡死 60s,对局照走、交互永锁);写后等排空保证交还调用方时点击
- *  不撞锁(旧锁步世界「settled 即可点」的假设不再成立)。 */
-export async function force(page: Page, fn: string): Promise<void> {
-  await waitFxIdle(page);
-  await page.evaluate(
-    `(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.controller().sync(); })()`,
-  );
-  await waitFxIdle(page);
-}
-
 /** 种植件分发封装(#1298,#1295 种植件体系):op 经桥 `__dafung.plant` 转发到与单测
- *  同一份种植实现(core/planter,判词单源=各族种植件头注);时序纪律复用 force 现成
- *  脚手架(同款三拍:写前等演出排空 → 同一 evaluate 内 plant+controller().sync()
- *  重灌派生量 → 写后再排空,头注见 force)。op 是结构化对象走 evaluate 参数,不搞
- *  字符串脚本拼接;族 kind 与字段由 PlantOp 联合编译期校验(字段写错编译期红)。
- *  退役映射:塞指定锦囊族站点自本封装起迁入,force 本体待 #1303 收口退役。 */
+ *  同一份种植实现(core/planter,判词单源=各族种植件头注)。op 是结构化对象走
+ *  evaluate 参数,不搞字符串脚本拼接;族 kind 与字段由 PlantOp 联合编译期校验(字段
+ *  写错编译期红)。
+ *  【时序纪律三拍(本封装单源,#188/#398/#400 实据)】写前等演出排空 → 同一 evaluate
+ *  内 plant + controller().sync() 重灌派生量 → 写后再排空。#188:收口走控制器 sync
+ *  (而非 __dafung.sync)——改引擎后必须连派生量(interactive/viewSeat)一起重灌,
+ *  决策卷轴按 interactive 门控;行军自动化后 quickStart 的停靠点不再保证
+ *  interactive=true(bot 回合动画窗内同样会停),漏刷会让钉相位永远不弹卷轴。
+ *  #398/#400:单机统一后演出队列与引擎状态解耦(状态随下行拍即时落,动画排队播,
+ *  fx.playing 锁语义与联机同构)——写前后各等队列排空一次:写前等排空防「播放中
+ *  sync 重灌打断转场,表现队列永久挂起」(终局 e2e 实测:mid-playback 改局后
+ *  fx.playing 卡死 60s,对局照走、交互永锁);写后等排空保证交还调用方时点击不撞锁
+ *  (旧锁步世界「settled 即可点」的假设不再成立)。callEngine 同拍复用(见其头注)。 */
 export async function plant(page: Page, op: PlantOp): Promise<void> {
   await waitFxIdle(page);
   await page.evaluate((o) => {
@@ -73,17 +66,16 @@ export async function plant(page: Page, op: PlantOp): Promise<void> {
 export type EngineRef = { $ref: "activePlayer" } | { $ref: "player"; seat: number };
 
 /** 引擎公共方法直呼封装(#1302):evaluate 内 `getEngine()[method](...args)` →
- *  controller().sync(),时序纪律复用 force 现成三拍(写前等演出排空 → 同一 evaluate
- *  内调用+sync 重灌派生量 → 写后再排空,头注见 force);返回引擎方法返回值
- *  (marchTraverse 落 "landed" 一类契约断言用)。
- *  【与 force 的唯一分界(头注单源,#1302)】本封装只许承载**引擎公共方法调用**,
- *  不许承载字段直写——字段直写一律种植件(plant)。被退役的 force()(#1303 收口)
- *  = 直写字段+直呼方法混装的逃生口;force 收口后全仓仅存 plant(场景字段种植)+
- *  callEngine(公共方法直呼)两通道,新站点按「方法调用 vs 字段直写」二选一归口。
- *  方法名/参数表由评审按引擎公共面核对,封装不做白名单;桥面零增量(本封装住 e2e
- *  侧,不进 src/app/debug.d.ts)。args 过网保持纯 JSON:Player 引用经 EngineRef
- *  占位页内解析(activePlayer getter / players[seat],越界座位当场炸),其余标量/
- *  数组原样透传。 */
+ *  controller().sync();返回引擎方法返回值(marchTraverse 落 "landed" 一类契约
+ *  断言用)。
+ *  【通道归口(全仓仅存两条非常规引擎通道,#1303 起)】本封装只许承载**引擎公共方法
+ *  调用**,不许承载字段直写——字段直写一律种植件(plant);缺对应种植件=缺能力,
+ *  补 kind(op 联合扩展,判词入 core/planter 头注),不复活已退役的字符串脚本逃生口
+ *  (#1303 收口删除)。新站点按「方法调用 vs 字段直写」二选一归口。方法名/参数表由
+ *  评审按引擎公共面核对,封装不做白名单;桥面零增量(本封装住 e2e 侧,不进
+ *  src/app/debug.d.ts)。args 过网保持纯 JSON:Player 引用经 EngineRef 占位页内解析
+ *  (activePlayer getter / players[seat],越界座位当场炸),其余标量/数组原样透传。
+ *  时序纪律三拍同 plant(单源见 plant 头注,#188/#398/#400 实据)。 */
 export async function callEngine<R = unknown>(
   page: Page,
   method: string,

@@ -17,8 +17,8 @@
 // isBot 翻转判词(见该例);resolveJinnang/respondReaction 走引擎公共方法(合法漏斗,
 // 非红牌)。
 import { test, expect } from "./fixtures";
-import { force, quickStart, snap, freezeClock, useHalfScale } from "./react-helpers";
-import { plant } from "./helpers/drivers";
+import { quickStart, snap, freezeClock, useHalfScale } from "./react-helpers";
+import { callEngine, plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
 
@@ -87,17 +87,19 @@ test.describe("军情密探即时窥探(#575)", () => {
 
   // 真实段:呈现面断言真(counter 序列零窥探信号、弹层从未打开);命令序
   // (resolveJinnang/respondReaction)走引擎公共方法=合法漏斗(ADR-0058 种植合法性
-  // 分层:公共方法必走,局面不变量全保真),非红牌。force 判词:bot 即席代答按 isBot
-  // 判定(ADR-0017),无「挂起代答」公共通路——翻人让窗挂起到应答拍是唯一种植口,
-  // 单拍 evaluate 全同步无超时代答竞速。
+  // 分层:公共方法必走,局面不变量全保真),经 callEngine 直呼(#1302);翻人走
+  // setBot 种植件(#1303,判词单源 src/core/planter.ts:bot 即席代答按 isBot 判定
+  // (ADR-0017),无「挂起代答」公共通路)。
   test("被识破:无窥探弹层(识破只护份,窥探从未发生)", async ({ page }) => {
     await startPeekStop(page);
     // bot 识破口径(#281)对 peek 估损恒 0(不抵牌值底价)→ 永不拆——识破军情密探是
     // 人玩家政局玩法(联机对局),单机热座无第二真人。故本例在页面真引擎里走「被识破」
     // 命令序,呈现层断言 countered 序列零窥探信号(弹层从未打开)。要点:seat1 暂翻
     // isBot=false——bot 即席代答按 isBot 判定(reaction-window.ts,ADR-0017),全 bot
-    // 被询问时窗在 resolveJinnang 调用内即闭且必「不用」;翻人后窗挂起,同拍
-    // respondReaction 应答识破,再翻回(单拍 evaluate 全同步,无超时代答竞速)。
+    // 被询问时窗在 resolveJinnang 调用内即闭且必「不用」;翻人后窗挂起,respondReaction
+    // 应答识破,再翻回。原单拍 evaluate 全同步已拆拍(setBot/callEngine 各一拍,#1303
+    // 棒1):拍间隙 ms 级,窗 TTL 秒级(fixtures 注入 E2E_REACTION_MS=5000),超时
+    // 代答竞速面不回归;翻人期间唯一被询问座就是 seat1,余座反应牌已清。
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
     await plant(page, { kind: "giveJinnang", seat: 1, cards: ["识破诡计"] });
     // 只给 seat1 识破诡计(queried 恰 [1]):清走其余座位反应牌,防其他 bot 被询问
@@ -109,16 +111,11 @@ test.describe("军情密探即时窥探(#575)", () => {
       const rest = hands[seat]!.jinnangHand.filter((id) => id !== "识破诡计");
       await plant(page, { kind: "giveJinnang", seat, cards: rest });
     }
-    await force(
-      page,
-      `
-      e.players[1].isBot = false; // 暂翻人:窗不即席代答,留给下面的应答
-      e.resolveJinnang("军情密探");
-      e.resolveJinnang("军情密探", [1]);
-      e.respondReaction(1, true, "识破诡计", 1); // 识破自保生效,窗闭即结算
-      e.players[1].isBot = true; // 翻回 bot(后续 bot 链照常)
-    `,
-    );
+    await plant(page, { kind: "setBot", seat: 1, bot: false }); // 暂翻人:窗不即席代答
+    await callEngine(page, "resolveJinnang", ["军情密探"]);
+    await callEngine(page, "resolveJinnang", ["军情密探", [1]]);
+    await callEngine(page, "respondReaction", [1, true, "识破诡计", 1]); // 识破自保生效,窗闭即结算
+    await plant(page, { kind: "setBot", seat: 1, bot: true }); // 翻回 bot(后续 bot 链照常)
     await freezeClock(page); // 计被拆后回合照常收卷,冻结推进防 bot 链干扰断言
     // 引擎面:识破生效(战报公开面照旧),窥探事件零产出
     const s = await snap(page);

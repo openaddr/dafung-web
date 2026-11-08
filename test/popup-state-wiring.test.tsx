@@ -81,6 +81,7 @@ import { createDice } from "@core/dice";
 import type { GameEvent } from "@core/game-events";
 import type { HeroSlot } from "@core/roster";
 import { makeSkillBook } from "@core/treasures";
+import { applyPlant, type PlantOp } from "@core/planter";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
@@ -200,14 +201,15 @@ function mount(): HTMLElement {
 }
 
 /** 种局→布场→注册控制器→基类 sync 灌 store→挂屏(每例开头同款一条龙)。
- *  force = 进程内引擎直写 + 重灌 store(e2e force 的无桥同构,判词见头注)。 */
-function startGame(plant: (e: GameEngine) => void): {
+ *  plant = 种植指令分发(applyPlant 单源 @core/planter,与 e2e 桥/单测同一份实现,
+ *  三层共用 #1295)+ 基类 resync 重灌 store;布场判词见文件头注。 */
+function startGame(setup: (e: GameEngine) => void): {
   el: HTMLElement;
-  force: (write: (e: GameEngine) => void) => void;
+  plant: (op: PlantOp) => void;
   snap: () => GameSnapshot;
 } {
   const e = seedPlayingEngine();
-  plant(e);
+  setup(e);
   const c = newWiringController(e);
   setController(c);
   act(() => {
@@ -216,8 +218,8 @@ function startGame(plant: (e: GameEngine) => void): {
   const el = mount();
   return {
     el,
-    force: (write) => {
-      write(e);
+    plant: (op) => {
+      applyPlant(e, op);
       act(() => {
         c.resync();
       });
@@ -337,23 +339,19 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
   // 回来 → 自动弹回+开关复亮。挂载有无与类名挂点,零几何(收沿贴底位移等几何腿
   // 留浏览器地板例)。长按/hover 真实输入语义留浏览器(头注判例)。
   it("他人回合:架自动收起(回合交出即撤);回合回来自动弹回", () => {
-    const { el, force, snap } = startGame(plantIdleDecision);
+    const { el, plant, snap } = startGame(plantIdleDecision);
     const toggle = () => q(el, TESTIDS.jinnangToggle)!;
     // 我的回合空闲态:架亮(handZone 在场,开关 .on)
     expect(q(el, TESTIDS.handZone)).not.toBeNull();
     expect(toggle().className).toContain("on");
     // 回合交出(activeIndex 直写 bot,种植判词见头注):decisionOwner 随派生离席,
     // 架自动收起(整区卸载),开关撤亮。
-    force((e) => {
-      e.activeIndex = e.players.findIndex((p) => p.isBot);
-    });
+    plant({ kind: "armPhase", activeIndex: snap().players.findIndex((p) => p.isBot) });
     expect(snap().decisionOwner).not.toBe(0);
     expect(q(el, TESTIDS.handZone)).toBeNull();
     expect(toggle().className).not.toContain("on");
     // 回合回来:我的回合亮沿自动弹回(架回场,钮亮态)。
-    force((e) => {
-      e.activeIndex = e.players.findIndex((p) => !p.isBot);
-    });
+    plant({ kind: "armPhase", activeIndex: snap().players.findIndex((p) => !p.isBot) });
     expect(q(el, TESTIDS.handZone)).not.toBeNull();
     expect(toggle().className).toContain("on");
   });
@@ -363,7 +361,7 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
   // 无呼吸、窗态亮架不呼吸、窗内收起挂 .breathe、窗落沿按规则重对齐抹平手动态。
   // 纯类名挂点四态走查;呼吸金光的视觉存在归 visual-compare。
   it("呼吸钮:窗态+收起才挂 .breathe;非窗态收起与窗态亮架均无该 class", () => {
-    const { el, force } = startGame(plantIdleDecision);
+    const { el, plant } = startGame(plantIdleDecision);
     const toggle = () => q(el, TESTIDS.jinnangToggle)!;
     const breathe = () => toggle().className.includes("breathe");
     // 非窗态收起:无呼吸(「有活决策被收起来」只在窗态成立)
@@ -373,9 +371,7 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
     // 窗态开场亮沿先弹回(亮沿②);窗态亮架不呼吸——呼吸=窗态∧收起,非「窗态」
     // 单条件(动作条在场=窗态证据)。
     click(toggle());
-    force((e) => {
-      e.turnPhase = "AwaitingJinnang";
-    });
+    plant({ kind: "armPhase", turnPhase: "AwaitingJinnang" });
     expect(q(document, TESTIDS.actionbar)).not.toBeNull();
     expect(breathe()).toBe(false);
     // 窗内收起:呼吸金光挂上(类名挂点,开关与钮同态)
@@ -384,9 +380,7 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
     expect(breathe()).toBe(true);
     // 窗落(仍在我的回合):窗落沿按规则重对齐——我的回合=亮,窗内手动收起被抹平
     // (手动只活沿间,回合联动语义);呼吸随窗态退场。
-    force((e) => {
-      e.turnPhase = "AwaitingDecision";
-    });
+    plant({ kind: "armPhase", turnPhase: "AwaitingDecision" });
     expect(q(el, TESTIDS.handZone)).not.toBeNull();
     expect(breathe()).toBe(false);
   });

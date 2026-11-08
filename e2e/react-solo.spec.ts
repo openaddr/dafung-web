@@ -8,7 +8,6 @@
 import { test, expect } from "./fixtures";
 import {
   quickStart,
-  force,
   snap,
   actIfCan,
   engineState,
@@ -86,14 +85,14 @@ test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
       turnPhase: "AwaitingDecision",
       activeIndex: 0,
     });
-    await force(
+    const landPid: string = await engineState(
       page,
-      `
-      const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null);
-      e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
-      e.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
-    `,
+      "(e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)).propertyId",
     );
+    await plant(page, {
+      kind: "armLanding",
+      landing: { kind: "PropertyAvailable", propertyId: landPid },
+    });
     // 交互重构:决策一律走卷轴——轮到即自动弹(scroll-buy),按钮 testid 沿用 action-buy
     await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.actionButton("buy"))).toBeEnabled();
@@ -138,8 +137,8 @@ test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
 // grantProperty 种植件(#1300,判词单源 src/core/planter.ts:己方城种植=升级前提
 // 「名下有城」开局初期自然到不了,断言面需确定己城邻格形态;选址=测试侧读现值)。
 // 钉相位+行动方走 armPhase(#1301,判词单源 src/core/planter.ts,同「购地决策」);
-// 落格询问载荷(lastLandOutcome/pendingLand)=落格结算内部挂起态,无种植件,直写
-// 内联判词(#1303 收口缺口盘点)。
+// 落格询问载荷(lastLandOutcome/pendingLand)走 armLanding(#1303,投影族判词单源
+// src/core/planter.ts)。
 test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)", async ({ page }) => {
   await quickStart(page);
   await freezeClock(page);
@@ -161,14 +160,10 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
       turnPhase: "AwaitingDecision",
       activeIndex: 0,
     });
-    await force(
-      page,
-      `
-      const me = e.activePlayer;
-      e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(${JSON.stringify(pid)}), owner: me };
-      e.pendingLand = { kind: "OwnProperty", propertyId: ${JSON.stringify(pid)} };
-    `,
-    );
+    await plant(page, {
+      kind: "armLanding",
+      landing: { kind: "OwnProperty", propertyId: pid },
+    });
     await expect(page.getByTestId(SCROLL_TESTIDS.upgradeScroll)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.actionButton("upgrade"))).toBeEnabled();
     const before = (await snap(page)).players[0].cash;

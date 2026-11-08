@@ -8,7 +8,7 @@
 // isMobile+hasTouch 让 Chromium 设备仿真把 pointer 媒询判成 coarse(桌面窄窗口
 // pointer: fine 不触发提示层,红线保持)。
 import { test, expect } from "./fixtures";
-import { quickStart, openSoloSetup, waitMyPause, force } from "./react-helpers";
+import { quickStart, openSoloSetup, waitMyPause } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
@@ -54,19 +54,14 @@ test.describe("矮横屏 844×390", () => {
   // 真实段(ADR-0058):真实开局停靠后真渲染浮层件几何(三圆钮贴右下/席位列零滚动
   // 零重叠/手牌区不相侵)即被测环。钉相位走 armPhase(#1301,判词单源
   // src/core/planter.ts:钉 AwaitingDecision 空闲态=断言前提,引擎自转无「钉相位」
-  // 公共命令,react-float-skeleton 停车坪同判词);清落格投影仍直写(同其内联判词)。
+  // 公共命令,react-float-skeleton 停车坪同判词);清落格投影走 armLanding(null)
+  // (#1303,投影族判词单源 src/core/planter.ts)。
   test("全浮层件就位:席位右列在上、三圆钮右下,列与钮区互不重叠", async ({ page }) => {
     await quickStart(page);
     // 停车钉我的回合(显隐回合联动后,bot 回合手牌区整区卸载;react-layout 同款配方)
     await waitMyPause(page, 0, 90_000);
     await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
-    await force(
-      page,
-      `
-      e.lastLandOutcome = null;
-      e.pendingLand = null;
-    `,
-    );
+    await plant(page, { kind: "armLanding", landing: null });
     const buttons = page.getByTestId(TESTIDS.pileButtons);
     await expect(buttons).toBeVisible();
     const fb = (await buttons.boundingBox())!;

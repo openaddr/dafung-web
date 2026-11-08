@@ -17,8 +17,10 @@ import {
   armGameOver,
   armHero,
   armHeroOffer,
+  armLanding,
   armPhase,
   armReaction,
+  armVisitor,
   giveJinnang,
   giveTreasure,
   giveTreasureFromDeck,
@@ -26,7 +28,9 @@ import {
   injectWarLog,
   pinDice,
   placePlayer,
+  setBot,
   setCash,
+  setJinnangUsedTags,
   setReputation,
   setStamina,
   type PlantOp,
@@ -332,6 +336,61 @@ describe("armReaction(挂反应载荷,裸写形)", () => {
   });
 });
 
+describe("armLanding/armVisitor(落格投影+交涉挂起载荷,裸写形;#1303)", () => {
+  it("PropertyAvailable=两字段一体置值(def 目录现查、无主前提);清形=双字段一体置 null(停车坪空闲态)", () => {
+    const e = makeEngine();
+    const pid = e.board.tiles.find(
+      (t) => t.propertyId && e.findOwner(t.propertyId) == null,
+    )!.propertyId!;
+    armLanding(e, { kind: "PropertyAvailable", propertyId: pid });
+    expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: pid });
+    expect(e.lastLandOutcome).toEqual({
+      kind: "PropertyAvailable",
+      property: e.catalog.get(pid)!,
+    });
+    armLanding(e, null); // 清投影(决策卷轴不遮顶栏的空闲态,八站多数派)
+    expect(e.pendingLand).toBeNull();
+    expect(e.lastLandOutcome).toBeNull();
+  });
+
+  it("OwnProperty=owner 按持有关系解析(与生产 settleMarchLanding 同源),两字段同拍配套", () => {
+    const e = makeEngine();
+    const pid = e.board.tiles.find(
+      (t) => t.propertyId && e.findOwner(t.propertyId) == null,
+    )!.propertyId!;
+    grantProperty(e, 0, pid, 1);
+    armLanding(e, { kind: "OwnProperty", propertyId: pid });
+    expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: pid });
+    expect(e.lastLandOutcome).toEqual({
+      kind: "OwnProperty",
+      property: e.catalog.get(pid)!,
+      owner: e.players[0],
+    });
+  });
+
+  it("形制与归属矛盾/目录外地块当场炸(零兜底:种错的场要响)", () => {
+    const e = makeEngine();
+    const pid = e.board.tiles.find(
+      (t) => t.propertyId && e.findOwner(t.propertyId) == null,
+    )!.propertyId!;
+    expect(() => armLanding(e, { kind: "OwnProperty", propertyId: pid })).toThrow(); // 无主却种己城形
+    grantProperty(e, 0, pid, 0);
+    expect(() => armLanding(e, { kind: "PropertyAvailable", propertyId: pid })).toThrow(); // 有主却种可购形
+    expect(() =>
+      armLanding(e, { kind: "PropertyAvailable", propertyId: "no-such-city" }),
+    ).toThrow();
+  });
+
+  it("armVisitor=treasureVisitor 与引擎挂点产物同构(def 目录现查+ownerIdx 座位号);目录外与越界座位当场炸", () => {
+    const e = makeEngine();
+    const pid = e.board.at(3).propertyId!;
+    armVisitor(e, pid, 0);
+    expect(e.treasureVisitor).toEqual({ def: e.catalog.get(pid)!, ownerIdx: 0 });
+    expect(() => armVisitor(e, "no-such-city", 0)).toThrow();
+    expect(() => armVisitor(e, pid, 9)).toThrow();
+  });
+});
+
 describe("pinDice(钉骰子,测试替身)", () => {
   it("行程口:行军按值序(rollAndMove 首骰=钉值)", () => {
     const e = makeEngine(7);
@@ -541,6 +600,29 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     expect(lb.brief).toBe(la.brief);
     expect(lb.detail).toBe(la.detail);
     expect(lb.round).toBe(la.round);
+  });
+
+  it("残块收编族指令(armLanding/armVisitor/setBot/setJinnangUsedTags)与直呼同一实现(#1303)", () => {
+    const a = makeEngine();
+    const b = makeEngine();
+    const pid = a.board.tiles.find(
+      (t) => t.propertyId && a.findOwner(t.propertyId) == null,
+    )!.propertyId!;
+    grantProperty(a, 0, pid, 1);
+    grantProperty(b, 0, pid, 1);
+    armLanding(a, { kind: "OwnProperty", propertyId: pid });
+    armVisitor(a, a.board.at(3).propertyId!, 0);
+    setBot(a, 1, true);
+    setJinnangUsedTags(a, ["谋", "攻"]);
+    applyPlant(b, { kind: "armLanding", landing: { kind: "OwnProperty", propertyId: pid } });
+    applyPlant(b, { kind: "armVisitor", propertyId: b.board.at(3).propertyId!, ownerSeat: 0 });
+    applyPlant(b, { kind: "setBot", seat: 1, bot: true });
+    applyPlant(b, { kind: "setJinnangUsedTags", tags: ["谋", "攻"] });
+    expect(b.pendingLand).toEqual(a.pendingLand);
+    expect(b.lastLandOutcome).toEqual(a.lastLandOutcome);
+    expect(b.treasureVisitor).toEqual(a.treasureVisitor);
+    expect(b.players[1].isBot).toBe(true);
+    expect(b.jinnangUsedTags).toEqual(a.jinnangUsedTags);
   });
 
   it("未知 kind 当场炸(分发口不吞错)", () => {
