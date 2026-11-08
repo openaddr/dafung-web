@@ -25,6 +25,7 @@
     "check:sim-bench": "bun scripts/sim-bench.ts",
     "check:sim-bench:update": "bun scripts/sim-bench.ts update",
     "check:freshness": "bun scripts/check-freshness.ts",
+    "check:agents-budget": "bun scripts/check-agents-budget.ts",
     "check:fmt": "oxfmt --check",
     "check:links": "bun scripts/check-doc-links.ts",
     "check:retired": "bun scripts/check-retired-phrases.ts",

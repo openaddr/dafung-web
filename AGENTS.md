@@ -8,11 +8,11 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。五条铁律;配方与命令速查唯一事实源=[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节:
 
-1. **任何写盘改动(不分体量)开工前先 `jj workspace add ../dafung-web-ws-<代号>`**;写盘工具与命令同规:落盘路径一律 workspace 绝对路径(shell cwd 每命令重置,编辑工具不吃 cwd,第一刀前自查路径前缀);主树 @ 只读停靠、永不留活(唯一例外:`pr-merge.ts` 收口尾步前移主树空 @);@ 有别人的活=让出走 workspace。
+1. **任何写盘改动(不分体量)开工前先 `jj workspace add ../dafung-web-ws-<代号>`**(建仓/起基/install/e2e 配方见 how-to 同节「jj workspace 通道」);落盘路径一律 workspace 绝对路径(shell cwd 每命令重置);主树 @ 只读停靠、永不留活(唯一例外:`pr-merge.ts` 收口尾步前移主树空 @);@ 有别人的活=让出走 workspace。
 2. **交付**=`jj describe` → 书签 → `jj git push --bookmark` + PR;master 受保护(禁直推/禁 merge commit,一律 PR+squash);workspace 谁建谁清。
-3. **文件集自查两拍**:落盘后立即一拍、push 前一拍(`jj diff --stat` 对账,多出=折入先拆);收口走 `pr-merge.ts --expect <路径>` 硬闸。
+3. **文件集自查两拍**:落盘后立即一拍、push 前一拍(`jj diff --stat` 对账,多出=折入先拆);收口走 `pr-merge.ts --expect <路径>` 硬闸(配方见 how-to 同节)。
 4. **收账**由 pr-merge 尾步自动做(fetch+move+空 @ 前移);手动通路见 how-to 同节。
-5. **里程碑快照**:写盘改动每里程碑 `jj st` 落一次快照——jj 只在命令时快照,未快照写盘随 workspace 被清不可恢复(2026-10-29 实锤);恢复配方与清扫验活见 how-to 同节。
+5. **里程碑快照**:写盘改动每里程碑 `jj st` 落一次快照——jj 只在命令时快照,未快照写盘随 workspace 被清不可恢复;恢复配方与清扫验活见 how-to 同节。
 
 ## 事实源地图
 
@@ -41,7 +41,7 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 
 ## 统一原则(全项目贯穿,#927 拍板)
 
-**能一套就不做两套**:玩家可见的演出、节奏与机制,对人类/bot、单机/联机一律同一套参数与形制;只有语义不同(事件种类不同,如拼点≠行军)才允许形制不同,禁止按玩家身份或运行模式分参数档。首例执行:骰子演出 diceFast 半速分档退役(#927);同向先例:托管单节拍三路代打归一([ADR-0028](./docs/adr/0028-takeover-is-autopilot.md))。
+**能一套就不做两套**:玩家可见的演出、节奏与机制,对人类/bot、单机/联机一律同一套参数与形制;只有语义不同(事件种类不同,如拼点≠行军)才允许形制不同,禁止按玩家身份或运行模式分参数档。
 
 ## 架构红线(所有代码改动必须遵守)
 
@@ -50,9 +50,9 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 3. **所有状态变更走引擎公共方法**(如 `engine.buyProperty()`),不直接改属性——保证服务器可审计/序列化每次操作。
 4. **LocalController 是单机专用层**(假设活跃真人就在本屏前);联机走 `online.ts`;两者共享 `controller.ts` 基类。controller 不加引擎假设:引擎要做新事,先加引擎方法,controller 只调用。
 5. **序列化友好**:需同步的状态无函数、无循环引用、无 DOM 引用;联机状态通路=引擎产出的类型化事件批(唯一状态下行,快照只作重连摘要与校准锚,ADR-0020)。
-6. **交互类 UI 组件必须收口 shadcn/Base UI**(弹层/下拉/确认框/表单控件等:`bunx shadcn add <component>` 取无头行为层,套水墨皮,不手搓交互语义);shadcn 变量经 `app.css` 桥接 gen:theme 产出的 `--color-*` token,**配色单源仍是 `core/theme.ts`**。附表与豁免见 [docs/design/组件收口.md](./docs/design/组件收口.md)。
+6. **交互类 UI 组件必须收口 shadcn/Base UI**(弹层/下拉/确认框/表单控件等取无头行为层、套水墨皮,不手搓交互语义);shadcn 变量经 `app.css` 桥接 gen:theme 产出的 `--color-*` token,**配色单源仍是 `core/theme.ts`**。附表与豁免见 [docs/design/组件收口.md](./docs/design/组件收口.md)。
 7. **状态表达原则**(DESIGN §4.6):能用 UI 状态变化(边框/色彩/位移/光圈)标识的,不加文字标牌。
-8. **模块治理(常设)**:源文件单一主题、文件名必须是具体领域词——笼统聚合桶(game/utils/helpers/types 式)禁止,词汇表 `_Avoid` 词不上文件名;引擎壳 `authority.ts` 的行数与内容禁区由 `scripts/check-core-purity.ts` 断言强制;拆分配方(机制域轴+自由函数+薄委托、搬运与改名分离、验收判据)见 [ADR-0019](./docs/adr/0019-module-governance-principle.md)。
+8. **模块治理(常设)**:源文件单一主题、文件名必须是具体领域词——笼统聚合桶(game/utils/helpers/types 式)禁止,词汇表 `_Avoid` 词不上文件名;引擎壳 `authority.ts` 的行数与内容禁区由 `scripts/check-core-purity.ts` 断言强制;拆分配方(机制域轴+自由函数+薄委托)见 [ADR-0019](./docs/adr/0019-module-governance-principle.md)。
 
 ## 完成定义(DoD)
 
@@ -64,7 +64,7 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 
 ## 文档风格规约
 
-全中文,入口文件英文命名(深层文档中文文件名,ADR 英文);受众玩家优先;数值表只做索引 + 代码锚点,**不复制数值造第二事实源**(计数同理——用例数/时机数/文件数等一律指向不落数),活文档禁写行号;README 主 CTA 置顶,开发内容下沉 how-to/;发版走 git tag + GitHub Releases,不建 CHANGELOG;打 tag 前先 bump package.json 的 version(唯一版本源,CalVer 制式 YYYY.M.P、月份不补零,如 2026.10.0;tauri.conf.json 经路径引用它,APK/桌面包版本随之)。**发版时机(2026-11-01 拍板):玩家可见变更(DoD 清单口径)合入 master 后,合并会话自动发版**(bump 走 PR→主树一条命令,发完汇报附下载链接),不再等确认;纯文档/测试/脚本基建合并不触发,拿不准就发;防挤兑三闸(bump 单点/tag 查重/发版锁)见 how-to「发版时机」。
+全中文,入口文件英文命名(深层文档中文文件名,ADR 英文);受众玩家优先;数值表只做索引 + 代码锚点,**不复制数值造第二事实源**(计数同理——用例数/时机数/文件数等一律指向不落数),活文档禁写行号;README 主 CTA 置顶,开发内容下沉 how-to/。发版走 git tag + GitHub Releases,不建 CHANGELOG;打 tag 前先 bump package.json 的 version(唯一版本源,CalVer 制式 YYYY.M.P、月份不补零,如 2026.10.0;tauri.conf.json 经路径引用它,APK/桌面包版本随之)。**发版时机:玩家可见变更(DoD 清单口径)合入 master 后,合并会话自动发版,不再等确认;纯文档/测试/脚本基建合并不触发,拿不准就发**——细则与防挤兑三闸见 how-to「发版时机」。
 
 ## 关键文件
 
@@ -74,7 +74,7 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 - 改配色 = 单源 `core/theme.ts`,改后跑 `bun run gen:theme`,不手改 tokens.css;
 - e2e 选择器 = 各屏 `testids.ts` 单源,勿硬编码字符串。
 
-联机协议面五个单源(动协议前先看代码地图):`seat-projection.ts`(下行装配必经)、`wire.ts`(双工同一本体)、`event-batch.ts`(共享批语义)、`room-record.ts`(重建单源)、`watchdogs.ts`(四组看门狗)。
+联机协议面五个单源(动协议前先看代码地图):`seat-projection.ts` / `wire.ts` / `event-batch.ts` / `room-record.ts` / `watchdogs.ts`。
 
 ## 开发陷阱速查(守门类;口径与数值一律查 [rules](./docs/reference/rules/README.md))
 
@@ -87,18 +87,18 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 细节唯一事实源=[开发与测试](./docs/how-to/开发与测试.md)。十条常驻:
 
 - **测试宁缺毋滥**:重复用例、低性能用例宁可不要,发现即删或重写;新增用例先答「守住什么、花几秒」。
-- **概率性不可靠用例零容忍(2026-11-02 拍板,#987,效率第一)**:凡随机 seed、负载、时序竞速可致挂的用例,**发现即删、默认删,不留台账养着**;仅当一两行确定性改造(定 seed/种骰/freezeClock;预算复位=放宽等待/超时预算同口径,须附池载实录与串行复验凭证,#1308/#1310 先例)能根除且该覆盖不可替代时才允许保留。**删用例不需要批准**。与上一条不矛盾:「测试宁缺毋滥」讲新增用例的门槛,此条讲不可靠例的处置;处置序(挂例→疑测试本身→串行复验一次→判不可靠即删)见[开发与测试](./docs/how-to/开发与测试.md)「全量放行判据」条。
-- **回归例三条款(2026-11-07 拍板,学 vera20k 守则)**:①每修一个 bug 配 1-3 个「不修必挂」的回归例,不许顺手撒一把;②测试体量与修动成比例——20 行的修配几十行测试,不是几百行;③禁镜像实现的测试——不许为测试再造一份同样的逻辑自己验自己(假覆盖)。
-- **小改动禁跑全量 e2e(2026-11-02 拍板,#1014;接续效率第一清退令)**:机制无关改动(纯删/退役/文案/文档/测试重钉/样式 token/脚本)禁跑全量 e2e、禁等锁——放行口径 = `bun test` + `build` + 本票域定向 spec(触 UI 才跑)。全量只许出现在三处:①集流/发版前收口一次(e2e 门禁默认只跑快池,联机长链路/全程巡检慢池 `test:e2e:slow` 批次收口/发版前跑,#1026) ②引擎核心/协议面跨域大改 ③master 级新家族基线对跑(取证手段,不是例行步骤;失败先疑测试与负载)。五轮账表实证每票可免 35-45min,见[耗时回顾](./docs/agents/耗时回顾.md)基线账。
-- **缺能力=补种植件,force 不复活(2026-11-08 拍板,链路 spec #1295)**:三层测试(单测/无头/e2e)场景构造缺能力时,补种植件(`core/planter.ts` 的 op 联合加 kind)——force 直写逃生口已随 #1303 退役、全仓归零,不复活;callEngine 只许承载引擎公共方法直呼,字段直写一律种植件(判词单源 planter.ts 各族头注,ADR-0058 修订节)。
-- **视觉设计与回归以移动端横屏 844×390 为标准**:截图自证(`shot.mjs` 默认视口)、原型/mock 画布、e2e 功能冒烟一律按此档;桌面档维持零重排,不再设专项布局断言。
+- **概率性不可靠用例零容忍(#987,效率第一)**:凡随机 seed、负载、时序竞速可致挂的用例,**发现即删、默认删,不留台账养着**;仅当一两行确定性改造能根除且该覆盖不可替代时才允许保留。**删用例不需要批准**;处置序见[开发与测试](./docs/how-to/开发与测试.md)「全量放行判据」条。
+- **回归例三条款**:①每修一个 bug 配 1-3 个「不修必挂」的回归例,不许顺手撒一把;②测试体量与修动成比例;③禁镜像实现的测试——不许为测试再造一份同样的逻辑自己验自己(假覆盖)。
+- **小改动禁跑全量 e2e(#1014)**:机制无关改动(纯删/退役/文案/文档/测试重钉/样式 token/脚本)禁跑全量 e2e、禁等锁——放行口径 = `bun test` + `build` + 本票域定向 spec(触 UI 才跑);全量只许三处(①集流/发版前收口 ②引擎核心/协议面跨域大改 ③master 级新家族基线对跑),细则见[开发与测试](./docs/how-to/开发与测试.md)「全量放行判据」条。
+- **缺能力=补种植件,force 不复活(链路 spec #1295)**:三层测试(单测/无头/e2e)场景构造缺能力时,补种植件(`core/planter.ts` 的 op 联合加 kind)——force 直写逃生口已随 #1303 退役、全仓归零,不复活;callEngine 只许承载引擎公共方法直呼,字段直写一律种植件(判词单源 planter.ts 各族头注,ADR-0058 修订节)。
+- **视觉设计与回归以移动端横屏 844×390 为标准档**(细则见 DESIGN §4.7;桌面档维持零重排,不设专项布局断言)。
 - **开工前 `bun run check:freshness`**(过期禁止开工;多轮任务每轮续作前重跑,并行会话可能已合票推进 master)。
-- **门槛挂 PR 前——本地全绿**(无 CI,本地是唯一门):lint 0 warning + fmt + check:fmt + build + bun test,改 `scripts/` 加跑 typecheck:scripts,改 `src/core/` 加跑 check:core(壳行数不净增;存量超锁治理见 #858;含确定性源码闸——时钟/随机/环境面冻结清单,ADR-0057),改棋盘视觉层加跑 check:board(常驻动画禁入 SVG,ADR-0039),改 `src/core/`(引擎行为面)加跑 `check:goldens`;影响局长/破产面的机制改动加跑 `check:sim-bench`(2026-11-07 拍板,#1165)。实锤陷阱:**改共享类型(挂根字段增删一类)先 `bun run typecheck` 盘点全部消费点再动刀**——排除式过滤词的 grep 会按文件名吞命中,漏网到 build 才爆就是几轮返工。
-- **产品波合入带浏览器快池(2026-11-07 拍板)**:凡动玩家可见机制的票(DoD 清单口径:相位/数值/牌/事件/地图字段/操作流程),合入 master 时带跑一轮浏览器快池 `bun run test:e2e`(墙钟现行标定与历次见[耗时回顾](./docs/agents/耗时回顾.md)基线账),行为涟漪当日闭环——#1172 起手珍宝涟漪(交涉窗挡死 e2e 驱动)隔半天才被撞见,#1209 实录。
+- **门槛挂 PR 前——本地全绿**(无 CI,本地是唯一门):lint 0 warning + fmt + check:fmt + build + bun test,改 `scripts/` 加跑 typecheck:scripts,改 `src/core/` 加跑 check:core 与 `check:goldens`(引擎行为面),改棋盘视觉层加跑 check:board,影响局长/破产面的机制改动加跑 `check:sim-bench`,改 AGENTS.md 加跑 check:agents-budget(双档体量闸,口径 ADR-0033 修订节)——各检查细则见[开发与测试](./docs/how-to/开发与测试.md)。实锤陷阱:**改共享类型(挂根字段增删一类)先 `bun run typecheck` 盘点全部消费点再动刀**——排除式过滤词的 grep 会按文件名吞命中,漏网到 build 才爆就是几轮返工。
+- **产品波合入带浏览器快池**:凡动玩家可见机制的票(DoD 清单口径),合入 master 时带跑一轮浏览器快池 `bun run test:e2e`,行为涟漪当日闭环(墙钟现行标定见[耗时回顾](./docs/agents/耗时回顾.md)基线账)。
 - **杀进程先验名**:`tasklist` 验进程名,只杀自己拉起的进程;`aurora_slim` 是用户 VPN 日常必用,永不入清理名单。
 
 ## Agent 工作流
 
 - Issue tracker:GitHub Issues(`openaddr/dafung-web`),细则见 [docs/agents/issue-tracker.md](./docs/agents/issue-tracker.md) 与 [triage-labels.md](./docs/agents/triage-labels.md);领域文档消费方式见 [docs/agents/domain.md](./docs/agents/domain.md)。
-- **子代理派单前**先读 [docs/agents/派单模板.md](./docs/agents/派单模板.md)(五条纪律+模板+QC 检查单+jj 配方三律);截图自证一律走 `scripts/shot.mjs`。
-- **规格票执行必调 `implement-spec`**:立完规格+实施票、要派工执行时,先显式调用该技能加载流程,再按本项目适配执行(jj workspace 串行替代每票独立 worktree、merger 职责归主线 QC、诊断权归主线)——不许靠上一波的惯性走流程(2026-11-06 拍板)。
+- **子代理派单前**先读 [docs/agents/派单模板.md](./docs/agents/派单模板.md)(五条纪律+模板+QC 检查单+jj 配方);截图自证一律走 `scripts/shot.mjs`。
+- **规格票执行必调 `implement-spec`**:立完规格+实施票、要派工执行时,先显式调用该技能加载流程,再按本项目适配执行(jj workspace 串行替代每票独立 worktree、merger 职责归主线 QC、诊断权归主线,适配细则见[派单模板](./docs/agents/派单模板.md))——不许靠上一波的惯性走流程(2026-11-06 拍板)。

@@ -586,7 +586,7 @@ export class GameEngine {
 
   // ──────────────────────────── 回合状态机 ────────────────────────────
   // 移动结算域(#323,ADR-0019 委托式拆分):行军三件(rollAndMove/marchTraverse/
-  // settleMarchLanding,含伏兵挂点/驻跸必停)、
+  // settleMarchLanding,含拦检挂点/驻跸必停)、
   // 待决策落格定义(pendingLandDef)、地产决策命令(buyProperty/upgradeProperty/
   // endDecision)、落格结算(resolveLanding;resolveCityEvent/resolveProperty/
   // enterDecisionPhase 域内自洽不留壳)与都城补给(capitalSupplyOf;applyResupply
@@ -603,7 +603,7 @@ export class GameEngine {
     rollAndMove(this);
   }
 
-  /** 途经遍历(#281,途经棋子/驻跸必停/伏兵拦检):薄委托 → movement-flow.marchTraverse
+  /** 途经遍历(#281,途经棋子/驻跸必停/半路杀出拦检):薄委托 → movement-flow.marchTraverse
    *  (reaction-window 拦检续走经此回调)。 */
   marchTraverse(
     mover: Player,

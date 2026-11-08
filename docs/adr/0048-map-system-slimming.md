@@ -31,8 +31,7 @@
 - **棋盘交互**:取景不可调,手势族 e2e 随之退役;对局屏交互面收敛为「点格看详情、席位格看人」。
 - **性能预期**:手势卡顿路径整段消除(低端 WebView 指针事件风暴源消失);静止/活动期帧耗不回退(删前后 844×390 探针对比数据见实施 PR 正文)。
 - **历史 ADR 的 supersession 注记**(历史 ADR 正文一律不改,supersede 关系只记本篇):
-  - [ADR-0008](0008-multi-map-selection.md):「混合来源:内置图 + 自建图」分支与编辑器/导入导出语境由本篇 **supersede**——混合来源收敛为内置清单单来源,清单发现/`loadMapById`/mapId 协议等架构决策仍有效。
-  - [ADR-0025](0025-map-consolidation.md):以环游图为默认图/幸存图的假设由本篇 **supersede**(默认图现 = 关中图;该篇的「多图收敛」方向本身被本篇延续)。
-  - [ADR-0027-huanyou-full-grid-spiral](0027-huanyou-full-grid-spiral.md):环游图本体(36 格满格螺旋)随删图退役,该篇作为历史形制记录归档。
+  - 本篇取代 ADR-0008(多图选择)与 ADR-0025(地图收敛),二者已删,git 史可考;幸存的架构决策(清单发现/`loadMapById`/mapId 协议、「多图收敛」方向)由本篇承接。
+  - [ADR-0027-huanyou-full-grid-spiral](0027-huanyou-full-grid-spiral.md):环游图本体(36 格满格螺旋)形制段已随删图退役;该篇仅保留「视口按城池包围盒动态推导」判词留存(活代码唯一出处)。
   - [ADR-0039](0039-board-ambient-layer.md)/[ADR-0040](0040-board-split-static-dynamic.md) 中「pan/zoom 联动/同拍双写」一环由本篇收窄(氛围层静态/动态分层机制不变);[ADR-0024](0024-treasure-city-parity.md)/[ADR-0041](0041-city-price-rollback-starting-cash.md) 中以 huanyou 为调平/数据落点的叙述随之成为历史。
 - 扩展新地图的通路与 schema 导览见[自制地图](../how-to/自制地图.md);schema 权威恒为 `src/core/board-loader.ts` 的 MapData/MapTile 定义。

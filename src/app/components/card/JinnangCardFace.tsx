@@ -1,7 +1,7 @@
 // 锦囊牌面组件(#236 一期 T1):牌面 JinnangCardFace / 牌背 JinnangCardBack /
-// 详情内容面板 JinnangCardDetail。规格见 docs/design/锦囊牌UI优化方案.md §4 P0-A。
+// 详情内容面板 JinnangCardDetail。规格见 docs/design/DESIGN.md §4.5(竖笺牌面正典)。
 //
-// 器物豁免类(方案 §5,同棋盘 Tile 口径):牌面本体自绘 SVG/HTML,纯展示、零内部
+// 器物豁免类(同棋盘 Tile 口径):牌面本体自绘 SVG/HTML,纯展示、零内部
 // 状态、不套 shadcn;交互语义(选中/确认/详情弹层壳)全部归消费方。testid 契约
 // (jinnang-card-* 等)由消费方经 ...rest 挂在根元素上,本组件不持有 testid。
 //
@@ -9,7 +9,7 @@
 // (standard 8px→120×160 / large 16px→240×320,样式在 jinnang-card.css);
 // 消费方可再传 style={{ fontSize }} 在两档之间微调降档(Android 短横屏 ~96×128 = 6.4px 基)。
 //
-// frameTone 是二期珍宝变体预留的品级框色通道(方案 §4「同形框,异色=品级」),
+// frameTone 是二期珍宝变体预留的品级框色通道(DESIGN §4.5「品级框色」),
 // 一期消费方不传(默认 none=基线墨框)。
 import type { HTMLAttributes, ReactNode } from "react";
 import { jinnangCardOf } from "@core/jinnang";

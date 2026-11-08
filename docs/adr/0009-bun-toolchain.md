@@ -6,7 +6,7 @@ React 渲染层重构闭环后,项目仍是 npm/scripts-via-node 工具链:tsx �
 
 ### 1. Bun 全量接管脚本与包管理,npm 退出唯一真源
 
-`package.json` scripts 中凡"跑 TS 脚本"的入口(serve / gen:theme)由 tsx 改为 `bun scripts/…`;锁文件 `bun.lock` 取代 `package-lock.json`(后者删除);Tauri 的 `beforeDevCommand/beforeBuildCommand` 改 `bun run`。node_modules 目录保留(Bun 复用同一目录,仅锁文件换血)。
+落法:`package.json` scripts 中凡"跑 TS 脚本"的入口由 tsx 改为 `bun scripts/…`;锁文件 `bun.lock` 取代 `package-lock.json`;Tauri 的 `beforeDevCommand/beforeBuildCommand` 改 `bun run`;node_modules 目录保留(Bun 复用同一目录,仅锁文件换血)。
 
 **为何**:半套 Bun(只拿它装依赖)收益有限;全量切换后 tsx 可删、脚本入口语义统一。Tauri 不关心命令背后是 npm 还是 bun(它只是 shell 出去调),APK/Rust 侧零影响。
 
@@ -18,7 +18,7 @@ React 渲染层重构闭环后,项目仍是 npm/scripts-via-node 工具链:tsx �
 
 ### 3. 联机服务器换 Bun.serve + 内置 WebSocket
 
-`scripts/server.ts` 自 `node:http + ws(noServer)` 重写为 `Bun.serve({fetch, websocket})`:REST 路由进 fetch handler;`/ws` 升级在 fetch 里鉴权后 `server.upgrade(req, {data:{roomId,seat}})`;生命周期挪 open/message/close handlers。`room.ts`/`room-persistence.ts` 零改动(ADR-0007 的模块边界因此决策受益——传输层重写不触碰房间编排)。`ws` 依赖删除。
+`scripts/server.ts` 自 `node:http + ws(noServer)` 重写为 `Bun.serve({fetch, websocket})`(REST 路由进 fetch handler,`/ws` 鉴权后 `server.upgrade`,生命周期走 open/message/close handlers)。`room.ts`/`room-persistence.ts` 零改动(ADR-0007 的模块边界因此决策受益——传输层重写不触碰房间编排)。`ws` 依赖删除。
 
 **为何**:Bun 内置 WS 免一个依赖且是官方推荐路径;重写风险被"room 模块零改动 + 联机双端 e2e 全绿"对冲。
 
@@ -35,5 +35,5 @@ Bun 重解析 `^1.55.0` 时把 Playwright 拉到 1.61,引入系统性 e2e 失败
 ## 后果
 
 - 依赖树:`tsx`/`vitest`/`ws`/`@types/ws` 移除;新增 `@types/bun`/`@types/pngjs`
-- 部署:服务器宿主机需 bun ≥1.3(docs/explanation/联机架构.md runbook 已同步)
+- 部署要求(宿主机 bun ≥1.3)单源见[部署服务器](../how-to/部署服务器.md) runbook
 - 回退路径:全链在一个 commit,出问题整体 revert 即可

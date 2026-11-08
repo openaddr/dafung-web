@@ -10,13 +10,7 @@
 
 ## 参考与取舍
 
-### 学了什么(照单)
-
-| vera20k 文件                                                 | 学到的                                                                                                                                                                                                                          | 落地形态                                                                                                 |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `src/sim/parity_digest.rs`                                   | 摘要是「逐项 lined up、首个分歧定位到点」的原料;哈希迭代序必须是确定性序(stable-id 序);RNG 游标入摘要——可观测状态碰巧一致而掷骰次数分叉的漂移只有游标抓得住;**故意排除字段必须记名记理由**(它排除 elevation:折入必产无意义失配) | `scripts/state-digest.ts`:键排序规范化 + sha256;`TurnDigest.rngState`;HASH_EXCLUDED 逐条判词(gameId/log) |
-| `src/bin/parity-digest.rs`                                   | **固定种子+固定地图是对比有意义的前提**;sink 归工具所有、位于引擎之外——启用测量不得扰动被测的跑法                                                                                                                               | `scripts/whole-game.ts`:map/seed/seats 全必配;摘要在驱动器取,引擎对摘要全然不知                          |
-| `.github/workflows/determinism.yml`(票二正式借,此处只认心智) | 逐帧哈希全等可作门禁                                                                                                                                                                                                            | 本票先落「两跑逐位一致」门(同图同种两跑),台账化留票二                                                    |
+> 学了什么(照单)与落地物清单见 [参考仓索引](../reference/参考仓索引.md) 单源,不复写;本篇只留裁决与冻结口径。
 
 ### 什么不适用、为什么
 
@@ -41,17 +35,6 @@
 - **gameId 不收编进骰流**:它是实例身份(时间戳+随机后缀),承担 `data/logs/<gameId>.jsonl` 文件名与 IndexedDB key 的**唯一性契约**——种子化会让同 seed 房间撞名;其非确定性属身份非内容,生成不动、摘要排除。快照往返不受影响(restoreFromSnapshot 原样回灌,续跑继承同一 id)。
 - **log / logCount 不整表哈希**:战报随回合线性增长,整表折入 = O(n²);内容是「命令+种子」的派生记录,漂移由链式 logHash 以 O(n) 兜住,覆盖不丢。
 - **dice.ts `createDice` 的 `seed ?? Math.random()` 缺省回退不算旁路**:那是种子流自身的缺省入口(无种子产品的随机来源),产物记进局头(seed 字段)可重放——复核了全仓,真正绕过骰流的 `Math.random` 仅 authority.ts 构造器里的 gameId 生成一处,判词如上。
-
-## 落地物
-
-- `scripts/state-digest.ts` — 摘要口径单源(canonicalize / hashCanonical / chainLogHash / turnDigestOf)。
-- `scripts/whole-game.ts` — 整局循环单源:driveToEnd(相位守卫/决策归属/无进展/词表合法/数值有限/连 N 回合无事件,六守卫发现即炸)+ runWholeGame 便利入口 + 人类座 choice-index 回放接口位(onHumanDecision;反应窗人类被询问同走此缝,完整重放随协议票)。
-- `scripts/sim-digest.ts` — 单局逐回合摘要导出 CLI(`--json` 落盘;票二台账语料入口 + 先红诊断取证)。
-- `scripts/sim-batch.ts` — 原整局 while 循环收敛进 driveToEnd(统计逻辑经 onStep 钩子不变)。
-- `src/core/game-events.ts` — +`GAME_EVENT_KINDS` 词表运行时清单(加法,零行为变更;`satisfies` 锚住联合,漏登记新 kind 会在巡检红出来)。
-- `test/whole-game/headless-whole-game.test.ts` — 确定性两跑门(3 图 × 10 种子 × 4 bot,两跑逐位 + 终局可达)、快照往返门(第 8 笔摘要截断 → 同 config 重建 → 续跑与对照逐位)、摘要器单测、人类座缝验证;**实测全文件 9.3s,进默认池**(单局 zhongyuan ~100ms 量级)。
-- `test/fixtures/maps/yanzhou.json` — 第三语料图(兖州 12 城小盘;仓内内置图仅 guanzhong/zhongyuan 两张,夹具补足「≥3 图」,测试工件不入产品清单)。
-- GLOSSARY「测试」节:无头整局 / 状态摘要 / 黄金台账 / 故障注入代理。
 
 ## 不变量口径判词(评审收口补记)
 

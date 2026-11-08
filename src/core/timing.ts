@@ -93,7 +93,7 @@ export type GameMoment =
    *  ctx.amount = 得银额。subject = 得银者。
    *  **防连锁**:仅经济结算点派发——效果层收益(grantSkillCash)不触发 CashGained,技能链不递归放大。 */
   | "CashGained"
-  /** 玩家被动失去银两(细粒度):税/交涉付款等非自愿支出(主动买城不算)。subject = 失财者。 */
+  /** 玩家被动失去银两(细粒度):税/交涉付款等非自愿支出(主动买城不算)。subject = 失银者。 */
   | "CashLost"
   /** 被强加跳回合(#456):skipTurns 两写点各自派发、写点语义差保留(缓兵 +=1 / 耗竭 +=1)。
    *  ctx.reason = 缘由(jinnang=缓兵之计 / exhaustion=体力耗竭善后)。subject = 被跳者。 */
@@ -132,7 +132,7 @@ export interface MomentCtx {
   subject: number;
   /** 骰面(DieRolled)。 */
   die?: number;
-  /** 时机涉及金额(CashLost 失财额/CashGained 得银额/TreasureSold 售价/TradeSettled 成交价/BankruptcySettle 变卖所得)。 */
+  /** 时机涉及金额(CashLost 失银额/CashGained 得银额/TreasureSold 售价/TradeSettled 成交价/BankruptcySettle 变卖所得)。 */
   amount?: number;
   /** 被途经者座位(PassedPlayer)。 */
   passedSeat?: number;
