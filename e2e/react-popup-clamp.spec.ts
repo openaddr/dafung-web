@@ -17,13 +17,17 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 test.describe("决策卷轴拍板钮钉底(#729)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  /** 首掷种植(#1170 路线 B,reaction marchQueue 同注入口):一次性 patch dice.roll——
-   *  人类掷骰瞬间现算「当前位置起 1..6 步内首个无主普通城」骰值并自还原;bot 掷骰照走
-   *  种子 rng 不受扰。目标格掷时现算(读 activePlayer 与盘面归属),不赌 seed 考古;
-   *  无主过滤天然排除三家都城(建城即有主,首停落他人城会触发珍宝交涉停靠永久等
-   *  抉择),`!t.event` 再排特殊城(落格走固定事件链会顶掉购地决策)。1..6 步内无
-   *  目标=求解前提破坏,直接抛错(零兜底)。行程骰=dice.roll 口,拼点 rollDie 另口
-   *  不串队;marchQueue 配方出处见 react-reaction.spec。 */
+  /** 首掷种植(#1170 路线 B):一次性 patch dice.roll——人类掷骰瞬间现算「当前位置起
+   *  1..6 步内首个无主普通城」骰值并自还原;bot 掷骰照走种子 rng 不受扰。目标格掷时
+   *  现算(读 activePlayer 与盘面归属),不赌 seed 考古;无主过滤天然排除三家都城
+   *  (建城即有主,首停落他人城会触发珍宝交涉停靠永久等抉择),`!t.event` 再排特殊城
+   *  (落格走固定事件链会顶掉购地决策)。1..6 步内无目标=求解前提破坏,直接抛错
+   *  (零兜底)。行程骰=dice.roll 口,拼点 rollDie 另口不串队。
+   *  force 判词(钉骰族现算形,#1302 归界):钉骰**值序**形已收编 pinDice 种植件
+   *  (#1302,判词单源 src/core/planter.ts);本站是**现算形**——骰值按掷骰瞬间的
+   *  盘面求解(选都前种不进定值:首停落点由都城位定),pinDice 值队列表达不了,亦无
+   *  「走到指定格」公共命令——patch 现算确定性到达是唯一通路。现算形钉骰是否补件
+   *  归 #1303 缺口盘点裁决。 */
   const marchToUnownedOnce = `
     (() => {
       const o = e.dice.roll.bind(e.dice);
@@ -38,16 +42,13 @@ test.describe("决策卷轴拍板钮钉底(#729)", () => {
         throw new Error("首掷种植失败:当前位置 1..6 步内无无主普通城");
       };
     })();`;
-  // force 判词:首掷落点由骰值决定,引擎无「走到指定格」公共命令——patch dice.roll
-  // 现算确定性到达是唯一通路(bot 掷骰照走种子 rng 不受扰)。
   /** seed 1026 拦检链到购地卷轴(#1170 种植式停靠,#949 同源配料):844 条带选图
    *  (reaction soloAtBuyAsk 的二级弹层在 844 无确认钮不通)+ 机遇归零(先 route 后
    *  进屏;#1100 适配期曾漏挂——机遇开的骰流消耗把候选与首停全带漂,多种子重钓
    *  皆 miss,考古见票面)+ 种植现金 20000(全图最高价 4800,不种则起手净剩不足
    *  自动不取、卷轴不弹;setCash 种植件 #1299,判词单源 src/core/planter.ts)+ 首掷
-   *  种植:人类第一停恒落无主普通城,购地决策确定性可达。
-   *  force 判词:首掷落点由骰值决定,引擎无「走到指定格」公共命令——patch dice.roll
-   *  现算确定性到达是唯一通路(bot 掷骰照走种子 rng 不受扰)。 */
+   *  种植:人类第一停恒落无主普通城,购地决策确定性可达(现算形 force 判词见
+   *  marchToUnownedOnce 注)。 */
   async function startBuyScroll(page: Page): Promise<void> {
     await useHalfScale(page);
     await disableEncounters(page);

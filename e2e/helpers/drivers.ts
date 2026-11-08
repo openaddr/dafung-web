@@ -68,6 +68,55 @@ export async function plant(page: Page, op: PlantOp): Promise<void> {
   await waitFxIdle(page);
 }
 
+/** 引擎公共方法引用占位(可序列化,#1302):callEngine args 里的 Player 引用经此
+ *  过网(纯 JSON),页内解析成引擎实例引用。 */
+export type EngineRef = { $ref: "activePlayer" } | { $ref: "player"; seat: number };
+
+/** 引擎公共方法直呼封装(#1302):evaluate 内 `getEngine()[method](...args)` →
+ *  controller().sync(),时序纪律复用 force 现成三拍(写前等演出排空 → 同一 evaluate
+ *  内调用+sync 重灌派生量 → 写后再排空,头注见 force);返回引擎方法返回值
+ *  (marchTraverse 落 "landed" 一类契约断言用)。
+ *  【与 force 的唯一分界(头注单源,#1302)】本封装只许承载**引擎公共方法调用**,
+ *  不许承载字段直写——字段直写一律种植件(plant)。被退役的 force()(#1303 收口)
+ *  = 直写字段+直呼方法混装的逃生口;force 收口后全仓仅存 plant(场景字段种植)+
+ *  callEngine(公共方法直呼)两通道,新站点按「方法调用 vs 字段直写」二选一归口。
+ *  方法名/参数表由评审按引擎公共面核对,封装不做白名单;桥面零增量(本封装住 e2e
+ *  侧,不进 src/app/debug.d.ts)。args 过网保持纯 JSON:Player 引用经 EngineRef
+ *  占位页内解析(activePlayer getter / players[seat],越界座位当场炸),其余标量/
+ *  数组原样透传。 */
+export async function callEngine<R = unknown>(
+  page: Page,
+  method: string,
+  args: (number | string | boolean | null | readonly number[] | EngineRef)[],
+): Promise<R> {
+  await waitFxIdle(page);
+  const result = await page.evaluate(
+    ({ method, args }) => {
+      const d = (window as any).__dafung;
+      const e = d.getEngine();
+      if (e == null) throw new Error(`callEngine ${method}:无活动对局(未开局不可直呼)`);
+      const fn = (e as any)[method];
+      if (typeof fn !== "function") throw new Error(`callEngine:引擎无公共方法 ${method}`);
+      const resolved = args.map((a) => {
+        if (a != null && typeof a === "object" && !Array.isArray(a) && "$ref" in a) {
+          const ref = a as EngineRef;
+          if (ref.$ref === "activePlayer") return e.activePlayer;
+          const p = e.players[ref.seat];
+          if (p == null) throw new Error(`callEngine ${method}:座位 ${ref.seat} 不存在`);
+          return p;
+        }
+        return a;
+      });
+      const out = fn.apply(e, resolved);
+      d.controller().sync();
+      return out;
+    },
+    { method, args },
+  );
+  await waitFxIdle(page);
+  return result as R;
+}
+
 /** 种局桥调用(#1211):裸开局,不推进不停靠——到站等待与沉降归调用方(settle)。
  *  quickStart stopAtOpeningHand 态的页内本体。 */
 export function seedSolo(page: Page, opts: { seed?: number; mapId?: string }): Promise<void> {

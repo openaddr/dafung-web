@@ -12,7 +12,7 @@
 // (seed 67 起手求贤令恒可用 = 开局出牌阶段稳定停靠点);选图走 #707 矮横屏横排条带
 // (home-select-map 入口在本档退役)。断言全走几何与 UI 态,零固定 sleep。
 import { test, expect } from "./fixtures";
-import { answerMarchCounter, engineState, force, quickStart, useHalfScale } from "./react-helpers";
+import { answerMarchCounter, engineState, quickStart, useHalfScale } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -39,10 +39,10 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
 
   /** 拦检窗种植(react-reaction.spec plantAmbush 同款精简:半路杀出 + 三 bot 落
    *  人类都城前一格,掷 ≥1 即途经开窗;duelDice=拼点骰开窗前一次种足)。
-   *  种植件(#1300,判词单源 src/core/planter.ts):手牌走 giveJinnang(#1298)、布位走
-   *  placePlayer(「都城前一格」算式=测试侧读现值拼,种植件只收绝对格位终态)。
-   *  force 判词:duelDice patch rollDie=拼点骰值无公共命令(引擎无「指定点差」命令,
-   *  钉骰族 #1302),大胜分级断言需 [6,1] 点差 5。 */
+   *  种植件(判词单源 src/core/planter.ts):手牌走 giveJinnang(#1298)、布位走
+   *  placePlayer(#1300,「都城前一格」算式=测试侧读现值拼,种植件只收绝对格位终态)、
+   *  拼点骰走 pinDice(#1302 测试替身:引擎无「指定点差」命令,骰值无公共设定通路,
+   *  按值序替换拼点口;大胜分级断言需 [6,1] 点差 5)。 */
   async function plantAmbush(page: Page, duelDice?: [number, number]): Promise<void> {
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["半路杀出"] });
     const { cap, seats, tiles } = await engineState(
@@ -52,20 +52,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     const position = (cap + tiles - 1) % tiles;
     for (let seat = 1; seat < seats; seat++)
       await plant(page, { kind: "placePlayer", seat, position });
-    if (duelDice) {
-      await force(
-        page,
-        `(() => {
-        const o = e.dice.rollDie.bind(e.dice);
-        const q = [${duelDice.join(", ")}];
-        e.dice.rollDie = () => {
-          const v = q.shift();
-          if (q.length === 0) e.dice.rollDie = o;
-          return v ?? o();
-        };
-      })();`,
-      );
-    }
+    if (duelDice) await plant(page, { kind: "pinDice", channel: "duel", values: duelDice });
   }
 
   /** 购地卷轴停靠点续局:授周瑜(疾行/火攻多条编排依赖)后「不取」放行,回合交

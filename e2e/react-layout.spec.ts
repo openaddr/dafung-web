@@ -9,7 +9,7 @@
 // 像素对照(发布前),e2e 不再养时线哨。
 import { test, expect } from "./fixtures";
 import { quickStart, snap, dismissJinnangIfUp, actIfCan, force } from "./react-helpers";
-import { plant } from "./helpers/drivers";
+import { callEngine, plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 // 844×390 标准视口(#732):本 spec 全部用例统一在标准档跑。
@@ -89,9 +89,10 @@ test.describe("全浮层骨架", () => {
   // 镜像同拍快照、X/Esc 真实关闭的交互链全真。种植判词:2 件珍宝=giveTreasureFromDeck
   // (牌堆源种植件 #1300,判词单源 src/core/planter.ts:真 TreasureDef 实例,终态
   // 替换——原「起手 2 件+追加 2 件」改终态 2 件无断言变化,本例不变量=弹层镜像随拍
-  // 对账,不锚件数)。force 判词:名将无「授指定将」公共命令(引擎仅机遇效果
-  // grantHero 一途),经快照 restoreFromSnapshot 通路回灌(生产通路本体,联机恢复同
-  // 一条产线路径,麾下行=槽位全量 #785;迁桥上直呼归 #1302)。
+  // 对账,不锚件数)。名将无「授指定将」公共命令(引擎仅机遇效果 grantHero 一途),
+  // 经快照 restoreFromSnapshot 通路回灌(生产通路本体,联机恢复同一条产线路径,
+  // 麾下行=槽位全量 #785):#1302 起快照参数构造(取引擎快照只读+测试侧拼麾下行/
+  // recruitedHeroIds=测试数据非引擎直写)+ callEngine 直呼公共方法回灌。
   test("三圆钮:计数角标随快照,珍宝/名将点开藏品弹层(#361 双入口接替)", async ({ page }) => {
     test.setTimeout(120_000); // 对局自走 + 多段 toPass 轮询,60s 默认档偏紧(前例同口径)
     await quickStart(page);
@@ -101,20 +102,16 @@ test.describe("全浮层骨架", () => {
     // 种珍宝×2 + 名将×2:珍宝走 giveTreasureFromDeck;名将走快照 restore 通路
     //(快照麾下行=槽位全量(#785):heroId+已授技(全池)+冷却账,restore 原样回灌——
     //联机恢复同一条产线路径;restore 内含珍宝位,后种珍宝会被回灌覆盖,故先珍宝后
-    //restore)
+    //restore)。快照参数构造=测试数据非引擎直写(判词见本例头注),回灌本体走
+    //restoreFromSnapshot 公共方法(callEngine 直呼,#1302)。
     await plant(page, { kind: "giveTreasureFromDeck", seat: 0, count: 2 });
-    await force(
-      page,
-      `
-      const s = e.snapshot();
-      s.players[0].heroes.push(
-        { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} },
-        { heroId: "huatuo", skillIds: ["qingnang", "zhenji"], lastFired: {} },
-      );
-      s.recruitedHeroIds.push("zhouyu", "huatuo");
-      e.restoreFromSnapshot(s);
-    `,
+    const s = await page.evaluate(() => (window as any).__dafung.getEngine().snapshot());
+    s.players[0].heroes.push(
+      { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} },
+      { heroId: "huatuo", skillIds: ["qingnang", "zhenji"], lastFired: {} },
     );
+    s.recruitedHeroIds.push("zhouyu", "huatuo");
+    await callEngine(page, "restoreFromSnapshot", [s]);
     // 三圆钮计数与实时快照一致(对局自走藏品可能继续进账,签数随拍对齐)
     await expect
       .poll(

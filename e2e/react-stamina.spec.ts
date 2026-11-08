@@ -16,8 +16,8 @@
 // 已推进回合,落都即冻结,停靠/稳定/冻结三连(waitMyPause/waitSettled/freezeClock)
 // 随通路退役(#423 项8 的「种植落在钉死静止态」由 preRoll 返回态直接给出)。
 import { test, expect } from "./fixtures";
-import { quickStart, force, waitSettled, snap, unfreezeClock, engineState } from "./react-helpers";
-import { plant } from "./helpers/drivers";
+import { quickStart, waitSettled, snap, unfreezeClock, engineState } from "./react-helpers";
+import { callEngine, plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 
@@ -55,10 +55,11 @@ test.describe("体力系统冒烟", () => {
       await plant(page, { kind: "grantProperty", seat, propertyId: seedIds.capPropId, level: 1 });
       await plant(page, { kind: "setStamina", seat, stamina: 0 }); // → 0
 
-      // force 判词:本处无引擎到不了的改写——exhaustIfDepleted=引擎公共入口(文件头注),
-      // force 仅作「公共方法调用后控制器 sync 重灌派生量」的通道(快照与 interactive
-      // 一起刷,决策卷轴才按新相位弹出;冻结期相位无人抢,出现即真)。
-      await force(page, `e.exhaustIfDepleted(${seat});`);
+      // 直呼走 callEngine(#1302:只承载引擎公共方法调用,字段直写归种植件)——
+      // exhaustIfDepleted=引擎公共入口(文件头注),无引擎到不了的改写;封装的 sync
+      // 重灌派生量(快照与 interactive 一起刷,决策卷轴才按新相位弹出;冻结期相位
+      // 无人抢,出现即真)。
+      await callEngine(page, "exhaustIfDepleted", [seat]);
       try {
         await expect(page.getByTestId(SCROLL_TESTIDS.exhaustionScroll)).toBeVisible({
           timeout: 15_000,
