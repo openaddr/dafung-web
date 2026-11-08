@@ -4,19 +4,11 @@ R3(#96)给城池加了三拍宣告动效(扩军印章重钤、顶层生长、易
 
 ## 背景与问题
 
-### 1. props diff 宣告 = 旁路提取器
-
-组件渲染时 diff 自己的 props(上一值快照/key 变化)推导"发生了什么",再自行动画:
-
-- **触发源错位**:props diff 只知道"值变了",不知道"谁让它变"——终态加载(快照恢复/换图)与真实引擎推进在 props 上同形,宣告只能靠首挂例外等补丁区分;
-- **时序失控**:宣告在 React 渲染时发生,与事件流的骰子→行军→浮字序列无任何排序保证;
-- **测试为零**:props diff 无法在 bun test 断言,memorySink 录不到它。
-
-### 2. 三个"盖章"渲染器并存
+### 1. 三个"盖章"渲染器并存
 
 同一"钤章"视觉有三份实现:fx-svg-seal-stamp(浮层印,fx.css)、bv-level-seal-pop(board.css,注释自认是对前者的语义拷贝)、Tile 静态都/起印。位姿参数(-12°→-8°、scale 2.2→1)重复维护。
 
-### 3. 决策成败信号已被清理(实施中核实的实证)
+### 2. 决策成败信号已被清理(实施中核实的实证)
 
 extractStepEvents 原以 `lastTransaction.status === Ok` 判买/扩军成败——但 endTurn 随决策载荷清理(spec #107 C2)把 lastTransaction 置 null,而提取发生在命令完成之后:该分支**实际已死**,买城的「据」章/buy 音/upgrade 音在单机不再播出(存量测试因 `if (lastTransaction?.status === "Ok")` 守卫空转而未察觉)。宣告接线必须先有一个活着的成败信号。
 
@@ -48,7 +40,7 @@ extractStepEvents 原以 `lastTransaction.status === Ok` 判买/扩军成败—�
 
 ### 4. 成败信号改走结算留痕(修复死分支)
 
-引擎在成交结算点写入 `propertyChanges` 留痕(私有缓冲,`presentation.drainPropertyChanges()` 破坏性读,同 drainFloaters 口径):buyProperty/upgradeProperty 成交、公道买卖升级、破产资产转移(settleDebt 收口为 settleDebtTraced)、变卖给银行。提取器改为"有留痕 = 成交":upgrade 音/「据」章/buy 音据留痕产出,**音效在前、宣告紧随**;被拒不产出。这同时修复了 §背景3 的死分支,且「据」章锚定改用留痕自带 tileIndex(endTurn 已推进回合,activePlayer.position 不再是成交格)。联机侧 SnapshotEffects 以 propertyId diff 相邻快照产出同一事件(首帧只记基准,排在行军后、破产音前)。
+引擎在成交结算点写入 `propertyChanges` 留痕(私有缓冲,`presentation.drainPropertyChanges()` 破坏性读,同 drainFloaters 口径):buyProperty/upgradeProperty 成交、公道买卖升级、破产资产转移(settleDebt 收口为 settleDebtTraced)、变卖给银行。提取器改为"有留痕 = 成交":upgrade 音/「据」章/buy 音据留痕产出,**音效在前、宣告紧随**;被拒不产出。这同时修复了 §背景2 的死分支,且「据」章锚定改用留痕自带 tileIndex(endTurn 已推进回合,activePlayer.position 不再是成交格)。联机侧 SnapshotEffects 以 propertyId diff 相邻快照产出同一事件(首帧只记基准,排在行军后、破产音前)。
 
 ### 5. 盖章归一
 

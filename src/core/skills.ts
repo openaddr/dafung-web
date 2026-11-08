@@ -18,11 +18,11 @@ export interface TriggerSkill {
   params?: Record<string, number>; // 效果参数(纯数据,可序列化)
   cooldown?: number; // 冷却(单位:轮,记于麾下槽位 lastFired,键=skill.id、各槽各账 #785)
   /** 技能属主(owner)与时机主体(subject)/当前行动者的关系;缺省 = "self":
-   *  - "self":属主是时机主体(我的骰/我的失财/我的回合…)
-   *  - "others":时机主体不是属主(别人失财/别人掷骰…)
+   *  - "self":属主是时机主体(我的骰/我的失银/我的回合…)
+   *  - "others":时机主体不是属主(别人失银/别人掷骰…)
    *  - "any":主体不限(任何人,含属主自己)
    *  - "actor":时机主体恰为当前行动玩家(activeIndex,属主不限)——当前所有派发点主体即行动者,
-   *    与 "any" 等价;未来出现「非行动玩家」主体的时机(如回合外失财)时二者分化。 */
+   *    与 "any" 等价;未来出现「非行动玩家」主体的时机(如回合外失银)时二者分化。 */
   scope?: "self" | "actor" | "others" | "any";
 }
 

@@ -39,33 +39,6 @@
 - `bun run check:goldens:update`:重生成台账;打印新旧摘要差异(逐图「N 笔中 M 笔不同 + 首漂位置」,新建/零差也明说),不静默。语义 = **确认漂移符合预期后的主动刷新**,不是「红了解决不了就 update」的橡皮章。
 - 全绿汇总打印「N 图 × M 种子、总笔数、总耗时」;单局未终局(触回合上限)不拦——isOver 已入记录被钉住,漂移自会红,平衡判读归消费方(口径同 sim-batch)。
 
-## 落地物
-
-- `scripts/check-goldens.ts` — 门禁单源:语料定义 / 台账读写与冻结格式校验 / 首漂定位 / check+update 双模式。
-- `test/goldens/{guanzhong,zhongyuan,yanzhou}.json` — 台账首版(jj 跟踪;全语料 8615 笔摘要,共 ~4MB,最大单文件 2.6MB)。
-- package.json — `check:goldens` / `check:goldens:update` 两条。
-- docs/how-to/开发与测试.md —「黄金台账」节(何时红 / 有意变更流程 / 先红教育口径)。
-
-## 先红实证(验收证据)
-
-临时把 `src/core/encounters.ts` 屯粮居奇 `delta: 250` 改 251(结算载荷直变,可复现),门红且定位到首漂回合;演示后 `jj restore` 撤净,`jj diff --stat` 核只余本票文件:
-
-```
-$ bun run check:goldens
-黄金台账漂移:guanzhong / seed 3001 / 第 56 笔摘要
-  漂移回合:turn 57 · round 15 · Roll
-  摘要笔数:台账 820 笔 vs 重跑 820 笔
-  逐字段 diff(台账 vs 重跑):
-    logHash                  台账=9bff01379042197c…
-                             重跑=d56f428313132929…
-    stateHash                台账=c06d818aa8cf20df…
-                             重跑=77eb88bf29ad1196…
-处置见 docs/how-to/开发与测试.md「黄金台账」节(先红=信号勿逐 spec 排查;确认漂移符合预期后 bun run check:goldens:update 刷新台账)
-error: script "check:goldens" exited with code 1
-```
-
-旁证一处:先试了 `constants.ts` 的 STAMINA_CASH_RATE 5→6(bot 打分权重),30 局 8615 笔**零漂移**——该权重在本语料的抉择边界上从不翻面。它演示了门的另一半价值:门红 = 行为真变;门绿 ≠ 改动无意义,但 = 行为事实逐位未变。台账门只认行为事实,不认「改了源码」。
-
 ## 后果
 
 - 任何 core 行为漂移(引擎、数值表、机遇目录、驱动器、摘要口径)从此在 PR 前必红——没有 spec 断言到的行为改动不再能静默入库。

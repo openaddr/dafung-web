@@ -18,7 +18,7 @@ Infer the repo from `git remote -v` — `gh` does this automatically when run in
 
 ## 本仓库特记:gh 可用性
 
-**2026-08-29 起 `gh` 已安装并认证完成**(openaddr,keyring,scopes 含 repo/read:org),以上 gh 命令为主要通路,优先使用。(2026-10-20:gh keyring token 已失效,待 `gh auth refresh` 恢复;其间 REST 通路在役,已实测全流程。)
+**2026-08-29 起 `gh` 已安装并认证完成**(openaddr,keyring,scopes 含 repo/read:org),以上 gh 命令为主要通路,优先使用。(2026-10-20 keyring token 一度失效,2026-11-09 已 `gh auth refresh` 恢复,gh 全流程走通;其间 REST 备用通路在役。)
 
 若 gh 暂不可用,备选通路 = **git 凭据管理器 token + REST API**(曾在 PR #1-#10 全流程验证,#645 合并再验证):
 
@@ -71,4 +71,4 @@ Used by `/wayfinder`. The **map** is a single issue with **child** issues as tic
 
 ## 历史约定(2026-08 之前)
 
-`.scratch/<feature>/`(spec.md + issues/NN-slug.md)的本地 markdown 约定自本文件改版起**废止**,新工单一律进 GitHub Issues。`.scratch/` 保留为临时脚本/草稿目录,不再是 tracker。
+`.scratch/<feature>/` 的本地 markdown 工单约定已废止(新工单一律进 GitHub Issues);`.scratch/` 仅作临时脚本/草稿目录。
