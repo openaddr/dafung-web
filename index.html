@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <!-- viewport-fit=cover:让页面延伸到安全区外(刘海/圆角),CSS 用 env(safe-area-inset-*) 回避 -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- user-scalable=no+maximum-scale=1:关 WebView 页面级捏合/双击缩放——固定横屏布局,缩放必破版;
+         iOS Safari 无视此声明,不管 iOS(2026-11-09 拍板) -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <!-- theme-color 随玄墨鎏金(#514):深底值镜像 core/theme.ts 的 bg(#1f1a13),系统栏同色不闪白 -->
     <meta name="theme-color" content="#1f1a13" />
     <title>群雄逐鹿 · 三国大富翁</title>
