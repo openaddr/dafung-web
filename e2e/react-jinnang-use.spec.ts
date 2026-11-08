@@ -189,8 +189,12 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await startJunshi(page, 67);
     // 先停稳在开局出牌阶段态再种植:发牌在进 Playing 时落账,抢跑会被发牌覆盖。
     // 军情密探目标门槛=对方有珍宝:给 seat1 挂一件,目标段才有可用候选。
-    // (塞牌经 giveJinnang #1298;珍宝直写归 #1299 塞指定珍宝族,暂留 force)
-    await force(page, `e.players[1].treasures = [{ id: "gem-1", name: "夜明珠", level: 5 }];`);
+    // (塞牌经 giveJinnang #1298;珍宝经 giveTreasure #1299,判词单源 src/core/planter.ts)
+    await plant(page, {
+      kind: "giveTreasure",
+      seat: 1,
+      treasures: [{ id: "gem-1", name: "夜明珠", level: 5 }],
+    });
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
     const opt = page.getByTestId(TESTIDS.jinnangCard("军情密探"));
     await expect(opt).toBeVisible();
@@ -223,8 +227,12 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   // force 判词同上例(手牌无公共通路;珍宝无授宝公共通路,目标门槛需对方有宝)。
   test("军情密探作罢:目标段收回,回卡牌段选中清空、牌未消耗", async ({ page }) => {
     await startJunshi(page, 67);
-    // (塞牌经 giveJinnang #1298;珍宝直写归 #1299 塞指定珍宝族,暂留 force——判词同上例)
-    await force(page, `e.players[1].treasures = [{ id: "gem-1", name: "夜明珠", level: 5 }];`);
+    // (塞牌经 giveJinnang #1298;珍宝经 giveTreasure #1299,判词单源 src/core/planter.ts)
+    await plant(page, {
+      kind: "giveTreasure",
+      seat: 1,
+      treasures: [{ id: "gem-1", name: "夜明珠", level: 5 }],
+    });
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
     const opt = page.getByTestId(TESTIDS.jinnangCard("军情密探"));
     await opt.click();

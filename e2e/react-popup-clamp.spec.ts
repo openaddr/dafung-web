@@ -8,6 +8,7 @@
 // 断言测不出滚出视口,须几何断言钉住)。
 import { test, expect, type Page } from "./fixtures";
 import { useHalfScale, force, disableEncounters } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
@@ -43,9 +44,10 @@ test.describe("决策卷轴拍板钮钉底(#729)", () => {
    *  (reaction soloAtBuyAsk 的二级弹层在 844 无确认钮不通)+ 机遇归零(先 route 后
    *  进屏;#1100 适配期曾漏挂——机遇开的骰流消耗把候选与首停全带漂,多种子重钓
    *  皆 miss,考古见票面)+ 种植现金 20000(全图最高价 4800,不种则起手净剩不足
-   *  自动不取、卷轴不弹)+ 首掷种植:人类第一停恒落无主普通城,购地决策确定性可达。
-   *  force 判词:种现金=卷轴弹出前提(起手净剩不足会自动不取、卷轴不弹;现金无
-   *  「充值」公共命令,引擎只按交易/事件自然增减)。 */
+   *  自动不取、卷轴不弹;setCash 种植件 #1299,判词单源 src/core/planter.ts)+ 首掷
+   *  种植:人类第一停恒落无主普通城,购地决策确定性可达。
+   *  force 判词:首掷落点由骰值决定,引擎无「走到指定格」公共命令——patch dice.roll
+   *  现算确定性到达是唯一通路(bot 掷骰照走种子 rng 不受扰)。 */
   async function startBuyScroll(page: Page): Promise<void> {
     await useHalfScale(page);
     await disableEncounters(page);
@@ -55,13 +57,8 @@ test.describe("决策卷轴拍板钮钉底(#729)", () => {
     await page.getByTestId(SETUP_TID.screen).waitFor();
     await page.getByTestId(SETUP_TID.startGame).click();
     await page.waitForFunction(() => window.__dafung?.controller() != null);
-    await force(
-      page,
-      `
-      e.players[0].cash = 20000;
-      ${marchToUnownedOnce}
-    `,
-    );
+    await plant(page, { kind: "setCash", seat: 0, cash: 20000 });
+    await force(page, marchToUnownedOnce);
     await page.locator(".bv-tile.bv-selectable").first().click();
     await page.getByTestId(TESTIDS.confirmCapitalOk).click();
     await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });

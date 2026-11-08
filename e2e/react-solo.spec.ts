@@ -11,6 +11,7 @@ import {
   force,
   snap,
   actIfCan,
+  engineState,
   waitForSnapChanged,
   openSoloSetup,
   pickCapital,
@@ -20,6 +21,7 @@ import {
   freezeClock,
   unfreezeClock,
 } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
@@ -59,8 +61,8 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
 
 // 真实段(ADR-0058):冻结后真点「买地」→真卷轴结算扣款入册即被测环。force 判词:
 // 钉 AwaitingDecision+人类行动方(引擎无「钉相位」公共命令,停靠点随骰流);无主城
-// 落点直选(停靠随骰流漂,断言面需确定无主城);现金注资(购价随地图再平衡,断言面
-// 需确定可购——本例测购地机制不测购地门槛)。
+// 落点直选(停靠随骰流漂,断言面需确定无主城)。现金注资已迁 setCash 种植件(#1299,
+// 判词单源 src/core/planter.ts)。
 test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
   await quickStart(page);
   await freezeClock(page);
@@ -70,16 +72,21 @@ test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
     // 归表现,决策上下文(pendingLand)归决策——真实路径由 resolveProperty 一并置值。
     // #188:先钉活跃座位到人类(0)——行军自动化后停靠点不保证轮到人类,决策方是 bot 时
     // interactive=false,卷轴恒不弹(#421 起冻结先行,种植在钉死的静止态上做)。
+    // 现金注资走 setCash 种植件(#1299,判词单源 src/core/planter.ts):购价随地图
+    // 再平衡——读引擎现价再种「购价+1000」,别让数值再平衡打真本例(语义同旧直写;
+    // 本例测购地机制不测购地门槛,起手 5000 选都扣建城费后未必买得起首个无主城
+    // ADR-0041)。
+    const price: number = await engineState(
+      page,
+      "e.catalog.get(e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null).propertyId).purchasePrice",
+    );
+    await plant(page, { kind: "setCash", seat: 0, cash: price + 1000 });
     await force(
       page,
       `
       e.turnPhase = "AwaitingDecision";
       e.activeIndex = 0;
-      const me = e.activePlayer;
       const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null);
-      // 种够现金:本例测购地机制不测购地门槛——起手 5000 选都扣建城费后未必买得起
-      // 首个无主城(ADR-0041),价格随地图走,别让数值再平衡打真本例。
-      me.cash = e.catalog.get(tile.propertyId).purchasePrice + 1000;
       e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
       e.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
     `,
@@ -239,7 +246,9 @@ test(
     // #188:quickStart 不再保证「正轮到人类」(行军自动化后局面自走),改锁人类座位本尊——
     // checkVictory 先看主动玩家、再看全场达标者中身价最高者,开局数回合内 bot 身价远低,
     // 人类 3× 目标恒为最高达标者,胜者确定性不变。
-    await force(page, `e.players[0].cash = e.targetNetWorth * 3;`);
+    // 现金推过目标身价走 setCash 种植件(#1299,判词单源 src/core/planter.ts)。
+    const targetNetWorth: number = await engineState(page, "e.targetNetWorth");
+    await plant(page, { kind: "setCash", seat: 0, cash: targetNetWorth * 3 });
     // #188:掷骰自动触发——决策点由 actIfCan 清理,行军自走,endTurn 即触发胜利判定。
     // 掷骰可能落在决策格(购地/扩军):把余下决策也推完才 endTurn 触发胜利判定。
     // 落 bot 城主珍宝交涉格零须处理:#398 后引擎即席代打(旧 force「不交易」绕行分支

@@ -13,6 +13,7 @@
 import { test, expect, type Page } from "./fixtures";
 import { quickStart, force, snap, engineState, waitFxIdle } from "./react-helpers";
 import { fmtMoney } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { guidePriceOf, premiumPriceOf } from "../src/core/treasures";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
@@ -89,23 +90,34 @@ test(
  *  「offeredCapitals[0] 恰是盘面第一座地产城」的种子,直写 push 会造出同 propertyId 的
  *  重复 holding,结算的 findHolding 升的是首件(都城 0→1),断言读到的也是首件(恒 1),
  *  「+1 级」永不成立。findOwner 单源引擎查询。
- *  force 判词(#1217 波4 审计):交涉前置三件套无公共命令可达——珍宝无授宝命令(只
- *  随机遇/交易/变卖结算入手)、城池归属由购地结算产出(行军+现金约束到不了「指定格
- *  指定级」)、treasureVisitor 仅落格结算内部挂起;断言面需「城主持宝+被访城」形态,
- *  直写后走控制器 sync。 */
+ *  数值族种植(#1299,判词单源 src/core/planter.ts):城主持宝走 giveTreasure(终态
+ *  替换,保起手 2 件=读现值拼全集;id 必须在 TREASURES 目录内(#521 起装裱卡画心按
+ *  实例 id 回查目录,目录外抛错),level 3 是压价虚构(真玺 level 10),价签数学只认
+ *  行内 level);访客(买家)垫足现金走 setCash——防 payOrLiquidate 走清算自救支线
+ *  劫持交涉结算断言。
+ *  force 判词(#1217 波4 审计):城池归属由购地结算产出(行军+现金约束到不了「指定格
+ *  指定级」)、treasureVisitor 仅落格结算内部挂起、相位/活跃座位无公共命令——断言面
+ *  需「被访城+交涉挂起」形态,直写后走控制器 sync。 */
 async function plantTrade(page: Page): Promise<void> {
   // #1221 L1:preRoll 落都即冻结(同招贤卷轴例,#987/#943 冻结闸随「点火前已冻」退役),
   // 种植的 AwaitingTreasureOwner 停靠态不被迟到链步进覆盖。
   await quickStart(page, 1486, { advance: "preRoll" });
+  const planted = (await snap(page)).players;
+  await plant(page, {
+    kind: "giveTreasure",
+    seat: 0,
+    treasures: [
+      ...planted[0].treasures,
+      { id: "seal", name: "传国玉玺", level: 3, desc: "天命所归" },
+    ],
+  });
+  await plant(page, { kind: "setCash", seat: 1, cash: Math.max(planted[1].cash, 5000) });
   await force(
     page,
     `
     e.phase = "Playing";
     e.activeIndex = 1;
     const owner = e.players[0];
-    // id 必须在 TREASURES 目录内(#521 起装裱卡画心按实例 id 回查目录,目录外抛错);
-    // level 3 是压价虚构(真玺 level 10),价签数学只认行内 level
-    owner.treasures.push({ id: "seal", name: "传国玉玺", level: 3, desc: "天命所归" });
     const tile = e.board.tiles.find((t) => t.propertyId && !e.findOwner(t.propertyId));
     owner.properties.push({
       propertyId: tile.propertyId,
@@ -114,8 +126,6 @@ async function plantTrade(page: Page): Promise<void> {
       group: tile.group ?? "a",
     });
     e.treasureVisitor = { def: e.catalog.get(tile.propertyId), ownerIdx: 0 };
-    // 访客(买家)垫足现金:防 payOrLiquidate 走清算自救支线劫持交涉结算断言
-    e.players[1].cash = Math.max(e.players[1].cash, 5000);
     e.turnPhase = "AwaitingTreasureOwner";
   `,
   );
@@ -208,22 +218,32 @@ test("珍宝交涉:点选金描边 + 二段式成交,确认提交发 resolveTrea
 
 // 真实段(波4 #1217):卷轴内开选宝弹层 → 二段式变卖(点选武装→确认提交)→ 层随
 // 结算收口 → 重开清单刷新(已卖件消失、余件仍在)的交互链全真。
-// force 判词:破产态(pendingDebt)由缴支结算产生、债务数值不可钉;珍宝/麾下/持仓
-// 无授给公共命令——断言面需「有宝可卖+巨债挂起」形态,直写。
+// 数值族种植(#1299,判词单源 src/core/planter.ts):变卖清单珍宝走 giveTreasure
+// (终态替换,保起手 2 件=读现值拼全集)。
+// force 判词:破产态(pendingDebt)由缴支结算产生、债务数值不可钉;麾下/持仓无授给
+// 公共命令——断言面需「有宝可卖+巨债挂起」形态,直写。
 test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/售出清单刷新", async ({ page }) => {
   // 冻结推进再动刀(#421 冻结→种植→断言;#799):种植后到变卖提交间时钟必须静止——
   // 「现金实涨=指导价」是活态等式断言,吃不起对局自走竞速。#1221 L1:preRoll 落都即
   // 冻结,显式 freezeClock 退役;变卖命令链与 UI 收层不经时钟照常结算(react-jinnang-peek
   // /react-seat-cells 冻结消漂移同款,页面随例终结,无需显式 resume)。
   await quickStart(page, 1486, { advance: "preRoll" });
+  const me0 = (await snap(page)).players[0];
+  await plant(page, {
+    kind: "giveTreasure",
+    seat: 0,
+    treasures: [
+      ...me0.treasures,
+      { id: "seal", name: "传国玉玺", level: 3, desc: "x" },
+      { id: "hat", name: "草帽", level: 1, desc: "x" },
+    ],
+  });
   await force(
     page,
     `
     e.phase = "Playing";
     e.activeIndex = 0;
     const me = e.activePlayer;
-    me.treasures.push({ id: "seal", name: "传国玉玺", level: 3, desc: "x" });
-    me.treasures.push({ id: "hat", name: "草帽", level: 1, desc: "x" });
     me.heroes.push({ heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} }); // 槽位行(#785)
     const tile = e.board.tiles.find((t) => t.propertyId && e.board.tiles.indexOf(t) !== me.capitalIndex);
     me.properties.push({ propertyId: tile.propertyId, level: 1, group: "a" });
