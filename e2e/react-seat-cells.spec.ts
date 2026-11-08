@@ -131,11 +131,13 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
       await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
       const sw = page.getByTestId(TESTIDS.settingsAutopilot);
       await expect(sw).toBeVisible({ timeout: 10_000 });
-      await expect(async () => {
-        if ((await sw.getAttribute("aria-checked")) !== String(on))
-          await sw.click({ timeout: 5_000 });
-        await expect(sw).toHaveAttribute("aria-checked", String(on), { timeout: 5_000 });
-      }).toPass({ timeout: 20_000 });
+      // 点前读态(已在目标态不点)+至多一次点击;生效确认=纯轮询**不补点**——
+      // 补点会在 ack 迟到窗内读到旧值再点=来回振荡(2026-11-08 集成收口实锤:
+      // OFF 腿振荡卡 true 整窗)。广播迟到期 30s 纯轮询吸收,配方口径
+      // (react-online-autopilot setAutopilot:点前读态+点后生效轮询)自此名副其实。
+      if ((await sw.getAttribute("aria-checked")) !== String(on))
+        await sw.click({ timeout: 5_000 });
+      await expect(sw).toHaveAttribute("aria-checked", String(on), { timeout: 30_000 });
       await page.keyboard.press("Escape");
       await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden({ timeout: 5_000 });
     }
