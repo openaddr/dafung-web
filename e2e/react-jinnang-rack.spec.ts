@@ -23,6 +23,7 @@ import { test, expect } from "./fixtures";
 // parkMyTurn(#1216 波3)上收 react-helpers 共享:语义注释随迁见该函数注(本 spec 调用
 // 全走缺省 freeze=true 停车坪口径)。
 import { force, parkMyTurn, pollReactionSettled, quickStart, snap } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { jinnangCardOf } from "../src/core/jinnang";
 import type { Page } from "@playwright/test";
@@ -116,9 +117,9 @@ const NINE_CARDS = [
  *  UI 无遮罩),牌架无限期稳定可 hover。测试全程不发命令,引擎不会被推进。
  *  真实段(共享停车坪,本组三例):真实开局链(seedSolo 直呼生产 handleStart)+发牌
  *  入场级联的真实 DOM 几何/动画落定——几何断言量的是真渲染盒模型。
- *  force 判词:手牌无公共通路(引擎只按开局发牌/摸牌时机发牌,无「发指定牌」公共
- *  命令),断言面需特定牌形(3/9 张);钉相位=quickStart 停点是断言前提(空闲态无遮罩),
- *  引擎自转无「钉相位」公共命令。 */
+ *  手牌种植经 giveJinnang(#1298,判词单源 src/core/planter.ts 头注:生产发牌只有牌堆
+ *  顶随机抽,无「发指定牌」流程);钉相位=quickStart 停点是断言前提(空闲态无遮罩),
+ *  引擎自转无「钉相位」公共命令(改相位族直写暂留 force,归 #1301)。 */
 async function rackStandstill(page: Page, cards: string[], seed: number): Promise<void> {
   await quickStart(page, seed);
   // quickStart 末次点击落点随随机种子可能残留在 .many 行上,hover spread 会污染
@@ -127,12 +128,12 @@ async function rackStandstill(page: Page, cards: string[], seed: number): Promis
   await page.mouse.move(0, 0);
   // 90s:quickStart 收尾可能停在 bot 回合(waitMyRollDone 见 decisionOwner 换人即收),
   // 等一整轮 bot 走回人类停靠点——W2 全量负载下实测一轮可超 30s(2026-09-28 全量 flake,
-  // #308 同族「标 slow 防超时,非删」口径)。
+  // #308 同款「标 slow 防超时,非删」口径)。
   await parkMyTurn(page);
+  await plant(page, { kind: "giveJinnang", seat: 0, cards });
   await force(
     page,
     `
-    e.players[0].jinnangHand = ${JSON.stringify(cards)};
     e.lastLandOutcome = null;
     e.pendingLand = null;
     e.turnPhase = "AwaitingDecision";
@@ -185,17 +186,17 @@ async function pinRackIdle(page: Page, seed: number): Promise<void> {
  *  quickStart 等人类停稳,把相位钉进 AwaitingJinnang + 直写手牌——唯反应手牌恒灰置
  *  不影响窗升起(choices 恒含 pass);引擎直写不经发牌,回合不推进,窗无限期稳定。
  *  真实段(共享停车坪,消费例各在头注声明):窗升起后的点选/长按/收起点击链全真。
- *  force 判词:手牌无公共通路(引擎无「发指定牌」公共命令),断言面需特定牌形
- *  (唯反应牌/可用牌对照);钉 AwaitingJinnang=断言前提(出牌窗态),引擎自转无
- *  「钉相位」公共命令。停车谓词同 pinRackIdle 升级 parkMyTurn(#1215 棒1):窗态
- *  依赖 interactive(decisionOwner=我),问到 bot 回合中途态上钉窗必不升。 */
+ *  手牌种植经 giveJinnang(#1298,判词单源 src/core/planter.ts 头注);钉
+ *  AwaitingJinnang=断言前提(出牌窗态),引擎自转无「钉相位」公共命令(改相位族
+ *  直写暂留 force,归 #1301)。停车谓词同 pinRackIdle 升级 parkMyTurn(#1215 棒1):
+ *  窗态依赖 interactive(decisionOwner=我),问到 bot 回合中途态上钉窗必不升。 */
 async function pinJunshiWindow(page: Page, cards: string[], seed: number): Promise<void> {
   await quickStart(page, seed);
   await parkMyTurn(page);
+  await plant(page, { kind: "giveJinnang", seat: 0, cards });
   await force(
     page,
     `
-    e.players[0].jinnangHand = ${JSON.stringify(cards)};
     e.lastLandOutcome = null;
     e.pendingLand = null;
     e.turnPhase = "AwaitingJinnang";
@@ -522,11 +523,12 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
     // 30s——横幅展示(倍率缩放)与权威看门狗同读此值(#284 单源),收起→断言→重开
     // →应答的点击链不再与默认窗的 2.5s 展示档赛跑;火烧连营根窗 + 人手持识破诡计,
     // 结算走真引擎通路(不经 bot 链,配方参照 react-reaction.spec plantCounterScenario
-    // 的窗形状,省其开局/种植长链)。
+    // 的窗形状,省其开局/种植长链)。(塞牌经 giveJinnang #1298;直种反应窗归
+    // #1301 挂反应载荷族,暂留 force)
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["识破诡计"] });
     await force(
       page,
       `
-      e.players[0].jinnangHand = ["识破诡计"];
       e.jinnangSeq += 1;
       e.pendingReaction = {
         seq: e.jinnangSeq,
@@ -613,16 +615,21 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
 // 块显式把 delay 归零(那是 M-4 管不到的唯一缝)。本用例钉住两层都生效。
 test.describe("发牌入场级联 reduced-motion(#239 T4)", () => {
   // 真实段:reduce 媒体档下的计算样式取证(animationName/delay/duration/opacity)
-  // 全真——动效退场契约只能从 getComputedStyle 取证。force 判词:手牌无公共通路
-  // (引擎无「发指定牌」公共命令),断言面需 3 张特定牌形以验级联 delay 归零。
+  // 全真——动效退场契约只能从 getComputedStyle 取证。手牌种植经 giveJinnang(#1298,
+  // 判词单源 src/core/planter.ts 头注),断言面需 3 张特定牌形以验级联 delay 归零;
+  // 钉相位直写归 #1301(判词同 rackStandstill)。
   test("reduce 下入场动画不播放:delay 归零+时长压缩,牌挂载即不透明", async ({ page }) => {
     // emulateMedia 挂在 goto 前:首屏样式计算即按 reduce 生效,无时序缝
     await page.emulateMedia({ reducedMotion: "reduce" });
     await quickStart(page, 1485);
+    await plant(page, {
+      kind: "giveJinnang",
+      seat: 0,
+      cards: ["连环计", "军情密探", "缓兵之计"],
+    });
     await force(
       page,
       `
-      e.players[0].jinnangHand = ["连环计", "军情密探", "缓兵之计"];
       e.lastLandOutcome = null;
       e.pendingLand = null;
       e.turnPhase = "AwaitingDecision";

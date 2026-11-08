@@ -56,6 +56,7 @@ import { catchupCounters, setSnapPin } from "@app/fx/catchup";
 import { latestWorkerClock } from "@app/net/worker-clock";
 import { collectFrameDiag } from "@app/frameDiag";
 import type { GameCommand, GameEngine } from "@core/authority";
+import { applyPlant, type PlantOp } from "@core/planter";
 import { HEROES } from "@core/heroes";
 import { loadMapById } from "@core/map-source";
 import { getDefaultMapId, getMapSource } from "@app/map-sources";
@@ -271,6 +272,17 @@ export function installDebugHooks(): void {
      *  (预掷授技,#787)},直写 offeredHeroes 必须给候选行形状;预掷结果由种植者定
      *  (e2e 通常给整池),引擎落定原样入槽不重掷。 */
     heroDefs: () => [...HEROES],
+    /** 种植件分发口(#1298,#1295 种植件体系):op=可序列化种植指令(联合单源
+     *  @core/planter,桥内转发到与单测/无头层**同一份实现** applyPlant——三层共用
+     *  场景构造能力,e2e 侧 type-import op 联合,字段写错编译期红)。只出机制+分发:
+     *  应用后不重灌派生量——时序纪律(写前等演出排空→写→controller().sync() 重灌
+     *  派生→写后再排空)由 e2e 封装 e2e/helpers/drivers.ts plant() 复用 force 同款
+     *  脚手架收口。经本桥双门禁,生产构建零暴露。 */
+    plant: (op: PlantOp) => {
+      const e = getEngine();
+      if (e == null) throw new Error("plant:无活动对局(未开局不可种植)");
+      applyPlant(e, op);
+    },
     /** 当前控制器(交互入口)。 */
     controller: () => getController(),
     seedSolo,

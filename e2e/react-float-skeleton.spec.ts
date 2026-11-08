@@ -11,6 +11,7 @@
 // 纯 CSS 重排非 app 代码,且交付形态 APK 锁横屏、桌面 resize 为不设断言的失修面。
 import { test, expect } from "./fixtures";
 import { quickStart, dismissJinnangIfUp, force } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 test.describe("顶部浮层几何(#700 ①)", () => {
@@ -187,9 +188,9 @@ test.describe("签面归组(#840 ④)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
   // 真实段(ADR-0058):单张手牌真实挂载渲染的签面/牌行/架体盒模型几何即被测环。
-  // force 判词:手牌无公共通路(引擎只按开局发牌/摸牌时机发牌,无「发指定牌」公共
-  // 命令,rack 停车坪同判词),断言面需单张特定牌形(hug 与全宽档差异放大到最大);
-  // 冻结(preRoll 落都即冻结)是到达手段,非字段直改。
+  // 手牌种植经 giveJinnang(#1298,判词单源 src/core/planter.ts 头注:生产发牌只有
+  // 牌堆顶随机抽,无「发指定牌」公共命令),断言面需单张特定牌形(hug 与全宽档差异
+  // 放大到最大);冻结(preRoll 落都即冻结)是到达手段,非字段直改。
   test("签面与手牌架同组居中:签面贴牌行、组中线≈手牌区中线、架体收拢到内容实宽", async ({
     page,
   }) => {
@@ -200,7 +201,7 @@ test.describe("签面归组(#840 ④)", () => {
     await quickStart(page, 1486, { advance: "preRoll" });
     // 钉单张手牌;单张把 hug 与旧全宽档的差异放到最大——叠加压缩态架体本就近乎
     // 吃满,断言无分辨力。
-    await force(page, `e.players[0].jinnangHand = ["军情密探"];`);
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
     type Geo = {
       gapSealToCard: number;
       groupCenterOffset: number;
