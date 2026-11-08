@@ -59,10 +59,10 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
 // freezeClock/unfreezeClock 已升共享面(react-helpers,#423 项8:react-stamina 同款
 // 口径接入);冻结边界(只钉到点回调、钉不住命令自带同步链)与断言纪律详见彼处注。
 
-// 真实段(ADR-0058):冻结后真点「买地」→真卷轴结算扣款入册即被测环。force 判词:
-// 钉 AwaitingDecision+人类行动方(引擎无「钉相位」公共命令,停靠点随骰流);无主城
-// 落点直选(停靠随骰流漂,断言面需确定无主城)。现金注资已迁 setCash 种植件(#1299,
-// 判词单源 src/core/planter.ts)。
+// 真实段(ADR-0058):冻结后真点「买地」→真卷轴结算扣款入册即被测环。钉相位+
+// 行动方走 armPhase 种植件(#1301,判词单源 src/core/planter.ts:引擎无「钉相位」
+// 公共命令,停靠点随骰流);无主城落点直选(停靠随骰流漂,断言面需确定无主城)。
+// 现金注资已迁 setCash 种植件(#1299,判词单源 src/core/planter.ts)。
 test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
   await quickStart(page);
   await freezeClock(page);
@@ -81,11 +81,14 @@ test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
       "e.catalog.get(e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null).propertyId).purchasePrice",
     );
     await plant(page, { kind: "setCash", seat: 0, cash: price + 1000 });
+    await plant(page, {
+      kind: "armPhase",
+      turnPhase: "AwaitingDecision",
+      activeIndex: 0,
+    });
     await force(
       page,
       `
-      e.turnPhase = "AwaitingDecision";
-      e.activeIndex = 0;
       const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null);
       e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
       e.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
@@ -120,7 +123,10 @@ test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
           const line = await buyLine();
           return line == null ? null : Number(/cash=(\d+)/.exec(line.detail)![1]);
         },
-        { timeout: 15_000, message: "buy 留痕现金=结算瞬间值,必低于种前现金(扣价)" },
+        {
+          timeout: 15_000,
+          message: "buy 留痕现金=结算瞬间值,必低于种前现金(扣价)",
+        },
       )
       .toBeLessThan(before.cash);
   } finally {
@@ -131,8 +137,9 @@ test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
 // 真实段(ADR-0058):冻结后真点「扩军」→真免费升级结算即被测环。授房产走
 // grantProperty 种植件(#1300,判词单源 src/core/planter.ts:己方城种植=升级前提
 // 「名下有城」开局初期自然到不了,断言面需确定己城邻格形态;选址=测试侧读现值)。
-// force 判词:钉相位+行动方(同上,无「钉相位」公共命令,相位族 #1301);落格询问
-// 载荷(lastLandOutcome/pendingLand)=落格结算内部挂起态,无种植件(#1301 载荷族)。
+// 钉相位+行动方走 armPhase(#1301,判词单源 src/core/planter.ts,同「购地决策」);
+// 落格询问载荷(lastLandOutcome/pendingLand)=落格结算内部挂起态,无种植件,直写
+// 内联判词(#1303 收口缺口盘点)。
 test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)", async ({ page }) => {
   await quickStart(page);
   await freezeClock(page);
@@ -142,13 +149,21 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
       page,
       `(e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(e.players[0].capitalIndex).propertyId && e.findOwner(t.propertyId) == null)).propertyId`,
     );
-    await plant(page, { kind: "grantProperty", seat: 0, propertyId: pid, level: 0 });
+    await plant(page, {
+      kind: "grantProperty",
+      seat: 0,
+      propertyId: pid,
+      level: 0,
+    });
     // #188:先钉活跃座位到人类(0),理由同「购地决策」用例(#421 起冻结先行)
+    await plant(page, {
+      kind: "armPhase",
+      turnPhase: "AwaitingDecision",
+      activeIndex: 0,
+    });
     await force(
       page,
       `
-      e.turnPhase = "AwaitingDecision";
-      e.activeIndex = 0;
       const me = e.activePlayer;
       e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(${JSON.stringify(pid)}), owner: me };
       e.pendingLand = { kind: "OwnProperty", propertyId: ${JSON.stringify(pid)} };
@@ -189,7 +204,10 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
             );
           return line == null ? null : Number(/cash=(\d+)/.exec(line.detail)![1]);
         },
-        { timeout: 15_000, message: "upgrade 留痕现金=结算瞬间值,须等于种前现金(免费)" },
+        {
+          timeout: 15_000,
+          message: "upgrade 留痕现金=结算瞬间值,须等于种前现金(免费)",
+        },
       )
       .toBe(before);
   } finally {
@@ -200,31 +218,24 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
 // X7 #26:等待去重——底部「运筹中…」角标已删,thinking testid 迁到 WaitingBar 文案 span,
 // bot 回合的等待反馈以 WaitingBar 挂载为断言锚(#732 起宿主在知会槽,#762 起与常驻
 // 回合胶囊同槽融合——胶囊管回合方指名,本条断言的是等待附加信息自身,双锚定防回退)。
-// 真实段(ADR-0058):「运筹中」WaitingBar 对决策方=bot 的渲染响应链即被测环。force
-// 判词:钉行动方为 bot(自然停靠随骰流,断言面需确定的 bot 行动方;sync 走控制器
-// 公共重灌,派生量 interactive 随之落 store)。
+// 真实段(ADR-0058):「运筹中」WaitingBar 对决策方=bot 的渲染响应链即被测环。钉
+// 行动方为 bot 走 armPhase 种植件(#1301,判词单源 src/core/planter.ts:自然停靠随
+// 骰流,断言面需确定的 bot 行动方;plant 通路写后走控制器 sync 公共重灌,派生量
+// interactive 随之落 store)。
 test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…」", async ({ page }) => {
   // #987 定 seed 49(实测停靠干净无演出在播)——随机 seed 下
   // quickStart 归还时可能有签面幕在收(收幕走房间时钟),先冻结会把玄墨幕钉死屏上、
-  // force 内的 waitFxIdle 永不排空(2026-11-02 W4 挂串行绿的负载敏感根因)。
+  // 种植通路的 waitFxIdle 永不排空(2026-11-02 W4 挂串行绿的负载敏感根因)。
   await quickStart(page, 49);
-  // #421 冻结闸:quickStart 稳后局面仍自走,force 改 activeIndex 与自推进竞速——
-  // #928 行军提速后 force 落点撞进人类决策窗(interactive 被决策方压回,WaitingBar
+  // #421 冻结闸:quickStart 稳后局面仍自走,改 activeIndex 与自推进竞速——
+  // #928 行军提速后落点撞进人类决策窗(interactive 被决策方压回,WaitingBar
   // 永不开),钉住世界再动刀(同文件升级用例同款先例)。冻结前先排空演出:
   // 冻结会挂起时钟驱动的收幕回调,fx 在途时冻结=waitFxIdle 死等(#987)。
   await waitFxIdle(page);
   await freezeClock(page);
   try {
-    await force(
-      page,
-      `
-      const botIdx = e.players.findIndex((p) => p.isBot);
-      e.activeIndex = botIdx;
-      // WaitingBar 按 interactive 门控(旧角标不读它):debug sync 只灌快照不刷派生量,
-      // 须走控制器 sync 才能把「决策方=bot → interactive=false」落进 store。
-      window.__dafung.controller().sync();
-    `,
-    );
+    const botIdx: number = await engineState(page, "e.players.findIndex((p) => p.isBot)");
+    await plant(page, { kind: "armPhase", activeIndex: botIdx });
     await expect(page.getByTestId(TESTIDS.waitingBar)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.thinking)).toContainText("运筹中…");
   } finally {
@@ -285,10 +296,14 @@ test(
       // 改为轮询"快照真的变了"(8s 余量),动作不改变局面时容忍(不阻塞循环)
       await waitForSnapChanged(page, before).catch(() => {});
     }
-    await expect(page.getByTestId(SCROLL_TESTIDS.victoryScreen)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId(SCROLL_TESTIDS.victoryScreen)).toBeVisible({
+      timeout: 60_000,
+    });
     // 终局封场(orchestrator.finishPresentation):真终局批先于胜利屏入队,封场后
     // 掷骰签 overlay(z-45)不得残留——在场一张随封场摘除,后续掷骰不再播。
-    await expect(page.locator(".dice-overlay")).toHaveCount(0, { timeout: 2_000 });
+    await expect(page.locator(".dice-overlay")).toHaveCount(0, {
+      timeout: 2_000,
+    });
     const s = await snap(page);
     expect(s.isOver).toBe(true);
     expect(s.players.find((p: any) => p.id === s.winner).isBot).toBe(false);

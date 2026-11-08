@@ -94,7 +94,12 @@ async function plantBotCity(page: Page): Promise<void> {
     throw new Error("种植失败:无可挪城池格");
   })()`,
   );
-  await plant(page, { kind: "grantProperty", seat: 1, propertyId: pid, level: 1 });
+  await plant(page, {
+    kind: "grantProperty",
+    seat: 1,
+    propertyId: pid,
+    level: 1,
+  });
 }
 
 test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)", () => {
@@ -256,7 +261,11 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     // 实授只给主动技,池内被动疾行不授(全览弹框池对照的灰置行对照组);诸 bot 城防
     // 拉到 Lv1(火攻有可毁目标,卡面金边可用;开局各座唯都城 Lv0,拉级=都城格授
     // level 1);求贤令(援,标签未占)= 可用对照组。
-    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["缓兵之计", "求贤令"] });
+    await plant(page, {
+      kind: "giveJinnang",
+      seat: 0,
+      cards: ["缓兵之计", "求贤令"],
+    });
     await plant(page, {
       kind: "armHero",
       seat: 0,
@@ -330,8 +339,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   // 真实段:呈现态断言(同名技双卡独立实例 id、卡面载体件各归各将、他将不上卡)——
   // 无操作链,布场后的真实渲染即被测环。麾下将经 armHero 种植件(#1300,判词单源
   // src/core/planter.ts:无授将公共通路,招贤命令到不了「两槽各持指定技」,实授子集
-  // 由 skillIds 显式给定);force 判词:钉 AwaitingJinnang=断言前提(出牌窗态),
-  // 引擎自转无「钉相位」公共命令(相位族 #1301)。
+  // 由 skillIds 显式给定);钉 AwaitingJinnang 走 armPhase(#1301,判词单源
+  // src/core/planter.ts:断言前提(出牌窗态),引擎自转无「钉相位」公共命令)。
   test("异将同名技载体可辨:周瑜/张星彩各持擂鼓,两张擂鼓卡同名同技、载体各归各将", async ({
     page,
   }) => {
@@ -351,7 +360,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
       heroId: "zhangxingcai",
       skillIds: ["zhijin", "leigu"],
     });
-    await force(page, `e.turnPhase = "AwaitingJinnang";`);
+    await plant(page, { kind: "armPhase", turnPhase: "AwaitingJinnang" });
     // 实例 id 各归各槽(#817),同名技 = 两张独立卡
     const leiZy = page.getByTestId(TESTIDS.jinnangCard("skill:zhouyu:leigu"));
     const leiZx = page.getByTestId(TESTIDS.jinnangCard("skill:zhangxingcai:leigu"));
@@ -387,26 +396,22 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
 // jinnangPlayed 表现事件);反应窗出牌(识破/拦停)的联机端同款线归 react-reaction-online。
 test.describe("出牌指示线(#281 P2-E)", () => {
   // 真实段:出牌目标两步链(点席位选中→「出」确认打出)与墨线端点对准几何全真
-  // (rAF 原子采样对引擎现算坐标)。force 判词:手牌无公共通路需火烧牌形;挪城判词见
-  // plantBotCity(无授城公共命令,需 bot 名下可拆城);清他座反应牌=手牌直写同判词
-  // (不开反应窗,线在宣告点即出)。
+  // (rAF 原子采样对引擎现算坐标)。手牌无公共通路需火烧牌形;挪城判词见
+  // plantBotCity(无授城公共命令,需 bot 名下可拆城);清他座反应牌=防窗控制走
+  // giveJinnang 终态组合(见下内联判词)。
   test("火烧连营指定目标后,棋盘出现使用者→目标墨线,端点对准双方棋子", async ({ page }) => {
     await startJunshi(page, 67);
-    // 种植:人类持火烧连营 + bot 1 有一座可拆城(plantBotCity 挪 +1 晋阳@1,挪入 level 1);
-    // 清他座反应牌(不开反应窗,线在宣告点即出)=防窗控制直写(无「给指定牌」语义,
-    // 非塞指定锦囊),归 #1301 反应窗族种植收编
+    // 种植:人类持火烧连营 + bot 1 有一座可拆城(plantBotCity 挪 +1 晋阳@1,挪入 level 1)。
     await plantBotCity(page);
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["火烧连营"] });
-    await force(
-      page,
-      `
-      for (let i = 1; i < e.players.length; i++) {
-        e.players[i].jinnangHand = e.players[i].jinnangHand.filter(
-          (id) => id !== "识破诡计" && id !== "半路杀出");
-        e.players[i].jinnangHandCount = e.players[i].jinnangHand.length;
-      }
-    `,
-    );
+    // 清他座反应牌(不开反应窗,线在宣告点即出)=防窗控制(#1301 判词选择):读现值
+    // 滤反应牌后走 giveJinnang 终态组合(handCount 随件重灌)——语义是「去指定牌」
+    // 而非「给指定牌」,但终态件已能表达,不另设 kind。
+    const hands = (await snap(page)).players as { jinnangHand: string[] }[];
+    for (let seat = 1; seat < hands.length; seat++) {
+      const rest = hands[seat]!.jinnangHand.filter((id) => id !== "识破诡计" && id !== "半路杀出");
+      await plant(page, { kind: "giveJinnang", seat, cards: rest });
+    }
     await expect(page.getByTestId(TESTIDS.jinnangCard("火烧连营"))).toBeEnabled();
     // 点牌选中 → 出牌进目标段 → 席位点层点候选目标选中 → 动作条「出」确认打出(#417 两步)
     await page.getByTestId(TESTIDS.jinnangCard("火烧连营")).click();

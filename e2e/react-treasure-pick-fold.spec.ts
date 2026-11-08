@@ -44,9 +44,9 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
   // 墩住整排)——几何断言即被测环,无操作链。
   // 种植判词:5 件珍宝=giveTreasureFromDeck(牌堆源,真 TreasureDef 实例保价签 def
   // 现算真实;终态替换)、授产=grantProperty(城池归属由购地结算产出,无授产公共
-  // 命令;选址=测试侧读现值)——均 #1300,判词单源 src/core/planter.ts。force 判词:
-  // 交涉挂起载荷(treasureVisitor)仅落格结算内部挂起,无种植件;钉相位/活跃方归
-  // #1301(暂留 force)。
+  // 命令;选址=测试侧读现值)——均 #1300;钉相位/活跃方/交涉停相位=armPhase——
+  // 均 #1301,判词单源 src/core/planter.ts。交涉挂起载荷(treasureVisitor)仅落格
+  // 结算内部挂起,无种植件,直写内联判词(#1303 收口缺口盘点)。
   test("交涉坐地起价:首帧第一排卡+双行价签完整在视口内", async ({ page }) => {
     // 城主=人类座位 0,访客=bot 座位 1;5 件珍宝复刻审计 12b 现场(#188 钉决策方)。
     // 冻结推进再动刀(#421/#799/#879 同口径):种植后到断言间看门狗回调不得动现金/牌
@@ -55,22 +55,34 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
     // 访客(买家)垫足现金走 setCash 种植件(#1299,判词单源 src/core/planter.ts):
     // 防 payOrLiquidate 走清算自救支线劫持交涉结算断言(语义同旧 Math.max 直写)。
     const visitorCash = (await snap(page)).players[1].cash as number;
-    await plant(page, { kind: "setCash", seat: 1, cash: Math.max(visitorCash, 5000) });
+    await plant(page, {
+      kind: "setCash",
+      seat: 1,
+      cash: Math.max(visitorCash, 5000),
+    });
     await plant(page, { kind: "giveTreasureFromDeck", seat: 0, count: 5 });
     const pid: string = await engineState(
       page,
       `(e.board.tiles.find((t) => t.propertyId && !e.findOwner(t.propertyId))).propertyId`,
     );
-    await plant(page, { kind: "grantProperty", seat: 0, propertyId: pid, level: 1 });
+    await plant(page, {
+      kind: "grantProperty",
+      seat: 0,
+      propertyId: pid,
+      level: 1,
+    });
     await force(
       page,
       `
-      e.phase = "Playing";
-      e.activeIndex = 1;
       e.treasureVisitor = { def: e.catalog.get(${JSON.stringify(pid)}), ownerIdx: 0 };
-      e.turnPhase = "AwaitingTreasureOwner";
     `,
     );
+    await plant(page, {
+      kind: "armPhase",
+      phase: "Playing",
+      activeIndex: 1,
+      turnPhase: "AwaitingTreasureOwner",
+    });
     await page.getByTestId(T.treasureModePremium).click();
     await expect(page.getByTestId(T.treasurePick)).toBeVisible();
     // 坐地双行价签(指导价+要价)是本档最挤格型——首签完整在视口内即守住整排
@@ -80,23 +92,16 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
   // 真实段(波4 #1217):变卖弹层首帧价签几何 + 选中→武装→滚底三拍进度区恒在的
   // 真渲染几何——几何断言即被测环。
   // 种植判词:6 件珍宝=giveTreasureFromDeck(牌堆源,真 TreasureDef 实例保变卖清单
-  // def 现算真实;终态替换,#1300,判词单源 src/core/planter.ts)。force 判词:破产态
-  // (pendingDebt)由缴支结算产生、债务数值不可钉(破产终局族 #1301);钉相位/活跃方
-  // 同上(暂留 force)。
+  // def 现算真实;终态替换,#1300,判词单源 src/core/planter.ts);破产态走 armDebt、
+  // 钉相位/活跃方走 armPhase(#1301,判词单源 src/core/planter.ts 破产终局族/armPhase
+  // 头注:破产态(pendingDebt)由缴支结算产生、债务数值不可钉)。
   test("破产变卖:首帧价签在视口内;选中+武装+滚底进度区恒在", async ({ page }) => {
     // 冻结推进再动刀(#421/#799 同口径):种植后到断言间看门狗回调不得动 p0 现金
     // ——#1221 L1:preRoll 落都即冻结(点火前已冻),显式 freezeClock 退役。
     await quickStart(page, 1486, { advance: "preRoll" });
     await plant(page, { kind: "giveTreasureFromDeck", seat: 0, count: 6 });
-    await force(
-      page,
-      `
-      e.phase = "Playing";
-      e.activeIndex = 0;
-      e.pendingDebt = { amount: 1500, creditor: null };
-      e.turnPhase = "AwaitingBankruptcySettle";
-    `,
-    );
+    await plant(page, { kind: "armPhase", phase: "Playing", activeIndex: 0 });
+    await plant(page, { kind: "armDebt", amount: 1500, creditor: null });
     await page.getByTestId(T.bankruptcySellTreasureOpen).click();
     await expect(page.getByTestId(T.bankruptcyTreasurePick)).toBeVisible();
     await expectFirstTagInViewport(page);

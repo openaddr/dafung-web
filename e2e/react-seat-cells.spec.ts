@@ -8,14 +8,7 @@
 // 旧席位卡形态退役核销例已删(2026-11-07 菜单A,原 ③):#698 翻面已久,纯零残留
 // 核销断言价值衰减,宁缺毋滥整删(原 ④ 托管微标升 ③)。
 import { test, expect } from "./fixtures";
-import {
-  quickStart,
-  waitMyPause,
-  waitSettled,
-  openSoloSetup,
-  pickCapital,
-  force,
-} from "./react-helpers";
+import { quickStart, waitMyPause, waitSettled, openSoloSetup, pickCapital } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
@@ -90,18 +83,18 @@ test.describe("席位格行2 计数与投影一致(#698 ①)", () => {
 
 test.describe("席位格五状态与自机挂点(#698 ②)", () => {
   // 真实段(ADR-0058):席位格五状态挂点对引擎状态的 CSS 响应链即被测环(.active/
-  // .self/.low/.bankrupt 类随状态真渲染)。force 判词:钉行动方=挂点断言前提
-  // (引擎无「钉相位」公共命令);濒耗竭已迁 setStamina 种植件(#1299,薄包
+  // .self/.low/.bankrupt 类随状态真渲染)。钉行动方走 armPhase、破产印走 armBankrupt
+  // (#1301,判词单源 src/core/planter.ts:挂点断言前提/破产清算引擎有专属通路但需
+  // 整局推演,断言面需即时形态);濒耗竭已迁 setStamina 种植件(#1299,薄包
   // addStamina 唯一写口,「体力<三成」形态开局初期到不了——起手满体力,负增量无
-  // 自然来源);破产态直写 isBankrupt——破产清算引擎有专属通路但需整局推演,断言面
-  // 需即时破产形态。
+  // 自然来源)。
   test("活跃金圈呼吸/濒耗竭朱砂条/破产印灰挂点,自机=金样式无文字章", async ({ page }) => {
     // 波5b #1218 preRoll 评估采用(种植例):挂点断言不依赖行军日志/回合数——落都
     // 即冻结(#1221 通路),显式 freezeClock 与随机 seed 停靠漂移一并退役。
     await quickStart(page, 1486, { advance: "preRoll" });
-    // 活跃:调试钩子把行动方钉到 bot 席(引擎无「钉相位」公共命令,钉死行动方挂点
+    // 活跃:行动方钉到 bot 席(引擎无「钉相位」公共命令,钉死行动方挂点
     // 断言才有前提;preRoll 已冻,无自动推进)→ 该格 .active
-    await force(page, `e.activeIndex = 1;`);
+    await plant(page, { kind: "armPhase", activeIndex: 1 });
     await expect(page.getByTestId(TESTIDS.seat(1))).toHaveClass(/active/);
     // 自机格:seat-self 挂点 + .self 类;活跃已钉在 bot 席 → 自机格无 .active/.picked;
     // seat-N 族不含自机(对手席专用族不变)
@@ -115,8 +108,9 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     // 薄包 addStamina 唯一写口,对外绝对值语义,判词单源 src/core/planter.ts)
     await plant(page, { kind: "setStamina", seat: 1, stamina: 20 });
     await expect(page.getByTestId(TESTIDS.seatStamina(1)).locator(".strack")).toHaveClass(/low/);
-    // 破产:直写 isBankrupt → 整格降透明印灰挂点
-    await force(page, `e.players[2].isBankrupt = true;`);
+    // 破产印 → 整格降透明印灰挂点。armBankrupt 种植件(#1301,判词单源
+    // src/core/planter.ts 破产终局族头注)
+    await plant(page, { kind: "armBankrupt", seat: 2 });
     await expect(page.getByTestId(TESTIDS.seat(2))).toHaveClass(/bankrupt/);
   });
 
@@ -139,9 +133,13 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
       // (react-online-autopilot setAutopilot:点前读态+点后生效轮询)自此名副其实。
       if ((await sw.getAttribute("aria-checked")) !== String(on))
         await sw.click({ timeout: 5_000 });
-      await expect(sw).toHaveAttribute("aria-checked", String(on), { timeout: 30_000 });
+      await expect(sw).toHaveAttribute("aria-checked", String(on), {
+        timeout: 30_000,
+      });
       await page.keyboard.press("Escape");
-      await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden({ timeout: 5_000 });
+      await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden({
+        timeout: 5_000,
+      });
     }
     const badge = page.getByTestId(TESTIDS.seatHosted(0));
     await expect(badge).toHaveCount(0);
