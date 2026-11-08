@@ -33,7 +33,9 @@ declare global {
       controller: () => GameController | null;
       /** 种局式快路径开局(#1211,e2e 专用):复刻 App.handleStart 生产三步(loadMapById →
        *  LocalController → setController/进 game 屏)+ 程序化选都(公共命令 setupPickCapital),
-       *  缺省逐项对齐设置屏默认,机遇硬关。实现见 registry.ts installDebugHooks。 */
+       *  缺省逐项对齐设置屏默认,机遇硬关。seats=席位旋钮(#1328,缺省 4;显式传入须为
+       *  2–8 整数,非法值响亮抛错——与设置屏 stepper/引擎同界),e2e 侧经 drivers/scenes
+       *  透传。实现见 registry.ts installDebugHooks。 */
       seedSolo: (opts?: { seed?: number; mapId?: string; seats?: number }) => Promise<void>;
       /** 中盘构造器(ADR-0059 示导波,#1252):seedSolo 同款开局 → 冻结房间时钟 → 页内
        *  经房间命令面逐拍应答真人决策点(策略钉死:选项 ≤1 引擎自决/首个可用、反应窗

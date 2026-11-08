@@ -8,9 +8,8 @@
 // 旧席位卡形态退役核销例已删(2026-11-07 菜单A,原 ③):#698 翻面已久,纯零残留
 // 核销断言价值衰减,宁缺毋滥整删(原 ④ 托管微标升 ③)。
 import { test, expect } from "./fixtures";
-import { openSoloSetup, pickCapital, waitMyPause, waitSettled } from "./react-helpers";
+import { quickStart } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 /** 行1 现金 + 行2 五计数逐席与快照一致(单次 evaluate 原子采样:DOM 与快照同拍)。
  *  手牌计数 ≥10 格上封顶「9+」(#751 C 批,真实全数在弹层),对照随封顶口径折算。
@@ -36,18 +35,16 @@ function cellsMatchSnapshot(page: import("@playwright/test").Page) {
 }
 
 test.describe("满编 8 席几何(844×390 矮横屏;#698 ① 几何钉)", () => {
-  // 真实段(ADR-0058):真实 8 诸侯开局全链(准备页起兵→定都→对局自走停靠)+真实
-  // 视口切换重排,格高/零滚动盒模型即被测环——零种植零冻结。计数逐席一致作挂载
-  // 健康自证(几何断言的采样拍对账,非独立断言例——独立对账例已迁接线层,#1316)。
+  // 到站形制(#1328 批T5 到站轴):quickStart(…, seats:8) 席位旋钮构造器到站(preRoll
+  // 落都即冻)替代「设置屏 8 席点击链+waitMyPause 等 7 bot 链」——8 席配置=桥参数化
+  // (旋钮校验 2–8 整数,单源 registry.seedSolo),设置屏 8 席通路另有脊柱①旅程例守
+  // (react-home-strip);桌面视口开局→切矮横屏的视口切换重排路径保留=被测环一部分。
+  // 被测环不变:格高/零滚动盒模型真实重排几何——零种植(preRoll 冻结为到达手段)。
+  // 计数逐席一致作挂载健康自证(几何断言的采样拍对账,非独立断言例——独立对账例
+  // 已迁接线层,#1316)。
   test("满编 8 席(844×390 矮横屏):计数逐席一致,格高 38、列零滚动", async ({ page }) => {
-    test.slow(); // 人类首回合前最多 7 个 bot 回合,预算放宽(react-layout 8 席例同口径)
-    await page.goto("/");
-    await openSoloSetup(page);
-    for (let i = 4; i < 8; i++) await page.getByTestId(`${SETUP_TID.seatCount}-plus`).click(); // 4 → 8
-    await page.getByTestId(SETUP_TID.startGame).click();
-    await pickCapital(page);
-    await waitMyPause(page, 0, 150_000);
-    await waitSettled(page);
+    test.slow(); // 预算余量(8 席种局+视口重排;构造器到站后无 bot 链等待,墙钟已回落)
+    await quickStart(page, undefined, { seats: 8, advance: "preRoll" });
     // 配置与开局在桌面视口完成,再切矮横屏验收目标形态(真机即此重排路径)
     await page.setViewportSize({ width: 844, height: 390 });
     await expect.poll(() => cellsMatchSnapshot(page)).toBe(true);

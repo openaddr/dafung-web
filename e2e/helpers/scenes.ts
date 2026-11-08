@@ -180,6 +180,10 @@ export async function quickStart(
   opts?: {
     journey?: boolean;
     mapId?: string;
+    /** 席位旋钮(#1328):桥 seedSolo `seats` 参数上探,缺省 4;须为 2–8 整数,非法值
+     *  桥内响亮抛错(校验单源在 registry.seedSolo);journey 是全 UI 旅程链,席位数
+     *  就是设置屏被走查的 UI 面,同传即形制错用,当场抛错不静默吞。 */
+    seats?: number;
     stopAtOpeningHand?: boolean;
     /** 缺省 "postRoll"(走完首手);"preRoll"=落都即冻结,返回态见头注差异表(#1221)。 */
     advance?: "postRoll" | "preRoll";
@@ -188,6 +192,10 @@ export async function quickStart(
   },
 ): Promise<void> {
   if (opts?.journey) {
+    if (opts?.seats != null)
+      throw new Error(
+        "quickStart:journey 是全 UI 旅程链,不接受 seats 旋钮(席位=设置屏被走查的 UI 面)",
+      );
     await page.goto(seed != null ? `/?seed=${seed}` : "/");
     await openSoloSetup(page);
     await page.getByTestId(SETUP_TID.startGame).click();
@@ -205,6 +213,7 @@ export async function quickStart(
     await seedSoloToRound(page, {
       seed,
       mapId: opts?.mapId,
+      seats: opts?.seats,
       targetRound: opts.midGameRound,
     });
     await waitFxIdle(page, 60_000);
@@ -213,11 +222,11 @@ export async function quickStart(
   }
   if (opts?.advance === "preRoll") {
     // 同一 evaluate 内 seedSolo→clockPause(零竞速性质,本体在 drivers.seedSoloFrozen)。
-    await seedSoloFrozen(page, { seed, mapId: opts?.mapId });
+    await seedSoloFrozen(page, { seed, mapId: opts?.mapId, seats: opts?.seats });
     return;
   }
   if (opts?.stopAtOpeningHand) {
-    await seedSolo(page, { seed, mapId: opts?.mapId });
+    await seedSolo(page, { seed, mapId: opts?.mapId, seats: opts?.seats });
     await waitMyPause(page, 0);
     await waitFxIdle(page);
     await waitSettled(page);
@@ -226,7 +235,7 @@ export async function quickStart(
   // postRoll 默认态(#1254 开口吸收,ADR-0059 决策 1):构造器推进过首掷 + 瞬空钉住
   // 一气呵成(本体在 drivers.seedSoloPastFirstRoll,瞬空钉/解钉与推进同 evaluate);
   // 到站=首掷后的我方决策停靠(Awaiting*,与旧 postRoll 停靠语义守恒)。
-  await seedSoloPastFirstRoll(page, { seed, mapId: opts?.mapId });
+  await seedSoloPastFirstRoll(page, { seed, mapId: opts?.mapId, seats: opts?.seats });
   await waitFxIdle(page);
   await waitSettled(page);
 }
