@@ -17,6 +17,10 @@ import { HOME_TID } from "../src/app/screens/home/testids";
 // activeIndex+controller.sync 广播,第二刀还原);种植是到达手段,等待条对归属状态的
 // 响应链全真。
 test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每句 UI 断言", async ({ page }) => {
+  // 预算 120s(scoped,#1309 池载实录):全链最长例,串行 ~20s,W4 满载 3× 退化撞 60s
+  // 全局预算两度超时(负载族签名,零种植零交集)——脊柱⑤不可删(ADR-0058 决策3),
+  // #987 例外条款=一两行确定性改造,scoped 预算复位,快跑零成本。
+  test.setTimeout(120_000);
   await page.goto("/");
   // 「开一局单机」:首页四入口
   await page.getByTestId(HOME_TID.solo).click();
