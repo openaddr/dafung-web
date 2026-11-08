@@ -85,6 +85,13 @@ interface GameStoreState {
    *  过期,三套口径同一文案行为不一致。level 决定渲染样式(error=红 chip)。 */
   pushHint: (hint: string | null, level?: "error" | "info") => void;
   setScreen: (screen: Screen) => void;
+  /** 回无对局初值(ADR-0062 测试可隔离性缝,#1284 量实):bun test 单进程多文件
+   *  共享模块注册表,zustand 模块单例跨文件纠缠(探针实锤:A 文件写入的
+   *  viewSeat/hint/screen 哨兵在后跑文件原样可见)——接线测试文件先后渲染时
+   *  显式重置防串扰。生产无调用方(App 弃局走 setController(null)+切屏,残留
+   *  快照无消费面),不挂任何生产通路;引擎引用不归本缝管,解绑走既有显式通路
+   *  setEngine(null)。 */
+  reset: () => void;
 }
 
 export const useGameStore = create<GameStoreState>((set) => ({
@@ -113,6 +120,19 @@ export const useGameStore = create<GameStoreState>((set) => ({
     set({ hint, hintLevel: level });
   },
   setScreen: (screen) => set({ screen }),
+  reset: () => {
+    if (gameHintTimer != null) clearTimeout(gameHintTimer);
+    gameHintTimer = null;
+    set({
+      snapshot: null,
+      viewSeat: -1,
+      interactive: false,
+      selfPresenting: false,
+      screen: "setup",
+      hint: null,
+      hintLevel: "error",
+    });
+  },
 }));
 
 // ──────────────────────────── 派生选择器 ────────────────────────────
