@@ -40,7 +40,7 @@ const MAP_PREF_KEY = "dafung.mapId";
 
 /** 单机 spec(棋盘/卷轴/侧栏/开局/solo):注入倍率,编排加速;并开调试桥门禁
  *  (registry.installDebugHooks 双门禁:生产构建不注册 window.__dafung,dev 或
- *  桥键非空才注册——quickStart/force/截图脚手架全依赖它)。 */
+ *  桥键非空才注册——quickStart/plant/截图脚手架全依赖它)。 */
 export const test = base.extend({
   page: async ({ page }, use) => {
     await page.addInitScript(
@@ -80,7 +80,7 @@ export const test = base.extend({
 /** 联机/韧性 spec 免注入(#116 评审实证):对局节奏由服务端驱动,客户端编排加速
  *  只会造出快照洪流——实测 0.25 倍率下服务端 2.5s 冲 109 轮,guest 代打页被卡死
  *  不落子,服务端无决策超时永久等待(市面无此保护)。联机用例提速归零收益,维持全速;
- *  但调试桥门禁键仍要注入(coreState/force 读 window.__dafung,生产构建下无键不注册),
+ *  但调试桥门禁键仍要注入(coreState/plant 读 window.__dafung,生产构建下无键不注册),
  *  图谱钉死同批(#938,联机房间图同样跟随默认单源)。 */
 export const testUnscaled = base.extend({
   page: async ({ page }, use) => {

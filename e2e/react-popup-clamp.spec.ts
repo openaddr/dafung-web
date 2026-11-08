@@ -23,7 +23,7 @@ test.describe("决策卷轴拍板钮钉底(#729)", () => {
    *  卷轴不弹;三者判词均单源 src/core/planter.ts)→ 开局出牌段停泊则放行「不出」
    *  (actIfCan 只点 pass)→ 解冻,首掷真走 rollAndMove:落点确定性由「掷骰瞬间
    *  现算 patch dice.roll」搬到「摆位读现值拼+定值骰」——pinDice 值队列表达得了,
-   *  不做函数式钉骰(force 换皮,#1303 缺口盘点裁决)。单格行程无拦检,落格结算
+   *  不做函数式钉骰(force 逃生口换皮方案,#1303 缺口盘点裁决弃用)。单格行程无拦检,落格结算
    *  真实产出可购决策。 */
   async function startBuyScroll(page: Page): Promise<void> {
     await useHalfScale(page);

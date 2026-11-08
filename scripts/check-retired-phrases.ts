@@ -106,6 +106,30 @@ const RETIRED: { phrase: string; note: string }[] = [
     phrase: "概率触发",
     note: "ADR-0035:触发概率退役(GLOSSARY Avoid/ADR 标题行带翻面标记豁免)",
   },
+  {
+    phrase: "force 判词",
+    note: "#1295 种植件体系:判词归一为每族一处头注(单源 src/core/planter.ts),逐站 force 判词随 #1303 force 退役翻面(2026-11-08)",
+  },
+  {
+    phrase: "force 直写",
+    note: "#1303 force 退役:字段直写一律种植件,callEngine 只许公共方法直呼(2026-11-08)",
+  },
+  {
+    phrase: "force 引擎直写",
+    note: "#1303 同上(force 引擎直写=force 直写变体)(2026-11-08)",
+  },
+  {
+    phrase: "force 零处",
+    note: "#1303 force 全仓归零后「零 force」审计话语恒真失效,现口径=零种植/全真(2026-11-08)",
+  },
+  {
+    phrase: "零 force",
+    note: "#1303 同上(2026-11-08)",
+  },
+  {
+    phrase: "force 逃生口",
+    note: "#1303 逃生口拆除:缺能力=补种植件,force 不复活;历史叙事行带翻面标记豁免(2026-11-08)",
+  },
 ];
 
 // 行内翻面标记:命中即视为历史叙事/退役记录,合法保留

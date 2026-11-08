@@ -1,5 +1,5 @@
 // 截图自证脚手架(单源,2026-09-25 定——耗时回顾发现 T1-T4 五个代理各手写一份
-// 起服/PID 杀/就绪轮询/swiftshader/路由 mock/enterGame/force 样板,每份 20-40min)。
+// 起服/PID 杀/就绪轮询/swiftshader/路由 mock/enterGame/plant 样板,每份 20-40min)。
 //
 // 用法:临时场景脚本放 tmp/(gitignore),只写「局面与断言」,样板全走这里:
 //   import { openShotSession } from "../scripts/shot.mjs";
@@ -17,9 +17,10 @@
 // → `window.__dafung.clockPause()` →再补一轮清场(卷轴挂载不吃时钟,冻结挡不住)
 // →留 ~1s 排空在途演出→再拍。
 //
-// force 双写陷阱(2026-10-20 实锤,三轮 force 不生效才定位):count 类镜像字段
-// (jinnangHandCount 等)由引擎在结算点维护,只改源数组(jinnangHand)UI 投影不动——
-// 改局必须源数组与镜像字段同写,如 `p.jinnangHand=[]; p.jinnangHandCount=0;`。
+// 裸写双写陷阱(2026-10-20 实锤,force 时代三轮不生效才定位;console 裸写仍适用,
+// 种植件已内置同写):count 类镜像字段(jinnangHandCount 等)由引擎在结算点维护,
+// 只改源数组(jinnangHand)UI 投影不动——改局必须源数组与镜像字段同写,
+// 如 `p.jinnangHand=[]; p.jinnangHandCount=0;`。
 // 图标/小件视觉迭代:s.page.setContent 拼放大预览页(多尺寸×双底色)整页截图,
 // 比实拍元素级截图快一个量级;实拍留给最终自证。
 import { mkdirSync } from "node:fs";
@@ -54,7 +55,7 @@ export async function openShotSession({
   page.on("pageerror", (e) => console.log("[pageerror]", String(e).slice(0, 300)));
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.25")); // 演出加速,同 e2e
   // 调试桥门禁键(单源 src/app/fx/timings.ts E2E_DEBUG_BRIDGE_KEY;.mjs 无法 import TS,字面量随其注记同步):
-  // preview 服务的是生产构建,无此键 window.__dafung 不注册,force/force 依赖的钩子全哑。
+  // preview 服务的是生产构建,无此键 window.__dafung 不注册,plant/seedSolo 依赖的钩子全哑。
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-debug-bridge", "1"));
   if (zeroEncounter) {
     await page.route("**/config/jiyu.json", (route) =>

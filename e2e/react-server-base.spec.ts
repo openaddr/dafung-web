@@ -5,7 +5,7 @@
 // 真实段(ADR-0058)(波5b #1218 标注):全 1 例全真零种植——地址覆写/失焦持久化/
 // 跨源真建房(REST+WS 打到引擎源)/reload 记忆回读/清空恢复默认的真实交互链即被测
 // 环(跨源 CORS 是浏览器事实,无头替代不了)。本 spec 停在大厅层不开对局,走 fixtures
-// 默认 test(时间倍率注入无涉,照实声明,非 testUnscaled)。force 零处。
+// 默认 test(时间倍率注入无涉,照实声明,非 testUnscaled)。零种植。
 import { test, expect, type Page } from "./fixtures";
 import { LID } from "../src/app/screens/lobby/testids";
 

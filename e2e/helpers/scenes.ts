@@ -5,7 +5,7 @@
 // 倍率与种植件(useHalfScale/plantDemolishableCity)、联机选都(onlinePickCapitals)。
 // 给谁用:全部 e2e spec。新代码直接 import 本模块;旧路径 e2e/react-helpers.ts 转门面
 // 逐名转出,全部调用点零改动。
-// 边界:本层=组合层,只编排不实现——桥调用链归 drivers(seedSolo 族/force)、到站
+// 边界:本层=组合层,只编排不实现——桥调用链归 drivers(种植件/公共方法直呼/seedSolo 族)、到站
 // 沉降归 settle(waitFxIdle/waitSettled/waitMyPause 族)、放行归 patrol
 // (dismissJinnangIfUp);新场景入口一律住此,不许回退散装 spec 内联。依赖单向
 // 本层 → drivers/settle/patrol,无环。

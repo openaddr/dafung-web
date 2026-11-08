@@ -5,7 +5,7 @@
 // 真实段(ADR-0058)(波5b #1218 标注):全 3 例全真零种植——①垃圾串/②失效 id=真
 // localStorage 预置+首页/设置屏真渲染的零兜底呈现链(损坏可见、起兵真被拦,不静默
 // 清不静默兜底);③联机刷新=真实房间+真刷新重走加入流程不崩溃。本文件走 testUnscaled
-// (联机段对局节奏由服务器驱动;单机两例不涉对局,同键免注入无碍)。force 零处。
+// (联机段对局节奏由服务器驱动;单机两例不涉对局,同键免注入无碍)。零种植。
 import { testUnscaled as test, expect } from "./fixtures";
 import { openSoloSetup, newBridgeContext } from "./react-helpers";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";

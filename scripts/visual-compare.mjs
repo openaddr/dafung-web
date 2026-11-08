@@ -12,10 +12,10 @@
 //   03-game        对局静帧:UI 旅程开局(选都确认落定)→ parkMyTurn 停靠冻结
 //                  (轮询快照停靠人类自身回合 Awaiting 态 → clockPause → 复核,语义照抄
 //                  e2e/react-helpers.ts parkMyTurn;冻结只钉时钟回调,钉不住同步命令链)
-//   04-gameover    终局屏(胜利覆盖层):force 造态。
-//                  判词:视觉对照前提态,force 合法——只需可表示不需可达(终局态由身价
-//                  目标结算产生,无「直判胜负」公共命令;同 e2e/react-scrolls.spec 胜利屏
-//                  force 判词)。造不出来 → 降级三场景并上报(exit 3),不硬扛。
+//   04-gameover    终局屏(胜利覆盖层):plant(armGameOver) 造态。
+//                  判词:视觉对照前提态,走破产终局族种植件(#1301,判词单源
+//                  src/core/planter.ts)——只需可表示不需可达(终局态由身价目标结算产生,
+//                  无「直判胜负」公共命令)。造不出来 → 降级三场景并上报(exit 3),不硬扛。
 //
 // 确定性(同 tag 两跑应逐字节一致,自查=两跑控制台 sha256 对拍):
 //   seed 钉 1486(quickStart 家族钉谱种子=人类座位 0 首回合)+ 机遇 route 归零
@@ -258,15 +258,13 @@ async function captureSide(port, sideDir) {
   await waitFxIdle(page);
   await shot(page, join(sideDir, "03-game.png"));
 
-  // ④ 终局屏:force 造态(判词见文件头注)
+  // ④ 终局屏:plant(armGameOver) 造态(判词见文件头注)
   let gameoverError = null;
   try {
     await waitFxIdle(page);
     await page.evaluate(() => {
-      const e = window.__dafung.getEngine();
-      e.isOver = true;
-      e.winner = e.players[0];
-      e.phase = "GameOver";
+      // 破产终局族种植件(#1301):isOver+winner+phase=GameOver 一体,引擎终局写入同款三件套。
+      window.__dafung.plant({ kind: "armGameOver", winnerSeat: 0 });
       window.__dafung.controller().sync();
     });
     await page.getByTestId(TID.victoryScreen).waitFor({ timeout: 15_000 });
@@ -319,7 +317,7 @@ try {
     ["01-home", "主页"],
     ["02-setup", "设置屏"],
     ["03-game", "对局静帧(停靠冻结)"],
-    ["04-gameover", "终局屏(force 造态:视觉对照前提态,force 合法——只需可表示不需可达)"],
+    ["04-gameover", "终局屏(armGameOver 造态:视觉对照前提态,只需可表示不需可达)"],
   ];
   const report = [];
   let degraded = truth.gameoverError != null || current.gameoverError != null;
@@ -331,7 +329,7 @@ try {
       join("side-truth", `${id}.png`),
       join("side-current", `${id}.png`),
       outPng,
-      `左:上一版 ${tag} | 右:当前工作树${id === "04-gameover" ? " | force 判词:视觉对照前提态,只需可表示不需可达" : ""}`,
+      `左:上一版 ${tag} | 右:当前工作树${id === "04-gameover" ? " | 种植判词:视觉对照前提态,只需可表示不需可达" : ""}`,
     );
     const h = createHash("sha256").update(readFileSync(outPng)).digest("hex");
     report.push(`${id}.png  sha256=${h}\n          ${outPng}`);

@@ -265,7 +265,7 @@ export function giveTreasure(e: GameEngine, seat: number, treasures: TreasureDef
  *  grantSkillCash 是效果注册表内部通道(#188 口径「UI/bot 不得使用」),直调会派发
  *  「技能得银」假战报污染日志断言面;payOrLiquidate 在现金不足时当场引爆清算弹窗/
  *  自救支线。种植段要的是**终态**,直写字段是唯一通路。派生量零重灌:身价=现金+地产
- *  活算(无存储字段),与 force 现场站点写法同口径。越界座位当场炸;数值不校验
+ *  活算(无存储字段),直写后无需重灌。越界座位当场炸;数值不校验
  *  (负现金/巨款是测试作者的场景决定,不加防)。 */
 export function setCash(e: GameEngine, seat: number, cash: number): void {
   const p = e.players[seat];
