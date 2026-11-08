@@ -13,6 +13,7 @@
 // 行军日志/已推进回合,落都即冻结(seed 67 起手求贤令恒可用,返回态=开局出牌阶段态)。
 import { test, expect } from "./fixtures";
 import { force, quickStart, useHalfScale } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
 
@@ -26,15 +27,13 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
-// 华佗直写(槽位行 #785:skillIds=全池原序随 core/heroes.ts 华佗条目;技定义查技表):
-// 体力 50(满体力自疗无可见落账)、现金 2000(≥cost,排除整技可用性疑虑)。
+// 华佗直写(槽位行 #785:skillIds=全池原序随 core/heroes.ts 华佗条目;技定义查技表)。
 // force 判词(#1217 波4 审计):麾下无授将公共命令(招贤候选由落招贤城触发,
-// resolveHeroPick 仅候选语境可达);体力/现金无玩家公共命令——断言面需「半体力
-// 华佗+足现金」形态(满体力自疗无可见落账),直写。
+// resolveHeroPick 仅候选语境可达)——断言面需「半体力华佗」形态,直写。体力/现金
+// 已迁 setStamina/setCash 数值族种植件(#1299,判词单源 src/core/planter.ts:体力 50
+// 满体力自疗无可见落账;现金 2000 ≥cost 排除整技可用性疑虑)。
 const HUATUO = `
   e.players[0].heroes = [{ heroId: "huatuo", skillIds: ["qingnang", "zhenji"], lastFired: {} }];
-  e.players[0].cash = 2000;
-  e.players[0].stamina = 50;
 `;
 
 test.describe("目标段选自己(自机格点击层,#700)", () => {
@@ -44,6 +43,9 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
   test("赈济(any 域):你印=候选金圈呼吸→点选实金停持→「出」打出自疗", async ({ page }) => {
     await startJunshi(page, 67);
     await force(page, HUATUO);
+    // 数值族种植(#1299,判词单源 src/core/planter.ts):体力 50/现金 2000 终态直种
+    await plant(page, { kind: "setCash", seat: 0, cash: 2000 });
+    await plant(page, { kind: "setStamina", seat: 0, stamina: 50 });
     // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817;布场属主华佗)
     const ji = page.getByTestId(TESTIDS.jinnangCard("skill:huatuo:zhenji"));
     await expect(ji).toBeVisible();
@@ -81,15 +83,15 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
   // 点按轻晃反馈(§4.6 位移即状态)全真——「恒在但不可选」的交互语义即被测环。
   test("军情密探(one 域):你印恒在但不可选,点按轻晃(reason 读 aria-label)", async ({ page }) => {
     await startJunshi(page, 67);
-    // force 判词:手牌无「发指定牌」公共命令(发牌只发生在开局/摸牌时机);对方
-    // 持宝无授宝命令——断言面需 one 域牌形+「对方有宝」目标门槛,直写。
-    await force(
-      page,
-      `
-      e.players[1].treasures = [{ id: "gem-1", name: "夜明珠", level: 5 }];
-      e.players[0].jinnangHand = ["军情密探"];
-    `,
-    );
+    // 数值族种植(#1299,判词单源 src/core/planter.ts):对方持宝=「对方有宝」目标
+    // 门槛(珍宝无授宝公共命令,生产入手落点不可控——giveTreasure 终态替换唯一通路);
+    // 手牌直写收编 giveJinnang 种植件(#1298,one 域牌形)。
+    await plant(page, {
+      kind: "giveTreasure",
+      seat: 1,
+      treasures: [{ id: "gem-1", name: "夜明珠", level: 5 }],
+    });
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
     await page.getByTestId(TESTIDS.jinnangCard("军情密探")).click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
     // 恒在口径(拍板 Q3):非 any 域自己不消失,而是不可选——#751 C 批起点按不再

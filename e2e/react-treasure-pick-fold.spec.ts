@@ -11,7 +11,8 @@
 // #1221 L1 残油包:两例改 quickStart({advance:"preRoll"})——布场不依赖行军日志/
 // 已推进回合,落都即冻结,显式 freezeClock 随通路退役。
 import { test, expect, type Page } from "./fixtures";
-import { force, quickStart } from "./react-helpers";
+import { force, quickStart, snap } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
 
 /** 首个价签格完整在视口内的几何断言:rect 全落在标准档视口内,且底缘不越过体部
@@ -49,6 +50,10 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
     // 冻结推进再动刀(#421/#799/#879 同口径):种植后到断言间看门狗回调不得动现金/牌
     // ——#1221 L1:preRoll 落都即冻结(点火前已冻),显式 freezeClock 退役。
     await quickStart(page, 1486, { advance: "preRoll" });
+    // 访客(买家)垫足现金走 setCash 种植件(#1299,判词单源 src/core/planter.ts):
+    // 防 payOrLiquidate 走清算自救支线劫持交涉结算断言(语义同旧 Math.max 直写)。
+    const visitorCash = (await snap(page)).players[1].cash as number;
+    await plant(page, { kind: "setCash", seat: 1, cash: Math.max(visitorCash, 5000) });
     await force(
       page,
       `
@@ -64,7 +69,6 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
         group: tile.group ?? "a",
       });
       e.treasureVisitor = { def: e.catalog.get(tile.propertyId), ownerIdx: 0 };
-      e.players[1].cash = Math.max(e.players[1].cash, 5000);
       e.turnPhase = "AwaitingTreasureOwner";
     `,
     );

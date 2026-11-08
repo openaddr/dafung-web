@@ -16,6 +16,7 @@ import {
   pickCapital,
   force,
 } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
@@ -90,8 +91,8 @@ test.describe("席位格行2 计数与投影一致(#698 ①)", () => {
 test.describe("席位格五状态与自机挂点(#698 ②)", () => {
   // 真实段(ADR-0058):席位格五状态挂点对引擎状态的 CSS 响应链即被测环(.active/
   // .self/.low/.bankrupt 类随状态真渲染)。force 判词:钉行动方=挂点断言前提
-  // (引擎无「钉相位」公共命令);濒耗竭走 addStamina 引擎公共方法(体力变更生产
-  // 通路,非字段直改),但「体力<三成」形态开局初期到不了(起手满体力,负增量无
+  // (引擎无「钉相位」公共命令);濒耗竭已迁 setStamina 种植件(#1299,薄包
+  // addStamina 唯一写口,「体力<三成」形态开局初期到不了——起手满体力,负增量无
   // 自然来源);破产态直写 isBankrupt——破产清算引擎有专属通路但需整局推演,断言面
   // 需即时破产形态。
   test("活跃金圈呼吸/濒耗竭朱砂条/破产印灰挂点,自机=金样式无文字章", async ({ page }) => {
@@ -110,8 +111,9 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     await expect(selfCell).not.toHaveClass(/active/);
     await expect(selfCell).not.toHaveClass(/picked/);
     await expect(page.getByTestId(TESTIDS.seat(0))).toHaveCount(0);
-    // 濒耗竭:体力压到 20(<三成)→ 色条挂 .low(转朱砂)
-    await force(page, `e.addStamina(1, -80);`);
+    // 濒耗竭:体力压到 20(<三成)→ 色条挂 .low(转朱砂)。setStamina 种植件(#1299,
+    // 薄包 addStamina 唯一写口,对外绝对值语义,判词单源 src/core/planter.ts)
+    await plant(page, { kind: "setStamina", seat: 1, stamina: 20 });
     await expect(page.getByTestId(TESTIDS.seatStamina(1)).locator(".strack")).toHaveClass(/low/);
     // 破产:直写 isBankrupt → 整格降透明印灰挂点
     await force(page, `e.players[2].isBankrupt = true;`);
@@ -154,9 +156,9 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
   });
 
   // 真实段(ADR-0058):出牌窗内点牌→目标段候选→点选停持/再点取消的完整真实交互
-  // 链即被测环(窗经 seed67 开局链真升,点击全真)。force 判词:手牌无公共通路
-  // (无「发指定牌」公共命令,rack 停车坪同判词),需军情密探特定牌形;seat1 挂
-  // 珍宝凑目标门槛同因(珍宝无授给公共命令)。
+  // 链即被测环(窗经 seed67 开局链真升,点击全真)。种植面:seat1 挂珍宝凑目标门槛
+  // 经 giveTreasure(#1299)、手牌牌形经 giveJinnang(#1298)——判词单源
+  // src/core/planter.ts(手牌无公共通路/rack 停车坪同判词;珍宝无授给公共命令)。
   test("目标段:候选格金圈呼吸(.candidate),点选实金停持(.picked)再点取消", async ({ page }) => {
     // seed67 关中图开局链停在出牌阶段态;波5b #1218 preRoll 评估采用(种植例):
     // quickStart mapId 直传钉图(#147 地图是骰流变量)+preRoll 落都即冻结(#1221
@@ -164,13 +166,12 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     // 行军日志/回合数(seed 67 起手求贤令恒可用,preRoll 停 AwaitingJinnang 窗必在)。
     await quickStart(page, 67, { mapId: "guanzhong", advance: "preRoll" });
     // 军情密探目标段同款:给 seat1 挂珍宝凑目标门槛,直写替换手牌(preRoll 已冻)。
-    await force(
-      page,
-      `
-      e.players[1].treasures = [{ id: "gem-1", name: "夜明珠", level: 5 }];
-      e.players[0].jinnangHand = ["军情密探"];
-    `,
-    );
+    await plant(page, {
+      kind: "giveTreasure",
+      seat: 1,
+      treasures: [{ id: "gem-1", name: "夜明珠", level: 5 }],
+    });
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
     const opt = page.getByTestId(TESTIDS.jinnangCard("军情密探"));
     await expect(opt).toBeVisible();
     await opt.click();

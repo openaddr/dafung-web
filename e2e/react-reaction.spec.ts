@@ -49,6 +49,7 @@ import {
   openSoloSetup,
   useHalfScale,
 } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
@@ -71,12 +72,12 @@ async function soloAtBuyAsk(page: Page): Promise<void> {
   // 人类回合 1,bot 链不先跑)。起手 5000 扣剑阁建城费 2400 后净剩 2600 不足汉中 3000,
   // 不种则第一停变自动不取,卷轴迟到第二轮——种植大额现金让卷轴与地图价格解耦,
   // 停靠点回第一停。
-  // force 判词:现金无玩家公共命令(grantSkillCash 是效果注册表内部通道、「UI/bot
-  // 不得使用」且直调会派发假技能得银战报污染日志断言面);购地命令只扣不加,到不了
-  // 「种植大额现金」形态。
-  // force 前等调试桥 controller 就位(起局瞬间尚为 null,竞态实锤)。
+  // 现金种植走 setCash 数值族种植件(#1299,判词单源 src/core/planter.ts:现金无玩家
+  // 公共命令,grantSkillCash 直调会派发假技能得银战报污染日志断言面,购地命令只扣
+  // 不加——种植段要终态=直写唯一通路)。
+  // 种植前等调试桥 controller 就位(起局瞬间尚为 null,竞态实锤)。
   await page.waitForFunction(() => window.__dafung?.controller() != null);
-  await force(page, `e.players[0].cash = 20000;`);
+  await plant(page, { kind: "setCash", seat: 0, cash: 20000 });
   await page.locator(".bv-tile.bv-selectable").first().click();
   await page.getByTestId(TESTIDS.confirmCapitalOk).click();
   await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });

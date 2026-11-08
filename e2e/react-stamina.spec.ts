@@ -16,7 +16,8 @@
 // 已推进回合,落都即冻结,停靠/稳定/冻结三连(waitMyPause/waitSettled/freezeClock)
 // 随通路退役(#423 项8 的「种植落在钉死静止态」由 preRoll 返回态直接给出)。
 import { test, expect } from "./fixtures";
-import { quickStart, force, waitSettled, snap, unfreezeClock } from "./react-helpers";
+import { quickStart, force, waitSettled, snap, unfreezeClock, engineState } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 
@@ -29,10 +30,11 @@ test.describe("体力系统冒烟", () => {
     await quickStart(page, 1486, { advance: "preRoll" });
     try {
       // force 判词(波4 #1217 审计):耗竭前置无公共命令可达——城池等级只随建造/
-      // 升级/降级结算变动(购地受行军+现金约束,「指定格 2 级城」到不了);体力压 0
-      // 走公共方法 addStamina 真入口。断言面需「耗竭选项=2 走卷轴不自动」形态,直写
-      // 补齐(都城持仓直读断言,#226 已修:都城持仓恒在,无自愈兜底)。冻结期种植:
-      // 无自动推进可竞速。
+      // 升级/降级结算变动(购地受行军+现金约束,「指定格 2 级城」到不了)。断言面需
+      // 「耗竭选项=2 走卷轴不自动」形态,直写补齐(都城持仓直读断言,#226 已修:都城
+      // 持仓恒在,无自愈兜底)。冻结期种植:无自动推进可竞速。体力压 0 已迁 setStamina
+      // 种植件(#1299,薄包 addStamina 唯一写口,终态语义,判词单源 src/core/planter.ts)。
+      const seat: number = await engineState(page, "e.activeIndex");
       await force(
         page,
         `
@@ -56,19 +58,14 @@ test.describe("体力系统冒烟", () => {
         const capital = p.properties.find((h) => h.propertyId === capPropId);
         if (!capital) throw new Error("都城持仓缺失:开局双写不一致(#226 回归)");
         capital.level = 1; // 耗竭选项序 = properties 序,都城恒在前
-        e.addStamina(seat, -100); // → 0
       `,
       );
-      // 座位读种植后的引擎态(#1181 后城名对账面已迁单测,回读只留座位)
-      const seatInfo = await page.evaluate(() => {
-        const e = (window as any).__dafung.getEngine();
-        return { seat: e.activeIndex };
-      });
+      await plant(page, { kind: "setStamina", seat, stamina: 0 }); // → 0
 
       // force 判词:本处无引擎到不了的改写——exhaustIfDepleted=引擎公共入口(文件头注),
       // force 仅作「公共方法调用后控制器 sync 重灌派生量」的通道(快照与 interactive
       // 一起刷,决策卷轴才按新相位弹出;冻结期相位无人抢,出现即真)。
-      await force(page, `e.exhaustIfDepleted(${seatInfo.seat});`);
+      await force(page, `e.exhaustIfDepleted(${seat});`);
       try {
         await expect(page.getByTestId(SCROLL_TESTIDS.exhaustionScroll)).toBeVisible({
           timeout: 15_000,
