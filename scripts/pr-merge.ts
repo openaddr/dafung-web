@@ -157,7 +157,32 @@ if (mergedPrUrl) {
   console.log(`[pr-merge] PR #${prNumber} 已 MERGED——恢复模式:跳过 push/合并,直达清理+收账。`);
 }
 
+// 多提交链归拢的状态(#1208):物化提交 id 与原链头,合并后自动清。
+let didMaterialize = false;
+let materializedId = "";
+let orphanHeads: string[] = [];
+
 if (!prNumber) {
+  // 0.5) 工作副本占用预检(#1208,2026-11-08 三度实锤:1.1 物化在当前工作区 @ 落刀,
+  //      build/freshness 的「主树 @ 非空」咬住自家物化红死)。占用检查前移到一切副作用
+  //      之前,语义=防卷入别人的活:空 → 过;与书签同树 → 上次收口断在半途的物化残留,
+  //      restore 清空重跑;其余 → 红即停让出主树(AGENTS 版本协作)。
+  {
+    const occ = jj("log", "-r", "@", "--no-graph", "-T", 'if(empty, "EMPTY", "OCCUPIED")');
+    if (occ === "OCCUPIED") {
+      const sameTree = jj("diff", "--from", "@", "--to", bookmark, "--stat") === "";
+      if (sameTree) {
+        jj("restore");
+        console.log("[pr-merge] 工作副本为上次收口的物化残留(与书签同树)——已清空重跑(#1208)。");
+      } else {
+        console.error(
+          "[pr-merge] 当前工作区 @ 有活——继续收口会搁浅它(1.1 物化)并误报占用(freshness rule 0)。让出主树(AGENTS 版本协作「@ 有别人的活=让出」);确认归属属自己后清空再跑。",
+        );
+        process.exit(1);
+      }
+    }
+  }
+
   // 1) 书签在本地且已描述(空描述=未交付,红)
   const description = jj("log", "-r", bookmark, "--no-graph", "-T", "description.first_line()");
   if (!description) {
@@ -214,8 +239,11 @@ if (!prNumber) {
     jj("new", "master@origin", "-m", fullDescription);
     jj("restore", "--from", bookmark);
     jj("bookmark", "move", bookmark, "--to", "@", "--allow-backwards");
+    didMaterialize = true;
+    materializedId = jj("log", "-r", "@", "--no-graph", "-T", "commit_id.short()");
+    orphanHeads = chainCommits;
     console.log(
-      `[pr-merge] 多提交链(${chainCommits.length} 提交)已等效 squash 为单提交(树=原链尖);老链 head 与票书签手动清`,
+      `[pr-merge] 多提交链(${chainCommits.length} 提交)已等效 squash 为单提交(树=原链尖);老链 head 与物化提交已登记,合并验证后自动清(#1208)`,
     );
   }
 
@@ -378,6 +406,14 @@ if (!prNumber) {
     }
   }
 
+  // 1.21) 物化用完即弃(#1208 修复方向 3):1.1 的等效 squash 物化在当前工作区 @ 上,
+  //       build/canary 已消费完;push/freshness 前 @ 退成空子提交——主树回「空停靠」
+  //       不变式,freshness rule 0(主树 @ 非空)不再咬自家物化;书签仍指物化提交照常推。
+  if (didMaterialize) {
+    jj("new");
+    console.log("[pr-merge] 物化用完即弃:@ 已退空(书签仍指物化提交),主树回停靠不变式(#1208)。");
+  }
+
   // 1.5) push(幂等:已推过=exit 0)——先推后验新鲜度(#751 retro 实锤:归拢 squash
   //      后本地书签与远端旧链尖必然 divergence,此时验新鲜度=「落后自己的 upstream」
   //      假红,红文案还误导成 master 被推进;先推平再验,红就只剩真并行推进一种)。
@@ -485,6 +521,21 @@ if (localDelete.exitCode !== 0) {
       "[pr-merge] 远端分支删除传播失败(可手动 jj git push --deleted)——合并已验证,残留不碍收口。",
     );
   }
+}
+// 5.5) 孤儿链头自动清(#1208 附带):多提交链归拢后的原链提交与物化提交,合并后均被
+//      squash 覆盖为孤儿——逐个 best-effort abandon(失败仅警告,残留可手清)。仅正常
+//      流登记过才执行;恢复模式两者皆空,天然跳过。物化提交若是当前工作副本 @ 的父辈,
+//      abandon 会把空 @ 干净重放到 master 上,无感。
+if (orphanHeads.length > 0 || (didMaterialize && materializedId)) {
+  for (const head of [...orphanHeads, materializedId].filter(Boolean)) {
+    const r = Bun.spawnSync(["jj", "abandon", head], { stdout: "pipe", stderr: "pipe" });
+    if (r.exitCode !== 0) {
+      console.warn(
+        `[pr-merge] 孤儿 ${head} abandon 失败(可手动 jj abandon):${new TextDecoder().decode(r.stderr).trim()}`,
+      );
+    }
+  }
+  console.log("[pr-merge] 孤儿链头已清(#1208 附带自动化)。");
 }
 // 6) 自动收账(合入即主树前移,AGENTS 版本协作的唯一 @ 例外):fetch → move 本地
 //    master 书签 → 把主树(default 工作区)空停靠的 @ 前移到新 master。守卫:主树 @
