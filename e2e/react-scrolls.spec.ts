@@ -112,20 +112,20 @@ async function plantTrade(page: Page): Promise<void> {
     ],
   });
   await plant(page, { kind: "setCash", seat: 1, cash: Math.max(planted[1].cash, 5000) });
+  // 授产走 grantProperty 种植件(#1300,upsert 判词单源 src/core/planter.ts);相位/
+  // 珍宝窗载荷仍直写=相位族与反应载荷族,#1301 收编前暂驻(余下 force 块只含这两族语义)。
+  const visitPropertyId = await page.evaluate(() => {
+    const e = (window as any).__dafung.getEngine();
+    const tile = e.board.tiles.find((t: any) => t.propertyId && !e.findOwner(t.propertyId));
+    return tile?.propertyId as string;
+  });
+  await plant(page, { kind: "grantProperty", seat: 0, propertyId: visitPropertyId, level: 1 });
   await force(
     page,
     `
     e.phase = "Playing";
     e.activeIndex = 1;
-    const owner = e.players[0];
-    const tile = e.board.tiles.find((t) => t.propertyId && !e.findOwner(t.propertyId));
-    owner.properties.push({
-      propertyId: tile.propertyId,
-      level: 1,
-      maxLevel: 3,
-      group: tile.group ?? "a",
-    });
-    e.treasureVisitor = { def: e.catalog.get(tile.propertyId), ownerIdx: 0 };
+    e.treasureVisitor = { def: e.catalog.get(${JSON.stringify(visitPropertyId)}), ownerIdx: 0 };
     e.turnPhase = "AwaitingTreasureOwner";
   `,
   );
@@ -238,15 +238,28 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/售出清单
       { id: "hat", name: "草帽", level: 1, desc: "x" },
     ],
   });
+  // 授将/授产走 armHero/grantProperty 种植件(#1300,判词单源 src/core/planter.ts);
+  // 破产态(pendingDebt/turnPhase)仍直写=终局族,#1301 收编前暂驻。
+  const debtPropertyId = await page.evaluate(() => {
+    const e = (window as any).__dafung.getEngine();
+    const me = e.players[0];
+    const tile = e.board.tiles.find(
+      (t: any) => t.propertyId && e.board.tiles.indexOf(t) !== me.capitalIndex,
+    );
+    return tile?.propertyId as string;
+  });
+  await plant(page, {
+    kind: "armHero",
+    seat: 0,
+    heroId: "zhouyu",
+    skillIds: ["jixing", "huogong", "leigu"],
+  });
+  await plant(page, { kind: "grantProperty", seat: 0, propertyId: debtPropertyId, level: 1 });
   await force(
     page,
     `
     e.phase = "Playing";
     e.activeIndex = 0;
-    const me = e.activePlayer;
-    me.heroes.push({ heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} }); // 槽位行(#785)
-    const tile = e.board.tiles.find((t) => t.propertyId && e.board.tiles.indexOf(t) !== me.capitalIndex);
-    me.properties.push({ propertyId: tile.propertyId, level: 1, group: "a" });
     e.pendingDebt = { amount: 99999, creditor: null };
     e.turnPhase = "AwaitingBankruptcySettle";
   `,
