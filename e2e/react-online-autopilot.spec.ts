@@ -17,6 +17,9 @@
 // 托管开/收经设置弹层真点击(ADR-0028 引擎公共通路,aria-checked 广播回读),收回后
 // host 手选都→真行军(位置前进 poll)即被测环。联机走 testUnscaled(对局节奏由服务
 // 器驱动)。force 零处。
+// #1287 慢池迁移批判词:判留(名册③)——托管语义已沉 protocol-online 场景七;余面=
+// 设置弹层开关交互与收回后真行军过网,两腿同链不可拆(开关是行军观察的前提驱动),
+// 零缩进项(行注见 docs/reference/e2e-分类表.md 联机行)。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import { dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";

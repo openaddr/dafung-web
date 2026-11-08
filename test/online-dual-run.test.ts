@@ -44,21 +44,32 @@
 // setup:现状盘点守 store 初值的默认池用例(event-feed)自带 reset,其余消费面吃 delta,
 // 复位后对任何执行序零污染。
 //
-// 慢例归属:本例实测 ~1.5s(2026-11-08 标定,五连跑 1.49-1.57s),低于「单例 ≥3s 入
-// 慢池」判据(docs/how-to/开发与测试.md「把测试跑起来」),常驻默认池;若后续演化
-// (扩驱动窗/加整局骑程)单例 ≥3s,按 local-room 骑局先例 itSlow 入 DAFUNG_SLOW
-// (bun run test:slow)。
+// 重连场景范例(#1287 扩充,本文件第二例):在首例装配(配方①-⑤)之上走「真 WS 裸关
+// → ReconnectingSocket 退避重连 → 服务器整房摘要水合 → 双端 store 收敛恢复」全链;
+// 裸关缝/读数点/断言口径的判词见该例例注。分工判词:线级(裸协议客户端)重连语义归
+// test/protocol-online.test.ts 场景二/四/五,断线横幅可见性归 react-online-cutover
+// 浏览器地板例——三层各有其环,本例补的是生产客户端栈(OnlineController+双 store)
+// 过真断线的恢复语义,互不替代。
+//
+// 慢例归属:首例实测 ~1.5s(2026-11-08 标定,五连跑 1.49-1.57s),低于「单例 ≥3s 入
+// 慢池」判据(docs/how-to/开发与测试.md「把测试跑起来」),常驻默认池;重连例(#1287)
+// 单例 ≥3s(真退避 ~1s 起步墙钟=用例本体不可压缩,恢复类),按 local-room 骑局先例
+// itSlow 入 DAFUNG_SLOW(bun run test:slow / DAFUNG_SLOW=1 bun test 本文件)。
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { GameEngine } from "@core/authority";
+import type { GameCommand, GameEngine } from "@core/authority";
 import type { MovePath } from "@core/board";
 import { loadMap } from "@core/board-loader";
 import { OnlineController } from "@app/controllers/online";
+import type { ReconnectProgress } from "@app/net/reconnecting-socket";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
+import { cmdMsg } from "../scripts/wire";
+
+const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);
 
 // ─── 测试环境面:bun 无 localStorage(量实),补最小 shim 供 server-base 单源读覆写 ───
 const memStorage = new Map<string, string>();
@@ -78,6 +89,19 @@ interface ControllerTestAccess {
 }
 const hydratedOf = (c: OnlineController): boolean =>
   (c as unknown as ControllerTestAccess).enteredGame;
+
+/** 私有面访问缝 ②(测试专用;裸关配方 = react-online-cutover 浏览器地板例同款):
+ *  controller.sock(ReconnectingSocket).ws(底层 WebSocket).close()——绕过 closedByUs
+ *  直关真 WS,onclose 走「非主动关闭」分支(广播 closed + 排退避重连),即真断线语义;
+ *  不经 ReconnectingSocket.close()(那是主动关闭,不重连)。 */
+interface SockTestAccess {
+  ws: { close(): void } | null;
+}
+const rawClose = (c: OnlineController): void => {
+  const sock = (c as unknown as { sock: SockTestAccess | null }).sock;
+  if (sock?.ws == null) throw new Error("socket 未建立,无法裸关(断线场景前置缺失)");
+  sock.ws.close();
+};
 
 type ServerModule = typeof import("../scripts/server");
 let serverMod: ServerModule | null = null;
@@ -290,6 +314,110 @@ function readTriple(): {
 const sameProjection = (x: PublicProjection | null, y: PublicProjection | null): boolean =>
   JSON.stringify(x) === JSON.stringify(y);
 
+/** 核心投影同读(重连例专用):剥离 `outcomeKind` 后逐字段比对。判词(#1287 实测):
+ *  `lastLandOutcome` 是引擎自注的纯表现态(authority.ts「决策命令/恢复重建一律改走
+ *  pendingLand」,消费面=战报/卷轴字段),且本票对跑试跑实锤其在「挂起决策门」上
+ *  存在**折叠面 vs 权威面漂移**——两端折叠副本同持 Noop 而服务器落盘记录持
+ *  PropertyAvailable(服务器房间记录取证,run-88),重连整房摘要把权威值带回一端
+ *  即现单字段分歧。该字段不承载决策语义,不入「对局不丢状态」核心等式;漂移本体
+ *  另行上报(src/** 不在本票所有权内),修复后应收回此剥离恢复全字段等式。 */
+const sameCoreProjection = (x: PublicProjection | null, y: PublicProjection | null): boolean =>
+  JSON.stringify(x === null ? null : { ...x, outcomeKind: null }) ===
+  JSON.stringify(y === null ? null : { ...y, outcomeKind: null });
+
+// ─── 重连场景件(#1287 第二例专用;首例不消费)────────────────────────────
+/** 解散当前模块房(若在):解散权要求房主连接健在——destroy 先行会双座离线,触发
+ *  host 移交语义(ADR-0002),原 token 就解不动了(afterAll 同判词,配方收拢于此
+ *  供两例复用);成功即清模块变量,防收敛路径重复解散撞 403。 */
+async function dismissCurrentRoom(why: string): Promise<void> {
+  if (roomId === "" || hostToken === "") return;
+  const res = await fetch(`${serverBase}/room/dismiss`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ roomId, seatToken: hostToken }),
+  });
+  expect(res.ok, `解散房间失败(${why};HTTP ${res.status}):${await res.text()}`).toBe(true);
+  roomId = "";
+  hostToken = "";
+}
+
+/** 停在真人决策门(对局冻结判据):Playing 且当前相位在选项注册表(ADR-0013
+ *  PHASE_CHOICES,引擎 choicesFor 单口)内有解——Roll/Land/EndTurn 等自动相位返回
+ *  空集,反应窗(不注册、E2E_REACTION_MS=300 自解)同为空集。DECISION_TIMEOUT_MS=0
+ *  看门狗全关 + 双人房无 bot:真人门停摆 = 对局冻结,「重连前后逐字段一致」的强等式
+ *  由此成立(不预设停在哪扇门——首门种随种子,锦囊窗/购地卷轴皆可能)。 */
+const parkedAtGate = (c: OnlineController): boolean =>
+  hydratedOf(c) && c.engine.phase === "Playing" && c.engine.choicesFor().length > 0;
+
+/** 决策门放行(重连后续局推进驱动):谁的门谁应答(纪律同配方④,不越权代他座),
+ *  各注册门给一条「放行/最小承诺」命令——锦囊窗=今不用、购地/扩军卷轴=按兵不动、
+ *  招贤=首位候选、珍宝交涉=不交易。返回是否发出了命令(调用方轮询重入)。
+ *  下行通路判词(#1287 实测):走**传输面直派**(sock.send × 生产编码单源 cmdMsg),
+ *  不走 dispatchCommand——后者的 interactive 闸携带 fxPlaying 行军会话锁,headless
+ *  面下行军会话在招贤类门前不落定(interactive 恒 false,静默拒发=门答死锁,试跑
+ *  run-134 实证);本层零 DOM 零真实输入语义,门答意图=「重连端能发命令」,真实 WS
+ *  上行与 #454 座位鉴权照走,输入锁是浏览器输入保真关切、不属于本层断言面。 */
+function passGateIfMine(c: OnlineController): boolean {
+  const e = c.engine;
+  if (e.phase !== "Playing" || e.decisionOwner !== c.seat) return false;
+  let cmd: GameCommand | null = null;
+  if (e.turnPhase === "AwaitingJinnang") cmd = { type: "useJinnang", cardId: null };
+  else if (e.turnPhase === "AwaitingDecision") cmd = { type: "endDecision" };
+  else if (e.turnPhase === "AwaitingHeroPick") {
+    const idx = e.choicesFor().findIndex((o) => o.available !== false);
+    cmd = { type: "resolveHeroPick", index: idx };
+  } else if (e.turnPhase === "AwaitingTreasureOwner") {
+    cmd = { type: "resolveTreasureOwner", action: { type: "skip" } };
+  }
+  // 其余门(破产结算/机遇/体力,开局数回合不可达:机遇房级硬关 jiyu-off,无破产无耗竭)
+  // 不预设代答——真到了就是门注册表演化了,挂出来补分支,不静默。
+  if (cmd === null) return false;
+  const sock = (
+    c as unknown as {
+      sock: { send(data: string): void; isOpen: boolean } | null;
+    }
+  ).sock;
+  if (sock == null || !sock.isOpen) throw new Error("socket 未建立,无法派发门答命令");
+  sock.send(cmdMsg(cmd));
+  return true;
+}
+
+/** 三方投影稳定读数(连续三拍全等、拍距 400ms):批间瞬态与 300ms 自解反应窗都撑不过
+ *  两个拍距,读数点=真停摆。比首例的两拍 300ms 更严(重连前后强等式的取证口径),
+ *  同读口径=sameCoreProjection(剥离 outcomeKind,判词见该函数注),返回终拍 A 端投影。 */
+async function settledTriple(desc: string, timeoutMs = 20_000): Promise<PublicProjection> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const t1 = readTriple();
+    if (t1.s !== null && sameCoreProjection(t1.a, t1.b) && sameCoreProjection(t1.a, t1.s)) {
+      await Bun.sleep(400);
+      const t2 = readTriple();
+      if (
+        sameCoreProjection(t1.a, t2.a) &&
+        sameCoreProjection(t2.a, t2.b) &&
+        sameCoreProjection(t2.a, t2.s)
+      ) {
+        await Bun.sleep(400);
+        const t3 = readTriple();
+        if (
+          sameCoreProjection(t2.a, t3.a) &&
+          sameCoreProjection(t3.a, t3.b) &&
+          sameCoreProjection(t3.a, t3.s)
+        ) {
+          return t3.a;
+        }
+      }
+    }
+    if (Date.now() > deadline) {
+      const t = readTriple();
+      throw new Error(
+        `三方投影未稳定(${timeoutMs}ms):${desc}\nA=${JSON.stringify(t.a)}\nB=${JSON.stringify(t.b)}\nS=${JSON.stringify(t.s)}`,
+      );
+    }
+    await Bun.sleep(50);
+  }
+}
+
 describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务器", () => {
   beforeAll(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), "dafung-dual-run-"));
@@ -312,15 +440,9 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
 
   afterAll(async () => {
     // 先解散(房主连接还在,解散权没被移交)再销毁控制器——destroy 先行会双座离线,
-    // 触发 host 移交语义(ADR-0002),房主 token 就解不动了。
-    if (roomId !== "" && hostToken !== "") {
-      const res = await fetch(`${serverBase}/room/dismiss`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ roomId, seatToken: hostToken }),
-      });
-      expect(res.ok, `解散房间失败(HTTP ${res.status}):${await res.text()}`).toBe(true);
-    }
+    // 触发 host 移交语义(ADR-0002),房主 token 就解不动了。(解散配方收拢于
+    // dismissCurrentRoom,#1287 重连例同源复用;成功后已清模块变量,天然幂等。)
+    await dismissCurrentRoom("suite 收摊");
     hostCtrl?.destroy();
     guestCtrl?.destroy();
     serverMod?.engineServer.stop(true); // 关监听断连接;单例随测试进程终结
@@ -435,4 +557,228 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     expect(net.seats.every((seat) => seat.online)).toBe(true);
     expect(net.connection).toBe("open");
   }, 90_000);
+
+  // ─── 重连场景范例(#1287)────────────────────────────────────────────────
+  // 场景:双端对跑到首个真人决策门(对局冻结读数点,parkedAtGate 判据)→ 裸关 guest
+  // 底层 WS(rawClose,真断线)→ ReconnectingSocket 指数退避(~1s 起步,±30% 抖动)
+  // 重拨原 URL(token 归座,ADR-0005)→ 服务器首帧整房摘要 → OnlineController 摘要
+  // 水合 → 双端恢复。断言链逐环取证,不裸等:
+  //   ① 断线证据:connection→closed + 重连进度(#494,attempt/10)+ 座位广播翻
+  //     offline(掉线元数据走 lobby 指纹通道,host 端收、共享 store 可读——本例全程
+  //     只有 guest 一条 socket 变更状态,共享 store「最后写胜」的纠缠在此无害,见头注);
+  //   ② 重连边界:connection→open(open 单点清零重连进度)+ #388 重连清批
+  //     (eventBatchSeq 归零:旧批作废,状态唯一来源=紧随的整房摘要,ADR-0020 决策 4);
+  //   ③ 核心等式:重连后三方投影(两端引擎+共享 gameStore)与断线前读数 P0 核心字段
+  //     **逐字段全等**(对局不丢状态;口径=sameCoreProjection,剥离纯表现态
+  //     outcomeKind——其折叠面 vs 权威面漂移实测见该函数注,另行上报)。冻结读数点的
+  //     **可证性**:host 是全程在线的见证端,断线窗口内每拍复核对 host 投影,host 偏离
+  //     P0 = 服务器侧已自行推进(冻结前提破)——该尝试作废,等下一门重来(至多三试);
+  //     三试全偏 = 服务器在自动推进停摆门,响亮挂出来。
+  //   ④ 恢复后续局可推进:水合出来的活引擎上轮到谁谁放行决策门(passGateIfMine 走
+  //     真 WS 命令通路),turnNumber 折进两端 + 事件批续流(eventBatchSeq 回升)——
+  //     重连端「能收也能发」的闭环,不是只读快照复活。
+  // 慢例归属:单例 ≥3s(双端开局 ~1s + 真退避 ~1s 墙钟 + 放行推进 ~2s,退避墙钟是
+  // 用例本体不可压缩,恢复类),itSlow 入 DAFUNG_SLOW(文件头注「慢例归属」)。
+  itSlow(
+    "重连场景:裸关 WS→退避重连→摘要水合,重连后三方投影与断线前逐字段一致,续局可推进",
+    async () => {
+      // ⓪ 收首例的房与栈(每例一房一栈;本例不背首例终态,从入座起新开确定性 draft),
+      //    并复位 netStore——首例结束时 connection/eventBatchSeq 等残留会污染下方
+      //    断线证据断言的基线(新栈 adoptRoom 会重灌房间字段,复位无害)。
+      await dismissCurrentRoom("重连例开工前收首例");
+      hostCtrl?.destroy(); // dismissed 下行多半已令其自毁(online.ts dismissed 分支),幂等
+      guestCtrl?.destroy();
+      hostCtrl = null;
+      guestCtrl = null;
+      useNetStore.getState().reset();
+
+      // ① 新栈新房→开局→双端选都→进 Playing(装配配方③④,首例同款逐环断言)
+      const a = new OnlineController(MAP, "guanzhong");
+      const b = new OnlineController(MAP, "guanzhong");
+      hostCtrl = a;
+      guestCtrl = b;
+      const created = await a.createRoom({ seats: 2 });
+      expect(created.ok).toBe(true);
+      roomId = created.roomId;
+      hostToken = created.seatToken;
+      expect(a.seat).toBe(0);
+      const joined = await b.joinRoom(roomId);
+      expect(joined.seat).toBe(1);
+      await until(
+        () => {
+          const net = useNetStore.getState();
+          return (
+            net.roomId === roomId && net.seats.length === 2 && net.seats.every((s) => s.online)
+          );
+        },
+        "双端入座并在线",
+        10_000,
+      );
+      await a.pickMap("guanzhong");
+      await a.startGame();
+      await until(() => hydratedOf(a) && a.engine.phase === "Setup", "host 端水合进 Setup", 15_000);
+      await until(
+        () => hydratedOf(b) && b.engine.phase === "Setup",
+        "guest 端水合进 Setup",
+        15_000,
+      );
+      await until(() => pickReady(a) || pickReady(b), "首轮选都就位", 15_000);
+      await pickCapitalWhenTurn(pickReady(a) ? a : b);
+      await pickCapitalWhenTurn(pickReady(a) ? a : b);
+      await until(
+        () => a.engine.phase === "Playing" && b.engine.phase === "Playing",
+        "双端折叠/水合进 Playing",
+        15_000,
+      );
+
+      // 首次进入 Playing 时事件面必有批(开局 flush/选都批已过网)——给「重连清批
+      // 归零」断言立账;该前置在三试循环外只立一次(清批只在 open 沿发生,首试的
+      // seq>0→0 账目即铁证;后续试次 seq 已归零,不再重复立账)。
+      expect(useNetStore.getState().eventBatchSeq).toBeGreaterThan(0);
+
+      // ②-⑥ 断线-重连读数验证(三试循环,判词见 ③ 注):每试=停门→P0→见证断线→
+      //      见证重连→强等式;host 偏离 P0 即弃试重来。
+      let p0: PublicProjection | null = null;
+      let view: PublicProjection | null = null;
+      let progress: ReconnectProgress | null = null;
+      for (let attempt = 1; attempt <= 3 && view === null; attempt++) {
+        await until(
+          () => parkedAtGate(a) && parkedAtGate(b),
+          `试${attempt}:停到真人决策门`,
+          30_000,
+          stackDump,
+        );
+        const attemptP0 = await settledTriple(`试${attempt}:断线前读数 P0`);
+
+        // 裸关 guest 底层 socket(缝判词见 rawClose 注)
+        rawClose(b);
+
+        // 断线证据(退避窗口 ~1s±30%,25ms 轮询必中 closed 与进度)+ host 冻结见证:
+        // host 每拍复核 P0——host 收到的批=服务器真相连续流,它动 = 服务器自行推进,
+        // 冻结读数点前提破,本试作废(等重连回座后下一试重停门)。
+        let sawClosed = false;
+        progress = null;
+        let hostAdvanced: PublicProjection | null = null;
+        const outageDeadline = Date.now() + 15_000;
+        for (;;) {
+          const net = useNetStore.getState();
+          if (net.connection === "closed") sawClosed = true;
+          if (net.reconnect !== null) progress = net.reconnect;
+          const hostNow = engineProjection(a.engine);
+          if (!sameCoreProjection(hostNow, attemptP0)) {
+            hostAdvanced = hostNow;
+            break;
+          }
+          if (sawClosed && progress !== null && net.seats[b.seat]?.online === false) break;
+          if (Date.now() > outageDeadline) {
+            throw new Error(
+              `断线证据不全:closed=${String(sawClosed)} progress=${JSON.stringify(progress)} seats=${JSON.stringify(useNetStore.getState().seats)}`,
+            );
+          }
+          await Bun.sleep(25);
+        }
+        expect(progress!.attempt).toBeGreaterThanOrEqual(1);
+        expect(progress!.max).toBe(10); // 退避放弃上限(ReconnectingSocket 缺省 10 次)
+
+        if (hostAdvanced !== null) {
+          // 冻结前提破:等 guest 重连归座回 open,下一试重停门(重连机件本身已由
+          // 本试的断线/进度证据走完一遍,弃试不弃取证)。
+          console.log(
+            `[重连例] 试${attempt} 作废:host 见证服务器在冻结窗内自行推进 P0(turn=${attemptP0.turnNumber} ${attemptP0.turnPhase})→(turn=${hostAdvanced.turnNumber} ${hostAdvanced.turnPhase}),换门重试`,
+          );
+          await until(
+            () => useNetStore.getState().connection === "open",
+            `试${attempt} 弃试后重连回 open`,
+            15_000,
+          );
+          continue;
+        }
+
+        // 退避重连回 open:进度单点清零 + 重连清批(#388)+ 座位广播翻回 online
+        await until(
+          () => useNetStore.getState().connection === "open",
+          `试${attempt}:退避重连回 open`,
+          15_000,
+        );
+        await until(
+          () => useNetStore.getState().seats[b.seat]?.online === true,
+          `试${attempt}:重连归座(座位广播翻回 online)`,
+          15_000,
+        );
+        const net = useNetStore.getState();
+        expect(net.reconnect).toBeNull(); // 连上即清零(setConnection 单点)
+        expect(net.eventBatchSeq).toBe(0); // 重连清批:状态唯一来源=紧随的整房摘要
+
+        // 冻结终验(host 见证到底)+ 核心等式:重连后三方投影与 P0 核心字段(剥离
+        // outcomeKind,判词见 sameCoreProjection 注)逐字段全等——对局不丢状态硬断言
+        let finalView: PublicProjection;
+        try {
+          finalView = await settledTriple(`试${attempt}:重连后读数`);
+        } catch (err) {
+          // 诊断增补(仍抛出):读服务器落盘房间记录=引擎真相,判 fold/summary 谁在说谎
+          let serverTruth = "读取失败";
+          try {
+            const rec = JSON.parse(
+              readFileSync(join(tmpDir!, "rooms", `${roomId}.json`), "utf8"),
+            ) as {
+              snapshot?: {
+                turnPhase?: string;
+                lastLandOutcomeKind?: string | null;
+                pendingLand?: { kind?: string } | null;
+              };
+            };
+            serverTruth = JSON.stringify({
+              turnPhase: rec.snapshot?.turnPhase,
+              lastLandOutcomeKind: rec.snapshot?.lastLandOutcomeKind,
+              pendingLandKind: rec.snapshot?.pendingLand?.kind ?? null,
+            });
+          } catch (e2) {
+            void e2; // 房间记录读取失败本身不影响原错误的抛出
+          }
+          throw new Error(`${(err as Error).message}\n服务器房间记录快照=${serverTruth}`);
+        }
+        if (!sameCoreProjection(finalView, attemptP0)) {
+          const hostNow = engineProjection(a.engine);
+          if (!sameCoreProjection(hostNow, attemptP0)) {
+            // host 也偏了:服务器在窗口后半段自行推进,冻结前提破,弃试重来
+            console.log(
+              `[重连例] 试${attempt} 作废(后段):host 见证推进 P0(turn=${attemptP0.turnNumber} ${attemptP0.turnPhase})→(turn=${hostNow.turnNumber} ${hostNow.turnPhase}),换门重试`,
+            );
+            continue;
+          }
+          // host 仍钉在 P0 而 guest 不等 = 重连水合真的丢了/改了状态——产品级红,响亮挂
+          expect(finalView).toEqual(attemptP0);
+        }
+        p0 = attemptP0;
+        view = finalView;
+      }
+      expect(p0).not.toBeNull();
+      expect(sameCoreProjection(view, p0!)).toBe(true); // 核心等式终验(口径判词见 sameCoreProjection 注)
+
+      // ⑦ 恢复后续局可推进:轮到谁谁放行决策门(命令走重连后的新 socket 上行),
+      //    新回合折进两端;事件批续流以 eventBatchSeq 回升为证
+      const p0Turn = p0!.turnNumber;
+      const advDeadline = Date.now() + 30_000;
+      for (;;) {
+        void passGateIfMine(a);
+        void passGateIfMine(b);
+        const t = readTriple();
+        if (t.a.turnNumber > p0Turn && t.b.turnNumber > p0Turn) break;
+        if (Date.now() > advDeadline) {
+          throw new Error(`重连后续局未推进(30s):P0.turn=${p0Turn}\n${stackDump()}`);
+        }
+        await Bun.sleep(50);
+      }
+      expect(useNetStore.getState().eventBatchSeq).toBeGreaterThanOrEqual(0); // 续流(首试后 seq 可能已 >0)
+      await settledTriple("重连后续局收敛"); // 收在下一稳定读数点,三方复账收尾
+
+      // ⑧ 收摊(先解散后销毁,判词同 afterAll;清模块变量,afterAll 不重复解散)
+      await dismissCurrentRoom("重连例收摊");
+      a.destroy();
+      b.destroy();
+      hostCtrl = null;
+      guestCtrl = null;
+    },
+    120_000,
+  );
 });
