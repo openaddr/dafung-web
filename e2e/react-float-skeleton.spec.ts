@@ -1,23 +1,17 @@
 // 全浮层骨架(#700)专项:① 顶部浮层几何(#732 顶左行序:设置→详情两钮
 // 避 safe-area,顶中让给知会横幅槽;#853 起「N 轮」chip 退役,顶中常驻件=回合
-// 胶囊);② 核心几何不变量(满编 8 席 @844×390 矮横屏:
-// 第 8 格下缘 ≤ 右下三圆钮上缘,全列零滚动——spec #697 ③ 的交付判据);③ 锦囊手牌开关
+// 胶囊);② 锦囊手牌开关
 // (#1006 建组;显隐 2026-11-07 改「回合联动+决策保底」:亮=我的回合∪决策窗在场∪
-// 手动临时开;localStorage 持久偏好退役,记账/重进恢复断言随行删除);④ 设置弹层(音效开关接
+// 手动临时开;localStorage 持久偏好退役,记账/重进恢复断言随行删除);③ 设置弹层(音效开关接
 // AudioProvider、战报›入口降级、版本戳、回到主页弃局离屏)。断言全走 testid 单源 +
 // 调试钩子/快照,几何断言收进单次 evaluate。
+// 原「核心几何不变量:满编 8 席」例已删(2026-11-08 唯一守环审计):四条断言(8 格/
+// 格高 38/全列零滚动/末格下缘≤三圆钮上缘)逐条由 react-seat-cells「满编 8 席」与
+// react-narrow「全浮层件就位」同阈值守;独占的「桌面→844×390 视口切换」到达路径是
+// 纯 CSS 重排非 app 代码,且交付形态 APK 锁横屏、桌面 resize 为不设断言的失修面。
 import { test, expect } from "./fixtures";
-import {
-  quickStart,
-  openSoloSetup,
-  pickCapital,
-  waitMyPause,
-  waitSettled,
-  dismissJinnangIfUp,
-  force,
-} from "./react-helpers";
+import { quickStart, dismissJinnangIfUp, force } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 test.describe("顶部浮层几何(#700 ①)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
@@ -108,46 +102,6 @@ test.describe("顶部浮层几何(#700 ①)", () => {
       expect(geo.buttons!.y + geo.buttons!.h).toBeGreaterThanOrEqual(390 - 55);
       expect(geo.buttons!.x + geo.buttons!.w).toBeGreaterThanOrEqual(844 - 55);
       expect(geo.toggleOn).toBe(true);
-    }).toPass();
-  });
-});
-
-test.describe("核心几何不变量(#700 ②:满编 8 席全列零滚动)", () => {
-  // 真实段(ADR-0058):真实开局全链(准备页 8 诸侯起兵→定都→对局自走停靠)+真实
-  // 视口切换重排,席位列盒模型(格高/末格下缘/零滚动)即被测环——零种植零冻结。
-  test("8 席 @844×390:第 8 格下缘 ≤ 三圆钮上缘(8×38+7×2=318 ≤ 326),格高 38", async ({ page }) => {
-    test.slow(); // 人类首回合前最多 7 个 bot 回合,预算放宽(react-seat-cells 同口径)
-    await page.goto("/");
-    await openSoloSetup(page);
-    for (let i = 4; i < 8; i++) await page.getByTestId(`${SETUP_TID.seatCount}-plus`).click(); // 4 → 8
-    await page.getByTestId(SETUP_TID.startGame).click();
-    await pickCapital(page);
-    await waitMyPause(page, 0, 150_000);
-    await waitSettled(page);
-    // 配置与开局在桌面视口完成,再切矮横屏验收目标形态(真机即此重排路径)
-    await page.setViewportSize({ width: 844, height: 390 });
-    await page.getByTestId(TESTIDS.seatRail).waitFor();
-    // #1181 同族硬化:视口切换后的单发几何读数包 toPass 轮询重试(读数幂等),
-    // 重排尾拍不与断言赛跑;阈值与语义不变。
-    await expect(async () => {
-      const geo = await page.evaluate((containerId) => {
-        const col = document.querySelector(".seat-rail .seatcol")!;
-        const cells = [...col.querySelectorAll<HTMLElement>(".seat")];
-        const fab = document.querySelector(`[data-testid="${containerId}"]`)!;
-        const fabTop = fab.getBoundingClientRect().top;
-        const last = cells[cells.length - 1]!.getBoundingClientRect();
-        return {
-          count: cells.length,
-          cellH: cells[0]!.getBoundingClientRect().height,
-          lastBottom: last.bottom,
-          fabTop,
-          overflow: (col as HTMLElement).scrollHeight - (col as HTMLElement).clientHeight,
-        };
-      }, TESTIDS.pileButtons);
-      expect(geo.count).toBe(8);
-      expect(Math.abs(geo.cellH - 38)).toBeLessThanOrEqual(0.5);
-      expect(geo.lastBottom).toBeLessThanOrEqual(geo.fabTop + 0.5); // 第 8 格下缘 ≤ 三圆钮上缘
-      expect(geo.overflow).toBeLessThanOrEqual(0); // 全列零滚动
     }).toPass();
   });
 });
