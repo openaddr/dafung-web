@@ -30,10 +30,12 @@
 // 拦截注入=确定性前提,非种局)→bot 真打出/宣告→双端真被询问→真应答过网→真结算
 // 留痕,零种植(审计 #1216);窗开本身恒真引擎行为,禁种「窗已开」。
 // #1287 慢池迁移批判词:五例判留(名册③真双端应答过网呈现;#461 例双窗到达依赖真
-// 浏览器点击链+路由注入种子,对跑层 LobbyApi 无 seed 缝不可迁)——缩候选 1 项候裁
-// 未动:「#453 已应答横幅即收」尾部房间落盘留痕腿(readFileSync 权威应答账)是纯落盘
-// 语义,可下移协议/对跑层(room-record 直读),兼拆 #1280 观察项二 ENOENT flake 引信;
-// 候显式裁定前本例不动(行注见 docs/reference/e2e-分类表.md 联机行)。
+// 浏览器点击链+路由注入种子,对跑层 LobbyApi 无 seed 缝不可迁)。#1316 批T2 执行
+// 缩腿候裁:「#453 已应答横幅即收」尾部房间落盘留痕腿(权威应答账 readFileSync 两座
+// 各一次+结算执行)下移双端对跑层 `test/online-dual-run.test.ts` 种子直建房应答账例
+// (纯落盘语义,层③ room-record 直读),兼拆 #1280 观察项二 ENOENT flake 引信(该腿
+// 读盘与服务器落盘拍竞速是历史挂签);浏览器例只留呈现腿(横幅即收不可复显),例数
+// 不变(行注见 docs/reference/e2e-分类表.md 联机行)。
 import { testUnscaled as test, expect } from "./fixtures";
 import {
   newBridgeContext,
@@ -44,8 +46,6 @@ import {
   pollReactionSettled,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 import type { Browser, Page } from "@playwright/test";
 import { LID } from "../src/app/screens/lobby/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
@@ -55,11 +55,6 @@ const SEED = 419;
 /** 加长窗(playwright.config E2E_REACTION_MS 注入 server,spec 侧同源取值——fallback
  *  与 config 的值成对改,#626)。 */
 const REACTION_MS = Number(process.env.E2E_REACTION_MS ?? 15000);
-
-/** 房间落盘目录(与 playwright.config 的 E2E_ROOMS_DIR 同源):断线用例的服务端观测口。 */
-function roomsDir(): string {
-  return resolve(process.env.E2E_ROOMS_DIR ?? "./tmp/e2e-rooms");
-}
 
 /** 线级事件批收集器(#390 同款,#388 后为唯一状态通路):挂 page 捕获 {type:"events"}
  *  帧,权威语义断言(declined/countered)据此判定(对局中 log 不再逐步实时)。 */
@@ -318,20 +313,20 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
     }
   });
 
-  // 真实段(#1216):种子 2849 双人类识破窗(driveToDualWindow 驱动全真 UI 点击链)上,
-  // host 点「不用」应答后横幅即收不可复显(呈现层撤入口)、guest 超时代发兜底后权威侧
-  // 应答齐→连环计照常结算(房间落盘各座恰一次应答留痕)全真——已应答座位的呈现/权威
-  // 两面即被测环。
-  test("已应答座位横幅即收、不可重复应答(#453/B2):host 应答后横幅消失,权威侧应答齐窗收续结算", async ({
+  // 真实段(#1216,#1316 批T2 缩腿):种子 2849 双人类识破窗(driveToDualWindow 驱动
+  // 全真 UI 点击链)上,host 点「不用」应答后横幅即收不可复显(呈现层撤入口)——
+  // 已应答座位的呈现面即被测环。权威面(应答齐窗收续结算+两座恰一次应答留痕)已下移
+  // 双端对跑层 `test/online-dual-run.test.ts`「种子直建房应答账」例(#1316;纯落盘/
+  // 折算语义,层③),此处不再读房间落盘(#1280 观察项二 ENOENT 引信随腿拆除)。
+  test("已应答座位横幅即收、不可复显(#453/B2 呈现腿):host 应答后横幅消失不复发", async ({
     browser,
   }) => {
     // 种子 2849(bun in-process 房间演算直扫,权威同源零偏差;#949 关中重钓——换图后
     // 原 837 × huanyou 链作废):双人类起手识破诡计、bot 起手连环计,选都一结束
     // bot(draftOrder=[2,1,0] 先动)即宣告连环计开出 [0,1] 双窗——驱动器首查即命中
     // (场景机制见 driveToDualWindow 注)。
-    const { host, guest, roomId } = await twoClientsWithSeed(browser, 2849);
+    const { host, guest } = await twoClientsWithSeed(browser, 2849);
     try {
-      const announcedCard = await driveToDualWindow(host, guest);
       // 询问集 per-seat 投影(#461 起=身份匿名、数量保留,与脱敏批同口径):自己座位
       // 在列 + 他人位匿名占位(-1)——两端各自在列 = 双人类同窗的前提成立(god-view
       // 全集 [0,1] 见对局日志 reactionWindow 行);数量保留是折叠器闭窗算术的分母。
@@ -341,40 +336,11 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
       expect(await queriedOf(guest)).toEqual([-1, 1]);
       // host 点「不用」应答(单发命令;联机日常路径与单机降噪同款点击链)
       await answerReactionWindow(host, { mode: "decline" });
-      // #453/B2 验收:已应答座位横幅即刻消失、不可再点(入口没了)。权威侧窗未收
-      // (guest 未应答,加长窗内由其超时代发兜底)——呈现层不许复显横幅。
+      // #453/B2 验收(呈现腿):已应答座位横幅即刻消失、不可再点(入口没了)。权威侧
+      // 窗未收(guest 未应答,加长窗内由其超时代发兜底)——呈现层不许复显横幅。
       await expect(host.getByTestId(TESTIDS.reactionBanner)).not.toBeVisible({ timeout: 3_000 });
-      // 应答齐窗收续结算:guest 超时代发「不用」后连环计照常执行,对局离开反应相位
-      await expect
-        .poll(
-          async () =>
-            guest.evaluate(
-              () => (window as any).__dafung.snapshot().turnPhase !== "AwaitingReaction",
-            ),
-          { timeout: 20_000, message: "应答齐窗收续结算" },
-        )
-        .toBe(true);
-      // 权威留痕(房间落盘):每被询问座位恰应答一次(重复应答被引擎拒绝,呈现层
-      // 撤入口后无可重复点击面),连环计结算执行
-      await expect
-        .poll(
-          async () => {
-            const rec = JSON.parse(readFileSync(join(roomsDir(), `${roomId}.json`), "utf8")) as any;
-            const log: string[] = (rec.snapshot?.log ?? []).map((l: any) => l.detail);
-            return {
-              hostAnswered: log.filter(
-                (d) => d.includes("reactionRespond") && d.includes("seat=p0"),
-              ).length,
-              guestAnswered: log.filter(
-                (d) => d.includes("reactionRespond") && d.includes("seat=p1"),
-              ).length,
-              settled: log.some((d) => d.includes("jinnangUse") && d.includes(announcedCard)),
-            };
-          },
-          { timeout: 10_000, message: "权威应答留痕:两座各一次 + 结算执行" },
-        )
-        .toEqual({ hostAnswered: 1, guestAnswered: 1, settled: true });
-      // 对局继续推进:两端各自清决策点,不留悬窗
+      // 对局继续推进:两端各自清决策点,不留悬窗(guest 窗内超时代发由权威侧兜底,
+      // 应答账/结算语义归对跑层,见本例头注)
       await skipUntilNextSeat(host, 0, 60_000);
       await skipUntilNextSeat(guest, 1, 60_000);
     } finally {

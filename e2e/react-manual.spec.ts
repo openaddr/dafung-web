@@ -111,24 +111,10 @@ test.describe("手册(844×390 横屏标准档)", () => {
   // 「锦囊详情」例已删(2026-11-08 唯一守环审计 v2):点卡开参数化叠层的机制由名将
   // 详情(携只读契约)与机遇详情(携内容注记)两例守,锦囊签陈列数由五签切换例守
   // ——本例零内容断言,删。
-
-  // 真实段(ADR-0058):详情开着点壳 X,叠层先卸/壳随收/零孤儿弹层的退场协议真实
-  // 走查即被测环——零种植零冻结。
-  test("收口净空:详情开着点壳 X,叠层随壳同卸不留孤儿(真机裸弹层复)", async ({ page }) => {
-    await openManual(page);
-    await page.getByTestId(MANUAL_TID.tabEncounters).click();
-    await page.getByTestId(MANUAL_TID.card("义士来投")).click();
-    const detail = page.getByTestId(MANUAL_TID.detail("义士来投"));
-    await expect(detail).toBeVisible();
-    // 壳的题名行+X 露在叠层上方,真机可点(裸弹层复的触发钮):点壳 X 而非叠层 X
-    await page.getByTestId(MANUAL_TID.close).click();
-    // 净空语义:叠层先于壳退场消失(closing 起手即卸载,壳 210ms 协议随后收场)
-    await expect(detail).toHaveCount(0);
-    await expect(page.getByTestId(MANUAL_TID.modal)).toHaveCount(0);
-    // 不留孤儿:body 上无任何活弹层,人回首页
-    expect(await page.locator('[data-slot="dialog-content"]').count()).toBe(0);
-    await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
-  });
+  // 「收口净空」例已迁(2026-11-08,#1316 批T2):迁移落点=接线层 test/
+  // map-storage-wiring.test.tsx「手册收口净空」例,判层只看断言面——叠层先卸/壳随
+  // 收/零孤儿弹层=退场协议走完的 DOM 有无(真 happy-dom 真定时器走同一 210ms 协议,
+  // 首页入口真点击链同构保留);几何腿例(顶带让位/重开壳体)留本文件不迁。
 
   // 真实段(ADR-0058):关后再开真实往返点击,壳体实可见(opacity 计算样式防
   // opacity-0 残留假绿)+遮罩不挂退场类+点壳外真位置关闭的真实通路即被测环
