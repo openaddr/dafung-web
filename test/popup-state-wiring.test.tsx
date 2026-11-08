@@ -3,6 +3,8 @@
 // 呼吸钮 .breathe 状态机(react-jinnang-rack #1006 例④)、③技能书书格 button
 // 通路 1 名可学直发命令(react-skill-book 例①)、④多名可学选人叠层点将拍板
 // (react-skill-book 例②)、⑤遣散二段确认命令落账(react-hero-dismiss 例①)。
+// #1315 批T1 续扩:锦囊架收起契约三例(react-jinnang-rack #1006 组①②⑤)迁入,
+// 布场④ plantJunshiWindow(e2e pinJunshiWindow 同构)随迁,见文末 describe 判词。
 //
 // 【判层理由】断言面全部是「操作过后 store/渲染树里的语义」:显隐状态机的输入
 // 全来自 store 快照(回合归属/相位)与点击(会话临时态),输出=挂载有无与类名
@@ -184,6 +186,18 @@ function plantOwnTurn(e: GameEngine): void {
   e.recruitedHeroIds.add("zhouyu");
   me.treasures.length = 0;
   e.turnPhase = "Roll";
+}
+
+/** 布场④(e2e pinJunshiWindow 同构,#1315 批T1 迁入用):己方出牌窗态 + 手牌终态
+ *  cards(池序即架序)。activeIndex=0 同布场①判词;手牌直写同布场②判词(发指定牌
+ *  无公共通路);窗态钉相位=断言前提(同布场①判词)。 */
+function plantJunshiWindow(e: GameEngine, cards: string[]): void {
+  clearPending(e);
+  e.activeIndex = 0;
+  const me = e.players[0];
+  me.jinnangHand = [...cards];
+  me.jinnangHandCount = cards.length;
+  e.turnPhase = "AwaitingJinnang";
 }
 
 let container: HTMLElement | null = null;
@@ -473,5 +487,86 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
       ),
     ).toBe(true);
     expect(eventsOf(s, "treasureGained")).toHaveLength(2);
+  });
+});
+
+// ── 锦囊架收起契约三例(react-jinnang-rack #1006 组①②⑤迁入,#1315 批T1)──
+// 与上组同族(显隐状态机:挂载有无与类名挂点,store 快照驱动+点击),差异只在
+// 前置布场(出牌窗态/反应窗载荷)与命令腿:①「不出」走 WiringController 真命令
+// (useJinnang null=今不用,相位推进是引擎结算);⑤反应窗载荷经 armReaction 种植件、
+// 回合交接经 armPhase(判词单源 @core/planter,本组零裸直写)。
+// 留浏览器不迁的兄弟例:③「反应窗收起贴底位移」(banner boundingRect 几何)、长按
+// 双例(裸指针 700ms 输入时序)、available 对照(长按取消腿)——名册地板,判例见
+// 本文件头注「真实输入语义留浏览器」节。
+describe("锦囊架收起契约(react-jinnang-rack #1006 组迁入,#1315 批T1)", () => {
+  const PLAYABLE = "求贤令"; // self 域可用牌(出牌窗选中态载体,e2e #715 USABLE 同款口径)
+
+  // ①收起生效:呼吸钮点击→架整区卸载,动作条仍在场(决策通路不断);「不出」随时
+  // 可点——真命令过相位(引擎结算),窗落动作条卸载。
+  it("①出牌窗收起生效:架消失、动作条仍在场、「不出」可点过相位", () => {
+    const { el, snap } = startGame((e) => plantJunshiWindow(e, [PLAYABLE]));
+    expect(q(document, TESTIDS.actionbar)).not.toBeNull(); // 窗升起(停车坪自证)
+    click(q(el, TESTIDS.jinnangToggle)!);
+    expect(q(el, TESTIDS.handZone)).toBeNull(); // 架整区卸载
+    // 决策通路不断:架与动作条相互独立,「不出」随时可点
+    expect(q(document, TESTIDS.actionbar)).not.toBeNull();
+    click(q(document, TESTIDS.actionbarPass)!);
+    expect(q(document, TESTIDS.actionbar)).toBeNull(); // 窗落动作条卸载
+    expect(snap().turnPhase).not.toBe("AwaitingJinnang"); // 相位已被真命令推进
+  });
+
+  // ②选中态跨收起保留:点牌选中→收起(架整区卸载,选中留 GameScreen 会话态,不随
+  // 架卸载丢失)→重开→选中态原样还原续选。
+  it("②出牌窗收起→重开:卡牌段选中态还原续选(选中态跨收起保留)", () => {
+    const { el } = startGame((e) => plantJunshiWindow(e, [PLAYABLE]));
+    const cardFace = () => q(el, TESTIDS.jinnangCard(PLAYABLE))!.querySelector(".jinnang-card")!;
+    const play = () => q(document, TESTIDS.actionbarPlay)!;
+    click(q(el, TESTIDS.jinnangCard(PLAYABLE))!);
+    expect(cardFace().className.split(/\s+/)).toContain("sel");
+    expect(play().hasAttribute("aria-disabled")).toBe(false);
+    // 收起:架整区卸载,选中留在 GameScreen 会话态
+    click(q(el, TESTIDS.jinnangToggle)!);
+    expect(q(el, TESTIDS.handZone)).toBeNull();
+    // 重开:选中态原样还原,「出牌」仍点亮(续选无断)
+    click(q(el, TESTIDS.jinnangToggle)!);
+    expect(q(el, TESTIDS.handZone)).not.toBeNull();
+    expect(cardFace().className.split(/\s+/)).toContain("sel");
+    expect(play().hasAttribute("aria-disabled")).toBe(false);
+  });
+
+  // ⑤窗在场压回合归属(决策保底)/窗收架撤/回合回归亮沿弹回:三个可见性沿全真——
+  // UI 对窗态与 activeIndex 的响应链即被测环。窗载荷走 armReaction、相位/活跃方走
+  // armPhase(判词单源 planter;窗收沿=钉相位离窗态,应答/超时/种植同效——可见性
+  // 只跟窗走)。
+  it("⑤他人回合反应窗:窗在场架必亮(决策保底不问回合);窗收架撤(决策毕不赖站)", () => {
+    const { el, plant, snap } = startGame(plantIdleDecision);
+    // 直种反应窗(armReaction 种植件,windowMs 30s 免与默认展示档赛跑的站点惯例):
+    // 窗态开场亮沿,架随横幅回场
+    plant({
+      kind: "armReaction",
+      view: {
+        kind: "jinnang",
+        cardId: "火烧连营",
+        userSeat: 1,
+        targetSeats: [0],
+        queriedBySeat: [0],
+        windowMs: 30000,
+      },
+      payload: { kind: "jinnang", userSeat: 1, cardId: "火烧连营", targets: [0] },
+    });
+    expect(q(document, TESTIDS.reactionBanner)).not.toBeNull();
+    expect(q(el, TESTIDS.jinnangHand)).not.toBeNull();
+    // 回合交出(activeIndex 钉 bot,armPhase):窗在场压住回合归属——决策保底不问回合
+    plant({ kind: "armPhase", activeIndex: snap().players.findIndex((p) => p.isBot) });
+    expect(snap().decisionOwner).not.toBe(0);
+    expect(q(el, TESTIDS.jinnangHand)).not.toBeNull();
+    expect(q(document, TESTIDS.reactionBanner)).not.toBeNull();
+    // 窗收(相位钉离窗态):窗落且不在我的回合 → 架自动收
+    plant({ kind: "armPhase", turnPhase: "AwaitingDecision" });
+    expect(q(document, TESTIDS.reactionBanner)).toBeNull();
+    expect(q(el, TESTIDS.handZone)).toBeNull();
+    // 回合回来:我的回合亮沿弹回,循环闭合
+    plant({ kind: "armPhase", activeIndex: snap().players.findIndex((p) => !p.isBot) });
+    expect(q(el, TESTIDS.handZone)).not.toBeNull();
   });
 });
