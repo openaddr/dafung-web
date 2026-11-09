@@ -6,8 +6,8 @@
 // 助手按文件自持(缝约定):RecordingClock 只记 setTimeout 延迟,不点火。
 import { describe, expect, it } from "bun:test";
 import type { WorkerClock } from "@app/net/worker-clock";
-import { LocalController } from "../src/app/controllers/local";
-import { MAP } from "../scripts/engine-helpers";
+import { LocalController } from "../../src/app/controllers/local";
+import { MAP } from "../../scripts/engine-helpers";
 
 class RecordingClock implements WorkerClock {
   readonly delays: number[] = [];

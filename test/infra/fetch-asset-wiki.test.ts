@@ -5,7 +5,7 @@ import {
   originalFromPatchwikiThumb,
   pngSize,
   fileBaseName,
-} from "../scripts/fetch-asset";
+} from "../../scripts/fetch-asset";
 
 describe("classifyWikiUrl(输入 URL 分类)", () => {
   it("curid File 页 → filepage + pageid", () => {

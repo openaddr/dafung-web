@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 describe("Android 横屏锁定(评审二轮 P0-8)", () => {
   it("AndroidManifest.xml 保持 sensorLandscape", () => {
     const manifest = readFileSync(
-      resolve(import.meta.dir, "../src-tauri/gen/android/app/src/main/AndroidManifest.xml"),
+      resolve(import.meta.dir, "../../src-tauri/gen/android/app/src/main/AndroidManifest.xml"),
       "utf8",
     );
     expect(manifest).toContain('android:screenOrientation="sensorLandscape"');
