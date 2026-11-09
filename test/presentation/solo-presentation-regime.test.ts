@@ -9,7 +9,7 @@
 // 慢例池(测试管线提速批):整局实速骑局,墙钟即用例本体不可压缩,实测 43.2s
 // (2026-10-30)——按「单例实测 ≥3s」判据入慢例池(口径见 docs/how-to/开发与测试.md
 // 「把测试跑起来」),DAFUNG_SLOW=1 才跑(bun run test:slow),默认池 skip(skip 行可见)。
-import { describe, expect, it, mock } from "bun:test";
+import { afterAll, describe, expect, it, mock } from "bun:test";
 import { delay, DICE, DUEL, MARCH } from "../../src/app/fx/timings";
 import { BOT_STEP_MS } from "../../src/core/timings";
 import type { MarchSegmentFrames } from "../../src/app/fx/presentation";
@@ -27,50 +27,70 @@ const segDuration = (a: { x: number; y: number }, b: { x: number; y: number }): 
   return Math.min(MARCH.maxSegMs, Math.max(MARCH.minSegMs, (dist / MARCH.speed) * 1000));
 };
 
-mock.module("../../src/app/fx/audio", () => ({
-  getAudio: () => ({ play: () => {} }),
-  setAudio: () => {},
-  HybridAudioPlayer: class {},
-  AUDIO_FILES: {},
-  FILE_TRIM: {},
-}));
-mock.module("../../src/app/fx/DiceOverlay", () => ({
-  finishDiceOverlay: () => {},
-  diceApi: {
-    roll: async () => {
-      await delay(diceTotalMs());
+if (process.env.DAFUNG_SLOW) {
+  mock.module("../../src/app/fx/audio", () => ({
+    getAudio: () => ({ play: () => {} }),
+    setAudio: () => {},
+    HybridAudioPlayer: class {},
+    AUDIO_FILES: {},
+    FILE_TRIM: {},
+  }));
+  mock.module("../../src/app/fx/DiceOverlay", () => ({
+    finishDiceOverlay: () => {},
+    diceApi: {
+      roll: async () => {
+        await delay(diceTotalMs());
+      },
     },
-  },
-  DiceOverlay: () => null,
-}));
-mock.module("../../src/app/fx/DuelSignsOverlay", () => ({
-  finishDuelSigns: () => {},
-  duelSignsApi: {
-    play: async () => {
-      await delay(duelTotalMs());
+    DiceOverlay: () => null,
+  }));
+  mock.module("../../src/app/fx/DuelSignsOverlay", () => ({
+    finishDuelSigns: () => {},
+    duelSignsApi: {
+      play: async () => {
+        await delay(duelTotalMs());
+      },
     },
-  },
-  DuelSignsOverlay: () => null,
-}));
-mock.module("../../src/app/fx/desk", () => ({
-  shakeDesk: () => {},
-  fallTokenFlag: () => {},
-}));
-mock.module("../../src/app/fx/useMarch", () => {
-  return {
-    marchPos: new Map<string, { x: number; y: number }>(),
-    isMarching: () => false,
-    openMarchBatch: () => {},
-    beginMarch: () => {},
-    abandonMarch: () => {},
-    abandonAllMarches: () => {},
-    animateMove: async (_moverId: string, keyframes: readonly MarchSegmentFrames[]) => {
-      // 时长忠实:逐段 delay(与真实现同一公式、同一常量表、同一追帧倍率)
-      for (const seg of keyframes)
-        for (let i = 1; i < seg.points.length; i++)
-          await delay(segDuration(seg.points[i - 1]!, seg.points[i]!));
-    },
-  };
+    DuelSignsOverlay: () => null,
+  }));
+  mock.module("../../src/app/fx/desk", () => ({
+    shakeDesk: () => {},
+    fallTokenFlag: () => {},
+  }));
+  mock.module("../../src/app/fx/useMarch", () => {
+    return {
+      marchPos: new Map<string, { x: number; y: number }>(),
+      isMarching: () => false,
+      openMarchBatch: () => {},
+      beginMarch: () => {},
+      abandonMarch: () => {},
+      abandonAllMarches: () => {},
+      animateMove: async (_moverId: string, keyframes: readonly MarchSegmentFrames[]) => {
+        // 时长忠实:逐段 delay(与真实现同一公式、同一常量表、同一追帧倍率)
+        for (const seg of keyframes)
+          for (let i = 1; i < seg.points.length; i++)
+            await delay(segDuration(seg.points[i - 1]!, seg.points[i]!));
+      },
+    };
+  });
+  // 模块 mock 是进程级注册表(bun mock.module 无文件作用域,mock.restore 只还原函数
+  // spy 不还原模块):本文件默认池虽整文件 skip,五处注册仍全局生效——后载文件会吃
+  // 到 mock 的 useMarch/audio(#611 演出锁例曾中招;探针读数走 controller.ts 内部
+  // 静态 import,连测试内动态 import 都救不了读数侧)。故:①注册按 DAFUNG_SLOW 门控,
+  // 默认池零注册;②慢池文件尾显式重注册真命名空间(best-effort),消费方靠载入序
+  // 先于本件自保——本文件字母序在 p 族,先于 w 族,别改名排到后面去。
+}
+import * as realAudio from "../../src/app/fx/audio";
+import * as realDiceOverlay from "../../src/app/fx/DiceOverlay";
+import * as realDuelSignsOverlay from "../../src/app/fx/DuelSignsOverlay";
+import * as realDesk from "../../src/app/fx/desk";
+import * as realUseMarch from "../../src/app/fx/useMarch";
+afterAll(() => {
+  mock.module("../../src/app/fx/audio", () => realAudio);
+  mock.module("../../src/app/fx/DiceOverlay", () => realDiceOverlay);
+  mock.module("../../src/app/fx/DuelSignsOverlay", () => realDuelSignsOverlay);
+  mock.module("../../src/app/fx/desk", () => realDesk);
+  mock.module("../../src/app/fx/useMarch", () => realUseMarch);
 });
 
 // ── mock 落定后再引真链路 ──

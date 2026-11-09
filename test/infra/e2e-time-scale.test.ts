@@ -3,7 +3,7 @@
 //   生产恒等 — 无 localStorage 键(含 bun test 环境)时全部导出常量与字面量逐位相等,
 //   防止未来有人把生产常量误包进缩放路径(地板会把 80ms 级短拍托到 100ms)。
 import { describe, it, expect } from "bun:test";
-import { Motion } from "../src/core/theme";
+import { Motion } from "../../src/core/theme";
 import {
   CEREMONY,
   DESK,
@@ -19,7 +19,7 @@ import {
   sc,
   scStage,
   setCatchupScale,
-} from "../src/app/fx/timings";
+} from "../../src/app/fx/timings";
 
 describe("makeScaler(测试倍率缩放工厂)", () => {
   it("倍率 0.25:大件按比例缩,小件被地板托住", () => {

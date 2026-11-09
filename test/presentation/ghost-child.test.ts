@@ -3,7 +3,7 @@
 // 属渲染时序,bun test 无 DOM 不能直渲,不在本文件覆盖范围——由 e2e
 // react-scrolls / react-online / 速战档兜住。
 import { describe, it, expect } from "bun:test";
-import { shouldGhost } from "../src/app/screens/game/scroll/useGhostChild";
+import { shouldGhost } from "../../src/app/screens/game/scroll/useGhostChild";
 
 // 协议里 sig 只是子节点身份(组件函数引用),用两个稳定函数引用模拟「同型/异型」;
 // 不 import 真卷轴组件——那会连带 css/音频等浏览器侧副作用,单测不需要。

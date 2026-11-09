@@ -43,6 +43,6 @@
 
 ## 验收
 
-- 单测:窗口分位/LoAF 拆分/边界(空窗、起点倒挂夹 0)锚定(`test/frameDiag.test.ts`);
+- 单测:窗口分位/LoAF 拆分/边界(空窗、起点倒挂夹 0)锚定(`test/infra/frameDiag.test.ts`);
 - e2e:`react-diag-export`(局中导出,不打完)——下载 `dafung-diag-v*.json`,断言 kind/appVersion/build/UA/帧诊块/历史日志数组;
 - 恒轻:采样器路径零 DOM 查询、零 React 重渲(计数读取在设置弹窗打开拍一次)。

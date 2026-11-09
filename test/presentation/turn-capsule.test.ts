@@ -3,7 +3,7 @@
 // 停条带独占),「谁在打」永有答案;resetFx 换局才清。
 // e2e 不做窗内计数断言(ADR-0029 吸附档丢知会的观测性竞速,#732 同口径),机制归此处。
 import { describe, it, expect, beforeEach } from "bun:test";
-import { useFxStore } from "../src/app/fx/fxStore";
+import { useFxStore } from "../../src/app/fx/fxStore";
 
 /** 捷径:重置后宣告一次回合,取槽内状态。 */
 function announce(guohao: string, round: number) {
