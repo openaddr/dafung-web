@@ -1,3 +1,4 @@
+// 组件收口:保留现实现(语义达标,动到时才评估收口)(细则 docs/design/组件收口.md)
 // 分段选择器(X10 #29):受限档位单选,替代原生 select——全程无原生下拉,主题不破功。
 // 语义:role="group" + 每钮 aria-pressed(与选图面板 S-9 同口径:切换语义不用 aria-selected);
 // 选中态对齐国号字盘(border-gold bg-gold/25);按钮原生 Tab/Enter,键盘可控,触达 ≥40px。

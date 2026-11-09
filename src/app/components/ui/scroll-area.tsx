@@ -1,3 +1,4 @@
+// 组件收口:已收口底件——keepMounted 轨道+溢出门控常显滚动提示,水墨漆金拇指(细则 docs/design/组件收口.md)
 // shadcn/ui ScrollArea(base-vega 风格)的水墨适配底件:Base UI 行为 + 本项目 token 皮。
 // 由 components.json + `bunx shadcn add scroll-area` 的拷贝管线维护(已按水墨主题改皮,
 // 后续 CLI 更新组件时 diff 这里的改皮差异)。改皮差异(cn 导入路径、滚动条常显门控、

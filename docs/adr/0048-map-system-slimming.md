@@ -16,7 +16,7 @@
 
 1. **删环游图**(#948):`public/maps/huanyou.json` 及其生成器退役;测试钉谱基准全量重钉关中图;CLI/Server/e2e 默认图随之换关中。内置图余两张:**关中图**(默认)/ **中原争霸**(速战)。
 2. **删编辑器+自建图库通路**(#947):EditorScreen、首页「编辑地图」入口、LocalStorageMapSource/CompositeMapSource、`custom-` 前缀与「自建」标记全退役;MapSource 收敛为 FetchMapSource 单实现(接口保留,作测试注入缝)。**地图扩展能力改由「PR 一个 JSON」承担**:内置清单通路(`public/maps/*.json` + `index.json`)即扩展点,配套贡献指南([自制地图](../how-to/自制地图.md))。
-3. **删棋盘平移缩放**(#946):usePanZoom 整退役(拖动/滚轮/捏合全形态),棋盘取景恒 `computeFitView`(`BoardView.tsx`)总览定格;氛围层([ADR-0039](0039-board-ambient-layer.md)/[ADR-0040](0040-board-split-static-dynamic.md))机制保留,只删「随 pan/zoom 矩阵逐帧联动」一环——矩阵降为挂载/容器尺寸/换图/字体就绪几个事件拍的定格写入。复位/缩放语义不复存在([界面符号](../reference/界面符号.md)相应收口)。
+3. **删棋盘平移缩放**(#946):usePanZoom 整退役(拖动/滚轮/捏合全形态),棋盘取景恒 `computeFitView`(`BoardView.tsx`)总览定格;氛围层([ADR-0039](0039-board-ambient-layer.md)/[ADR-0040](0040-board-split-static-dynamic.md))机制保留,只删「随 pan/zoom 矩阵逐帧联动」一环——矩阵降为挂载/容器尺寸/换图/字体就绪几个事件拍的定格写入。复位/缩放语义不复存在(符号行已随之收口退役)。
 
 ## 备选与取舍
 

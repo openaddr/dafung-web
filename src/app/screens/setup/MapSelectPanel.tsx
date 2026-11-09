@@ -1,3 +1,4 @@
+// 组件收口:已收口(细则 docs/design/组件收口.md)
 // 地图选择面板(首页内嵌二级屏):列出全部可选地图(内置图,PR+JSON 扩展),
 // 点击条目展开简化 SVG 预览(主路双层描折线 + 城池方形小印),确认后回传 mapId。
 // 对照旧实现 src/render/ui.ts createMapSelectionScreen;预览不复用重型 createBoardSvg,

@@ -1,3 +1,4 @@
+// 组件收口:已收口——窥探,viewer-only 一次性演出层(细则 docs/design/组件收口.md)
 // 窥探弹层(#575,军情密探即时窥探):viewer-only 一次性演出层——开关态单源
 // fxStore.peek(peekApplied 表现事件驱动,关闭即清、无任何残留);仅 viewer=本座的
 // 客户端渲染(他座窥探零演出,组件按 viewerSeat 自门);壳复用藏品弹层 PileShell

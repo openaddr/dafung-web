@@ -1,3 +1,4 @@
+// 组件收口:器物豁免(永久)——机遇笺,纯展示零内部状态,复用 jinnang-card.css 笺语言,档位色经 --fam 单通道注 token;开合语义归消费方 ManualEncountersTab(细则 docs/design/组件收口.md)
 // 机遇笺(#1072 T3,spec #1069 决议⑤):手册机遇签的新绘视觉单元——五类内容里
 // 唯一的新器物。3:4 竖笺形制复用 jinnang-card.css 的笺语言(类名复用,该 css 零改动):
 // 笺头(.tou/.jie/.ming)=机遇名、右上档位章(.zhang/.seal)=好运青绿/中性黛青/

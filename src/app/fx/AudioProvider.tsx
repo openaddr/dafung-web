@@ -1,3 +1,4 @@
+// 组件收口:器物豁免(永久)——器物件,交互收口规则不适用(细则 docs/design/组件收口.md)
 // 音效的 React 封装:mount 时创建全局 HybridAudioPlayer(真实文件优先/合成回退),
 // 并在首次用户手势里 unlock AudioContext(浏览器 autoplay policy:AudioContext 必须
 // 在手势内创建/resume 才能出声;旧实现靠 ensureCtx 惰性创建,这里再补手势主动解锁)。
