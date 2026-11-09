@@ -1,10 +1,11 @@
+// 地板名册(ADR-0062):地板·脊柱构造器×2(识破自保/三分支走查=脊柱③)+几何钉×1(长按开详情=真实输入)
 // 反应窗单机回路(#281,#234 P1-D 牌架即反应窗;#303 按 #292 决议改造)——
 // **#1317 批T3 后本 spec 只余名册地板三例**:脊柱③识破自保(mini 签面几何哨 #834+
 // 倒计时弧呈现取证)、半路杀出三分支走查(三环时序语义+拼点签面/fx 时长通道探针
 // #849/#885)、长按开详情(#751 A1 裸指针 700ms 输入时序=真实输入语义);可迁移余量
 // 3 例(不用路径、唯反应灰置、降噪口)已下放接线层 `test/wiring/battle-wiring.test.tsx`
 // (ADR-0062 层④:窗载荷经 armReaction 种植、应答走 respondReaction 真命令,判词见
-// 该文件头注与 e2e-分类表行注)。引擎结算断言早已下沉(单测守:reaction-window
+// 该文件头注)。引擎结算断言早已下沉(单测守:reaction-window
 // 22 例全回路 + jinnang.test 唯反应 + reaction-watchdog 看门狗 + reaction-mute 静默
 // 状态机),本 spec 只留脊柱呈现取证与真实输入语义。
 // 权威侧兜底=房间编排反应窗看门狗(#281,room watchdogs)定时代发「不用」(与手点同
@@ -24,7 +25,7 @@
 // #1280 负载窗根治(到站换轨):真路到站链在机器进程水位窗内爬不完 30s waitFor
 // (水位=bun/node 进程叠加,纯 CPU 燃烧 6 核不复现,#1280 进程取证);全池由水位闸
 // (scripts/e2e-one.ts,bun+node≥28 拒跑)护航。
-import { test, expect } from "./fixtures";
+import { test, expect } from "../fixtures";
 import {
   skipUntilNextSeat,
   engineState,
@@ -39,13 +40,13 @@ import {
   quickStart,
   unfreezeClock,
   useHalfScale,
-} from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { TESTIDS } from "../src/app/screens/game/testids";
-import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
+} from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
+import { SCROLL_TESTIDS } from "../../src/app/screens/game/scroll/testids";
 import type { Page } from "@playwright/test";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { HOME_TID } from "../src/app/screens/home/testids";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
+import { HOME_TID } from "../../src/app/screens/home/testids";
 
 /** 开局收口(seed 1010 × 关中 #949 重钉,进程内直扫复算):换图后
  *  bot 选都/骰流全变——新链:定都剑阁(12,DOM 首格)、起手唯反应「半路杀出」

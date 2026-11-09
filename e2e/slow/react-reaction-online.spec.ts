@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·双端冒烟×5(兼脊柱④窗面成员)——真双端应答过网呈现冒烟;结算/折叠语义已下沉(ADR-0055)
 // 反应窗联机双端(#281,ADR-0017 per-seat 非阻塞;testUnscaled 全速;#291 决议/#302 整治):
 // 标准双端 UI 流程(react-online 同款)建 3 座房 [host 页=seat0 / guest 页=seat1 /
 // seat2 不入座→开局自动 bot 填充],种子 419 经路由拦截注入建房请求(联机 UI 无种子入口;
@@ -35,8 +36,8 @@
 // 各一次+结算执行)下移双端对跑层 `test/online/online-dual-run.test.ts` 种子直建房应答账例
 // (纯落盘语义,层③ room-record 直读),兼拆 #1280 观察项二 ENOENT flake 引信(该腿
 // 读盘与服务器落盘拍竞速是历史挂签);浏览器例只留呈现腿(横幅即收不可复显),例数
-// 不变(行注见 docs/reference/e2e-分类表.md 联机行)。
-import { testUnscaled as test, expect } from "./fixtures";
+// 不变(判词见文件头注)。
+import { testUnscaled as test, expect } from "../fixtures";
 import {
   newBridgeContext,
   onlinePickCapitals,
@@ -44,11 +45,11 @@ import {
   awaitReactionWindow,
   answerReactionWindow,
   pollReactionSettled,
-} from "./react-helpers";
-import { TESTIDS } from "../src/app/screens/game/testids";
+} from "../react-helpers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 import type { Browser, Page } from "@playwright/test";
-import { LID } from "../src/app/screens/lobby/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { LID } from "../../src/app/screens/lobby/testids";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 const SEED = 419;
@@ -173,8 +174,8 @@ async function driveToDualWindow(host: Page, guest: Page, timeout = 110_000): Pr
   }
 }
 
-test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: "@slow" }, () => {
-  // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
+test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
+  // 慢池(#1345 目录制):本目录整池即慢池(e2e/slow/),批次收口跑;快池入口按路径只跑 spine/geometry/browser。
   // 六例超时统一 120s(#291):describe 级生效——建房/选都/Before Hooks/重试全程同预算,
   // 不靠用例体内逐例声明。
   test.setTimeout(120_000);

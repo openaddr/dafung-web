@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉×2——#833 首帧价签/进度区恒在视口内,病灶钉(三层全绿漏网族)
 // 选宝弹层首帧几何(#833,UI二轮02)@844×390 移动横屏标准档:
 // 病灶(r4/r6 审计 12b/14/16 实拍):坐地双行价签格 176px、变卖单行格 156px,首帧
 // 全部折在体部视口(172px)之外——玩家可以没见过任何价签就成交;变卖选中/武装时
@@ -10,10 +11,10 @@
 // 前置布场种植(判词见各例),开局停走 quickStart 直达首停靠(族种 1486)。
 // #1221 L1 残油包:两例改 quickStart({advance:"preRoll"})——布场不依赖行军日志/
 // 已推进回合,落都即冻结,显式 freezeClock 随通路退役。
-import { test, expect, type Page } from "./fixtures";
-import { quickStart, snap, engineState } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
+import { test, expect, type Page } from "../fixtures";
+import { quickStart, snap, engineState } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { SCROLL_TESTIDS as T } from "../../src/app/screens/game/scroll/testids";
 
 /** 首个价签格完整在视口内的几何断言:rect 全落在标准档视口内,且底缘不越过体部
  *  视口下缘(防「在屏内但被渐隐带/钉底行罩住」的假绿)。 */

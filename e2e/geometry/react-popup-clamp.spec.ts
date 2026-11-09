@@ -6,11 +6,11 @@
 // #729 决策卷轴哨兵:844×390 下 BannerShell 三段式(题行钉顶+正文井内滚+拍板钮
 // 钉底 footer 槽)——「购地/不取」恒在视口内(Playwright 点击自动滚入视口,点击型
 // 断言测不出滚出视口,须几何断言钉住)。
-import { test, expect, type Page } from "./fixtures";
-import { quickStart, useHalfScale, engineState, actIfCan, unfreezeClock } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { TESTIDS } from "../src/app/screens/game/testids";
-import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
+import { test, expect, type Page } from "../fixtures";
+import { quickStart, useHalfScale, engineState, actIfCan, unfreezeClock } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
+import { SCROLL_TESTIDS } from "../../src/app/screens/game/scroll/testids";
 
 test.describe("决策卷轴拍板钮钉底(#729)", () => {
   test.use({ viewport: { width: 844, height: 390 } });

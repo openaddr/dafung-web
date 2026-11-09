@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·装载冒烟——扩展包浏览器侧装载(main.tsx 顶层注册),无头层刻意不装包,真装载通路唯一守卫
 // 扩展系统骨架 e2e(#378,ADR-0022):示例名将包(extensions/hero-taishici)浏览器侧
 // 装载与招贤接线——启动装载(贡献进名将池)→ 对局招贤可选到示例名将 → 选定后被动技
 // 「义从」结算接线。客户端半边断言(动画/将旗/呈现意图)已随客户端扩展面退役删除
@@ -17,11 +18,11 @@
 // 目录回查当场炸,与旧显式 throw 同响)。相位钉制(Playing/AwaitingHeroPick)=断言
 // 前提,走 armPhase 种植件(#1301:引擎自转无「钉相位」公共命令,判词单源
 // src/core/planter.ts);waitFxIdle+freezeClock(#987 冻结闸)是到达手段,非字段直改。
-import { test, expect } from "./fixtures";
-import { quickStart, waitFxIdle, freezeClock } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { TESTIDS } from "../src/app/screens/game/testids";
-import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
+import { test, expect } from "../fixtures";
+import { quickStart, waitFxIdle, freezeClock } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
+import { SCROLL_TESTIDS as T } from "../../src/app/screens/game/scroll/testids";
 import type { Page } from "@playwright/test";
 
 /** 种植招贤候选(示例名将居中位)+ 摆 AwaitingHeroPick:候选走 armHeroOffer 终态
@@ -47,8 +48,8 @@ async function plantHeroPick(page: Page): Promise<void> {
 }
 
 test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
-  test("装包→装载→招贤陈列太史慈→先看后选拍板收将", { tag: "@slow" }, async ({ page }) => {
-    // 慢池(#1026):单例实测 >30s——快池门禁 --grep-invert @slow 跳过。
+  test("装包→装载→招贤陈列太史慈→先看后选拍板收将", async ({ page }) => {
+    // 慢池(#1345 目录制):单例实测 >30s(#1026 标定),本目录整池即慢池。
     await quickStart(page, 7);
     await plantHeroPick(page);
 

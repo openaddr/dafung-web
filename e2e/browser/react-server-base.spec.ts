@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·双端冒烟——跨源 CORS 真过网建房+真实 reload 回读,浏览器运行时网络事实
 // #279 联机服务器地址可配置:默认同源;覆写持久化;跨源建房冒烟。
 // 跨源段是 APK 真机联机的同款形态:页面在静态源(vite preview),REST+WS 打到引擎源
 // (E2E_GAME_PORT;playwright.config 第二个 webServer,自带 CORS)——证明地址单源与
@@ -6,8 +7,8 @@
 // 跨源真建房(REST+WS 打到引擎源)/reload 记忆回读/清空恢复默认的真实交互链即被测
 // 环(跨源 CORS 是浏览器事实,无头替代不了)。本 spec 停在大厅层不开对局,走 fixtures
 // 默认 test(时间倍率注入无涉,照实声明,非 testUnscaled)。零种植。
-import { test, expect, type Page } from "./fixtures";
-import { LID } from "../src/app/screens/lobby/testids";
+import { test, expect, type Page } from "../fixtures";
+import { LID } from "../../src/app/screens/lobby/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 

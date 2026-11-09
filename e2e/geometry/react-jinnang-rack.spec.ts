@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉×8(长按×3/hover 挥出=真实输入,叠加窥条与相邻间隙=几何,收起贴底位移=boundingRect,reduced-motion 入场=动画时序)
 // 底部常驻手牌架(#238 一期 T3):起手牌在架内、点牌详情弹层(开/关)、长按同效、
 // 他人回合显隐(回合联动+决策保底:bot 回合自动收起,回合回来自动弹回)。
 // 空态斜牌背不做 DOM 断言(起手必 1 张,永不空),视觉证据归截图 tmp/ui-shots/t3/
@@ -23,12 +24,12 @@
 // 迁入接线层 test/wiring/jinnang-wiring.test.tsx(详情/灰置/窥探/secrecy/自机域文件)与
 // test/wiring/popup-state-wiring.test.tsx(收起契约族,与 #1289 显隐两例同主题);本 spec
 // 存例 8 =几何哨与长按/hover/reduced-motion 真实输入语义(名册地板,永留浏览器)。
-import { test, expect } from "./fixtures";
+import { test, expect } from "../fixtures";
 // parkMyTurn(#1216 波3)上收 react-helpers 共享:语义注释随迁见该函数注(本 spec 调用
 // 全走缺省 freeze=true 停车坪口径)。
-import { parkMyTurn, pollReactionSettled, quickStart, snap } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { TESTIDS } from "../src/app/screens/game/testids";
+import { parkMyTurn, pollReactionSettled, quickStart, snap } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
 
 /** 盒模型序列化(getBoundingClientRect 的 plain object,便于跨 evaluate 搬运断言)。 */

@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉×2——竖屏提示层全屏接管=视口纵横比真呈现(happy-dom 无真视口);浮层件互不重叠=几何
 // 形态分档(#276 纠偏定案:移动端只做横屏;#700 全浮层骨架改写;#703 桌面档收口)
 // ——竖屏手机 390×844(pointer: coarse):「请横屏」提示层全屏接管,对局被挡;
 // 矮横屏 844×390(移动横屏标准档):全浮层件就位(席位右列/手牌区/右下三圆钮),
@@ -7,11 +8,11 @@
 // 断言全走几何与结构(quickStart 内部状态轮询),零固定 sleep。
 // isMobile+hasTouch 让 Chromium 设备仿真把 pointer 媒询判成 coarse(桌面窄窗口
 // pointer: fine 不触发提示层,红线保持)。
-import { test, expect } from "./fixtures";
-import { quickStart, openSoloSetup, waitMyPause } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { TESTIDS } from "../src/app/screens/game/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { test, expect } from "../fixtures";
+import { quickStart, openSoloSetup, waitMyPause } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
 
 test.describe("竖屏手机 390×844(coarse pointer)", () => {
   test.use({

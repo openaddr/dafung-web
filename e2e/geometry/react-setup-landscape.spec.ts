@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉×3——双列零滚动/墨纱渐隐带随溢出浮现/滚到底自动撤=溢出几何与渐隐真渲染
 // #751/E 批:准备页矮横屏双列重排(844×390 移动横屏标准档,#742 判词 S1)。
 // 判词现状:560px 单列卡在 390 高视口 scrollHeight=734,「起兵」CTA 折叠线下 273px,
 // 8 诸侯首屏与 4 诸侯逐像素相同——全图唯一功能性硬伤。
@@ -7,11 +8,11 @@
 //   ③ 8 诸侯右列内部滚(根仍零滚),CTA 恒在场——加人反馈不再为零(S5 随之消解)。
 // 断言全走几何(scrollHeight/getBoundingClientRect),零固定 sleep;
 // 入场 scroll-anim-unroll 播放期间量盒有瞬时值,统一收进 toPass(react-narrow 同法)。
-import { test, expect } from "./fixtures";
+import { test, expect } from "../fixtures";
 import type { Page } from "@playwright/test";
-import { HOME_TID } from "../src/app/screens/home/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
+import { HOME_TID } from "../../src/app/screens/home/testids";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
+import { SCROLL_TESTIDS } from "../../src/app/screens/game/scroll/testids";
 
 test.describe("准备页矮横屏 844×390(双列档)", () => {
   test.use({ viewport: { width: 844, height: 390 } });

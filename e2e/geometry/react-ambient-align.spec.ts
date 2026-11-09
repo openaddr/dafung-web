@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉——旗锚×棋子槽位屏幕像素对位不变量(ADR-0039),真排版几何
 // 氛围层对位守卫(ADR-0039/0040):HTML 覆盖层装饰与 SVG 棋子槽位必须共用同一
 // 世界→屏幕映射。背景:ambientMatrix 曾用 getBoundingClientRect(含 transform 视觉盒)
 // 把祖先入场缩放烤进矩阵,装饰整体 1.12 倍错位固化——typecheck/build/单测/e2e 功能
@@ -10,8 +11,8 @@
 //
 // 对位走 data-amb-flag / data-token-player(非 testid 单源管辖:二者是引擎/动画层
 // 的 DOM 契约钩子,非断言用 testid,check:e2e-testids 三类 flag 不覆盖此形态)。
-import { test, expect } from "./fixtures";
-import { freezeClock, quickStart, unfreezeClock } from "./react-helpers";
+import { test, expect } from "../fixtures";
+import { freezeClock, quickStart, unfreezeClock } from "../react-helpers";
 
 interface Measure {
   ratio: number | null; // 旗锚间距 ÷ 棋子间距(取相距最远的一对;null=旗锚不足两枚)
@@ -82,7 +83,7 @@ async function waitSettledFlags(page: import("@playwright/test").Page) {
 // 测量钉(幂等二次冻结):钉静止测量态防任何在途演出的半换装态污染读数,非字段直改。
 test("氛围层装饰与棋子槽位像素对位(矩阵同步不变量,ADR-0039)", async ({ page }) => {
   // 快池(#1328 实测后定):构造器到站后单例串行 3.7s(<30s 门),到站零 bot 链零
-  // 停靠等待(旧 47.4s=真实自走的负载窗,preRoll 结构性根除)——@slow 摘除回快池。
+  // 停靠等待(旧 47.4s=真实自走的负载窗,preRoll 结构性根除)。
   test.slow(); // 多次等待的预算余量(gesture 族同款)
   await quickStart(page, undefined, { advance: "preRoll" });
   // 静止测量钉时钟:冻结后行军在途段走 rAF 自终,装饰收敛到全量在位再量

@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉×2(声列三档概率条宽度比=几何腿壳例;满编 8 行零滚动/末行不出窗=几何)
 // 诸侯详情弹窗(#702,#732 正名,spec #697 ⑥)。存例 2(几何,永留):
 //   · 声列三档概率条几何腿壳例(#1096 决议4/5,#1099):高声望好运段占优/零声望三等分,
 //     概率条宽度比(getBoundingClientRect,勿钉像素);
@@ -16,10 +17,10 @@
 // 「等 fx 排空→再探→无动作」循环收敛,冻结后再补一刀;钉 seed 1010(#949 关中重钓:
 // 原 49 × huanyou 停靠随换图作废,1010 实测开局停在购地决策、无招贤岔路)。总览行无浮签触发元(title 静态浮签除外),无 #704
 // 残影风险;关闭走 Esc/点外/X 三路(ui/dialog 底件白拿)。
-import { test, expect, type Page } from "./fixtures";
-import { quickStart, actIfCan, waitFxIdle, freezeClock, unfreezeClock } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { TESTIDS } from "../src/app/screens/game/testids";
+import { test, expect, type Page } from "../fixtures";
+import { quickStart, actIfCan, waitFxIdle, freezeClock, unfreezeClock } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 
 // 本 spec 各例都是「整局 boot + 种植 + 弹层链」重例:60s 缺省
 // 超时装不下,显式放宽——放宽语句必须落在测试体首行(文件顶层调用不生效)。
