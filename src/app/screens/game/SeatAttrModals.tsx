@@ -1,3 +1,4 @@
+// 组件收口:已收口——格上明细三路,复用 PileShell→ui/dialog 装配;唯一入口=诸侯详情四钻入(细则 docs/design/组件收口.md)
 // 席位格图标直达明细弹层族(#701,spec #697 ④):格上战盔/玉璧/墨竹点开的
 // 三路只读明细——名将名录与珍宝列表照现役 PileModal 名录/卡面同构装配(PileShell +
 // HeroCardFace/TreasureCardFace 公开件;名将/珍宝是投影全员公开信息,逐件可陈),

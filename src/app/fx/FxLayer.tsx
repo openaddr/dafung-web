@@ -1,3 +1,4 @@
+// 组件收口:器物豁免(永久)——器物件,交互收口规则不适用(细则 docs/design/组件收口.md)
 // 瞬时表现层:浮动金额(+/− 与铜钱雨)、朱砂印章、技能浮字两档(#850 施展升档/被动小签)。
 // D1/D4 改造沿革:浮字/印章/铜钱曾从 HTML 覆盖层 + getScreenCTM 换算迁入棋盘 SVG 的
 // #bv-fx 层;ADR-0045 起再迁 HTML 宿主(BoardFxLayer,BoardView 挂载,逐件 mini-svg)

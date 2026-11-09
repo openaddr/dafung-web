@@ -1,3 +1,4 @@
+// 组件收口:已收口底件——shadcn CLI 管理,已改水墨皮;CLI 更新时 diff 保留皮差异(细则 docs/design/组件收口.md)
 // shadcn/ui Dialog(base-vega 风格)的水墨适配底件:Base UI 行为 + 本项目 token 皮。
 // 由 components.json + `bunx shadcn add dialog` 的拷贝管线维护(已按水墨主题改皮,
 // 后续 CLI 更新组件时 diff 这里的改皮差异)。部件映射:Overlay→Backdrop、

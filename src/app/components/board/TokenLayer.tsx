@@ -1,3 +1,4 @@
+// 组件收口:器物豁免(永久)——器物件,交互收口规则不适用(细则 docs/design/组件收口.md)
 // 棋子层(旌旗,ADR-0042 第三波 HTML 版):props 驱动声明式定位 + CSS transform 过渡。
 // 前身是顶板 SVG 里的 <g> 层(移植自 src/render/board.ts 的 buildToken/updateTokens)
 // ——SVG 子元素拿不到合成器层,行军 transform 过渡与环动画令整张顶板 SVG 每帧失效

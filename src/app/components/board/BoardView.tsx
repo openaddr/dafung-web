@@ -1,3 +1,4 @@
+// 组件收口:器物豁免(永久)——棋盘器物件,交互收口规则不适用(细则 docs/design/组件收口.md)
 // React 版棋盘(阶段 4):整体结构对照旧 src/render/board.ts 的 createBoardSvg(对照件已删)。
 //   defs 滤镜/远山河川/驿道 → 静态 memo 子组件(地图不变即不重渲)
 //   40 城池 → Tile(状态 props 驱动,React.memo 逐城重渲)
