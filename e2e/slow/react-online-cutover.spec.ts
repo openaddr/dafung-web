@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·双端冒烟——裸关 WS 真断线→横幅真渲染→真退避重连→横幅真撤,断线横幅点名地板族
 // 联机断线重连 UI 通路守卫(#388,ADR-0020 折叠切换⑥;#1164 棒二改组)。
 // 本文件原三道门(零逐步快照审计 / 掉线 lobby 指纹 / 重连摘要投影水合+双端收敛)的
 // **协议面逻辑断言**已整体迁入 test/online/protocol-online.test.ts 场景八/九与场景二/四/五
@@ -10,11 +11,11 @@
 // socket(真断线)→断线横幅真渲染可见→真退避重连→横幅真撤,可见性翻转即被测环
 // (重连摘要/事件续流/双端收敛协议面已迁 test/online/protocol-online.test.ts,见上)。
 // 联机走 testUnscaled(对局节奏由服务器驱动)。零种植。
-import { testUnscaled as test, expect, type Page } from "./fixtures";
-import { newBridgeContext, dismissJinnangIfUp, onlinePickCapitals } from "./react-helpers";
-import { TESTIDS } from "../src/app/screens/game/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { LID } from "../src/app/screens/lobby/testids";
+import { testUnscaled as test, expect, type Page } from "../fixtures";
+import { newBridgeContext, dismissJinnangIfUp, onlinePickCapitals } from "../react-helpers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
+import { LID } from "../../src/app/screens/lobby/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 
@@ -45,8 +46,8 @@ async function twoClientsSetup(pages: [Page, Page]): Promise<void> {
   }
 }
 
-test.describe("断线重连 UI 通路(#388,#1164 棒二改组)", { tag: "@slow" }, () => {
-  // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
+test.describe("断线重连 UI 通路(#388,#1164 棒二改组)", () => {
+  // 慢池(#1345 目录制):本目录整池即慢池(e2e/slow/),批次收口跑;快池入口按路径只跑 spine/geometry/browser。
   // 建房/选都全程 + 断线重连窗口,满载下墙钟抖动大(原 describe 级预算沿用)。
   test.setTimeout(240_000);
 

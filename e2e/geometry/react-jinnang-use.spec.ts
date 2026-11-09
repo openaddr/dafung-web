@@ -1,10 +1,11 @@
+// 地板名册(ADR-0062):地板·几何钉×2(异将同名=#817 载体装配拍板点名钉;出牌墨线=rAF 采样端点对准几何);可迁移余量×6 已随 #1315/#1317/#1318 迁尽
 // 锦囊使用回路(#122/T2;#256 出牌阶段态迁移;#281 免战金牌退役改写;#305 整备;
 // #417 目标选择统一)——**#1317 批T3 后本 spec 只余名册地板两例**:异将同名(#817
 // 载体装配拍板点名钉:真渲染才抓得住的载体件归将断言)与出牌墨线(rAF 采样端点对准
 // 几何,单次 evaluate 原子采样);可迁移余量 6 例(点选/取消、不出直发、求贤令点选、
 // 目标段两步、作罢、灰置印条/多标签双章/技能卡)已下放接线层
 // `test/wiring/battle-wiring.test.tsx`(ADR-0062 层④,断言面=DOM/store 语义),判词见该
-// 文件头注与 e2e-分类表行注。结算/留痕/记账归引擎层单测(test/jinnang.test.ts、
+// 文件头注。结算/留痕/记账归引擎层单测(test/jinnang.test.ts、
 // test/reaction-window.test.ts、test/hero-skill.test.ts),本 spec 只留真渲染钉。
 // 种子复算(#949 换图重钉;seed 67 × 关中图,进程内直扫复算):人类先手
 // (draftOrder=[0,3,2,1]),选都候选取 DOM 首格=0 长安(bot 都:诸侯2=10 长沙、
@@ -17,10 +18,10 @@
 // 种植判词归一(#1295):塞指定锦囊=giveJinnang #1298,挪城/授将=grantProperty/
 // armHero #1300,判词单源 src/core/planter.ts 头注;断言链的操作段全真,前置种植只造
 // 「断言面需要的牌形/布场」。
-import { test, expect } from "./fixtures";
-import { quickStart, snap, engineState, useHalfScale } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { TESTIDS } from "../src/app/screens/game/testids";
+import { test, expect } from "../fixtures";
+import { quickStart, snap, engineState, useHalfScale } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
 // 反应窗时长走 E2E_TIME_SCALE 缩放:本 spec 后挂 init 脚本把倍率提到 0.5(窗 1500ms,
 // 点选从容;useHalfScale 共享助手);fixtures 先注入 0.25,后挂脚本覆盖同键。

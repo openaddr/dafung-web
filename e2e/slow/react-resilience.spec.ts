@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·双端冒烟——联机刷新=真实房间+真 reload 重走加入流程,浏览器运行时事实
 // React 重构 · 健壮性(阶段 11)。
 // 联机刷新重入:服务器无 token 重入(online.ts 注释 TODO),刷新 ?room= 会重新走
 // 加入流程(满员则失败)——此处测降级不崩溃(意图同旧 resilience 的"重进"场景)。
@@ -7,14 +8,14 @@
 // 【#1316 批T2 迁 2 例(3→1)】「垃圾串回显」「失效 id 拦截」迁入接线层 test/
 // test/wiring/map-storage-wiring.test.tsx「记忆健壮性接线」组(断言面=localStorage 与渲染语义,
 // 真 happy-dom localStorage + 内存地图源零假数据,判词在该文件头注)。
-import { testUnscaled as test, expect } from "./fixtures";
-import { newBridgeContext } from "./react-helpers";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { LID } from "../src/app/screens/lobby/testids";
-import { TESTIDS } from "../src/app/screens/game/testids";
+import { testUnscaled as test, expect } from "../fixtures";
+import { newBridgeContext } from "../react-helpers";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
+import { LID } from "../../src/app/screens/lobby/testids";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 
-test("联机刷新 ?room= 直链:重新走加入流程,不崩溃", { tag: "@slow" }, async ({ browser }) => {
-  // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
+test("联机刷新 ?room= 直链:重新走加入流程,不崩溃", async ({ browser }) => {
+  // 慢池(#1345 目录制):本目录整池即慢池(e2e/slow/),批次收口跑;快池入口按路径只跑 spine/geometry/browser。
   const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
   const host = await (await newBridgeContext(browser)).newPage();
   const guest = await (await newBridgeContext(browser)).newPage();

@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·双端冒烟——托管真拨/收回后真行军过网;托管语义已下沉 protocol-online 场景七
 // React 重构 · 联机托管 UI 守卫(阶段 11;#1164 棒二改组)。
 // 意图来源:旧 online-autopilot.spec(双端托管零输入到终局 / 收回 / 切速)。
 // #306:REST 占座契约例已下沉 test/online/room.test.ts(room.ts 零 WS,bun test 直打)——
@@ -19,12 +20,12 @@
 // 器驱动)。零种植。
 // #1287 慢池迁移批判词:判留(名册③)——托管语义已沉 protocol-online 场景七;余面=
 // 设置弹层开关交互与收回后真行军过网,两腿同链不可拆(开关是行军观察的前提驱动),
-// 零缩进项(行注见 docs/reference/e2e-分类表.md 联机行)。
-import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
-import { dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
-import { TESTIDS } from "../src/app/screens/game/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { LID } from "../src/app/screens/lobby/testids";
+// 零缩进项(判词见文件头注)。
+import { testUnscaled as test, expect, type Browser, type Page } from "../fixtures";
+import { dismissJinnangIfUp, newBridgeContext } from "../react-helpers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
+import { LID } from "../../src/app/screens/lobby/testids";
 
 // 联机对局依赖真实 WS 广播时序,与其他高负载 spec 并行时易抖:
 // 本文件串行执行,降低双端 + 服务器的并发压力。
@@ -74,8 +75,8 @@ async function setAutopilot(page: Page, on: boolean) {
   await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden({ timeout: 5_000 });
 }
 
-test("托管收回:开关复位,轮到自己时行军恢复可用", { tag: "@slow" }, async ({ browser }) => {
-  // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
+test("托管收回:开关复位,轮到自己时行军恢复可用", async ({ browser }) => {
+  // 慢池(#1345 目录制):本目录整池即慢池(e2e/slow/),批次收口跑;快池入口按路径只跑 spine/geometry/browser。
   // #580 单节拍后本例定式保留:guest 开托管(2s/步爬行,对局绝无跑飞之虞),host 开
   // 托管后**立即**收回(仍在 Setup);收回后 host=真人决策门,对局必停在 human-turn。
   test.setTimeout(150_000);

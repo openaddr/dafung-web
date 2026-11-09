@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉——首帧完整在视口内+预览不越 20vh+拍板带不相交,矮横屏几何哨
 // 选图弹层矮横屏钉底(#832):844×390 标准档首帧,确认/取消钮钉弹层可视底、
 // 恒在视口内(审计 P0-1:按钮 y≈416-460 视口外、预览拦腰裁断,读作「弹层坏了」)。
 // 哨兵式几何断言(react-popup-clamp 决策卷轴同口径):入场 scroll-anim-unroll
@@ -5,9 +6,9 @@
 // 几何必须钉住;末尾补一次首帧位置实点,防「可见但被遮挡」的假绿。
 // 入口走单机配置页「更换」:标准档首页挂的是 MapStrip 条带(#707 设计如此,
 // 弹层不经首页),大厅入口与单机页共用本面板本体。
-import { test, expect } from "./fixtures";
-import { openSoloSetup } from "./react-helpers";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { test, expect } from "../fixtures";
+import { openSoloSetup } from "../react-helpers";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
 
 test.describe("选图弹层矮横屏钉底(#832)", () => {
   test.use({ viewport: { width: 844, height: 390 } });

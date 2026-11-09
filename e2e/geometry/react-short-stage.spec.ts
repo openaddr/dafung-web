@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉×3——条高钳制/横幅零遮挡/拼点签面入视口,矮横屏几何哨族(#834 同族)
 // 演出层矮横屏三件改(#709,#688 定案施工;#853 chip 断言迁回合胶囊口径)@667×375 矮横屏档:
 // ① 反应横幅下移浮置几何——显示期横幅与右缘席位格、顶中回合胶囊零遮挡
 //    (病根:#709 前横幅 abspos 收缩适配被饿成半幅,竖排字气球直探板中区;
@@ -11,11 +12,11 @@
 // 种植配方照抄 react-reaction.spec(seed 1010 × 关中 拦检链)/react-jinnang-use.spec
 // (seed 67 起手求贤令恒可用 = 开局出牌阶段稳定停靠点);选图走 #707 矮横屏横排条带
 // (home-select-map 入口在本档退役)。断言全走几何与 UI 态,零固定 sleep。
-import { test, expect } from "./fixtures";
-import { answerMarchCounter, engineState, quickStart, useHalfScale } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
-import { TESTIDS } from "../src/app/screens/game/testids";
+import { test, expect } from "../fixtures";
+import { answerMarchCounter, engineState, quickStart, useHalfScale } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { SCROLL_TESTIDS } from "../../src/app/screens/game/scroll/testids";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
 
 test.describe("演出层矮横屏三件(#709)@667×375", () => {

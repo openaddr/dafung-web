@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉×1(满编 8 席格高 38/列零滚动=几何)
 // 席位格列(#698 席位条重形:96×38 双行八项格)——满编 8 席格高 38/列零滚动几何例
 // (地板·几何钉,ADR-0062 名册,永留浏览器)。
 // 【#1316 批T2 迁 4 例(5→1)】「4 席计数对账(cellsMatchSnapshot 语义)」「五状态+
@@ -7,9 +8,9 @@
 // 零滚动盒模型几何(假 DOM 无排版引擎,不可下放)。
 // 旧席位卡形态退役核销例已删(2026-11-07 菜单A,原 ③):#698 翻面已久,纯零残留
 // 核销断言价值衰减,宁缺毋滥整删(原 ④ 托管微标升 ③)。
-import { test, expect } from "./fixtures";
-import { quickStart } from "./react-helpers";
-import { TESTIDS } from "../src/app/screens/game/testids";
+import { test, expect } from "../fixtures";
+import { quickStart } from "../react-helpers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 
 /** 行1 现金 + 行2 五计数逐席与快照一致(单次 evaluate 原子采样:DOM 与快照同拍)。
  *  手牌计数 ≥10 格上封顶「9+」(#751 C 批,真实全数在弹层),对照随封顶口径折算。

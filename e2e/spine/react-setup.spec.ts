@@ -1,10 +1,11 @@
+// 地板名册(ADR-0062):地板·脊柱构造器×4——脊柱①设置屏旅程例(渲染/字盘/拦截/起兵开局流),永不迁移
 // React 重构 · 设置屏与开局配置(阶段 11)。
 // 意图来源(旧 spec → 此处):solo-mode.spec(座位/国号校验)、play.spec(开局渲染/选都就位)、
 // click.spec(点城选都的点击可靠性——React 版点城即定都,无确认框)。
-import { test, expect } from "./fixtures";
-import { snap, waitForEngine, openSoloSetup, pickCapital, waitMyRollDone } from "./react-helpers";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { TESTIDS } from "../src/app/screens/game/testids";
+import { test, expect } from "../fixtures";
+import { snap, waitForEngine, openSoloSetup, pickCapital, waitMyRollDone } from "../react-helpers";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 
 // 真实段(脊柱①全 UI 链声明,ADR-0058):首页→单机→准备页真实 UI 链,三配置控件
 // (stepper/分段选择器/默认图回显)与座位表(真人/电脑占位)的真实渲染即被测环

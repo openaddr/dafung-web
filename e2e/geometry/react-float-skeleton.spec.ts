@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉×3——顶带 32×32/44px、亮收四沿对齐、签面组中线对齐,全几何腿
 // 全浮层骨架(#700)专项:① 顶部浮层几何(#732 顶左行序:设置→详情两钮
 // 避 safe-area,顶中让给知会横幅槽;#853 起「N 轮」chip 退役,顶中常驻件=回合
 // 胶囊);② 锦囊手牌开关
@@ -9,10 +10,10 @@
 // 格高 38/全列零滚动/末格下缘≤三圆钮上缘)逐条由 react-seat-cells「满编 8 席」与
 // react-narrow「全浮层件就位」同阈值守;独占的「桌面→844×390 视口切换」到达路径是
 // 纯 CSS 重排非 app 代码,且交付形态 APK 锁横屏、桌面 resize 为不设断言的失修面。
-import { test, expect } from "./fixtures";
-import { quickStart, dismissJinnangIfUp, snap } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { TESTIDS } from "../src/app/screens/game/testids";
+import { test, expect } from "../fixtures";
+import { quickStart, dismissJinnangIfUp, snap } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 
 test.describe("顶部浮层几何(#700 ①)", () => {
   test.use({ viewport: { width: 844, height: 390 } });

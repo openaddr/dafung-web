@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·脊柱构造器——脊柱①旅程例(条带选图→起兵→棋盘挂载),永不迁移
 // #707 首页矮横屏收纳:地图选择器横排条带 + 形态分档断点接入。
 // 矮横屏 844×390(landscape + max-height:500px,与对局屏 layout.css A 档同口径):
 //   ① 选图+开局全流程零滚动零裁半(旧况:二级选图弹层裁半、document 不可滚、
@@ -9,10 +10,10 @@
 //      原「桌面视口零回归」case 退役;条带档本就是矮横屏档形态,桌面零重排口径不变)。
 // 几何断言收进 toPass:首页入场 stagger/screen-in 播动画期间量盒有瞬时位移
 // (react-narrow 同法),落定后重试即稳。
-import { test, expect } from "./fixtures";
-import { disableEncounters, waitForEngine } from "./react-helpers";
-import { HOME_TID } from "../src/app/screens/home/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { test, expect } from "../fixtures";
+import { disableEncounters, waitForEngine } from "../react-helpers";
+import { HOME_TID } from "../../src/app/screens/home/testids";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
 
 test.describe("矮横屏 844×390(条带档)", () => {
   test.use({ viewport: { width: 844, height: 390 } });

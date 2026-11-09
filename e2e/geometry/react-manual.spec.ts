@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·几何钉×3(首页入口=boundingBox 让位 44px 与视口钳几何;重开手册=#1182 计算样式 opacity+视口真位置点外关闭;五签数对账=#1288 评审改判地板)
 // 手册 e2e(#1073,spec #1069 T4):首页「手册」入口 → 五签陈列 → 详情开合。
 // 全静态 UI(读 core 目录表直渲,零引擎零机遇随机),无 clock 冻结、无种植。
 // 陈列数口径(spec #1069 收口期事实修正):名将/技能 = **运行时实数**——扩展包
@@ -10,9 +11,9 @@
 //   扩展契约只有 skills/heroes/effects,机遇/锦囊/珍宝无扩展通路)。
 // 视口恒 844×390(移动横屏标准档);几何断言在入场动画/过渡在途时量盒有瞬移,
 // 一律 toPass 重试到稳态(react-home-strip 同法)。
-import { test, expect, type Page } from "./fixtures";
-import { HOME_TID } from "../src/app/screens/home/testids";
-import { MANUAL_TID } from "../src/app/screens/manual/testids";
+import { test, expect, type Page } from "../fixtures";
+import { HOME_TID } from "../../src/app/screens/home/testids";
+import { MANUAL_TID } from "../../src/app/screens/manual/testids";
 
 test.describe("手册(844×390 横屏标准档)", () => {
   test.use({ viewport: { width: 844, height: 390 } });

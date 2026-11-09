@@ -1,3 +1,4 @@
+// 地板名册(ADR-0062):地板·脊柱构造器×6——构造器守卫组本体(同 seed 两跑逐位一致/命令面留痕/瞬空钉/开口吸收),永不迁移;墙钟三档兼·墙钟取数(耗时台账取数口)
 // 中盘构造器守卫 spec(ADR-0059 示导波,#1252):守调试桥 `seedSoloToRound` 的四件事——
 // 到站确定性(同 seed 两跑快照逐位一致)、到站态正确(parkMyTurn 谓词停靠)、快进应答
 // 走房间命令面(cmd 行留痕)+ 沉降后真实时钟可交互、快进+沉降墙钟与回合数脱钩的宽松
@@ -16,7 +17,7 @@
 // - 1485:快进途中 bot 城主(座 1)与访客(座 3)珍宝交涉成交(hubing-17/100 两)——
 //   决策方=城主(与访客身份无关)的停相被房间链代打,快进不卡死。
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, test } from "../fixtures";
 import {
   disableEncounters,
   quickStart,
@@ -24,8 +25,8 @@ import {
   waitFxIdle,
   waitMyRollDone,
   waitSettled,
-} from "./react-helpers";
-import { TESTIDS } from "../src/app/screens/game/testids";
+} from "../react-helpers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
 
 /** 到站快照全量摘要(JSON 串):同 seed 两跑逐位对拍用。非确定字段掩码(与确定性无关,
  *  二跑必异):对局 id(毫秒时间戳+随机后缀,authority.ts 构造)与其战报 header 行内嵌

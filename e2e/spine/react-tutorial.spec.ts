@@ -1,12 +1,13 @@
+// 地板名册(ADR-0062):地板·脊柱构造器——脊柱⑤教程文档每句 UI 断言全链走查,永不迁移
 // 教程防漂移守卫:docs/tutorials/新手第一局.md 的每句「你会看到什么/点什么」
 // 与真实 UI 对齐——文案/交互改动会在这里先炸,文档不许悄悄过期(#169 走查的机器层)。
-import { test, expect } from "./fixtures";
-import { actIfCan, waitSettled, snap, waitMyPause } from "./react-helpers";
-import { plant } from "./helpers/drivers";
-import { TESTIDS } from "../src/app/screens/game/testids";
-import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { HOME_TID } from "../src/app/screens/home/testids";
+import { test, expect } from "../fixtures";
+import { actIfCan, waitSettled, snap, waitMyPause } from "../react-helpers";
+import { plant } from "../helpers/drivers";
+import { TESTIDS } from "../../src/app/screens/game/testids";
+import { SCROLL_TESTIDS } from "../../src/app/screens/game/scroll/testids";
+import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
+import { HOME_TID } from "../../src/app/screens/home/testids";
 
 // 真实段(脊柱⑤全链声明,ADR-0058):教程文档每句 UI 断言的全链走查——起兵→选都
 // →详情卷轴两钮→出牌放行→自动行军→回合推进→托管入口,逐环真实点击;种植零冻结
