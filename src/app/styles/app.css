@@ -92,10 +92,42 @@
   initial-value: 0px;
 }
 
+/* ── 底件系弹层默认入场(#1370,shadcn 正典形制回归):遮罩淡入 + 壳体淡入+
+   scale 0.95→1,同帧起、同速 --dur-fast(150ms)+--ease-out——「壳先卡半透明」
+   两段感收口为一口气出现。类挂 ui/dialog 底件默认类(dialog.tsx),全部基座弹窗
+   (确认框/藏品/详情/手册大壳)自动继承,消费方零改动;壳体只动 transform,
+   不碰 translate 属性——定位位移消费 --drag-x/--drag-y 拖动变量(dialog.tsx
+   translate-x/y-* 类),transform 关键帧与 translate 属性分属两条通道,叠加合成
+   不互抹(pile-modal.css 退场段同判词)。fill 不 forwards:一次性过场,播完回
+   自然态,常态透明度由各自样式声明,不留动画帧驻留。
+   源序即接管序:本段必须声明在下方退场段之前——开后立即关(<150ms)时同元素
+   两类并存、同特异度 animation 按源序后者胜,退场类压过入场类接管动画,
+   from-less 退场从当前透明度起退,无透明度闪变;reduced-motion 由 M-4 全局兜层
+   (* 选择器压 animation-duration)一并压瞬时,无需另写。 ── */
+@keyframes dialog-overlay-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes dialog-content-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+.dialog-overlay-in {
+  animation: dialog-overlay-in var(--dur-fast) var(--ease-out);
+}
+.dialog-content-in {
+  animation: dialog-content-in var(--dur-fast) var(--ease-out);
+}
+
 /* ── 底件系弹层遮罩退场(#767 弹窗详情族⑤):「播完再移除」——壳挂退场类的同时
    遮罩淡出(--dur-fast),210ms 出口整树卸载(协议单源 hooks/use-dialog-exit)。
    横幅系同款出口在 banner.css(.banner-overlay-out),两系互不引用;横幅系遮罩
-   已有 pointer-events:auto 的未分层规则,本档只挂底件系遮罩(utilities 层,无冲突)。 ── */
+   已有 pointer-events:auto 的未分层规则,本档只挂底件系遮罩(utilities 层,无冲突)。
+   关键帧刻意 from-less(只有 to{opacity:0}):退场起态=当前透明度(含刚被接管的
+   入场动画已播到的值),开后立即关不闪变。 ── */
 @keyframes dialog-overlay-out {
   to {
     opacity: 0;

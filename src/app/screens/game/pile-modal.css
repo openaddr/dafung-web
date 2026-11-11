@@ -46,19 +46,14 @@
     inset 0 0 0 3px var(--color-panel),
     inset 0 0 0 4px rgba(200, 161, 58, 0.55),
     0 18px 50px rgba(0, 0, 0, 0.55);
-  animation: pile-modal-in var(--dur-med) var(--ease-out);
-}
-@keyframes pile-modal-in {
-  from {
-    opacity: 0;
-    transform: translateY(1.5em);
-  }
+  /* 入场随 pile-modal-in 退役(#1370):归一 ui/dialog 底件默认入场
+     dialog-content-in(150ms 淡入+scale),壳不再自带散形制。 */
 }
 
 /* ── 退场(#767 底件族⑤):淡出+下沉 8px(--dur-fast),「播完再移除」协议单源
-   hooks/use-dialog-exit(210ms 出口 = 150 动画 + 60 余量);双类特异性压过入场
-   pile-modal-in。transform 关键帧与 translate 属性(拖动变量消费位)分属两条
-   通道,叠加合成不互抹。 ── */
+   hooks/use-dialog-exit(210ms 出口 = 150 动画 + 60 余量);双类特异性压过底件
+   默认入场 dialog-content-in。transform 关键帧与 translate 属性(拖动变量消费位)
+   分属两条通道,叠加合成不互抹。 ── */
 @keyframes pile-modal-out {
   to {
     opacity: 0;
