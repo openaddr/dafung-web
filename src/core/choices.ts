@@ -46,9 +46,6 @@ export interface ChoiceOption {
    *  引擎裁决零改动)——UI 三档视觉分档(机遇卷轴题印/题名侧饰条色)唯一数据源;
    *  消费方查无此章 = 注册表盖章缺失,当场炸出不静默回退。其余相位不携带。 */
   encounterTier?: EncounterTier;
-  /** 耗竭选项专属(#130):结算目标房产与处置方式。 */
-  holdingPropertyId?: string;
-  exhaustionKind?: "downgrade" | "lose";
   /** 出牌阶段专属(#122/T2):牌名/标签/牌面文案随选项派生透出(同 encounterId 通道口径);
    *  id 即 cardId(pass=今不用)。 */
   cardText?: string;
@@ -196,37 +193,8 @@ function encounterChoices(e: GameEngine): ChoiceOption[] {
   }));
 }
 
-/** AwaitingExhaustion(体力耗竭,#130):选项=每座房产「降 1 级」;全部 0 级 →
- *  每座非都城「失去整座」(都城可降不可失)。结算在引擎 settleExhaustionChoice。 */
-function exhaustionChoices(e: GameEngine): ChoiceOption[] {
-  const seat = e.pendingExhaustionSeat;
-  if (seat == null) return [];
-  const p = e.players[seat];
-  const capitalPropId =
-    p.capitalIndex >= 0 ? (e.board.at(p.capitalIndex)?.propertyId ?? null) : null;
-  const tileName = (propertyId: string) =>
-    e.board.at(tileIndexOfProperty(e.board, propertyId)).name;
-  if (p.properties.some((h) => h.level > 0)) {
-    return p.properties
-      .filter((h) => h.level > 0)
-      .map((h, i) => ({
-        id: `exhaust:${i}`,
-        label: `「${tileName(h.propertyId)}」降 1 级`,
-        available: true,
-        holdingPropertyId: h.propertyId,
-        exhaustionKind: "downgrade" as const,
-      }));
-  }
-  return p.properties
-    .filter((h) => h.propertyId !== capitalPropId)
-    .map((h, i) => ({
-      id: `exhaust:${i}`,
-      label: `「${tileName(h.propertyId)}」失去城池`,
-      available: true,
-      holdingPropertyId: h.propertyId,
-      exhaustionKind: "lose" as const,
-    }));
-}
+/** AwaitingExhaustion 已随耗竭全自动结算退役(外敌乘虚+休整,无抉择):归 0 不再进
+ *  任何相位,处置与休整一律引擎内完成(encounter-flow.ts exhaustIfDepleted)。 */
 
 /** AwaitingBankruptcySettle(各资产变卖 + 认赔)。ADR-0013 明确例外:重大不可逆事件,
  *  即使唯一选项(无可卖资产只能认赔)也不自动执行——见 EXCLUDED_FROM_AUTO。 */
@@ -523,7 +491,6 @@ export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceO
   AwaitingHeroPick: heroPickChoices,
   AwaitingEncounter: encounterChoices,
   AwaitingJinnang: jinnangChoices,
-  AwaitingExhaustion: exhaustionChoices,
   AwaitingBankruptcySettle: bankruptcyChoices,
 };
 

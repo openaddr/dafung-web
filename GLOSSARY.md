@@ -223,8 +223,12 @@ _Avoid_: 触发率/触发概率(概率触发已退役,字段与文案一并废�
 _Avoid_: 印章/徽记(视觉语境混淆)、成就(无达成语义)、buff(非时限增益)、flag 开关(编程口语)
 
 **体力(Stamina)**:
-每位 Seat 的对局内数值(0~100,开局 100),常规对局不变;机遇与名将技能使其增减。耗竭(归 0)时立即受罚——降 1 级房产(全部 0 级则失去一座房产)并跳过下一回合,随后重置为 100。
+每位 Seat 的对局内数值(0~100,开局 100),常规对局不变;机遇与名将技能使其增减。耗竭(归 0)时立即全自动受罚——外敌乘虚而入:名下所有城池各降 1 级(0 级封底,永不失去城池),随后卧床休整(见「休整」),期满体力回满 100。
 _Avoid_: 血量/HP(非战斗伤害概念)、精力(歧义)
+
+**休整(Rest)**:
+体力耗竭后的卧床恢复期(`Player.resting` 标记):跳过自己 `EXHAUSTION_REST_TURNS` 个回合(`constants.ts`,与缓兵之计共用 `skipTurns` 计数、可叠加),体力保持 0;休整期满(跳回合环消费完)体力回满 100(`staminaChanged` `reason=rest`)。期间被赈济加体不提前结束休整。
+_Avoid_: 驻跸(那是都城路过必停)、暂停(无暂停语义)、眩晕(战斗口语)
 
 **体力折银**:
 bot 抉择打分与机遇条目数值评审共用的体力计价口径(#789):1 点体力 = 5 两(`constants.ts` `STAMINA_CASH_RATE`),锚 = 温泉疗养买价(150 两/30 点)。条目数值守比价红线「隐含卖体力价 ≤ 折银率」——高于买价即开体力套利(机遇必出制下实测局均 210 次耗竭的根因)。这是评审/代打的比较基准,**游戏内不存在体力↔银两的自由兑换**。
@@ -410,7 +414,7 @@ _Avoid_: 技能卡(那是出牌窗主动技的牌形态)、秘籍/武功书(别�
 ## 时机总线
 
 **被强加跳回合(TurnSkipImposed)**:
-回合被外部效果强制跳过的时机:缓兵之计(`+=1`)/体力耗竭善后(`+=1`)两写点各自派发、写点语义差保留;`ctx.reason` 区分缘由(jinnang/exhaustion)。定义单源 `timing.ts`。
+回合被外部效果强制跳过的时机:缓兵之计(`+=1`)/体力耗竭善后(`+=EXHAUSTION_REST_TURNS`,休整两回合)两写点各自派发、写点语义差保留;`ctx.reason` 区分缘由(jinnang/exhaustion)。定义单源 `timing.ts`。
 _Avoid_: 跳过(裸用——事件流的 turnSkipped 是事件,这是时机)、眩晕/禁手(别家游戏语)
 
 **得锦囊进手(JinnangGained)**:
@@ -422,7 +426,7 @@ _Avoid_: 抽卡(口语,落空不派)、摸牌
 _Avoid_: 偷看(口语)、侦查、窥探入册(持续窗口旧口径,已退役)
 
 **体力变更(StaminaChanged)**:
-体力增减的时机:**仅机遇路**派发(`encounter-flow.ts` 机遇体力落账结算处),`ctx.delta`=夹紧 0~100 后实际增减(带符号);耗竭重置 100(系统复位非收益)与华佗赈济(「主动技结算内不派时机」既有口径)有意不派。
+体力增减的时机:**仅机遇路**派发(`encounter-flow.ts` 机遇体力落账结算处),`ctx.delta`=夹紧 0~100 后实际增减(带符号);休整期满回满(系统复位非收益,reason=rest)与华佗赈济(「主动技结算内不派时机」既有口径)有意不派。
 _Avoid_: 回血(游戏黑话)、体力事件(与事件流 staminaChanged 事件混淆)
 
 **声望变更(ReputationChanged)**:
@@ -437,11 +441,11 @@ _Avoid_: 失窃(只覆盖窃玉一路——以宝换贤是主动交出)、丢宝
 无主城白得的时机(机遇赐城入册处):不经购买,与「购」(PropertyBought)语义区分;`ctx.propertyId`。
 
 **城池受损(PropertyDemolished)**:
-城池降 1 级的时机:火烧连营(锦囊路调用侧)与耗竭「降 1 级」处置两写点;火攻主动技路不派(「主动技结算内不派时机」既有口径);`ctx.propertyId`/`ctx.tileIndex`。
+城池降 1 级的时机:火烧连营(锦囊路调用侧)与耗竭「外敌乘虚」逐城降级两写点;火攻主动技路不派(「主动技结算内不派时机」既有口径);`ctx.propertyId`/`ctx.tileIndex`。
 _Avoid_: 拆城(是降级,城仍在你手)、焚城
 
 **失城(PropertyLost)**:
-失去整座城的时机:火烧连营城防尽毁(锦囊路调用侧,与降级同点按果择一)与耗竭「失去整座」处置两写点;都城不可失,失的恒为非都城(城回无主);`ctx.propertyId`/`ctx.tileIndex`。
+失去整座城的时机:火烧连营城防尽毁(锦囊路调用侧,与降级同点按果择一)单写点——耗竭已改诸城降级、永不失城(「失去整座」处置写点随全自动结算退役);都城不可失,失的恒为非都城(城回无主);`ctx.propertyId`/`ctx.tileIndex`。
 
 **资产被收走(AssetsSeized)**:
 破产终局资产转移的时机(债主视角,与 `PlayerBankrupt` 的破产者视角成对):`settleDebtTraced` 一次派发、不逐件;`ctx.cities`=被收城 id 列表、`ctx.treasureCount`=珍宝件数(名将是释放非转移,不计数);无债主(归银行/销毁)不派。
@@ -453,7 +457,7 @@ _Avoid_: 拆城(是降级,城仍在你手)、焚城
 _Avoid_: 机遇(那是玩法机制,见「机遇」)、日志事件(LogEvent,对局日志行)、表现事件(app 层投影出的动效原语,消费事件流的下游产物)
 
 **事件流(Event Stream)**:
-ADR-0020 定型、折叠切换①-⑦(#390/#384–#388)落地的同步模型:引擎每次状态转移产出事件(批界 = 编排入口开批,命令/bot 步/开局驱动各算一次转移,快照 `events` 字段非破坏性透出当前批),服务端随 flush 节奏以 `{type:"events"}` 消息明传全体在线座位(逐座位下行只经装配单口 `scripts/seat-projection.ts` `assembleDownlinkShot`:viewerSeat 传座位即裁剪流、null 即单机显式 god-view,口径细节见 docs/explanation/联机架构.md §5)——折叠切换⑥起为**联机对局唯一状态通路**(正常对局零逐步快照);快照降频为全量下行三类:首连/重连**整房摘要**、关键节点**校准**(开局/破产清算/决策窗五相位等折叠不可推导处,水合无条件覆盖全部字段)、房间**元数据**(lobby 指纹变化才发)。客户端折叠事件为本地状态(`net/event-fold.ts`)、动效照读因果(`fx/event-extract.ts`);断线即丢(无 seq/ack 不补发),重连 = 整房摘要灌状态 + 事件面清批;漂移纯信任,靠校准点纠偏。词汇按族概括(逐 kind 单源 `src/core/game-events.ts`):回合/胜负(gameStarted/turnStarted/turnEnded/roundStarted/roundEnded/gameOver/setupCompleted)、掷骰/行军(diceRolled/marchArrived/capitalHalt)、城池(capitalSelected/propertyBought/propertyUpgraded/propertyRejected/propertyGranted/exhaustionChoice/assetTransferred)、金钱(cashChanged)、珍宝(treasureGained/treasureSold/treasureTraded/treasureStolen/assetLiquidated)、破产(playerBankrupt)、名将(heroRecruited/skillFired/heroSkillActivated)、锦囊与反应窗(jinnangDrawn/jinnangReshuffled/jinnangExhausted/jinnangAnnounced/reactionOpened/reactionAnswered/reactionFailed/duelResolved/jinnangVoided/jinnangInflicted/peekApplied)、声望/体力(reputationChanged/staminaChanged)、跳过(turnSkipped)、机遇(encounterTriggered/encounterChoice)。
+ADR-0020 定型、折叠切换①-⑦(#390/#384–#388)落地的同步模型:引擎每次状态转移产出事件(批界 = 编排入口开批,命令/bot 步/开局驱动各算一次转移,快照 `events` 字段非破坏性透出当前批),服务端随 flush 节奏以 `{type:"events"}` 消息明传全体在线座位(逐座位下行只经装配单口 `scripts/seat-projection.ts` `assembleDownlinkShot`:viewerSeat 传座位即裁剪流、null 即单机显式 god-view,口径细节见 docs/explanation/联机架构.md §5)——折叠切换⑥起为**联机对局唯一状态通路**(正常对局零逐步快照);快照降频为全量下行三类:首连/重连**整房摘要**、关键节点**校准**(开局/破产清算/决策窗四相位等折叠不可推导处,水合无条件覆盖全部字段)、房间**元数据**(lobby 指纹变化才发)。客户端折叠事件为本地状态(`net/event-fold.ts`)、动效照读因果(`fx/event-extract.ts`);断线即丢(无 seq/ack 不补发),重连 = 整房摘要灌状态 + 事件面清批;漂移纯信任,靠校准点纠偏。词汇按族概括(逐 kind 单源 `src/core/game-events.ts`):回合/胜负(gameStarted/turnStarted/turnEnded/roundStarted/roundEnded/gameOver/setupCompleted)、掷骰/行军(diceRolled/marchArrived/capitalHalt)、城池(capitalSelected/propertyBought/propertyUpgraded/propertyRejected/propertyGranted/exhaustionResolved/assetTransferred)、金钱(cashChanged)、珍宝(treasureGained/treasureSold/treasureTraded/treasureStolen/assetLiquidated)、破产(playerBankrupt)、名将(heroRecruited/skillFired/heroSkillActivated)、锦囊与反应窗(jinnangDrawn/jinnangReshuffled/jinnangExhausted/jinnangAnnounced/reactionOpened/reactionAnswered/reactionFailed/duelResolved/jinnangVoided/jinnangInflicted/peekApplied)、声望/体力(reputationChanged/staminaChanged)、跳过(turnSkipped)、机遇(encounterTriggered/encounterChoice)。
 _Avoid_: 事件通道(旧快照 diff 时代的旁路口子语境,如 lastJinnangPlay.seq)、事件总线(那是时机总线 dispatchMoment——技能挂点框架,事件流借其宣告点产出,二者不是一物)
 
 **消费档位(Consumption Tier,#430)**:

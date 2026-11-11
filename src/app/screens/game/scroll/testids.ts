@@ -20,8 +20,6 @@ export const SCROLL_TESTIDS = {
   encounterOption: (index: number) => `scroll-encounter-option-${index}` as const,
   /** 奇遇金穗纹饰(#1155):宽卷题行两端的金穗侧饰宿主(一对镜像 SVG,纯装饰)。 */
   encounterSpray: "scroll-encounter-spray",
-  exhaustionScroll: "scroll-exhaustion",
-  exhaustionOption: (index: number) => `scroll-exhaustion-option-${index}` as const,
 
   // (scroll-jinnang* 族已随旧弹窗退役删除,#256/#255:放行点迁 actionbar-pass,
   //  选项/确认 testid 族由 HandRack 的 jinnang-card-* 与动作条 actionbar-* 承担。)

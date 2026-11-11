@@ -214,7 +214,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "turnSkipped" },
   { kind: "encounterTriggered", encounterId: "shibei", tier: "中性" },
   { kind: "encounterChoice", encounterId: "shibei", choiceIndex: 0 },
-  { kind: "exhaustionChoice", propertyId: "luoyang", exhaustionKind: "downgrade" },
+  { kind: "exhaustionResolved", downgradedPropertyIds: ["luoyang"], restTurns: 2 },
   { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1, 2] },
   { kind: "reactionAnswered", use: false },
   { kind: "reactionFailed", windowKind: "march", tileIndex: 3, aRoll: 2, bRoll: 5 },

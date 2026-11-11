@@ -303,25 +303,19 @@ function voidLineTarget(
   return announce.userSeat; // two-others(全计作废)与 self(落空)都指使用者
 }
 
-/** 耗竭跳过文案(#385 缺口 6):批内前置 exhaustionChoice(同座)= 处置明细已定,
- *  文案升级为带处置明细的完整版(城名按棋盘查得);孤立 staminaChanged(无可处置
- *  自动路径)维持缺省口径——浮字恒一条,不与处置明细重复弹。 */
+/** 耗竭宣告文案:按 exhaustionResolved 的降级清单派生「外敌乘虚而入」版(城名按
+ *  棋盘查得);无降级城(全 0 级/无房产)为纯休整版。 */
 function exhaustionTextOf(
   engine: GameEngine,
-  events: readonly GameEvent[],
-  i: number,
-  seat: number,
+  ev: Extract<GameEvent, { kind: "exhaustionResolved" }>,
 ): string {
-  for (let j = i - 1; j >= 0; j--) {
-    const prev = events[j];
-    if (prev.kind === "exhaustionChoice" && prev.seat === seat) {
-      const name = tileNameOfProperty(engine, prev.propertyId);
-      const note =
-        prev.exhaustionKind === "downgrade" ? `「${name}」降 1 级` : `「${name}」失去城池`;
-      return `体力耗竭:${note},倒地不起(跳过一回合)`;
-    }
+  if (ev.downgradedPropertyIds.length > 0) {
+    const names = ev.downgradedPropertyIds
+      .map((id) => `「${tileNameOfProperty(engine, id)}」`)
+      .join("、");
+    return `体力耗竭!外敌乘虚而入,${names}降 1 级;卧床休整两回合`;
   }
-  return "体力耗竭,跳过一回合";
+  return "体力耗竭,卧床休整两回合";
 }
 
 // ─────────────────────── 主提取 ───────────────────────
@@ -678,19 +672,26 @@ export function extractBatchEvents(
       }
       case "staminaChanged": {
         const seat = eventSeat(engine, ev);
-        // #568 病 A:非耗竭文案=delta 宣告,零实际差=无变化无演出(满体力回蓝/顶格赈济/
-        // 触底机遇不再浮「体力 +0」;发射点不设守卫——事件语义=宣告实际差,含 0,守卫
-        // 单点在表现层折算处)。exhaustion 是耗竭状态宣告,文案与 delta 无关,不受此限。
-        if (ev.reason !== "exhaustion" && ev.delta === 0) break;
+        // #568 病 A:零实际差=无变化无演出(满体力回蓝/顶格赈济/触底机遇不再浮「体力 +0」;
+        // 发射点不设守卫——事件语义=宣告实际差,含 0,守卫单点在表现层折算处)。
+        // reason=rest=休整期满回满,文案点明出处;其余=delta 宣告。
+        if (ev.delta === 0) break;
         events_.push(
           textFloater(
             engine,
             seat,
-            ev.reason === "exhaustion"
-              ? exhaustionTextOf(engine, events, i, seat)
+            ev.reason === "rest"
+              ? `休整完毕,体力回满 ${signed(ev.delta)}`
               : `体力 ${signed(ev.delta)}`,
           ),
         );
+        break;
+      }
+      case "exhaustionResolved": {
+        // 耗竭宣告(全自动结算的因果事件):文案由降级清单派生(exhaustionTextOf),
+        // 与 delta 无关的状态宣告。
+        const seat = eventSeat(engine, ev);
+        events_.push(textFloater(engine, seat, exhaustionTextOf(engine, ev)));
         break;
       }
       case "reputationChanged": {
@@ -766,7 +767,7 @@ export function extractBatchEvents(
       }
       // ── 无表现档(default 守卫,档位单源 core/event-tiers)──
       // 走到这里的已登记 kind 必须是 fx=silent 档(回合/胜负生命周期、treasureSold、
-      // encounterTriggered、exhaustionChoice 等:状态折叠
+      // encounterTriggered 等:状态折叠
       // 与卷轴/反应窗 UI 的输入,不产演出)——presented 档漏 case = 下面赋值编译期红
       //(FxPresentedKind 派生集,#430 防遗漏机器)。线上未知 kind 不在联合内,运行时
       // 落此跳过:ADR-0020 既定口径,非吞错。

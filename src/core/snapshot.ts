@@ -63,6 +63,7 @@ export interface SnapshotPlayer {
   position: number;
   capitalIndex: number;
   skipTurns: number;
+  resting: boolean; // 体力耗竭休整中(#130):skipTurns 消费完即回满体力
   properties: { propertyId: string; level: number; group: string }[];
   heroes: HeroSlotRow[];
   treasures: TreasureRow[];
@@ -617,6 +618,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         position: p.position,
         capitalIndex: p.capitalIndex,
         skipTurns: p.skipTurns,
+        resting: p.resting,
         properties: p.properties.map((h) => ({
           propertyId: h.propertyId,
           level: h.level,
@@ -654,6 +656,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.position = ps.position;
         p.capitalIndex = ps.capitalIndex;
         p.skipTurns = ps.skipTurns;
+        p.resting = ps.resting;
         // heroes:槽位全量回灌(#785,直拷不回查——heroId 查无目录属数据 bug,派发时
         //        经 heroById 当场炸出,不在此静默滤除)
         p.heroes = ps.heroes.map((row) => ({

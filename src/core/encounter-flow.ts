@@ -1,9 +1,9 @@
 // 机遇主流程+体力耗竭域(#123/#124/#130/#132,ADR-0019 委托式拆分 #320):机遇必出
 // 触发(ADR-0035)与加权抽取、抉择机遇入相(AwaitingEncounter)与选项结算、即时效果结算
-// (八种效果落账)、机遇体力接线与体力耗竭(AwaitingExhaustion)善后。域逻辑=自由函数,
+// (八种效果落账)、机遇体力接线与体力耗竭(全自动:外敌乘虚+休整)善后。域逻辑=自由函数,
 // 首参接 GameEngine 直接读写引擎状态;与数据表 encounters.ts 分层(流程≠配置,零依赖纯数据)。
 // GameEngine 侧保留同名方法薄委托(authority.ts):公共入口 maybeApplyEncounter/
-// resolveEncounterChoice/resolveExhaustionChoice/exhaustIfDepleted,入相与即时结算
+// resolveEncounterChoice/exhaustIfDepleted,入相与即时结算
 // enterEncounterPhase/settleEncounter(#320 去私有化:域内经 g.xxx 往返消费,兼作
 // testing.ts 白盒窄面 EngineTestInternals 的触达点);reaction-window 续结算经壳上
 // g.maybeApplyEncounter 委托回调(#318 预案),锦囊抽牌按 #319 预案跨模块直调自由函数。
@@ -23,129 +23,60 @@ import {
   type EncounterEffect,
   type EncounterFlagId,
 } from "./encounters";
-import { findHolding } from "./player";
 import { HEROES, heroById } from "./heroes";
 import { grantedNamesLine, rollGrantedSkills } from "./roster";
 import { grantHeroOrBooks } from "./recruitment";
-import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
+import { EXHAUSTION_REST_TURNS, HERO_CAPACITY } from "./constants";
 import { drawJinnangTraced } from "./jinnang-execution";
 import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
 
-/** 耗竭入口(#130):体力归 0 的 Seat 调用(机遇结算后)。多房产 → AwaitingExhaustion
- *  相位自选;可用选项 ≤1 → 自动执行;无可处置(无房产/仅 0 级都城) → 纯跳回合。
- *  结算统一:skipTurns+1(跳过下一回合)、体力重置 100、endTurn。 */
-export function exhaustIfDepleted(g: GameEngine, seat: number): "none" | "auto" | "phase" {
+/** 耗竭入口(#130):体力归 0 的 Seat 调用(机遇结算后)。全自动结算、无抉择相位
+ *  (人/bot 同一套,统一原则):外敌乘虚而入——所有等级 >0 的城池(含都城)各降
+ *  1 级(0 级封底,永不失去城池)→ 立 resting 标记休整 EXHAUSTION_REST_TURNS 个回合
+ *  (skipTurns 累加)→ endTurn。体力回满发生在休整期满(authority.ts 跳回合环消费点,
+ *  staminaChanged(reason=rest)),归 0 当刻不回血、卧床状态可见。 */
+export function exhaustIfDepleted(g: GameEngine, seat: number): "none" | "resolved" {
   const p = g.players[seat];
   if (p.stamina > 0) return "none";
-  g.pendingExhaustionSeat = seat;
-  const options = computeChoices(g, "AwaitingExhaustion");
-  const availableCount = options.filter((o) => o.available).length;
-  if (availableCount > 1) {
-    g.turnPhase = "AwaitingExhaustion";
-    g.logEvent(
-      "system",
-      p.guohao,
-      `${p.guohao} 体力耗竭!须弃一座城池苟活`,
-      `exhaustion player=${p.id} options=${availableCount}`,
-    );
-    return "phase";
-  }
-  if (availableCount === 1) {
-    const idx = options.findIndex((o) => o.available);
-    settleExhaustionChoice(g, seat, idx);
-    return "auto";
-  }
-  applyExhaustionAftermath(g, p, "无可处置城池");
-  return "auto";
-}
-
-/** 玩家从耗竭选项中择一(公开,供 UI/bot/联机)。不可用选项硬拒绝(零兜底同机遇)。 */
-export function resolveExhaustionChoice(g: GameEngine, index: number): void {
-  if (!g.assertPhase("AwaitingExhaustion", "ResolveExhaustionChoice")) return;
-  const options = computeChoices(g, "AwaitingExhaustion");
-  const opt = options[index];
-  if (g.pendingExhaustionSeat == null || !opt) {
-    g.warn(`ResolveExhaustionChoice:耗竭上下文缺失或选项越界(index=${index})`);
-    return;
-  }
-  if (!opt.available) {
-    g.warn(
-      `ResolveExhaustionChoice:选项不可用(index=${index}${opt.reason ? `,${opt.reason}` : ""})`,
-    );
-    return;
-  }
-  settleExhaustionChoice(g, g.pendingExhaustionSeat, index);
-}
-
-/** 耗竭选项结算(#130):降 1 级 / 失去整座(城回无主)→ skipTurns+1 + 体力重置 → endTurn。 */
-function settleExhaustionChoice(g: GameEngine, seat: number, index: number): void {
-  const p = g.players[seat];
-  const options = computeChoices(g, "AwaitingExhaustion");
-  const opt = options[index];
-  if (!opt?.holdingPropertyId || !opt.exhaustionKind) {
-    throw new Error(`耗竭选项结算:选项载荷缺失(index=${index},数据 bug)`); // 零兜底
-  }
-  const note = opt.label;
-  emitGameEvent(g, seat, {
-    kind: "exhaustionChoice",
-    propertyId: opt.holdingPropertyId,
-    exhaustionKind: opt.exhaustionKind,
-  }); // 事件流(#385):耗竭处置落定(降级/失城;目录文案 fx 按 propertyId+kind 派生)
-  if (opt.exhaustionKind === "downgrade") {
-    const holding = findHolding(p, opt.holdingPropertyId);
-    if (!holding) throw new Error(`耗竭降级:房产 ${opt.holdingPropertyId} 不在持有列表`);
-    holding.level -= 1; // 可用性已保证 level>0
+  const downgraded: string[] = [];
+  for (const holding of p.properties) {
+    if (holding.level <= 0) continue; // 0 级封底:不降不失去
+    holding.level -= 1;
+    downgraded.push(holding.propertyId);
     g.dispatchMoment("PropertyDemolished", {
       subject: seat,
-      propertyId: opt.holdingPropertyId,
-      tileIndex: g.tileIndexOfProperty(opt.holdingPropertyId),
-    }); // 时机·PropertyDemolished:耗竭「降 1 级」处置(#457)
-  } else {
-    const lost = findHolding(p, opt.holdingPropertyId);
-    if (!lost) throw new Error(`耗竭失城:房产 ${opt.holdingPropertyId} 不在持有列表`); // 零兜底
-    // 城池变更留痕(ADR-0015,本写点补齐 #457):失城回无主,形状对齐破产变卖(bankruptcy.ts)
-    g.propertyChanges.push({
-      tileIndex: g.tileIndexOfProperty(opt.holdingPropertyId),
-      level: lost.level,
-      ownerColorIndex: null,
-      levelChanged: false,
-      ownerChanged: true,
-    });
-    p.properties = p.properties.filter((h) => h.propertyId !== opt.holdingPropertyId); // 城回无主
-    g.dispatchMoment("PropertyLost", {
-      subject: seat,
-      propertyId: opt.holdingPropertyId,
-      tileIndex: g.tileIndexOfProperty(opt.holdingPropertyId),
-    }); // 时机·PropertyLost:耗竭「失去整座」处置(#457)
+      propertyId: holding.propertyId,
+      tileIndex: g.tileIndexOfProperty(holding.propertyId),
+    }); // 时机·PropertyDemolished:耗竭「外敌乘虚而入」逐城降级(#457)
   }
-  applyExhaustionAftermath(g, p, note);
+  emitGameEvent(g, seat, {
+    kind: "exhaustionResolved",
+    downgradedPropertyIds: downgraded,
+    restTurns: EXHAUSTION_REST_TURNS,
+  }); // 事件流:耗竭落定(降级清单+休整回合数随事件显式走,折叠不做相邻推断)
+  p.resting = true;
+  applyExhaustionAftermath(g, p, downgraded.length);
   g.endTurn();
+  return "resolved";
 }
 
-/** 耗竭善后(#130):跳过下一回合(skipTurns 共用机制)+ 体力重置 100。
- *  重置走 addStamina 唯一口并以 staminaChanged(reason=exhaustion)产事件(#384):
- *  耗竭入口已保证 stamina=0,增量恒为满值,夹紧不改变落账结果。 */
-function applyExhaustionAftermath(g: GameEngine, p: Player, note: string): void {
+/** 耗竭善后(#130):休整 EXHAUSTION_REST_TURNS 个回合(skipTurns 共用机制,与缓兵之计
+ *  叠加计数)。体力回满由跳回合环在 skipTurns 消费完时经 addStamina 唯一口落账,以
+ *  staminaChanged(reason=rest) 产事件(#384);StaminaChanged 时机不派(同 #456:
+ *  系统复位非机遇路)。 */
+function applyExhaustionAftermath(g: GameEngine, p: Player, downgradedCount: number): void {
   const seat = g.players.indexOf(p);
-  const staminaBefore = p.stamina;
-  p.skipTurns += 1;
-  g.dispatchMoment("TurnSkipImposed", { subject: seat, reason: "exhaustion" }); // 时机·TurnSkipImposed:耗竭善后强加跳回合(#456,写点 +=1 语义保留)
-  const after = g.addStamina(seat, STARTING_STAMINA - staminaBefore);
-  emitGameEvent(g, seat, {
-    kind: "staminaChanged",
-    delta: after - staminaBefore,
-    reason: "exhaustion",
-  }); // 事件流(#384):体力变更(耗竭重置)
-  g.pendingExhaustionSeat = null;
-  // 耗竭文案由 staminaChanged(reason=exhaustion) 事件在 fx 面派生(exhaustionTextOf,
-  // 批内前置 exhaustionChoice 升级带处置明细版,#719 死写删除)
+  p.skipTurns += EXHAUSTION_REST_TURNS;
+  g.dispatchMoment("TurnSkipImposed", { subject: seat, reason: "exhaustion" }); // 时机·TurnSkipImposed:耗竭善后强加跳回合(#456,写点累加语义保留)
+  const detail =
+    downgradedCount > 0 ? `外敌乘虚而入,${downgradedCount} 座城池降级` : "外敌乘虚而入";
   g.logEvent(
     "system",
     p.guohao,
-    `${p.guohao} 体力耗竭:${note},跳过下一回合,体力回 100`,
-    `exhaustionSettle player=${p.id} skipTurns=${p.skipTurns} stamina=100`,
+    `${p.guohao} 体力耗竭:${detail},卧床休整${EXHAUSTION_REST_TURNS}回合,期满体力回满`,
+    `exhaustionSettle player=${p.id} downgraded=${downgradedCount} skipTurns=${p.skipTurns} resting=1`,
   );
 }
 
@@ -748,8 +679,8 @@ function applyTradeEffect(
 /** 机遇体力接线(#132):staminaDelta 经 addStamina 落账(clamp 0~100;浮字/战报增量记
  *  夹紧后实际差,非入参请求数,#568 病 B;detail 的 delta=请求数、stamina=落账值)
  *  → 归 0 触发 exhaustIfDepleted。
- *  返回 "exhausted"=耗竭接管本落格:phase 进 AwaitingExhaustion、auto 已 endTurn 收尾回合——
- *  两种场合调用方都不得续跑城池结算(人倒下了不买地),与 liquidating/bankrupt 同占落格。 */
+ *  返回 "exhausted"=耗竭接管本落格:全自动结算已 endTurn 收尾回合,调用方不得续跑
+ *  城池结算(人倒下了不买地),与 liquidating/bankrupt 同占落格。 */
 function applyEncounterStamina(
   g: GameEngine,
   mover: Player,
@@ -780,18 +711,9 @@ function applyEncounterStamina(
     `encounterStamina player=${mover.id} id=${def.id} tier=${def.tier} delta=${delta} stamina=${stamina}`,
   );
   if (stamina !== 0) return "settled";
-  const turnBefore = g.turnNumber;
   const ex = exhaustIfDepleted(g, seat);
   if (ex === "none") throw new Error("机遇体力结算后 stamina>0:耗竭判定状态不一致"); // 零兜底:状态不一致炸出来
-  if (ex === "auto" && g.turnNumber === turnBefore && !g.isOver) {
-    // 自动惩罚收口(#132/#452):以 turnNumber 前后比对判「未被收尾」——不用 turnPhase
-    // 嗅探(endTurn 会经 enterJinnangPhase 把相位改写为 AwaitingJinnang,判据失真,
-    // 曾误补第二枪 endTurn 吞掉下家整回合)。唯一可用选项路径(settleExhaustionChoice)
-    // 内部已 endTurn,turnNumber 已 +1 → 不补;「无可处置城池」纯跳回合路径不收尾回合
-    // (turnNumber 不变)→ 由机遇结算侧补 endTurn,人倒下了回合即止,不留悬空相位。
-    g.endTurn();
-  }
-  return "exhausted"; // phase/auto 一律占用本落格:调用方不得续跑城池结算
+  return "exhausted"; // 全自动耗竭已 endTurn 收尾回合,占用本落格:调用方不得续跑城池结算
 }
 
 /** 随机存活对手(#123):无可用对手(全部破产/单人)返回 null,调用方静默跳过转移。 */

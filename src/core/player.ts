@@ -25,6 +25,7 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
     position: 0,
     capitalIndex: -1,
     skipTurns: 0,
+    resting: false,
     properties: [],
     heroes: [],
     treasures: [],

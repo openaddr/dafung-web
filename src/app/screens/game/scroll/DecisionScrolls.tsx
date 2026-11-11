@@ -127,51 +127,8 @@ export function EncounterChoiceScroll({
   );
 }
 
-// ── 体力耗竭(AwaitingExhaustion,#130)──
-// label=选项原文(「城名」降 1 级 / 失去城池),available 恒 true(失去选项排除都城由引擎口径保证)。
-// 选项下标 = snapshot.choices 数组下标(resolveExhaustionChoice 按此结算)。
-export function ExhaustionChoiceScroll({
-  choices,
-  onCommand,
-}: {
-  choices: ChoiceOption[];
-  onCommand: (cmd: GameCommand) => void;
-}) {
-  // G-19 同口径:数字键 1..n 直选
-  useNumberShortcuts(
-    choices.map((o, i) => () => {
-      if (o.available) onCommand({ type: "resolveExhaustionChoice", index: i });
-    }),
-  );
-  // #729:二选一钮钉底(壳 footer 槽),说明留正文井——耗竭说明 + 双钮在矮横屏
-  // 同样曾被推出视口,同构迁移
-  return (
-    <BannerShell
-      title="体力耗竭"
-      testid={T.exhaustionScroll}
-      footer={
-        <div className="flex flex-col gap-2.5">
-          {choices.map((o, i) => (
-            <BannerButton
-              key={o.id}
-              primary={i === 0}
-              disabled={!o.available}
-              title={o.available ? undefined : o.reason}
-              testid={T.exhaustionOption(i)}
-              onClick={() => onCommand({ type: "resolveExhaustionChoice", index: i })}
-            >
-              {o.label}
-            </BannerButton>
-          ))}
-        </div>
-      }
-    >
-      <p className="m-1 mb-3.5 text-center text-sm text-paper-dim font-wenkai">
-        体力耗竭,倒地不起!择一座城池弃之苟活:降 1 级,或失去整座。歇罢这阵,体力自会回满。
-      </p>
-    </BannerShell>
-  );
-}
+// ── 体力耗竭卷轴(AwaitingExhaustion,#130)已退役:耗竭改全自动结算(外敌乘虚+休整,
+// encounter-flow exhaustIfDepleted),无选项相位即无卷轴;耗竭演出走浮字(event-extract)。──
 
 // ── 购地抉择(AwaitingDecision + PropertyAvailable)──
 export function BuyDecisionScroll({

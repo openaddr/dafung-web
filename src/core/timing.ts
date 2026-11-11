@@ -95,11 +95,11 @@ export type GameMoment =
   | "CashGained"
   /** 玩家被动失去银两(细粒度):税/交涉付款等非自愿支出(主动买城不算)。subject = 失银者。 */
   | "CashLost"
-  /** 被强加跳回合(#456):skipTurns 两写点各自派发、写点语义差保留(缓兵 +=1 / 耗竭 +=1)。
+  /** 被强加跳回合(#456):skipTurns 两写点各自派发、写点语义差保留(缓兵 +=1 / 耗竭休整 +=EXHAUSTION_REST_TURNS)。
    *  ctx.reason = 缘由(jinnang=缓兵之计 / exhaustion=体力耗竭善后)。subject = 被跳者。 */
   | "TurnSkipImposed"
   /** 体力变更(#456):**仅机遇路**派发(encounter-flow applyEncounterStamina 的 addStamina
-   *  结算处)。耗竭重置(系统复位非收益)与华佗赈济(主动技「结算内不派时机」既有口径)不派。
+   *  结算处)。休整期满回满(系统复位非收益)与华佗赈济(主动技「结算内不派时机」既有口径)不派。
    *  ctx.delta = 夹紧 0~100 后的实际增减(带符号)。subject = 体力变动者。 */
   | "StaminaChanged"
   /** 声望变更(#456):挂 addReputation 唯一写口(reputation.ts)单点广播,天命城与机遇

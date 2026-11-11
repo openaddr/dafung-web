@@ -140,7 +140,7 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *    · 生命周期族 gameStarted/setupCompleted/turnEnded/turnStarted/roundEnded/
  *      roundStarted/gameOver;
  *    · 掷骰/行军族 diceRolled/marchArrived/capitalHalt/capitalSelected;
- *    · 城池族 propertyBought/propertyUpgraded/propertyRejected/exhaustionChoice/
+ *    · 城池族 propertyBought/propertyUpgraded/propertyRejected/exhaustionResolved/
  *      assetTransferred/assetLiquidated;
  *    · 金钱族 cashChanged(delta/reason/counterpartSeat 皆公开结算);
  *    · 珍宝族 treasureGained/treasureSold/treasureTraded/treasureStolen——名字是明置
@@ -217,7 +217,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "turnSkipped":
       case "encounterTriggered":
       case "encounterChoice":
-      case "exhaustionChoice":
+      case "exhaustionResolved":
       case "jinnangAnnounced":
       case "reactionAnswered":
       case "reactionFailed":
@@ -295,7 +295,6 @@ export const CALIBRATION_WINDOWS: ReadonlySet<TurnPhase> = new Set([
   "AwaitingJinnang",
   "AwaitingHeroPick",
   "AwaitingEncounter",
-  "AwaitingExhaustion",
   "AwaitingBankruptcySettle",
 ]);
 /** 节点事件校准(#388):批内出现即全量。牌库洗牌两处:开局 finishSetup(buildJinnangDeck)

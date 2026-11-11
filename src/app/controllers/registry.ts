@@ -176,19 +176,16 @@ export function installDebugHooks(): void {
         throw new Error(`seedSoloToRound:AwaitingDecision 选项异常(${JSON.stringify(opt)})`);
       }
       case "AwaitingHeroPick":
-      case "AwaitingEncounter":
-      case "AwaitingExhaustion": {
-        // index = 选项集下标(resolveEncounterChoice/resolveExhaustionChoice 的 index
-        // 即 snapshot.choices 顺序下标,encounter-flow 注释单源)。
+      case "AwaitingEncounter": {
+        // index = 选项集下标(resolveEncounterChoice 的 index 即 snapshot.choices 顺序
+        // 下标,encounter-flow 注释单源)。
         const idx = e.choicesFor().findIndex((o) => o.available);
         if (idx < 0)
           throw new Error(
             `seedSoloToRound:${e.turnPhase} 无可用选项(进相位门槛应保证 ≥1,状态机 bug)`,
           );
         if (e.turnPhase === "AwaitingHeroPick") return { type: "resolveHeroPick", index: idx };
-        if (e.turnPhase === "AwaitingEncounter")
-          return { type: "resolveEncounterChoice", index: idx };
-        return { type: "resolveExhaustionChoice", index: idx };
+        return { type: "resolveEncounterChoice", index: idx };
       }
       case "AwaitingTreasureOwner":
         return { type: "resolveTreasureOwner", action: { type: "skip" } }; // 不交易(既有代发口径)

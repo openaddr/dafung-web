@@ -1364,7 +1364,7 @@ describe("时机框架:事件化第二批(#456)", () => {
     return p;
   }
 
-  it("TurnSkipImposed:两写点各自派发(subject=被跳者;缓兵 +=1 / 耗竭 +=1,写点语义差保留)", () => {
+  it("TurnSkipImposed:两写点各自派发(subject=被跳者;缓兵 +=1 / 耗竭休整 +=2,写点语义差保留)", () => {
     // ① 缓兵之计(jinnang-execution skipTurn:skipTurns += 1)
     const e = makeEngine(1);
     finishSetup(e);
@@ -1379,7 +1379,7 @@ describe("时机框架:事件化第二批(#456)", () => {
       { subject: victimSeat, reason: "jinnang" },
     ]);
 
-    // ② 耗竭善后(encounter-flow applyExhaustionAftermath:skipTurns += 1)
+    // ② 耗竭善后(encounter-flow applyExhaustionAftermath:skipTurns += EXHAUSTION_REST_TURNS)
     const e3 = makeEngine(1);
     finishSetup(e3);
     const mover3 = e3.activePlayer;
@@ -1393,8 +1393,8 @@ describe("时机框架:事件化第二批(#456)", () => {
         staminaDelta: -100,
       }),
     );
-    expect(r).toBe("exhausted"); // 无可处置城池 → 纯跳回合自动善后
-    expect(mover3.skipTurns).toBe(1);
+    expect(r).toBe("exhausted"); // 全自动善后(诸城降级+休整+endTurn)
+    expect(mover3.skipTurns).toBe(2); // 休整两回合
     expect(entries3.filter((x) => x.moment === "TurnSkipImposed").map((x) => x.ctx)).toEqual([
       { subject: seat3, reason: "exhaustion" },
     ]);
@@ -1432,7 +1432,7 @@ describe("时机框架:事件化第二批(#456)", () => {
     ]);
   });
 
-  it("StaminaChanged:仅机遇路派发(delta=夹紧后实际增减);同流程耗竭重置不派(恰一派钉住口径)", () => {
+  it("StaminaChanged:仅机遇路派发(delta=夹紧后实际增减);耗竭结算与休整回满均不派(恰一派钉住口径)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -1447,9 +1447,9 @@ describe("时机框架:事件化第二批(#456)", () => {
       }),
     );
     expect(r).toBe("exhausted");
-    expect(mover.stamina).toBe(100); // 耗竭善后已重置(addStamina 落账但不派时机)
+    expect(mover.stamina).toBe(0); // 归 0 当刻不回血(回满在休整期满;rest 路同样不派时机)
     expect(entries.filter((x) => x.moment === "StaminaChanged").map((x) => x.ctx)).toEqual([
-      { subject: seat, delta: -100 }, // 机遇路 −100 恰一派;善后重置 +100 不派
+      { subject: seat, delta: -100 }, // 机遇路 −100 恰一派;耗竭结算/休整回满均不派
     ]);
   });
 
@@ -1639,7 +1639,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
       entries3.filter((x) => x.moment === "PropertyDemolished" || x.moment === "PropertyLost"),
     ).toHaveLength(0); // 钉住口径:两调用点分别挂,单点与火攻路都不派
 
-    // ④ 耗竭·降级(唯一可用项自动执行)→ PropertyDemolished
+    // ④ 耗竭·降级(全自动按其果逐城派)→ PropertyDemolished
     const e4 = makeEngine(1);
     finishSetup(e4);
     const mover4 = e4.activePlayer;
@@ -1656,7 +1656,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
       { subject: seat4, propertyId: city4.propertyId, tileIndex: city4.tileIndex },
     ]);
 
-    // ⑤ 耗竭·失城(唯一可用项自动执行)→ PropertyLost + 留痕补齐(城回无主,对齐破产变卖)
+    // ⑤ 耗竭·0 级封底永不失城:0 级城不动、不派 PropertyLost、无变易留痕
     const e5 = makeEngine(1);
     finishSetup(e5);
     const mover5 = e5.activePlayer;
@@ -1668,18 +1668,11 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
       enc({ kind: "cash", delta: 0, staminaDelta: -100 }),
     );
     expect(r5).toBe("exhausted");
-    expect(mover5.properties.some((h) => h.propertyId === city5.propertyId)).toBe(false);
-    expect(e5.findOwner(city5.propertyId)).toBeNull(); // 城回无主
-    expect(entries5.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
-      { subject: seat5, propertyId: city5.propertyId, tileIndex: city5.tileIndex },
-    ]);
-    expect(e5.propertyChanges[e5.propertyChanges.length - 1]).toEqual({
-      tileIndex: city5.tileIndex,
-      level: 0,
-      ownerColorIndex: null,
-      levelChanged: false,
-      ownerChanged: true,
-    }); // 留痕补齐:形状对齐 bankruptcy sellPropertyBankruptcy
+    expect(mover5.properties.some((h) => h.propertyId === city5.propertyId)).toBe(true); // 一件不失去
+    expect(mover5.properties.find((h) => h.propertyId === city5.propertyId)!.level).toBe(0);
+    expect(entries5.filter((x) => x.moment === "PropertyLost")).toHaveLength(0);
+    expect(entries5.filter((x) => x.moment === "PropertyDemolished")).toHaveLength(0);
+    expect(e5.propertyChanges).toHaveLength(0); // 无城池变易留痕(失城路已随永不失城退役)
   });
 
   it("AssetsSeized:破产终局恰一派(subject=债主,cities/treasureCount=被收资产);无债主不派、不逐件派", () => {

@@ -500,7 +500,7 @@ describe("事件→动效映射表(合成批)", () => {
     const e = E();
     const out = synth(e, [
       { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: -40, reason: "encounter" },
-      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 100, reason: "exhaustion" },
+      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 100, reason: "rest" },
       { kind: "reputationChanged", seat: 0, round: 1, turn: 1, delta: 20, reason: "fate" },
       { kind: "jinnangDrawn", seat: 0, round: 1, turn: 1, count: 1, reason: "jinnangTile" },
       { kind: "turnSkipped", seat: 1, round: 1, turn: 1 },
@@ -515,7 +515,7 @@ describe("事件→动效映射表(合成批)", () => {
     ]);
     expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
       "体力 −40",
-      "体力耗竭,跳过一回合",
+      "休整完毕,体力回满 +100",
       "天命眷顾,声望 +20",
       "抽一张锦囊",
       "被跳过一回合",
@@ -523,17 +523,15 @@ describe("事件→动效映射表(合成批)", () => {
     ]);
   });
 
-  it("staminaChanged 零实际差不产浮字(#568 病 A:无变化无演出;exhaustion 状态宣告不受此限)", () => {
+  it("staminaChanged 零实际差不产浮字(#568 病 A:无变化无演出,全 reason 一律)", () => {
     const e = E();
     const out = synth(e, [
       { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "skill" },
       { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "heroRelief" },
       { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "encounter" },
-      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 100, reason: "exhaustion" },
+      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "rest" },
     ]);
-    expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      "体力耗竭,跳过一回合",
-    ]);
+    expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([]);
   });
 
   it("座位契约校验:座位型事件缺有效座位当场炸出(零兜底)", () => {
@@ -716,45 +714,43 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     ).toThrow();
   });
 
-  it("耗竭处置(缺口 6):批内前置 exhaustionChoice → staminaChanged 文案带处置明细,恒一条", () => {
+  it("耗竭宣告:exhaustionResolved 文案带降级清单(外敌乘虚);无降级为纯休整版;休整回满=rest 浮字", () => {
     const e = E();
     const tile = e.board.tiles.find((t) => t.propertyId != null)!;
     const propId = tile.propertyId!;
     const name = e.board.at(tile.index).name;
     const downgrade = synth(e, [
       {
-        kind: "exhaustionChoice",
+        kind: "exhaustionResolved",
         seat: 0,
         round: 1,
         turn: 1,
-        propertyId: propId,
-        exhaustionKind: "downgrade",
+        downgradedPropertyIds: [propId],
+        restTurns: 2,
       },
-      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 100, reason: "exhaustion" },
     ]);
     expect(downgrade.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      `体力耗竭:「${name}」降 1 级,倒地不起(跳过一回合)`,
+      `体力耗竭!外敌乘虚而入,「${name}」降 1 级;卧床休整两回合`,
     ]);
-    const lose = synth(e, [
+    const pure = synth(e, [
       {
-        kind: "exhaustionChoice",
+        kind: "exhaustionResolved",
         seat: 1,
         round: 1,
         turn: 1,
-        propertyId: propId,
-        exhaustionKind: "lose",
+        downgradedPropertyIds: [],
+        restTurns: 2,
       },
-      { kind: "staminaChanged", seat: 1, round: 1, turn: 1, delta: 100, reason: "exhaustion" },
     ]);
-    expect(lose.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      `体力耗竭:「${name}」失去城池,倒地不起(跳过一回合)`,
+    expect(pure.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
+      "体力耗竭,卧床休整两回合",
     ]);
-    // 孤立 staminaChanged(无可处置自动路径):维持缺省口径(既有合成批用例同款)
-    const lone = synth(e, [
-      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 100, reason: "exhaustion" },
+    // 休整期满回满(reason=rest):体力浮字点明出处(既有 delta 宣告同通路)
+    const rest = synth(e, [
+      { kind: "staminaChanged", seat: 0, round: 2, turn: 3, delta: 100, reason: "rest" },
     ]);
-    expect(lone.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      "体力耗竭,跳过一回合",
+    expect(rest.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
+      "休整完毕,体力回满 +100",
     ]);
   });
 

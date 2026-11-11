@@ -1246,29 +1246,25 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     expect(text.includes("体力 −10")).toBe(false);
   });
 
-  it("体力不足归 0 → 耗竭相位接管本落格:rollAndMove 门线跳过购地,房产降级可 resolve", () => {
+  it("体力不足归 0 → 耗竭全自动接管本落格:rollAndMove 门线跳过购地,诸城齐降+休整两回合", () => {
     const e = makeEngine(seedDrawing("粮道被劫"), { enabled: true });
     finishSetup(e);
     const seat = e.activeIndex;
     const mover = e.activePlayer;
     mover.reputation = BAD_BIAS_REP; // 与钉种探针同偏置:霉运重仓
-    giveProperty(e, seat, 2);
-    giveProperty(e, seat, 1); // 两座有级房产:耗竭可用选项 ≥2 → 进相位而非自动执行
+    const p1 = giveProperty(e, seat, 2);
+    const p2 = giveProperty(e, seat, 1); // 两座有级房产:全自动结算逐城齐降
     mover.stamina = 6; // #789 后粮道被劫体力 −10:垫 6 保归 0
     landOnFreeTile(e); // 真实抽取路径:抽中粮道被劫 → 体力 6−10 → 0
-    expect(e.turnPhase).toBe("AwaitingExhaustion"); // 门线:耗竭占用落格,不进购地决策
+    expect(e.turnPhase).toBe("Roll"); // 全自动耗竭已 endTurn 收尾,占用落格不进购地决策
     expect(e.pendingLand).toBeNull(); // 购地决策未弹出
-    expect(mover.stamina).toBe(0);
     expect(testEngine(e).logText().includes("可购(")).toBe(false); // 城池结算确实被跳过
-    const opts = e.choicesFor();
-    expect(opts.length).toBe(2);
-    expect(opts.every((o) => o.exhaustionKind === "downgrade")).toBe(true);
-    const victim = opts[0].holdingPropertyId!;
-    e.resolveExhaustionChoice(0);
-    expect(mover.properties.find((h) => h.propertyId === victim)!.level).toBe(1); // 2 → 1
-    expect(mover.skipTurns).toBe(1);
-    expect(mover.stamina).toBe(100); // 耗竭善后重置
-    expect(e.turnPhase).toBe("Roll");
+    expect(mover.properties.find((h) => h.propertyId === p1)!.level).toBe(1); // 2 → 1
+    expect(mover.properties.find((h) => h.propertyId === p2)!.level).toBe(0); // 1 → 0 封底
+    expect(mover.skipTurns).toBe(2); // 休整两回合
+    expect(mover.resting).toBe(true);
+    expect(mover.stamina).toBe(0); // 归 0 当刻不回血
+    expect(e.snapshot().events.some((ev) => ev.kind === "exhaustionResolved")).toBe(true);
   });
 
   it("回血抉择:温泉疗养付 150 两入浴 → 银两 −150、体力 +30(选项级 staminaDelta)", () => {
@@ -1337,17 +1333,18 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     expect(e.turnPhase).toBe("AwaitingEncounter");
     e.resolveEncounterChoice(0); // 连夜赶路(+90 两,体力 −20)
     expect(mover.cash).toBe(cash0 + 90);
-    expect(e.turnPhase).toBe("Roll"); // 耗竭 auto 内已 endTurn 收尾
+    expect(e.turnPhase).toBe("Roll"); // 耗竭全自动结算内已 endTurn 收尾
     expect(e.turnNumber).toBe(turn0 + 1); // 恰一次收尾:耗竭占用落格,未续跑落格结算
-    expect(mover.skipTurns).toBe(1);
-    expect(mover.stamina).toBe(100);
+    expect(mover.skipTurns).toBe(2); // 休整两回合
+    expect(mover.resting).toBe(true);
+    expect(mover.stamina).toBe(0); // 归 0 当刻不回血
     expect(e.pendingEncounter).toBeNull();
   });
 });
 
 describe("耗竭自动收口 × 出牌阶段(#452):唯一选项自动路径不吞下家回合", () => {
   /** 给 seat 一座指定等级的非都城房产(上块 giveProperty 同款,不跨文件 import):
-   *  恰一座 >0 级城 → 耗竭可用选项 =1 → 走 settleExhaustionChoice 自动执行路径。 */
+   *  给耗竭全自动结算一座实降城,顺带钉「降级走真实事件面」。 */
   function giveOneProperty(e: GameEngine, seat: number, level: number): void {
     const taken = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
     const tile = MAP.board.tiles.find(
@@ -1400,10 +1397,10 @@ describe("耗竭自动收口 × 出牌阶段(#452):唯一选项自动路径不�
       text: "t",
       effect: { kind: "cash", delta: 0, staminaDelta: -100 }, // 纯体力事件:直落 0 触发耗竭
     });
-    expect(mover.skipTurns).toBe(1); // 耗竭惩罚落账
-    expect(mover.stamina).toBe(100);
+    expect(mover.skipTurns).toBe(2); // 耗竭休整落账(两回合)
+    expect(mover.stamina).toBe(0); // 归 0 当刻不回血,休整期满才回满
     expect(e.activeIndex).toBe(nextSeat); // 下家回合照常开始(不被吞)
-    expect(e.turnNumber).toBe(turn0 + 1); // 恰一次收尾:自动路径内已 endTurn,不得补第二枪
+    expect(e.turnNumber).toBe(turn0 + 1); // 恰一次收尾:全自动结算内已 endTurn,不得补第二枪
     expect(e.turnPhase).toBe("AwaitingJinnang"); // 下家出牌阶段开窗
     expect(e.choicesFor().length).toBeGreaterThan(0); // 卷轴有真实选项,可行动
   });
