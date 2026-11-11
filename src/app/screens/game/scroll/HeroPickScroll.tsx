@@ -28,7 +28,6 @@ import { SCROLL_TESTIDS as T } from "./testids";
 interface HeroOfferInfo {
   id: string;
   name: string;
-  title: string;
   /** 预掷授技(池序子集,≥1):卡面 chips 与全览「已授」都读这份。 */
   skillIds: string[];
 }
@@ -94,7 +93,7 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
               <SelectableFaceButton
                 key={h.id}
                 data-testid={T.heroPickOption(i)}
-                title={`${h.name}·${h.title} — ${h.skillIds.map((id) => skillById(id).desc).join(";")}`}
+                title={`${h.name} — ${h.skillIds.map((id) => skillById(id).desc).join(";")}`}
                 onClick={(e) => pick(e, i)}
                 style={{ ["--chip-skip" as string]: String(skip) }}
                 className="relative"

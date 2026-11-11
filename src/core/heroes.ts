@@ -7,7 +7,6 @@
 export interface HeroDef {
   id: string;
   name: string; // 周瑜
-  title: string; // 雅量高致(称号,风味)
   /** 技能池(ADR-0036):允许拥有的技 id,按池声明序(派发序/卡面序/浮字拼接序同源);
    *  池内技 id 唯一、须在技能表可解析;池可含多条主动技(逐字拍板表周瑜池即火攻+擂鼓
    *  双主动),逐技独立冷却(数据守卫见 test/hero-skill 四钉 + extension-registry 装载点)。 */
@@ -31,21 +30,18 @@ export const HEROES: HeroDef[] = [
     id: "zhouyu",
     image: "/assets/heroes/hero-zhouyu-sgs.png",
     name: "周瑜",
-    title: "雅量高致",
     skillPool: ["jixing", "huogong", "leigu"], // {疾行,火攻,擂鼓}
   },
   {
     id: "caopi",
     image: "/assets/heroes/hero-caopi-sgs.png",
     name: "曹丕",
-    title: "承继大统",
     skillPool: ["yuli", "zhijin", "chenhuodajie"], // {渔利,掷金,趁火打劫}(#1145 扩池)
   },
   {
     id: "zhangxingcai",
     image: "/assets/heroes/hero-zhangxingcai-sgs.png",
     name: "张星彩",
-    title: "银翎飞骑",
     skillPool: ["zhijin", "leigu", "jixing"], // {掷金,擂鼓,疾行}
   },
   {
@@ -53,7 +49,6 @@ export const HEROES: HeroDef[] = [
     // sgs 经典形象(#751 画像统一收官,curid=7870;noname 版已退役留档)
     image: "/assets/heroes/hero-huatuo-sgs.png",
     name: "华佗",
-    title: "神医",
     skillPool: ["qingnang", "zhenji"], // {青囊,赈济}
   },
   {
@@ -62,7 +57,6 @@ export const HEROES: HeroDef[] = [
     // texture-gongxian-shanshui + 马善政「卧龙」竖题 + 孔明朱印;规格对齐 574×761)
     image: "/assets/heroes/hero-zhugeliang.png",
     name: "诸葛亮",
-    title: "卧龙",
     skillPool: ["huogong", "yuli"], // {火攻,渔利} 池 2 仿华佗非对称(技重叠是特性)
   },
   // ── 技能扩展内容包(#1145,spec #1144 拆票 A/五):四新将,内置将 5→9(含 #1142 诸葛亮);
@@ -71,28 +65,24 @@ export const HEROES: HeroDef[] = [
     id: "simayi",
     image: "/assets/heroes/hero-simayi-sgs.png",
     name: "司马懿",
-    title: "鹰视狼顾",
     skillPool: ["taoguangyanghui", "saiwengshima", "suifeng"], // {韬光养晦,塞翁失马,岁俸}
   },
   {
     id: "dengai",
     image: "/assets/heroes/hero-dengai-sgs.png",
     name: "邓艾",
-    title: "且耕且守",
     skillPool: ["tuntian", "suifeng", "chubianbujing"], // {屯田,岁俸,处变不惊}
   },
   {
     id: "caoren",
     image: "/assets/heroes/hero-caoren-sgs.png",
     name: "曹仁",
-    title: "樊城天人",
     skillPool: ["wengzhongzhuobie", "shengougolei", "shengshi"], // {瓮中捉鳖,深沟高垒,声势}
   },
   {
     id: "mizhu",
     image: "/assets/heroes/hero-mizhu-sgs.png",
     name: "糜竺",
-    title: "家资巨亿",
     skillPool: ["hushi", "delongwangshu", "yusui"], // {互市,得陇望蜀,玉碎}
   },
 ];

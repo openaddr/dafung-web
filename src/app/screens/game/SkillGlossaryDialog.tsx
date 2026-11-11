@@ -47,7 +47,7 @@ export function SkillGlossaryDialog({
     <PileShell
       title={def.name}
       seal="技"
-      sub={`${def.title} · 技能全览`}
+      sub="技能全览"
       testid={TESTIDS.skillGlossary}
       onClose={onClose}
       footer={

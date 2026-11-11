@@ -36,14 +36,13 @@ export interface TreasureRow {
 export interface HeroRow {
   id: string;
   name: string;
-  title: string;
   image: string;
   /** 预掷授技(按池声明序的子集,≥1)。 */
   skillIds: string[];
 }
 
 /** 快照麾下槽位行(#785,ADR-0036:槽位全量=游戏状态——heroId+已授技(池序)+按技冷却
- *  账;「同一名将不同玩家持不同技」随快照可表达。名/称号/画像是展示字段,消费端按
+ *  账;「同一名将不同玩家持不同技」随快照可表达。名/画像是展示字段,消费端按
  *  heroId 回查名将表补(heroes.ts 单源)。 */
 export interface HeroSlotRow {
   heroId: string;
@@ -700,7 +699,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
       e.offeredHeroes.map((h) => ({
         id: h.def.id,
         name: h.def.name,
-        title: h.def.title,
         image: h.def.image,
         skillIds: [...h.skillIds],
       })),

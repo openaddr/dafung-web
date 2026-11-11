@@ -30,8 +30,8 @@ interface SkillCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   skillId: string;
 }
 
-/** 技能卡卡面(#818,双方案比选定案 B 案):载体四件 = 画心立绘/名带/称号签/将章
- *  (沿用家族制式不裁);主技名 = 竖章叠画心左缘(zhang-ming,与右缘将名带构成
+/** 技能卡卡面(#818,双方案比选定案 B 案):载体三件 = 画心立绘/名带/将章
+ *  (沿用家族制式不裁;称号签已随名将卡面退役);主技名 = 竖章叠画心左缘(zhang-ming,与右缘将名带构成
  *  「左技右将」双维对读,data-skill=全览入口);技能区 = ◆ 冷却注+该技 desc 一句话。
  *  children 透传到卡面末尾——不可用态的原因印条(<span className="reason">)由消费方
  *  挂入(同家族口径)。 */
@@ -58,7 +58,6 @@ export function SkillCardFace({
       <span className="j-seal" aria-hidden="true">
         将
       </span>
-      <span className="m-title">{def.title}</span>
       <span className="m-name">{def.name}</span>
       <div className="skz">
         <div className="shead">

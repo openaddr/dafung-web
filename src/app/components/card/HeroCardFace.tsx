@@ -1,8 +1,10 @@
 // 名将卡面组件(#360,spec #357 T3;#511 卡面 B 案改制):武将卡归一单源——招贤
 // 三选一/出牌阶段确认/府库详情同一组件两档装配,全游戏一张名将卡面。视觉基线
 // proto/treasure/r4.html 节三 → #511 B 案「墨面金框」制式:宣纸纸底 + 金框双线画心
-// (立绘 img 只进画心,object-cover 裁满)+ 漆金牌名带(m-name)+ 右上称号竖排纸签
-// (m-title)+ 左上朱砂「将」章(j-seal)+ 技角标(j-badge,技数)+ 底部技能区(skz)。
+// (立绘 img 只进画心,object-cover 裁满)+ 漆金牌名带(m-name)+ 左上朱砂「将」章
+// (j-seal)+ 技角标(j-badge,技数)+ 底部技能区(skz)。
+// 称号竖排纸签(m-title,雅量高致一类风味文案)已退役:数据字段与渲染全链拔除,
+// 右上角留白。
 // 缺图回退 = 姓氏朱印(#511 票面口径,白纸画心空底+朱印姓字,显式不静默)。
 //
 // 器物豁免类(同 JinnangCardFace 口径):纯展示零交互状态、不套 shadcn;交互语义
@@ -12,7 +14,7 @@
 //
 // 数据单源:core/heroes.ts HEROES(名将)+ core/skills.ts SKILLS(技表,ADR-0036)——
 // 组件按 heroId 回查目录(同 JinnangCardFace 的 jinnangCardOf 口径)。双输入 contract
-// (#786):heroId(将定义:立绘/名带/称号)+ skillIds(已授技 id 列表,槽位 skillIds /
+// (#786):heroId(将定义:立绘/名带)+ skillIds(已授技 id 列表,槽位 skillIds /
 // 招贤候选的预掷授技,#787)——技能区只渲染实授技,技对象与技效文案按 id 读技表单源
 // (skills.ts,池序由上游保证:槽位与候选行的 skillIds 都按池声明序存)。技 id 查无=
 // 数据 bug 直接抛错(零兜底:目录外名将/技表外技不允许存在)。
@@ -114,8 +116,8 @@ function SkillChips({ skillIds }: { skillIds: string[] }) {
   );
 }
 
-/** 名将卡面:画心立绘/名带/称号签/将章/技角标/技能区六件套,两档同源换装配。
- *  双输入(#786):heroId 出将定义(立绘/名带/称号),skillIds 出实授技(技能区与
+/** 名将卡面:画心立绘/名带/将章/技角标/技能区五件套,两档同源换装配。
+ *  双输入(#786):heroId 出将定义(立绘/名带),skillIds 出实授技(技能区与
  *  技角标;招贤候选=预掷授技,#787)。出牌阶段的主动技牌已自立门户为技能卡
  *  (SkillCardFace,#818:技能为维度、名将为载体),不再复用本卡面紧凑档。
  *  children 透传到卡面末尾——不可用态的原因印条(<span className="reason">,
@@ -140,9 +142,9 @@ export function HeroCardFace({
     .join(" ");
   return (
     <div className={classes} {...rest}>
-      {/* 金框画心:立绘+技角标(角标锚画心内右下角);带/签/章/旗挂卡根——画心高度
+      {/* 金框画心:立绘+技角标(角标锚画心内右下角);带/章挂卡根——画心高度
           随技能区伸缩,竖排名带若锚在画心内会因可用高度不足换列撑宽(2026-10-14
-          实拍翻车:名带盖住称号签),故四件 overlay 全部以卡根为定位上下文 */}
+          实拍翻车:名带盖住旁邻签),故 overlay 全部以卡根为定位上下文 */}
       <div className="stage">
         <Lihui src={def.image} name={def.name} />
         {ji > 0 && (
@@ -154,7 +156,6 @@ export function HeroCardFace({
       <span className="j-seal" aria-hidden="true">
         将
       </span>
-      <span className="m-title">{def.title}</span>
       <span className="m-name">{def.name}</span>
       <div className="skz">
         {size === "detail" ? <SkillRows skillIds={skillIds} /> : <SkillChips skillIds={skillIds} />}
