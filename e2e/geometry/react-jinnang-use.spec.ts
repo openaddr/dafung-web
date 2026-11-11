@@ -97,7 +97,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#1317 批T3 后=名册地�
     // 主技名同为「擂鼓」:同名半边——卡面文字层面两卡不可凭技名区分
     await expect(leiZy.locator(".zhang-ming")).toHaveText("擂鼓");
     await expect(leiZx.locator(".zhang-ming")).toHaveText("擂鼓");
-    // 载体可辨半边:全将通有的载体件(画心立绘/名带/称号签)各显各将,异将同名技凭
+    // 载体可辨半边:全将通有的载体件(画心立绘/名带)各显各将,异将同名技凭
     // 载体一眼分账。
     await expect(leiZy.locator(".lihui img")).toHaveAttribute(
       "src",

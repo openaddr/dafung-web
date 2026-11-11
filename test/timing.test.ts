@@ -108,7 +108,7 @@ function heroWith(
   return {
     id,
     name: "测试名将",
-    title: "",
+
     skillPool: skills.map((s) => s.id),
     image: "/assets/heroes/hero-zhouyu-sgs.png",
   };

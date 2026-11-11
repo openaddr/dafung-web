@@ -771,9 +771,9 @@ describe("抉择机遇(#124):入相与快照", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     mover.treasures.push(treasure("t1"), treasure("t2"));
-    armHero(e, mover, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
-    armHero(e, mover, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
-    armHero(e, mover, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h1", name: "甲", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h2", name: "乙", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h3", name: "丙", image: "", skillPool: [] });
     e.pendingEncounter = byId("以宝换贤");
     testEngine(e).forceTurnPhase("AwaitingEncounter");
     const opts = e.choicesFor();
@@ -1537,7 +1537,7 @@ describe("#1153 原语:效果级 repDelta 与指定招揽 heroId", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const mover = e.activePlayer;
-    const zhuge = { id: "test-kongming", name: "孔明", title: "", image: "", skillPool: [] };
+    const zhuge = { id: "test-kongming", name: "孔明", image: "", skillPool: [] };
     HEROES.push(zhuge);
     try {
       const r = testEngine(e).applyEncounter(mover, {
@@ -1582,7 +1582,7 @@ describe("#1153 原语:效果级 repDelta 与指定招揽 heroId", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     const opp = e.players.find((p) => p !== mover)!;
-    const zilong = { id: "test-zilong", name: "子龙", title: "", image: "", skillPool: [] };
+    const zilong = { id: "test-zilong", name: "子龙", image: "", skillPool: [] };
     armHero(e, opp, zilong); // 已被招揽(占池)
     mover.treasures.push(
       { id: "t1", name: "宝", level: 1, desc: "" },
@@ -1616,9 +1616,9 @@ describe("#1153 原语:效果级 repDelta 与指定招揽 heroId", () => {
     expect(opts[0].reason).toBe("珍宝不足");
     // 麾下已满:补足珍宝、填满麾下
     mover.treasures.push({ id: "t3", name: "宝", level: 1, desc: "" });
-    armHero(e, mover, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
-    armHero(e, mover, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
-    armHero(e, mover, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h1", name: "甲", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h2", name: "乙", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h3", name: "丙", image: "", skillPool: [] });
     armChoice({ kind: "grantHero", fallbackCash: 0 });
     opts = e.choicesFor();
     expect(opts[0].available).toBe(false);

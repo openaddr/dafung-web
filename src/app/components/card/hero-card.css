@@ -5,8 +5,8 @@
    兜层承担)。
 
    #511 卡面 B 案「墨面金框」改制:满幅立绘 → 纸底+金框双线画心+立绘——用户判词
-   「纸底保证文字可读,立绘只进金框画心」。漆金牌名带/称号签/将章/技角标/技能区
-   五件照旧(带/签自承底色);缺图回退改「姓氏朱印」(#511 票面口径,宣纸画心空底
+   「纸底保证文字可读,立绘只进金框画心」。漆金牌名带/将章/技角标/技能区
+   照旧(名带自承底色);缺图回退改「姓氏朱印」(#511 票面口径,宣纸画心空底
    +朱印姓字,显式不静默);纱幕 .veil 随满幅立绘退役(画心制式下无字压画)。
 
    卡面纸底画材色(#511 B 案,豁免登记):玄墨鎏金后 theme 纸系 token 已整阶反转成
@@ -131,30 +131,10 @@
     inset 0 0 0 0.14em color-mix(in srgb, var(--color-paper) 55%, transparent);
 }
 
-/* ── 右上称号竖排小字(实数据;白纸签+墨字,#511 B 案文字恒在纸底;挂卡根定位,
-     名带左邻纵列,横向恒脱开)── */
-.hface .m-title {
-  position: absolute;
-  top: calc(0.55 * var(--u));
-  right: calc(4.4 * var(--u)); /* 名带左邻:0.55u 边距 + 名带宽约 3.5u + 净距(逐档覆写) */
-  z-index: 3;
-  writing-mode: vertical-rl;
-  font-family: var(--font-wenkai);
-  font-size: 0.95em;
-  letter-spacing: 0.22em;
-  line-height: 1;
-  color: var(--card-ink);
-  background: linear-gradient(180deg, var(--card-xin), var(--card-paper));
-  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
-  border-radius: 0.2em;
-  box-shadow: 0 0.2em 0.4em rgba(0, 0, 0, 0.4);
-  padding: 0.6em 0.28em;
-}
-
 /* ── 技角标(#511 B 案):画心内右下角漆金小签承技能数(被动+主动合计,无技不渲染)
    ——pick 档技能区被截断时技数仍一望可读;是信息角标非状态标牌(DESIGN §4.6 不冲突);
    形制与技名牌 .sming 同语(漆底金字+漆金细衬)。锚画心(不随卡根):底位固定在
-   画心内角,不与卡根 overlay(名带/称号签)争位 ── */
+   画心内角,不与卡根 overlay(名带)争位 ── */
 .hface .j-badge {
   position: absolute;
   bottom: calc(0.55 * var(--u));
@@ -281,14 +261,9 @@
 }
 
 /* ── 紧凑档装配:同骨架换装配——技能区从「技名牌+全文」换成「技名 chips 行 +
-   desc 两行截断」;立绘/名带/称号签/将章/技能区五件套全共用 ── */
+   desc 两行截断」;立绘/名带/将章/技能区四件套全共用 ── */
 .hface.compact .m-name {
   font-size: 1.9em;
-}
-.hface.compact .m-title {
-  font-size: 0.85em;
-  letter-spacing: 0.14em;
-  right: calc(3.8 * var(--u));
 }
 .hface.compact .skz {
   margin: 0.4em 0.55em 0.5em;
@@ -336,13 +311,8 @@
   transform: rotate(45deg);
 }
 
-/* ── 招贤档(pick)差量:称号签右位随 7.6px 基收窄 ── */
-.hface.pick .m-title {
-  right: calc(3.9 * var(--u));
-}
-
 /* ── 技能卡装配档(skill,#818):出牌窗主动技的牌形态——技能为维度、名将为载体。
-   载体四件(画心立绘/名带/称号签/将章)沿用家族制式不裁;主技名大字竖章叠
+   载体三件(画心立绘/名带/将章)沿用家族制式不裁;主技名大字竖章叠
    画心左缘(本卡代表的技,一眼定身份,与右缘将名带「左技右将」对读);技能区 =
    ◆ 冷却注+该技 desc 一句话。技数角标与技名 chips 行不再上卡(每张牌只显示本卡
    代表的技,同将多技就绪即多卡各显各技;全技对照归点主技名开的技能全览弹框,
@@ -351,11 +321,6 @@
    维度/载体分野;A 案(主技名横章入技能区)废弃。 ── */
 .hface.skill .m-name {
   font-size: 1.9em;
-}
-.hface.skill .m-title {
-  font-size: 0.85em;
-  letter-spacing: 0.14em;
-  right: calc(3.8 * var(--u));
 }
 .hface.skill .skz {
   margin: 0.4em 0.55em 0.5em;

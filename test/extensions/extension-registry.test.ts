@@ -35,7 +35,7 @@ function makeModule(overrides?: Partial<ExtensionAuthorityModule>): ExtensionAut
       {
         id: `test-hero-${seq}`,
         name: "测试将",
-        title: "试验",
+
         image: "",
         skillPool: [`test-skill-${seq}`],
       },
@@ -90,7 +90,7 @@ describe("扩展注册面(#378)", () => {
   it("名将 id 与内置名将池冲突 → 炸", () => {
     const builtinId = HEROES[0]!.id;
     const mod = makeModule({
-      heroes: [{ id: builtinId, name: "撞名", title: "", image: "", skillPool: [] }],
+      heroes: [{ id: builtinId, name: "撞名", image: "", skillPool: [] }],
     });
     expect(() => registerExtensionAuthorityModule(mod)).toThrow(/与名将池冲突/);
   });
@@ -107,7 +107,7 @@ describe("扩展注册面(#378)", () => {
     const effectId = Object.keys(first.effects!)[0]!;
     expect(() =>
       registerExtensionAuthorityModule(
-        makeModule({ heroes: [{ id: heroId, name: "撞", title: "", image: "", skillPool: [] }] }),
+        makeModule({ heroes: [{ id: heroId, name: "撞", image: "", skillPool: [] }] }),
       ),
     ).toThrow(new RegExp(`名将 id「${heroId}」与名将池冲突`));
     expect(() =>
@@ -170,7 +170,7 @@ describe("扩展注册面(#378)", () => {
     expect(() =>
       registerExtensionAuthorityModule(
         makeModule({
-          heroes: [{ id: "no-pool-hero", name: "空池将", title: "", image: "", skillPool: [] }],
+          heroes: [{ id: "no-pool-hero", name: "空池将", image: "", skillPool: [] }],
         }),
       ),
     ).toThrow(/空技能池/);
@@ -181,7 +181,7 @@ describe("扩展注册面(#378)", () => {
             {
               id: "dangling-pool-hero",
               name: "悬空池",
-              title: "",
+
               image: "",
               skillPool: ["no-such-skill"],
             },
@@ -199,7 +199,7 @@ describe("扩展注册面(#378)", () => {
             {
               id: "dup-pool-hero",
               name: "重池",
-              title: "",
+
               image: "",
               skillPool: ["jixing", "jixing"],
             },
@@ -224,7 +224,7 @@ describe("扩展注册面(#378)", () => {
         {
           id: "two-active-hero",
           name: "双主动",
-          title: "",
+
           image: "",
           skillPool: ["act-1", "act-2"],
         },

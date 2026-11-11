@@ -82,7 +82,6 @@ function armBrokenTurnEndSkill(e: GameEngine): void {
   const hero: HeroDef = {
     id: "test-shoukou-boom",
     name: "测试·收口爆",
-    title: "测试",
     image: "",
     skillPool: [skill.id],
   };
