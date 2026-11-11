@@ -254,7 +254,7 @@ export interface ReputationChangedBody {
   reason: string;
 }
 /** 体力变更(#384):delta=夹紧 0~100 后的实际增减,reason=领域词 slug(机遇=
- *  encounter/被动技=skill/主动技赈济=heroRelief/耗竭重置=exhaustion,开放词表)。 */
+ *  encounter/被动技=skill/主动技赈济=heroRelief/休整期满回满=rest,开放词表)。 */
 export interface StaminaChangedBody {
   kind: "staminaChanged";
   delta: number;
@@ -280,13 +280,14 @@ export interface EncounterChosenBody {
   encounterId: string;
   choiceIndex: number;
 }
-/** 耗竭处置落定(#385 缺口 6):降级/失城两路共用;propertyId+exhaustionKind 足以
- *  派生目录文案(城名按棋盘查得,fx 拼装),随后 staminaChanged(reason=exhaustion)
- *  携带耗竭重置——fx 检测批内前置本事件时把跳过文案升级为带处置明细的完整版。 */
-export interface ExhaustionChosenBody {
-  kind: "exhaustionChoice";
-  propertyId: string;
-  exhaustionKind: "downgrade" | "lose";
+/** 体力耗竭落定:归 0 全自动结算(无抉择相位)的单一因果事件——downgradedPropertyIds=
+ *  实际降级的城池(等级 >0 者,含都城;0 级封底不列入),restTurns=休整回合数
+ *  (constants.ts EXHAUSTION_REST_TURNS,skipTurns 折叠的显式数据源,不做相邻推断);
+ *  体力回满发生在休整期满(跳回合环消费点),以 staminaChanged(reason=rest) 单独成事。 */
+export interface ExhaustionResolvedBody {
+  kind: "exhaustionResolved";
+  downgradedPropertyIds: string[];
+  restTurns: number;
 }
 /** 锦囊宣布(出牌扣账后、识破窗开窗前;targetSeats=受影响份清单)。 */
 export interface JinnangAnnouncedBody {
@@ -393,7 +394,7 @@ export type GameEventBody =
   | TurnSkippedBody
   | EncounterTriggeredBody
   | EncounterChosenBody
-  | ExhaustionChosenBody
+  | ExhaustionResolvedBody
   | JinnangAnnouncedBody
   | ReactionOpenedBody
   | ReactionAnsweredBody
@@ -445,7 +446,7 @@ export const GAME_EVENT_KINDS = [
   "turnSkipped",
   "encounterTriggered",
   "encounterChoice",
-  "exhaustionChoice",
+  "exhaustionResolved",
   "jinnangAnnounced",
   "reactionOpened",
   "reactionAnswered",

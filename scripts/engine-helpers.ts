@@ -204,8 +204,6 @@ function promptFor(
       return `${who} 招贤纳士:选名将(cmd {"type":"resolveHeroPick","index":0..2})`;
     case "AwaitingEncounter":
       return `${who} 抉择机遇(cmd {"type":"resolveEncounterChoice","index":<choices 下标>},见 status.choices)`;
-    case "AwaitingExhaustion":
-      return `${who} 体力耗竭(cmd {"type":"resolveExhaustionChoice","index":<下标>},见 status.choices)`;
     case "AwaitingJinnang": {
       const skill = pendingSkill
         ? `;待发动技:cmd {"type":"useHeroSkill","heroId":"${pendingSkill.heroId}","skillId":"${pendingSkill.skillId}"}(或其目标段/cancel 作罢)`

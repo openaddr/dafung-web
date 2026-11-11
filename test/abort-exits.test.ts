@@ -3,7 +3,8 @@
 // 都必须以「异常终局」响亮收场(引擎 abortGame:无胜者 + gameOver 事件 reason="aborted"
 // + 对局日志终局行含原因摘要),零无声停摆;附引擎语义基座:幂等、snapshot 水密往返。
 // 故障注入口径:①botAct 对「相位挂着、载荷已空」失配态当场炸(#649 零兜底读点,直接
-// 复用为注入点);②AwaitingExhaustion 空载荷时 botAct 静默 no-op(指纹不变=断链指纹);
+// 复用为注入点);②AwaitingEncounter + 全员不可用抉择(换贤闸珍宝不足、非现金闸不触发
+// 保底放行)时 botAct 静默 no-op(指纹不变=断链指纹;耗竭抉择相位已随全自动结算退役);
 // ③worker 侧假 clock 注入(LocalController 构造器测试缝),worker 脚本契约另钉。
 // 矩阵交叉钉(#643 终验):故障型×座位控制权两条交叉——失配注入落在托管座(人类+托管,
 // 非原生 bot)仍出口①响亮终局;断链指纹落在人类可决策座位(托管已收回)不武装任何
@@ -27,8 +28,27 @@ import { WORKER_SOURCE } from "../src/app/net/worker-clock";
 import type { WorkerClock } from "../src/app/net/worker-clock";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
+import type { EncounterDef } from "@core/encounters";
 
 const LOCAL_MAP = loadMap(guanzhongData);
+
+/** 断链指纹探针(#642):全员不可用的抉择机遇(换贤闸珍宝不足——非现金闸,不触发
+ *  保底放行)→ botAct 选项评估空转 bestIdx=-1 静默 no-op,指纹不变=no-progress 断链。 */
+const STALL_PROBE: EncounterDef = {
+  id: "stall-probe",
+  tier: "中性",
+  tags: [],
+  weight: 1,
+  text: "断链探针",
+  choices: [
+    {
+      text: "以九件珍宝换贤",
+      repDelta: 0,
+      effect: { kind: "grantHero", fallbackCash: 0 },
+      treasureCost: 9,
+    },
+  ],
+};
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },
@@ -196,9 +216,9 @@ describe("驱动链死亡出口(#642 三出口故障注入)", () => {
 
   it("出口② no-progress 断链:bot 相位断链武装停摆看门狗,到点 abortGame(相位/座位指纹进 reason)", async () => {
     const { reg, roomId, clock, e, token } = await autoPilotRoom({ stallAbortMs: 5000 });
-    // 注入断链指纹:AwaitingExhaustion 空载荷 → botAct 静默 no-op → 指纹不变 → 无人再拉链
-    e.turnPhase = "AwaitingExhaustion";
-    e.pendingExhaustionSeat = null;
+    // 注入断链指纹:AwaitingEncounter 全员不可用抉择 → botAct 静默 no-op → 指纹不变 → 无人再拉链
+    e.turnPhase = "AwaitingEncounter";
+    e.pendingEncounter = STALL_PROBE;
     clock.fireAll(); // 泵一步:botAct no-op → 链以 no-progress 断链 → 武装停摆看门狗
     await macroTick();
     expect(e.isOver).toBe(false); // 断链当场不炸:等窗口到点(响亮但不即时)
@@ -208,7 +228,7 @@ describe("驱动链死亡出口(#642 三出口故障注入)", () => {
     expect(e.isOver).toBe(true);
     expect(e.winReason).toBe("aborted");
     expectAbortedFinalRow(e, "驱动链停摆超时");
-    expect(e.log[e.log.length - 1]!.detail).toContain("AwaitingExhaustion");
+    expect(e.log[e.log.length - 1]!.detail).toContain("AwaitingEncounter");
     expect(e.log[e.log.length - 1]!.detail).toContain("座位 0");
     reg.dismissRoom(roomId, token);
   }, 20_000);
@@ -241,8 +261,8 @@ describe("驱动链死亡出口(#642 三出口故障注入)", () => {
     // 人类经公开 API 收回托管(在途链持重入守卫,调度即返回;原链仍停在步进 await)
     await reg.setAutoPilot(roomId, 0, false);
     // 注入出口②同款断链指纹,与出口②既有例唯一差别:决策座位控制权已回到人类
-    e.turnPhase = "AwaitingExhaustion";
-    e.pendingExhaustionSeat = null;
+    e.turnPhase = "AwaitingEncounter";
+    e.pendingEncounter = STALL_PROBE;
     const room = reg.get(roomId)!;
     expect(room.autoPilot.has(0)).toBe(false);
     expect(decisionSeatOf(e)).toBe(0);

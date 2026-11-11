@@ -597,14 +597,14 @@ describe("购地卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
   });
 });
 
-describe("耗竭卷轴(自 react-stamina 迁入,#1317 批T3)", () => {
-  // ── ⑧耗竭自选降级(react-stamina 例迁入)──
-  // 断言面:耗竭卷轴弹出(exhaustIfDepleted 公共入口真触发)→选项恰 2(都城+种植城,
-  // 选项序=properties 序都城恒在前)→自选降都城→卷轴收+exhaustionSettle 留痕落账
-  // (接线证据兼结算完成同步)→体力色条回满渲染(width 100% style 属性字面量,形态
-  // 契约非几何)。惩罚结算细则(降 1 级/skipTurns/夹紧)归 test/stamina.test.ts;种植=
-  // grantProperty 拉级+setStamina 压 0(判词单源 planter);都城持仓哨兵(#226)保留。
-  it("体力耗竭:卷轴弹出、自选降级、体力条回满渲染", async () => {
+describe("耗竭全自动结算(耗竭卷轴随抉择相位退役)", () => {
+  // ── ⑧耗竭改全自动(外敌乘虚+休整,原「自 react-stamina 迁入」例改写)──
+  // 断言面:exhaustIfDepleted 公共入口真触发 → 无任何卷轴弹出(归 0 不再进抉择相位)→
+  // exhaustionSettle 留痕落账 + 种植城真实降级(接线证据兼结算完成同步)→体力色条
+  // 渲染 0%(归 0 当刻不回血,卧床状态可见;回满细则归引擎单测)。惩罚结算细则
+  // (诸城齐降/skipTurns/休整回满)归 test/stamina.test.ts;种植=grantProperty 拉级
+  // +setStamina 压 0(判词单源 planter);都城持仓哨兵(#226)保留。
+  it("体力耗竭:无卷轴、全自动落账(种植城真降级+exhaustionSettle 留痕+体力条 0%)", async () => {
     const { el, engine, plant, writeEngine, snap } = startGame([
       { kind: "armPhase", activeIndex: 0 }, // 钉活跃方到人类:interactive 门卫(decisionOwner 非 bot)
     ]);
@@ -617,27 +617,25 @@ describe("耗竭卷轴(自 react-stamina 迁入,#1317 批T3)", () => {
     const tile = engine.board.tiles.find((t) => t.propertyId != null && !taken.has(t.propertyId));
     if (tile?.propertyId == null) throw new Error("接线测试:无主城缺席(种植前提失真)");
     plant({ kind: "grantProperty", seat: 0, propertyId: tile.propertyId, level: 2 });
-    plant({ kind: "grantProperty", seat: 0, propertyId: capPropId, level: 1 }); // 都城升 1 级=upsert 改等级形
     plant({ kind: "setStamina", seat: 0, stamina: 0 });
-    writeEngine((e) => {
-      e.exhaustIfDepleted(0); // 引擎公共入口(耗竭判定+挂窗)
-    });
-    const scroll = () => docQ(T.exhaustionScroll);
-    expect(scroll()).not.toBeNull();
-    const optCount = document.querySelectorAll('[data-testid^="scroll-exhaustion-option-"]').length;
-    expect(optCount).toBe(2);
     const logLenBefore = snap().log.length;
-    // 自选:降都城(选项序=properties 序,都城在前);卷轴收走幽灵帧退场协议
-    click(docQ(T.exhaustionOption(0))!);
-    await waitUnmounted(scroll, "耗竭卷轴应随处置收卷(幽灵帧走完)");
+    writeEngine((e) => {
+      e.exhaustIfDepleted(0); // 引擎公共入口:全自动结算(诸城降级+休整+endTurn)
+    });
+    expect(docQ(T.scrollShell)).toBeNull(); // 无选项相位即无卷轴
+    expect(engine.turnPhase).toBe("AwaitingJinnang"); // 结算内已 endTurn 收尾(本架起手牌在册→下家入出牌阶段)
+    expect(engine.players[0].properties.find((h) => h.propertyId === tile.propertyId)!.level).toBe(
+      1,
+    ); // 种植城 2→1 真降级
+    expect(engine.players[0].stamina).toBe(0); // 归 0 当刻不回血
     expect(
       snap()
         .log.slice(logLenBefore)
         .some((l) => l.detail.includes("exhaustionSettle")),
-    ).toBe(true); // 点选项→耗竭处置命令落账的接线证据(单测守结算字段)
-    // 体力上自机格(#700 仪表条退役):满值=色条满宽 100%(style 属性字面量)
+    ).toBe(true); // 全自动结算落账的接线证据(单测守结算字段)
+    // 体力上自机格(#700 仪表条退役):0 值=色条 0 宽(style 属性字面量,形态契约非几何)
     const fill = q(el, TESTIDS.seatStamina(0))!.querySelector(".strack i")!;
-    expect(fill.getAttribute("style")).toMatch(/width:\s*100%/);
+    expect(fill.getAttribute("style")).toMatch(/width:\s*0%/);
   });
 });
 

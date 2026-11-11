@@ -22,7 +22,6 @@ export const BOT_ATTENDED_PHASES: ReadonlySet<TurnPhase> = new Set([
   "AwaitingHeroPick",
   "AwaitingEncounter",
   "AwaitingJinnang",
-  "AwaitingExhaustion",
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
   "AwaitingReaction", // 见头注:开窗即席代答,驱动器停等人类,不走 botAct
@@ -435,19 +434,6 @@ export function botAct(engine: GameEngine): void {
       // 出牌阶段(#122/T2 → #148/T6 策略 → #188 档 3 并入主动技):按策略表(§8)经
       // driveJinnang 推进——bot/托管/接管同一套(#580 行为单源)。
       driveJinnang(engine);
-      break;
-    }
-
-    case "AwaitingExhaustion": {
-      // 体力耗竭惩罚(#130):bot 随机弃一座(确定性走引擎 dice,保重放)。
-      const available = engine
-        .choicesFor()
-        .map((o, i) => ({ o, i }))
-        .filter(({ o }) => o.available);
-      if (available.length > 0) {
-        const pick = available[Math.floor(engine.dice.nextFloat() * available.length)];
-        engine.resolveExhaustionChoice(pick.i);
-      }
       break;
     }
 

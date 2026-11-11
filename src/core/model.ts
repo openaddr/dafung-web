@@ -25,7 +25,8 @@ export interface Player {
   isBankrupt: boolean;
   position: number;
   capitalIndex: number;
-  skipTurns: number; // 待跳过的回合计数(耗竭善后/缓兵之计)
+  skipTurns: number; // 待跳过的回合计数(耗竭休整/缓兵之计)
+  resting: boolean; // 体力耗竭休整中(见 GLOSSARY「休整」):skipTurns 消费完即回满体力,跳回合环消费
   properties: PropertyHolding[];
   heroes: HeroSlot[]; // 麾下槽位(#785,ADR-0036):{heroId, 已授技(池序), 按技冷却账};上限 HERO_CAPACITY
   treasures: TreasureDef[]; // 持有的珍宝

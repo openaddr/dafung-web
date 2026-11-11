@@ -42,7 +42,7 @@ export const ATTR_TIPS = {
   hand: { name: "锦囊手牌", detail: "暗置,只有本人可见" },
   gem: { name: "珍宝", detail: "可交易变卖;破产时按指导价抵债" },
   hero: { name: "名将", detail: "上限 3 名;被动技能常驻生效" },
-  stamina: { name: "体力", detail: "机遇增减;归 0 耗竭,处置城池歇一回合后回满" },
+  stamina: { name: "体力", detail: "机遇增减;归 0 耗竭:诸城降级,休整两回合后回满" },
   sign: { name: "签面", detail: "本回合掷骰点数(一~六)" },
 } as const satisfies Record<string, TipText>;
 

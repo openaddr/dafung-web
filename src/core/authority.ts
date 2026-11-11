@@ -48,7 +48,6 @@ import {
   exhaustIfDepleted,
   maybeApplyEncounter,
   resolveEncounterChoice,
-  resolveExhaustionChoice,
   settleEncounter,
 } from "./encounter-flow";
 // 破产清算+交割托管域(#321,ADR-0019):escrow 交割/退回、付款或清算、债务留痕结算、
@@ -152,7 +151,6 @@ export type TurnPhase =
   | "AwaitingHeroPick"
   | "AwaitingEncounter"
   | "AwaitingJinnang" // 出牌阶段(#122/T2 立,#256 正名):回合开始掷骰前,主动用牌或今不用
-  | "AwaitingExhaustion"
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
   | "AwaitingReaction" // 反应窗(#281):锦囊宣布/行军途经城池的识破、拦检询问
@@ -172,7 +170,6 @@ export type GameCommand =
   | { type: "endDecision" }
   | { type: "resolveHeroPick"; index: number }
   | { type: "resolveEncounterChoice"; index: number } // 抉择机遇选项(#124;index=def.choices 下标)
-  | { type: "resolveExhaustionChoice"; index: number }
   | {
       type: "resolveTreasureOwner";
       action:
@@ -204,7 +201,6 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   endDecision: "按兵不动",
   resolveHeroPick: "招贤",
   resolveEncounterChoice: "机遇抉择",
-  resolveExhaustionChoice: "体力抉择",
   resolveTreasureOwner: "珍宝交涉",
   sellTreasureBankruptcy: "变卖珍宝",
   sellPropertyBankruptcy: "变卖城池",
@@ -279,7 +275,6 @@ export class GameEngine {
   roundAnchor = 0; // 固定的轮次锚点(draftOrder[0]),不随破产漂移
   // public:供 snapshot/联机序列化(同 takenCapitalIndices 模式)。内部代码读 Set,不直接改字段。
   recruitedHeroIds = new Set<string>(); // 已被招揽的名将(唯一)
-  pendingExhaustionSeat: number | null = null; // 耗竭决策座位(#130;恢复时按 activeIndex 重派生)
   offeredHeroes: HeroOffer[] = []; // 当前招贤纳士的候选(三选一;行携预掷授技,#787)
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
   /** 锦囊牌库/弃牌堆(#122):开局 finishSetup 洗序;抽牌从堆顶(pop)出。
@@ -455,6 +450,7 @@ export class GameEngine {
       position: 0,
       capitalIndex: -1,
       skipTurns: 0,
+      resting: false,
       properties: [],
       heroes: [],
       treasures: [],
@@ -707,13 +703,29 @@ export class GameEngine {
     while (this.activePlayer.skipTurns > 0 && !this.isOver && safety++ < this.players.length + 2) {
       const skipped = this.activePlayer;
       skipped.skipTurns -= 1;
-      emitGameEvent(this, this.players.indexOf(skipped), { kind: "turnSkipped" }); // 事件流(#384):跳过回合(耗竭/缓兵之计共用消费点)
+      emitGameEvent(this, this.players.indexOf(skipped), { kind: "turnSkipped" }); // 事件流(#384):跳过回合(耗竭休整/缓兵之计共用消费点)
       this.logEvent(
         "system",
         skipped.guohao,
         `${skipped.guohao} 按兵不动`,
         `skipTurn player=${skipped.id} remaining=${skipped.skipTurns}`,
       );
+      if (skipped.skipTurns === 0 && skipped.resting) {
+        // 休整期满(#130):耗竭休整的最后一段跳回合消费完,体力回满(走 addStamina 唯一口,
+        // staminaChanged(reason=rest) 产事件;零实际差不产事件,#568 同款——满血中转休整
+        // 的极端叠赈济场合静默收标记)
+        skipped.resting = false;
+        const restSeat = this.players.indexOf(skipped);
+        const before = skipped.stamina;
+        const after = this.addStamina(restSeat, STAMINA_MAX - before);
+        if (after !== before) {
+          emitGameEvent(this, restSeat, {
+            kind: "staminaChanged",
+            delta: after - before,
+            reason: "rest",
+          }); // 事件流(#384):休整期满回满
+        }
+      }
       this.advanceToNextActive();
     }
     // 回合计数:当回合循环回到本轮起始玩家(固定锚点)→ 轮次 +1。
@@ -911,8 +923,6 @@ export class GameEngine {
         return this.resolveHeroPick(cmd.index);
       case "resolveEncounterChoice":
         return this.resolveEncounterChoice(cmd.index);
-      case "resolveExhaustionChoice":
-        return this.resolveExhaustionChoice(cmd.index);
       case "resolveTreasureOwner":
         return this.resolveTreasureOwner(cmd.action);
       case "sellTreasureBankruptcy":
@@ -1210,13 +1220,8 @@ export class GameEngine {
   // 域内经 g.xxx 往返消费,兼作 testing.ts 白盒窄面 EngineTestInternals 触达点)。
 
   /** 耗竭入口(#130):薄委托 → encounter-flow.exhaustIfDepleted(机遇体力接线归 0 时域内直调)。 */
-  exhaustIfDepleted(seat: number): "none" | "auto" | "phase" {
+  exhaustIfDepleted(seat: number): "none" | "resolved" {
     return exhaustIfDepleted(this, seat);
-  }
-
-  /** 体力耗竭抉择(#130):薄委托 → encounter-flow.resolveExhaustionChoice。 */
-  resolveExhaustionChoice(index: number): void {
-    resolveExhaustionChoice(this, index);
   }
 
   /** 机遇触发与抽取(#123;ADR-0035 机遇必出):薄委托 → encounter-flow.maybeApplyEncounter(reaction-window 续结算亦经此)。 */
@@ -1304,10 +1309,6 @@ export class GameEngine {
     // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
     // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)= 数据损坏,零兜底
     // 直接抛错(不静默作废玩家机遇、不降级退回 Roll)。
-    if (this.turnPhase === "AwaitingExhaustion") {
-      // 耗竭座位 = 行动者本人(#130):耗竭恒发生在本人回合内,恢复按 activeIndex 重派生
-      this.pendingExhaustionSeat = this.activeIndex;
-    }
     if (this.turnPhase === "AwaitingEncounter") {
       const encId = s.choices.find((o) => o.encounterId != null)?.encounterId;
       const def = encId != null ? ENCOUNTERS.find((c) => c.id === encId) : undefined;

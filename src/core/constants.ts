@@ -24,6 +24,9 @@ export const HERO_CAPACITY = 3;
 export const STAMINA_MAX = 100;
 export const STARTING_STAMINA = STAMINA_MAX;
 
+/** 体力耗竭休整回合数:归 0 后跳过自己 N 个回合,休整期满体力回满(GLOSSARY「休整」)。 */
+export const EXHAUSTION_REST_TURNS = 2;
+
 /** 体力折银率(#789 数值平衡):bot 抉择打分把体力增量按此价折银(「省 1 点体力 = 省
  *  5 两」)。锚 = 温泉疗养买价 150 两/30 点 = 5 两/点,两条数值必须同涨同跌——
  *  卖价高于买价即开「体力套利」,机遇必出制下会被无限循环(#789 模拟实测局均 210 次耗竭)。 */

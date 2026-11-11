@@ -123,10 +123,10 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "机遇赐城入册(#719,传檄而定):得城者 Lv.0 持有入册——此前是折叠器已知无事件转移的级联缺口,本事件闭合;表现=城池易主宣告(与购地/破产易主同通路)",
   },
-  exhaustionChoice: {
+  exhaustionResolved: {
     fold: "fold+calibration",
-    fx: "silent",
-    why: "耗竭处置降级/失城(对象随事件点名可精确折);赐城缺口级联查无略过,水合纠正;表现面文案由相邻 staminaChanged(reason=exhaustion)升级携带,本 kind 不直接产演出",
+    fx: "presented",
+    why: "耗竭全自动落定(外敌乘虚+休整,无抉择相位):降级清单逐城 level-1(0 级封底不列入)+ skipTurns 按显式 restTurns 累加(不做相邻推断);赐城缺口级联查无略过,水合纠正;表现=耗竭宣告浮字",
   },
   assetTransferred: {
     fold: "fold+calibration",
@@ -259,7 +259,7 @@ export const EVENT_TIERS = {
   staminaChanged: {
     fold: "must-fold",
     fx: "presented",
-    why: "体力直加实际增减;reason=exhaustion 相邻 skipTurns+1(耗竭善后标记侧);表现读批内前置 exhaustionChoice 升级文案",
+    why: "体力直加实际增减(零实际差不产事件,#568);reason=rest=休整期满回满(耗竭善后消费侧);表现=体力浮字",
   },
   turnSkipped: {
     fold: "must-fold",

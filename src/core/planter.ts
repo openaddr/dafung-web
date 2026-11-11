@@ -394,7 +394,6 @@ const TURN_PHASES: ReadonlySet<TurnPhase> = new Set([
   "AwaitingHeroPick",
   "AwaitingEncounter",
   "AwaitingJinnang",
-  "AwaitingExhaustion",
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
   "AwaitingReaction",

@@ -145,7 +145,6 @@ function clearPending(e: GameEngine): void {
   e.pendingReaction = null;
   e.treasureVisitor = null;
   e.pendingDebt = null;
-  e.pendingExhaustionSeat = null;
 }
 
 /** 布场①:己方空闲态(AwaitingDecision)——架显隐状态机两例的停车坪(e2e

@@ -354,20 +354,20 @@ describe("折叠投影器 · 城池族", () => {
     expect(e.players[0].properties).toEqual([]);
   });
 
-  it("exhaustionChoice 降级 -1 级/失城回无主(处置对象随事件点名)", () => {
+  it("exhaustionResolved 降级清单逐城 -1 级 + skipTurns 按显式 restTurns 累加(不做相邻推断)", () => {
     const e = makeEngine();
     grantHolding(e, 0, "prop-luoyang", 2);
+    grantHolding(e, 0, "prop-changan", 0); // 0 级封底:不在降级清单
     foldEventBatch(e, [
-      ev(0, { kind: "exhaustionChoice", propertyId: "prop-luoyang", exhaustionKind: "downgrade" }),
+      ev(0, {
+        kind: "exhaustionResolved",
+        downgradedPropertyIds: ["prop-luoyang"],
+        restTurns: 2,
+      }),
     ]);
-    expect(e.players[0].properties[0]?.level).toBe(1);
-
-    const e2 = makeEngine();
-    grantHolding(e2, 0, "prop-luoyang", 2);
-    foldEventBatch(e2, [
-      ev(0, { kind: "exhaustionChoice", propertyId: "prop-luoyang", exhaustionKind: "lose" }),
-    ]);
-    expect(e2.players[0].properties).toEqual([]);
+    expect(e.players[0].properties[0]?.level).toBe(1); // 点名城 -1
+    expect(e.players[0].properties[1]?.level).toBe(0); // 未点名不动
+    expect(e.players[0].skipTurns).toBe(2); // restTurns 显式折(休整两回合)
   });
 
   it("assetTransferred 破产逐城易主:承让方接册保等级,无债主回无主", () => {
@@ -899,17 +899,27 @@ describe("折叠投影器 · 声望/体力/跳过族", () => {
     expect(e.players[0].reputation).toBe(45);
   });
 
-  it("staminaChanged 直加实际增减;reason=exhaustion 相邻 skipTurns+1(耗竭善后标记侧)", () => {
+  it("耗竭链折叠:staminaChanged 纯体力账 + exhaustionResolved 折降级与 restTurns(回满=rest 另批)", () => {
     const e = makeEngine();
     e.players[0].stamina = 20;
+    grantHolding(e, 0, "prop-luoyang", 2);
     foldEventBatch(e, [
       ev(0, { kind: "staminaChanged", delta: -20, reason: "encounter" }),
-      ev(0, { kind: "exhaustionChoice", propertyId: "prop-luoyang", exhaustionKind: "lose" }),
-      ev(0, { kind: "staminaChanged", delta: 100, reason: "exhaustion" }),
+      ev(0, {
+        kind: "exhaustionResolved",
+        downgradedPropertyIds: ["prop-luoyang"],
+        restTurns: 2,
+      }),
     ]);
 
+    expect(e.players[0].stamina).toBe(0); // 体力账只折实际增减,归 0 不回血
+    expect(e.players[0].skipTurns).toBe(2);
+    expect(e.players[0].properties[0]?.level).toBe(1);
+
+    // 休整期满回满(跳回合环消费点产 staminaChanged(reason=rest)):纯体力账直加
+    foldEventBatch(e, [ev(0, { kind: "staminaChanged", delta: 100, reason: "rest" })]);
     expect(e.players[0].stamina).toBe(100);
-    expect(e.players[0].skipTurns).toBe(1);
+    expect(e.players[0].skipTurns).toBe(2); // rest 不动跳回合账
   });
 
   it("turnSkipped 消费侧 -1;jinnangInflicted 标记侧目标 +1", () => {

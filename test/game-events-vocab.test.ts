@@ -193,24 +193,25 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     expect(text).not.toContain("体力 +30");
   });
 
-  it("耗竭重置:exhaustIfDepleted 无可处置路径产出 staminaChanged(reason=exhaustion)", () => {
+  it("耗竭落定:exhaustIfDepleted 无房产路径产出 exhaustionResolved(清单空+restTurns=2)", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
     e.addStamina(seat, -100); // 归 0(耗竭线上)
     beginGameEventBatch(e);
-    expect(e.exhaustIfDepleted(seat)).toBe("auto"); // 无房产可处置 → 纯跳回合
+    expect(e.exhaustIfDepleted(seat)).toBe("resolved"); // 无房产 → 纯休整(结算内已 endTurn)
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["staminaChanged"]);
+    expect(kinds(events)).toEqual(["exhaustionResolved", "turnEnded", "turnStarted"]);
     expect(events[0]).toMatchObject({
-      kind: "staminaChanged",
+      kind: "exhaustionResolved",
       seat,
-      delta: 100,
-      reason: "exhaustion",
+      downgradedPropertyIds: [],
+      restTurns: 2,
     });
-    expect(mover.stamina).toBe(100);
-    expect(mover.skipTurns).toBe(1);
+    expect(mover.stamina).toBe(0); // 归 0 当刻不回血,休整期满才回满
+    expect(mover.skipTurns).toBe(2);
+    expect(mover.resting).toBe(true);
   });
 });
 
@@ -592,7 +593,7 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
     expect("text" in events[0]).toBe(false); // 静态目录案:文案由 fx 查 ENCOUNTERS 派生
   });
 
-  it("耗竭处置:唯一可处置城自动执行,产出 [exhaustionChoice, staminaChanged](明细在前供 fx 合成)", () => {
+  it("耗竭落定:有产城全自动齐降,产出 exhaustionResolved(降级清单+restTurns 显式)", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -604,24 +605,20 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
     mover.properties.push({
       propertyId: tile.propertyId!,
       group: "g",
-      level: 1, // 唯一 Lv>0 城:降级单选项 → 自动执行(仍走 settleExhaustionChoice 同口)
+      level: 1, // 实降城:1 → 0 封底,入降级清单
       maxLevel: 3,
     });
     e.addStamina(seat, -100); // 体力归 0(耗竭线上)
     beginGameEventBatch(e);
-    expect(e.exhaustIfDepleted(seat)).toBe("auto");
+    expect(e.exhaustIfDepleted(seat)).toBe("resolved");
     const events = e.snapshot().events;
     expect(events[0]).toMatchObject({
-      kind: "exhaustionChoice",
+      kind: "exhaustionResolved",
       seat,
-      propertyId: tile.propertyId,
-      exhaustionKind: "downgrade",
+      downgradedPropertyIds: [tile.propertyId],
+      restTurns: 2,
     });
-    expect(events[1]).toMatchObject({
-      kind: "staminaChanged",
-      seat,
-      delta: 100,
-      reason: "exhaustion",
-    });
+    expect(mover.skipTurns).toBe(2);
+    expect(mover.stamina).toBe(0); // 归 0 当刻不回血(回满在休整期满,reason=rest 另条)
   });
 });

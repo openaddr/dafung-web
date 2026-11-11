@@ -235,8 +235,6 @@ function main(): void {
             "cmd JSON 示例(按相位)": {
               AwaitingEncounter:
                 '{"type":"resolveEncounterChoice","index":0}(下标见 status.choices)',
-              AwaitingExhaustion:
-                '{"type":"resolveExhaustionChoice","index":0}(下标见 status.choices)',
               AwaitingJinnang:
                 '{"type":"useJinnang","cardId":"<id>"} / {"type":"useJinnang","cardId":null}(今不用);待发动技 {"type":"useHeroSkill","heroId":"<heroId>","skillId":"<skillId>"}',
               AwaitingReaction:

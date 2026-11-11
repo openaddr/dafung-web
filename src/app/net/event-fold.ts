@@ -24,9 +24,9 @@
 //                 持有则按事件补册,历史赐城缺口级联已随 propertyGranted 闭合,见下);
 //                 propertyRejected → 无状态转移
 //                 (声明性;自动按兵不动由同批 turnStarted 收场);propertyGranted →
-//                 机遇赐城得城者 Lv.0 入册(#719,原级联缺口闭合);exhaustionChoice →
-//                 降级 -1 级/失城回无主(处置对象随事件点名,可精确折);assetTransferred →
-//                 破产逐城易主(承让方入册/无债主回无主)
+//                 机遇赐城得城者 Lv.0 入册(#719,原级联缺口闭合);exhaustionResolved →
+//                 降级清单逐城 -1 级(0 级封底)+ skipTurns 按显式 restTurns 累加;
+//                 assetTransferred → 破产逐城易主(承让方入册/无债主回无主)
 //   金钱族        cashChanged → 现金逐条累加(delta 带符号)+ 落格表现态相邻回填
 //                 (reason=supply 回填补给金额;stock(商市行情)置 Noop + 批内破产标记)
 //   珍宝族        treasureGained → 得宝入册(流水号实例 id 按静态表回溯定义);
@@ -408,15 +408,13 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         }
         break;
       }
-      case "exhaustionChoice": {
+      case "exhaustionResolved": {
         const p = foldTarget(engine, ev);
-        if (ev.exhaustionKind === "downgrade") {
-          const holding = p.properties.find((h) => h.propertyId === ev.propertyId);
+        for (const propertyId of ev.downgradedPropertyIds) {
+          const holding = p.properties.find((h) => h.propertyId === propertyId);
           if (holding != null) holding.level -= 1; // 查无 = 赐城缺口级联,略过待水合(文件头)
-        } else {
-          p.properties = p.properties.filter((h) => h.propertyId !== ev.propertyId); // 失城回无主
         }
-        // skipTurns+1 由相邻 staminaChanged(reason=exhaustion)落(耗竭善后标记侧)
+        p.skipTurns += ev.restTurns; // 休整回合数随事件显式走(不做相邻推断)
         break;
       }
       case "assetTransferred": {
@@ -699,8 +697,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       }
       case "staminaChanged": {
         const p = foldTarget(engine, ev);
-        p.stamina += ev.delta; // delta=夹紧后实际增减,直加不二次夹紧
-        if (ev.reason === "exhaustion") p.skipTurns += 1; // 耗竭善后标记侧相邻(判定表口径)
+        p.stamina += ev.delta; // delta=夹紧后实际增减,直加不二次夹紧(休整期满回满=reason:rest,纯体力账)
         break;
       }
       // ── 跳过族 ──
