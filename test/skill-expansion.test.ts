@@ -1,5 +1,7 @@
 // 技能扩展内容包(#1145,spec #1144 拆票 A/五):12 条联动被动技 + 6 个效果函数 +
-// 四新将(司马懿/邓艾/曹仁/糜竺)+ 曹丕池扩趁火打劫(内置将 4→8)。
+// 四新将(司马懿/邓艾/曹仁/糜竺)(内置将 4→8)。#1378 曹丕池换血:趁火打劫随曹丕
+// 退役整删(本件 NEW_IDS 降为 11 技、破产行为例删),曹丕池={放逐,行殇}
+// (池钉与属主钉随 #1378 更新;放逐/行殇行为面归 fangzhu-xingshang.test.ts)。
 // 数据形制钉(#1145 表:时机×效果×初值×scope,终稿形制;数值=校准初值,校准归 D 票)+
 // 全表逐字钉(自 hero-skill.test 钉4 迁入并扩至九将,#1145 收口裁决 + #1142 卧龙并入)+
 // 每技引擎行为四钉(命中/不命中/数值/受益人)+ timing 派发点位/scope 断言。
@@ -68,7 +70,7 @@ function prepared(seed?: number, seats?: SeatConfig[]) {
   return e;
 }
 
-/** 十二新技 id(#1145 表序)。 */
+/** 扩展包技 id(#1145 表序;#1378 趁火打劫退役整删,余 11)。 */
 const NEW_IDS = [
   "tuntian",
   "shengshi",
@@ -80,7 +82,6 @@ const NEW_IDS = [
   "taoguangyanghui",
   "saiwengshima",
   "chubianbujing",
-  "chenhuodajie",
   "suifeng",
 ] as const;
 
@@ -135,10 +136,10 @@ function grantCity(e: GameEngine, seat: number, propertyId: string) {
 }
 
 describe("技能扩展内容包:数据形制(#1145)", () => {
-  it("全表逐字钉:内置将 5→9(四新将入表 + 曹丕池扩趁火打劫;含 #1142 卧龙,前行序原样)", () => {
+  it("全表逐字钉:内置将 5→9(四新将入表;含 #1142 卧龙,#1378 曹丕池换血)", () => {
     expect(HEROES.map((h) => [h.id, h.skillPool])).toEqual([
       ["zhouyu", ["jixing", "huogong", "leigu"]], // 周瑜{疾行,火攻,擂鼓}
-      ["caopi", ["yuli", "zhijin", "chenhuodajie"]], // 曹丕{渔利,掷金,趁火打劫}
+      ["caopi", ["fangzhu", "xingshang"]], // 曹丕{放逐,行殇}(#1378 池换血)
       ["zhangxingcai", ["zhijin", "leigu", "jixing"]], // 张星彩{掷金,擂鼓,疾行}
       ["huatuo", ["qingnang", "zhenji"]], // 华佗{青囊,赈济}
       ["zhugeliang", ["huogong", "yuli"]], // 诸葛亮{火攻,渔利}(池 2 仿华佗非对称,#1142)
@@ -149,17 +150,19 @@ describe("技能扩展内容包:数据形制(#1145)", () => {
     ]);
   });
 
-  it("技属主集钉:旧三共享 + 岁俸双池共享(新共享先例)+ 卧龙火攻/渔利共享(#1142)+ 余十三条单属主", () => {
+  it("技属主集钉:共享四条(疾行/擂鼓/火攻/岁俸,#1378 后渔利/掷金改单属)+ 放逐/行殇单属主", () => {
     const owners = (id: string) =>
       HEROES.filter((h) => h.skillPool.includes(id))
         .map((h) => h.id)
         .sort();
     expect(owners("jixing")).toEqual(["zhangxingcai", "zhouyu"]);
     expect(owners("leigu")).toEqual(["zhangxingcai", "zhouyu"]);
-    expect(owners("zhijin")).toEqual(["caopi", "zhangxingcai"]);
+    expect(owners("zhijin")).toEqual(["zhangxingcai"]); // 掷金:张星彩单属(#1378 曹丕出池)
     expect(owners("suifeng")).toEqual(["dengai", "simayi"]); // 岁俸:司马懿↔邓艾
     expect(owners("huogong")).toEqual(["zhouyu", "zhugeliang"]); // 火攻:周瑜↔诸葛亮(#1142)
-    expect(owners("yuli")).toEqual(["caopi", "zhugeliang"]); // 渔利:曹丕↔诸葛亮(#1142)
+    expect(owners("yuli")).toEqual(["zhugeliang"]); // 渔利:诸葛亮单属(#1378 曹丕出池)
+    expect(owners("fangzhu")).toEqual(["caopi"]); // 放逐/行殇:曹丕独占(#1378 换血)
+    expect(owners("xingshang")).toEqual(["caopi"]);
     for (const single of ["qingnang", "zhenji", ...NEW_IDS.filter((id) => id !== "suifeng")]) {
       expect(owners(single), `${single} 应单属主`).toHaveLength(1);
     }
@@ -188,12 +191,11 @@ describe("技能扩展内容包:数据形制(#1145)", () => {
         "self",
       ],
       ["chubianbujing", "JinnangAnnounced", "cashIfTargetedByJinnang", { amount: 10 }, "others"],
-      ["chenhuodajie", "PlayerBankrupt", "gainCash", { amount: 500 }, "others"],
       ["suifeng", "TurnStart", "gainCash", { amount: 1 }, "any"],
     ]);
   });
 
-  it("时机/效果对号:12 技 when 皆在 MOMENTS 注册表、effect 皆在 EFFECTS 注册表(零新时机)", () => {
+  it("时机/效果对号:扩展技 when 皆在 MOMENTS 注册表、effect 皆在 EFFECTS 注册表(零新时机)", () => {
     for (const id of NEW_IDS) {
       const s = skillById(id);
       if (!isTriggerSkill(s)) throw new Error(`${id} 应为被动技(数据 bug)`);
@@ -202,7 +204,7 @@ describe("技能扩展内容包:数据形制(#1145)", () => {
     }
   });
 
-  it("六新效果函数入注册表;得陇/玉碎/韬光/趁火/岁俸五技纯参数复用 gainCash 零新 fn", () => {
+  it("六新效果函数入注册表;得陇/玉碎/韬光/岁俸四技纯参数复用 gainCash 零新 fn", () => {
     for (const fn of [
       "gainReputation",
       "reputationOnMaxLevelUpgrade",
@@ -213,7 +215,7 @@ describe("技能扩展内容包:数据形制(#1145)", () => {
     ]) {
       expect(typeof EFFECTS[fn]).toBe("function");
     }
-    for (const id of ["delongwangshu", "yusui", "taoguangyanghui", "chenhuodajie", "suifeng"]) {
+    for (const id of ["delongwangshu", "yusui", "taoguangyanghui", "suifeng"]) {
       const s = skillById(id);
       if (!isTriggerSkill(s)) throw new Error(`${id} 应为被动技(数据 bug)`);
       expect(s.effect).toBe("gainCash");
@@ -446,20 +448,6 @@ describe("技能扩展内容包:引擎行为(命中/不命中/数值/受益人)"
     expect(e.players[meSeat].reputation).toBe(rep0 + 5); // 阈值不满:静默跳过
     e.dispatchMoment("CashLost", { subject: (meSeat + 1) % e.players.length, amount: 999 });
     expect(e.players[meSeat].reputation).toBe(rep0 + 5); // scope self
-  });
-
-  it("趁火打劫:他人破产 +500 两(受益人=其他玩家);自己破产不触发(scope others)", () => {
-    const e = prepared();
-    const meSeat = e.players.indexOf(e.activePlayer);
-    arm(e, meSeat, "caopi", "chenhuodajie");
-    const cash0 = e.players[meSeat].cash;
-    e.dispatchMoment("PlayerBankrupt", {
-      subject: (meSeat + 1) % e.players.length,
-      creditorSeat: null,
-    });
-    expect(e.players[meSeat].cash).toBe(cash0 + 500);
-    e.dispatchMoment("PlayerBankrupt", { subject: meSeat, creditorSeat: null });
-    expect(e.players[meSeat].cash).toBe(cash0 + 500); // scope others:不触发
   });
 
   it("岁俸:每个回合开始 +1 两(scope any,含他人回合);真实 endTurn 派发点逐回合逐两", () => {

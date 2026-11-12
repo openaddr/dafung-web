@@ -207,15 +207,6 @@ export const SKILLS: SkillDef[] = [
     scope: "others",
   },
   {
-    id: "chenhuodajie",
-    name: "趁火打劫",
-    desc: "其他玩家破产出局时,你 +500 两",
-    when: "PlayerBankrupt",
-    effect: "gainCash",
-    params: { amount: 500 },
-    scope: "others",
-  },
-  {
     id: "suifeng",
     name: "岁俸",
     desc: "每个回合开始时,你 +1 两",
@@ -228,8 +219,8 @@ export const SKILLS: SkillDef[] = [
     scope: "any",
   },
   // ── 被动技·「你可」可选发动(#1377,曹丕放逐/行殇):效果命中挂待决不自动结算,
-  // 回合收口 endTurn 入口开窗(choices.ts);名将池本票不动——新技不可达,测试走
-  // planter.armHero 直授(#1375 拍板)。文案=规格 #1375 Solution 节定稿原文。──
+  // 回合收口 endTurn 入口开窗(choices.ts);名将池随 #1378 换血入曹丕池(招贤/授技
+  // 可达)。文案=规格 #1375 Solution 节定稿原文。──
   {
     id: "fangzhu",
     name: "放逐",

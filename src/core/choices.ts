@@ -545,13 +545,20 @@ export function queueSkillChoice(g: GameEngine, choice: PendingSkillChoice): voi
 }
 
 /** 回合收口的「你可」闸(endTurn 入口调):队列空=无事(返回 false,零扰动);
- *  非空先弃破产属主的残问(与派发器跳过破产玩家同口径,破产者无决策),弃空则照常
- *  收口;否则停相位 AwaitingSkillChoice 挂首问等应答。bot 不即席代答——窗在 endTurn
- *  入口停相位后控制权交还驱动器,下一泵 botAct 按策略应答(bot.ts 决策单源),
- *  相位对全 bot 驱动链外显一拍即被代答续收。 */
+ *  非空先弃残问——①破产属主(与派发器跳过破产玩家同口径,破产者无决策);②属主
+ *  麾下已无此技槽(遣散/破产清算遣散换银把将整槽撤走,规格 #1375 用户故事 9:
+ *  「遣散放逐/行殇后标记与待决状态随技能槽清零,不残留」——槽既不在,残问不弃则
+ *  发动落账 heroSlotOf 当场炸,#1378 池换血后曹丕可达此路,sim-bench 实锤),弃空
+ *  则照常收口;否则停相位 AwaitingSkillChoice 挂首问等应答。bot 不即席代答——窗在
+ *  endTurn 入口停相位后控制权交还驱动器,下一泵 botAct 按策略应答(bot.ts 决策
+ *  单源),相位对全 bot 驱动链外显一拍即被代答续收。 */
 export function enterSkillChoiceWindowIfOwed(g: GameEngine): boolean {
   if (g.pendingSkillChoices.length === 0) return false;
-  g.pendingSkillChoices = g.pendingSkillChoices.filter((c) => !g.players[c.ownerSeat].isBankrupt);
+  g.pendingSkillChoices = g.pendingSkillChoices.filter((c) => {
+    if (g.players[c.ownerSeat].isBankrupt) return false;
+    const slot = g.players[c.ownerSeat].heroes.find((s) => s.heroId === c.heroId);
+    return slot != null && slot.skillIds.includes(c.skillId);
+  });
   const pending = g.pendingSkillChoices[0];
   if (pending == null) return false;
   const skill = skillById(pending.skillId);

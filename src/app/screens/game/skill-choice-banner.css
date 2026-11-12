@@ -1,0 +1,139 @@
+/* 「你可」选择闸触发卡(#1378)样式:反应窗横幅同形(容器几何/按钮种/候选笺
+   逐项对齐 reaction-banner.css,独立类名不跨件复用——ReactionBanner 同判词)。
+   色一律 var(--color-*) 或其 color-mix alpha 形式;动效时长/缓动走 token 单源;
+   文案笔书(新文案禁 font-deco,BRIEF §2);无倒计时弧(权威侧无窗级 deadline,
+   联机停摆超时=看门狗代发「暂不发」,#1378 真修——呈现零自造定时)。
+
+   裸色豁免登记(#510 后存留,同 reaction-banner.css 口径):rgba(200,161,58,·)/
+   rgba(217,185,92,·)=gold/gold-bright/lacquer-gold 通道。悬停微反馈统一(#490 微档)。 */
+
+/* ── 触发卡:浮置于架体(.hand-rack 为定位上下文)上缘带(反应窗同位);深墨面板
+   + 漆金描边;宽度自适应(双锚 + margin auto + max-content,max-width 锁架体内)。── */
+.skill-banner {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: max-content;
+  max-width: 100%;
+  z-index: 9; /* 架体 z-5 之上;棋盘浮层(hint/WaitingBar)之下不冲突(不同槽位) */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
+  border-radius: 5px;
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  transform-origin: bottom center;
+  animation: skill-banner-in var(--dur-med) var(--ease-out);
+}
+@keyframes skill-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5em) scaleY(0.7);
+  }
+}
+
+/* 文案段(横幅标题字,#508 起 font-title;禁 font-deco) */
+.skill-banner-text {
+  font-family: var(--font-title);
+  font-size: 17px;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  color: var(--color-paper);
+  white-space: nowrap;
+}
+
+/* 目标候选笺行(放逐选人:点笺=选中/再点取消)。§4.6:选中=金边+金圈,不加文字
+   标牌;笺上只留国号一字。热区 40px(#751 A3 同档)。 */
+.skill-banner-seats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.skill-banner-seat-chip {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-brush);
+  font-size: 16px;
+  color: var(--color-paper);
+  background: var(--color-panel);
+  border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.skill-banner-seat-chip:hover {
+  border-color: var(--color-gold-bright);
+  transform: scale(1.02);
+}
+.skill-banner-seat-chip.picked {
+  border-color: var(--color-gold);
+  box-shadow:
+    0 0 0 2px var(--color-gold),
+    0 0 6px rgba(200, 161, 58, 0.55);
+}
+
+/* 发动(墨钮,DESIGN §4.2 主行动)与暂不发(次级漆钮):反应窗按钮种参数。
+   nowrap:折行容器里钮字恒横排。热区 ≥44px(#751 A3)。 */
+.skill-banner-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-family: var(--font-brush);
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  padding: 6px 16px;
+  border-radius: 4px;
+  border: 0;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+.skill-banner-btn.mo {
+  background: var(--color-lacquer);
+  color: var(--color-lacquer-gold);
+  box-shadow: inset 0 0 0 1px rgba(217, 185, 92, 0.6);
+}
+.skill-banner-btn.mo:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.skill-banner-btn.mo:not(:disabled) {
+  box-shadow: inset 0 0 0 1.5px var(--color-gold);
+}
+.skill-banner-btn.mo:not(:disabled):hover {
+  transform: scale(1.02);
+  box-shadow: inset 0 0 0 2px var(--color-gold-bright);
+}
+.skill-banner-btn.qian {
+  background: var(--color-lacquer);
+  color: color-mix(in srgb, var(--color-lacquer-gold) 72%, var(--color-lacquer));
+  opacity: 0.92;
+}
+.skill-banner-btn.qian:hover {
+  opacity: 1;
+  transform: scale(1.02);
+  box-shadow: inset 0 0 0 1.5px var(--color-gold);
+}
+
+/* reduced-motion:入场为直接状态变化(静态现形),同 reaction-banner.css 显式口径
+   (app.css M-4 全局兜层对一次性入场压时长无信息损失,统一显式关)。 */
+@media (prefers-reduced-motion: reduce) {
+  .skill-banner {
+    animation: none;
+  }
+}

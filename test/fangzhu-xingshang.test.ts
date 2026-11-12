@@ -202,6 +202,24 @@ describe("放逐约束(#1377 AC3):不放自己 / 已跳者叠加 / 跨耗竭不�
     expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(0);
     expect(e.pendingSkillChoices).toHaveLength(0);
   });
+
+  it("挂问后遣散:残问随槽清,收口不开窗(不修必挂:残问开窗发动 heroSlotOf 当场炸)", () => {
+    // #1375 用户故事 9「遣散后待决状态随技能槽清零,不残留」的窗口闸回归例:
+    // 攒怒过阈挂问 → 同回合遣散曹丕 → 收口若仍开窗,应答发动落账 heroSlotOf 查无槽
+    // 当场炸(#1378 池换血后曹丕可达此路,sim-bench 整局实锤;#1378 收口闸补残问过滤)
+    const e = makeEngine3();
+    finishSetupLite(e);
+    armPhase(e, { activeIndex: 0 });
+    armHero(e, 0, "caopi", ["fangzhu"]);
+    setStamina(e, 0, 30); // 损失 70 过阈:挂待决
+    expect(e.pendingSkillChoices).toHaveLength(1);
+    e.dismissHero("caopi"); // 槽走(标记随槽弃),待决此刻仍在队
+    e.endTurn(); // 回合收口:残问随槽清,不开窗照常收尾
+    expect(e.pendingSkillChoices).toHaveLength(0);
+    expect<string>(e.turnPhase).not.toBe("AwaitingSkillChoice");
+    expect(e.turnPhase).toBe("Roll"); // 正常收尾推进下家
+    expect(e.players[2].skipTurns).toBe(0); // 无从发动
+  });
 });
 
 describe("行殇(#1377 AC4):耗竭可选 +1,缓兵之计不触发", () => {

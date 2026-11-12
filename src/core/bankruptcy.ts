@@ -314,7 +314,7 @@ export function confirmBankruptcySettle(g: GameEngine): void {
     }
     deliverEscrow(g); // 清算自救成功:托管珍宝交货给买家
     // 时机·CashLost:被动失银(清算后清偿,#452 口径归一)——与现金直付同口径,按实付
-    // 现金额派发(曹丕渔利等 CashLost 监听方三路径行为一致);破产分支为资产转移(非
+    // 现金额派发(渔利等 CashLost 监听方三路径行为一致);破产分支为资产转移(非
     // 现金支出),不派发。
     g.dispatchMoment("CashLost", { subject: g.activeIndex, amount: debt.amount });
     // #617:清偿即买家现金支出,bkConfirm 挂 amount 作对账锚点(通用债同口径)

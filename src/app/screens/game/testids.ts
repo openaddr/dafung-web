@@ -200,6 +200,21 @@ export const TESTIDS = {
   /** AOE 选份候选笺(横征暴敛等全体域:点笺=定被保护份;seat=被保护座位,含自己)。 */
   reactionSeat: (seat: number) => `reaction-seat-${seat}` as const,
 
+  // ── 「你可」选择闸触发卡(#1378,放逐/行殇待决窗)──
+  /** 触发卡横幅(从手牌架上缘长出,反应窗同形;仅待决属主座位渲染)。 */
+  skillChoiceBanner: "skill-choice-banner",
+  /** 触发卡文案(「X「放逐」可达发动条件…」)。 */
+  skillChoiceText: "skill-choice-text",
+  /** 发动确认墨钮(放逐=选定目标后可用;行殇=目标既定恒可用)。 */
+  skillChoiceConfirm: "skill-choice-confirm",
+  /** 「暂不发」立即应答钮(放弃=标记保留)。 */
+  skillChoiceDecline: "skill-choice-decline",
+  /** 目标候选笺(放逐选人:点笺=选中/再点同笺取消;seat=候选目标座位)。 */
+  skillChoiceSeat: (seat: number) => `skill-choice-seat-${seat}` as const,
+  /** 放逐标记进度挂点(seat=座位号):席位格底缘金色进度轨,攒怒中在场、满档呼吸;
+   *  数值与名词在 aria-label(状态表达 §4.6,格上不落文字标牌)。 */
+  seatSkillMark: (seat: number) => `seat-skill-mark-${seat}` as const,
+
   // ── 托管:autopilot-button 常量随钮退役(头部 #700 核销注),#1097 起通路=
   //  设置弹层 settings-autopilot(原自机格弹层开关随 #1096 决议1 退役)──
 

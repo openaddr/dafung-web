@@ -1,5 +1,7 @@
 // 五组同构看门狗——从 room.ts 拆出并收敛为一个通用工厂(模块治理 10/11 #327)。
-//   #118 决策停摆 stall:真人座位停在决策点超时 → 看门狗代开托管(ADR-0028)
+//   #118 决策停摆 stall:真人座位停在决策点超时 → 看门狗代开托管(ADR-0028);
+//          例外:「你可」选择闸窗(AwaitingSkillChoice,#1378)超时=代发「暂不发」
+//          (标记保留;托管 ON 不经此路,驱动循环按 bot 策略代答)
 //   #188 自动起摇 autoRoll:Roll 相位超时 → 服务器代发 rollAndMove(行军自动化)
 //   #281/#284 反应窗 reactionWait:开窗超时 → 代发「不用」(ADR-0017)
 //   #380 掉线保留窗 retention:对局中断线座位保留窗口到期 → 看门狗代开托管(ADR-0028)
@@ -150,12 +152,28 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
       {
         window: () => ({ tag: ++armSeq, delayMs: host.decisionTimeoutMs }),
         /** 超时触发:重校验(房间还在/对局未终/仍停在该座位/该座位仍未被托管)后
-         *  代开托管并续推连锁。重连不清托管,原玩家点「收回」拿回控制(ADR-0028)。 */
+         *  代开托管并续推连锁。重连不清托管,原玩家点「收回」拿回控制(ADR-0028)。
+         *  例外(#1378/T1 偏差①真修):「你可」选择闸窗(AwaitingSkillChoice)停摆
+         *  超时不代开托管——两技(放逐/行殇)一律代发「暂不发」(标记保留,与手点
+         *  同一条 applyCommand 公共命令路径);托管 ON 的座位不经此路(上文
+         *  seatControlled 早退),由驱动循环按 bot 策略代答——代打像人,人不在场
+         *  的停摆才归看门狗,且「你可」是可选项,默认不动作(规格 #1375 语义:
+         *  超时默认不发动)。 */
         fire: async (r, seat, onUpdate) => {
           const e = r.engine;
           if (!host.isCurrentRoom(r) || !e || e.isOver) return;
           const owner = decisionSeatOf(e);
           if (owner !== seat || seatControlled(r, seat)) return;
+          if (e.phase === "Playing" && e.turnPhase === "AwaitingSkillChoice") {
+            // 审计留痕:applyCommand 的 cmd 行 + 引擎「暂不发」战报行(skillChoiceDecline
+            // detail),不再另发房间观测行(ReactRoomEvent 面零新增,room.ts 零改动)。
+            await host.applyCommand(
+              r.roomId,
+              { type: "respondSkillChoice", seat, use: false },
+              onUpdate,
+            );
+            return;
+          }
           await watchdogOpenAutoPilot(
             r,
             seat,

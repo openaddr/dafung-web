@@ -33,6 +33,7 @@ import { getController, getControllerContext, setController } from "@app/control
 import type { GameCommand } from "@core/authority";
 import { isSkillOption } from "@core/choices";
 import { jinnangCardOf } from "@core/jinnang";
+import { skillById } from "@core/skills";
 import { REACTION_EXPECT } from "@core/reaction-window";
 import { getAudio } from "@app/fx/audio";
 import { scaleReactionMs } from "@app/fx/timings";
@@ -45,6 +46,7 @@ import { startFrameDiag, stopFrameDiag } from "@app/frameDiag";
 import { HandRack } from "./HandRack";
 import { HandZone } from "./HandZone";
 import { ReactionBanner } from "./ReactionBanner";
+import { SkillChoiceBanner } from "./SkillChoiceBanner";
 import {
   reactionMuteEngage,
   reactionMuteInitial,
@@ -490,6 +492,77 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
       />
     ) : null;
 
+  // ── 「你可」选择闸窗态(#1378):快照 pendingSkillChoices 首问驱动 ──
+  // 相位单属主(decisionOwner=挂问属主,引擎 getter;interactive 经 canAct 主分支
+  // 已门控:决策方=本座×非 bot×未托管×演出落定)。真人经触发卡应答:发动(放逐
+  // 先点候选笺选目标;行殇目标既定直发)/暂不发,命令=respondSkillChoice(seat
+  // 显式携带,反应窗同款 selfSeat 通路)。非属主座位零渲染(公开信息=战报行);
+  // bot/托管座位由驱动链代答,不进窗态。快照 canonicalization:相位在窗而队列键
+  // 缺席 = 状态机 bug,`!` 直取当场炸出(零兜底,同 pendingReaction 口径)。
+  const skillUp =
+    interactive && snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingSkillChoice";
+  const skillPending = skillUp ? snapshot.pendingSkillChoices![0] : null;
+  // 技定义按 id 现查技表单源(core/skills,零兜底:技表外 id 在 skillById 当场炸;窗
+  // 既开必为触发技——choices 挂问时已闸(#1378 评审修复:撤防御性 isTriggerSkill
+  // 静默门,数据 bug 让它在数据层炸,不在此静默吞成「横幅不出现」)。
+  const skillDef = skillPending != null ? skillById(skillPending.skillId) : null;
+  // 问身份(队列续问时区分前后两问:选中目标随问清空,组件 key 同源此串)。
+  const skillQuestionId =
+    skillPending != null
+      ? `${skillPending.skillId}:${skillPending.heroId}:${skillPending.subjectSeat}:${skillPending.targetSeat ?? "-"}`
+      : null;
+  // 目标段选中(候选笺首点选中/再点同笺取消,#417 统一口径;进新问即清空重选)。
+  const [skillTarget, setSkillTarget] = useState<number | null>(null);
+  useEffect(() => {
+    setSkillTarget(null);
+  }, [skillQuestionId]);
+  // 目标候选笺(ADR-0013 唯一口径=快照 choices:available 候选才入列;行殇目标
+  // 既定=免选,笺行不挂,文案带目标括注)。
+  const skillSeatOptions =
+    skillPending != null && skillPending.targetSeat == null
+      ? snapshot.choices.filter(
+          (o): o is (typeof snapshot.choices)[number] & { targetSeat: number } =>
+            o.targetSeat != null && o.available,
+        )
+      : [];
+  const skillText =
+    skillPending != null && skillDef != null
+      ? `${snapshot.players[skillPending.ownerSeat].guohao}「${skillDef.name}」可达发动条件,可指定目标或暂不发${
+          skillPending.targetSeat != null
+            ? `,目标 ${snapshot.players[skillPending.targetSeat].guohao}`
+            : ""
+        }`
+      : "";
+  const skillBanner =
+    skillUp && skillPending != null && skillDef != null ? (
+      <SkillChoiceBanner
+        // key 挂问身份:队列续问(前后两问)即重挂,选中态随组件重置。
+        key={`skill-choice-${skillQuestionId}`}
+        text={skillText}
+        seats={skillSeatOptions.map((o) => ({
+          seat: o.targetSeat,
+          label: snapshot.players[o.targetSeat].guohao,
+        }))}
+        pickedSeat={skillTarget}
+        onPickSeat={(seat) => setSkillTarget((cur) => (cur === seat ? null : seat))} // #417 首点选中/再点取消
+        confirmEnabled={skillPending.targetSeat != null || skillTarget != null}
+        onConfirm={() => {
+          const target = skillPending.targetSeat ?? skillTarget;
+          if (target == null) return; // 放逐未选目标:确认钮禁用态,到不了这(自门控)
+          getAudio().play("stamp"); // 落印音随一期口径
+          dispatchCommand({
+            type: "respondSkillChoice",
+            seat: selfSeat,
+            use: true,
+            targetSeat: target,
+          });
+        }}
+        onDecline={() =>
+          dispatchCommand({ type: "respondSkillChoice", seat: selfSeat, use: false })
+        }
+      />
+    ) : null;
+
   // ── 显隐规则同步(回合联动+决策保底):rackHidden 被「回合/窗态沿」重同步,
   // 沿与沿之间锦囊钮 toggle 随便改(手动临时开/收,下一道沿重新对齐)──
   // 亮沿=我的回合开始(activeIndex 回 selfSeat)/ 任何窗态开场(出牌窗 junshiUp、
@@ -498,13 +571,13 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
   // (activeIndex 离席)/ 窗态收场且不在我的回合——决策毕,架撤。dep-array effect
   // 一枚管四沿(清空重选同款手法;布尔组合幂等,沿间不重跑)。
   const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
-  const windowUp = junshiUp || reactBanner != null;
+  const windowUp = junshiUp || reactBanner != null || skillBanner != null;
   useEffect(() => {
     setRackHidden(!(myTurnUp || windowUp));
   }, [myTurnUp, windowUp]);
   // 窗态+收起的两处派生(呼吸金光/banner-only 形态,消费点见下渲染段):一次推导。
   const rackBreathe = rackHidden && windowUp;
-  const rackBannerOnly = rackHidden && reactBanner != null;
+  const rackBannerOnly = rackHidden && (reactBanner != null || skillBanner != null);
 
   // 选都阶段的引导文案(三选一:引擎按价格分层+地理分散滚出 3 候选)。
   // 按「谁的 turn」分化(dogfood 2026-09-28:bot 定都 40s+ 期间画面只有淡金圈,
@@ -655,11 +728,11 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
         />
         {/* 底缘透明手牌区(#700):签面驻左端 + 手牌架。
           显隐=回合联动+决策保底(亮=我的回合∪决策窗在场∪手动临时开,规则同步
-          见 rackHidden 声明处)。挂载条件 `!rackHidden || reactBanner != null`:
-          纯收起整区卸载(签面随之,卸载零占位,战斗区最大化);收起时若反应窗
-          在场,区壳仍挂载以宿主横幅(banner-only 形态,签面/牌行不挂,横幅失去
-          架体依托后贴底下移)。 */}
-        {(!rackHidden || reactBanner != null) && (
+          见 rackHidden 声明处)。挂载条件 `!rackHidden || 横幅窗在场`(反应窗/
+          「你可」触发卡,#1378):纯收起整区卸载(签面随之,卸载零占位,战斗区
+          最大化);收起时若横幅窗在场,区壳仍挂载以宿主横幅(banner-only 形态,
+          签面/牌行不挂,横幅失去架体依托后贴底下移)。 */}
+        {(!rackHidden || reactBanner != null || skillBanner != null) && (
           <HandZone
             snapshot={snapshot}
             player={selfPlayer}
@@ -700,6 +773,7 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
                       }
                     : undefined
                 }
+                skillBanner={skillBanner}
               />
             }
           />
