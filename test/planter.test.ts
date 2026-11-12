@@ -184,11 +184,12 @@ describe("armHero/armHeroOffer(名将/候选,裸写形;判词共一处)", () => 
         heroId: "zhouyu",
         skillIds: [...heroById("zhouyu").skillPool],
         lastFired: {},
+        marks: {}, // 技能标记容器(#1377):标记感知构造
       },
     ]);
     armHero(e, 1, "huatuo", ["qingnang"]); // 显式子集(实授只给主动技形,jinnang-use 站点)
     expect(e.players[1].heroes).toEqual([
-      { heroId: "huatuo", skillIds: ["qingnang"], lastFired: {} },
+      { heroId: "huatuo", skillIds: ["qingnang"], lastFired: {}, marks: {} },
     ]);
     armHeroOffer(e, ["zhouyu", "huatuo", "zhangxingcai"]);
     expect(e.offeredHeroes).toEqual(

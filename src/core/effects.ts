@@ -9,14 +9,20 @@
 import type { GameEngine } from "./authority";
 import type { GameMoment, MomentCtx } from "./timing";
 import { emitGameEvent } from "./game-events";
+import { queueSkillChoice } from "./choices";
+import { addSkillMarks, heroSlotOf } from "./roster";
 
-/** 效果执行上下文:moment=当前时机;owner=技能属主座位;其余字段(MomentCtx)按时机语义携带——
- *  subject=时机主体座位,die=骰面(DieRolled),amount=金额(CashLost/CashGained/TreasureSold/TradeSettled/
- *  BankruptcySettle),passedSeat/ownerSeat/buyerSeat/sellerSeat=相关座位,propertyId/treasureId/heroId=
- *  涉事资产 id,tileIndex=涉事格。各时机的字段清单见 timing.ts GameMoment 注释与 docs 分类目录。 */
+/** 效果执行上下文:moment=当前时机;owner=技能属主座位;skillId/slotHeroId=击发技与
+ *  其麾下槽位(#1377,效果需按实例落账——技能标记记槽);其余字段(MomentCtx)按时机
+ *  语义携带——subject=时机主体座位,die=骰面(DieRolled),amount=金额(CashLost/CashGained/
+ *  TreasureSold/TradeSettled/BankruptcySettle),passedSeat/ownerSeat/buyerSeat/sellerSeat=
+ *  相关座位,propertyId/treasureId/heroId=涉事资产 id,tileIndex=涉事格。各时机的字段清单
+ *  见 timing.ts GameMoment 注释与 docs 分类目录。 */
 export interface EffectCtx extends MomentCtx {
   moment: GameMoment;
   owner: number;
+  skillId: string;
+  slotHeroId: string;
 }
 
 /** 效果函数:纯逻辑(禁止 DOM/React),经引擎公共方法改状态。返回是否生效。 */
@@ -142,6 +148,47 @@ export const EFFECTS: Record<string, EffectFn> = {
       throw new Error("处变不惊:JinnangAnnounced 派发缺 targetSeats(时机载荷契约违反)");
     if (!ctx.targetSeats.includes(ctx.owner)) return false;
     engine.grantSkillCash(ctx.owner, req(params, "amount"));
+    return true;
+  },
+
+  // ── 「你可」可选发动形制(#1377,曹丕放逐/行殇):命中不自动结算,挂待决队列,
+  //    回合收口 endTurn 入口开窗(choices.ts enterSkillChoiceWindowIfOwed)。──
+
+  /** 放逐攒怒(#1377):StaminaLoss 时机(scope=self,伤害=主公损失体力),损失额
+   *  (delta 取绝对值)累入本槽技能标记;达 params.threshold 挂「你可」待决(入队,
+   *  发动归零与选人罚跳归回合收口后的应答命令)。未达阈值返回 false 静默跳过
+   *  (不记战报/冷却)。params: { threshold }。ctx.delta 缺失或非负=派发契约违反,炸出。 */
+  fangzhuMark: (engine, ctx, params) => {
+    if (ctx.delta == null || ctx.delta >= 0)
+      throw new Error("放逐:StaminaLoss 派发缺 delta 或非损失方向(时机载荷契约违反)");
+    const total = addSkillMarks(
+      heroSlotOf(engine.players[ctx.owner], ctx.slotHeroId),
+      ctx.skillId,
+      -ctx.delta,
+    );
+    if (total < req(params, "threshold")) return false;
+    queueSkillChoice(engine, {
+      skillId: ctx.skillId,
+      heroId: ctx.slotHeroId,
+      ownerSeat: ctx.owner,
+      subjectSeat: ctx.subject,
+    });
+    return true;
+  },
+  /** 行殇询问(#1377):TurnSkipImposed 时机(scope=others,一名其他诸侯进入休整),
+   *  原因=耗竭(卧床入休)才挂「你可」待决,目标=被跳者(既定,应答免选人);
+   *  缓兵之计(jinnang)与行殇本笔(xingshang)均不触发——后者兼防递归
+   *  (发动落账追加的同时机笔不再问)。ctx.reason 缺失=派发契约违反,炸出。 */
+  xingshangOffer: (engine, ctx) => {
+    if (ctx.reason == null) throw new Error("行殇:TurnSkipImposed 派发缺 reason(时机载荷契约违反)");
+    if (ctx.reason !== "exhaustion") return false;
+    queueSkillChoice(engine, {
+      skillId: ctx.skillId,
+      heroId: ctx.slotHeroId,
+      ownerSeat: ctx.owner,
+      subjectSeat: ctx.subject,
+      targetSeat: ctx.subject,
+    });
     return true;
   },
 };

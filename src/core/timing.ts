@@ -6,7 +6,7 @@
 // (engine.round,roundAnchor 锚定)。新增时机 = ① 此处 GameMoment 加一项 + MOMENTS 注册;
 // ② authority.ts 在正确点位挂一个 dispatchMoment 派发。仅此两步,再无散派。
 
-/** 时机类型(36 个,按七类分组,实数以 MOMENTS 注册表为准)。subject(时机主体座位)与 ctx 字段见各时机注释;
+/** 时机类型(37 个,按七类分组,实数以 MOMENTS 注册表为准)。subject(时机主体座位)与 ctx 字段见各时机注释;
  *  分类目录 + 技能灵感示例见 docs/explanation/时机框架.md。 */
 export type GameMoment =
   // ── 生命周期 ──
@@ -102,6 +102,12 @@ export type GameMoment =
    *  结算处)。休整期满回满(系统复位非收益)与华佗赈济(主动技「结算内不派时机」既有口径)不派。
    *  ctx.delta = 夹紧 0~100 后的实际增减(带符号)。subject = 体力变动者。 */
   | "StaminaChanged"
+  /** 体力损耗(#1377,放逐攒怒挂点):挂体力唯一写口 addStamina(authority.ts)内部,
+   *  损失方向(delta<0)一律派发,含打空体力的最后一笔;增益方向不派(温泉/赈济不攒)。
+   *  与 StaminaChanged 的分工:彼处记「机遇路体力变更」事件面,此处是任何来路损失的
+   *  机制挂点(现役损失只产机遇路,写点在写口内故天然全覆盖)。ctx.delta = 夹紧后实际
+   *  损失额(恒负值)。subject = 体力受损者。 */
+  | "StaminaLoss"
   /** 声望变更(#456):挂 addReputation 唯一写口(reputation.ts)单点广播,天命城与机遇
    *  repDelta 两路天然全覆盖;事件流的 before/after 差值模式在调用点,与新时机并存不冲突。
    *  ctx.delta = 实际增减(带符号,无界直加)。subject = 声望变动者。 */
@@ -156,8 +162,9 @@ export interface MomentCtx {
   cardId?: string;
   /** 目标座位集(JinnangAnnounced:全体域=受影响全员,自身域=[使用者];其余时机不带)。 */
   targetSeats?: number[];
-  /** 跳回合缘由(TurnSkipImposed):jinnang=缓兵之计 / exhaustion=体力耗竭善后。 */
-  reason?: "jinnang" | "exhaustion";
+  /** 跳回合缘由(TurnSkipImposed):jinnang=缓兵之计 / exhaustion=体力耗竭善后 /
+   *  xingshang=行殇追加(#1377;行殇过滤只认 exhaustion,本笔不复触发行殇,防递归)。 */
+  reason?: "jinnang" | "exhaustion" | "xingshang";
   /** 实际入手张数(JinnangGained;牌库空落空不派发,恒 ≥1)。 */
   count?: number;
   /** 单一目标座位(PeekApplied 被窥者)。 */
@@ -208,6 +215,7 @@ export const MOMENTS: readonly GameMoment[] = [
   "CashLost",
   "TurnSkipImposed",
   "StaminaChanged",
+  "StaminaLoss",
   "ReputationChanged",
   // 破产与终局结算
   "PlayerBankrupt",

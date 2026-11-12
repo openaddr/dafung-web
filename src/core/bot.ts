@@ -25,6 +25,7 @@ export const BOT_ATTENDED_PHASES: ReadonlySet<TurnPhase> = new Set([
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
   "AwaitingReaction", // 见头注:开窗即席代答,驱动器停等人类,不走 botAct
+  "AwaitingSkillChoice", // 「你可」待决(#1377):endTurn 入口停相位,驱动器下一泵 botAct 按策略代答
 ]);
 
 /** 座位散列(抉择声望折算系数的性格源,#124):纯座位派生,确定性、与对局状态无关,
@@ -270,6 +271,27 @@ export function botReactionDecision(engine: GameEngine, seat: number): ReactionD
     : { use: true, cardId };
 }
 
+/** 「你可」待决决策(#1377,与 botReactionDecision 同形制:纯函数、不掷骰、确定性,
+ *  托管/接管代驾与 bot 座位同走本决策):行殇恒发动(零成本,目标=载荷既定被跳者);
+ *  放逐攒满即发动,目标=身价领跑者(netWorth 单口径,与缓兵之计同一排序公式,
+ *  并列取座位序小者;目标域合法子集=存活非己,领跑者出局/自己领跑时取排序首位
+ *  合法目标)。无合法目标(全场皆己/出局)才放弃(标记保留,再攒再问)。 */
+export function botSkillChoiceDecision(
+  engine: GameEngine,
+  seat: number,
+): { use: boolean; targetSeat?: number } {
+  const pending = engine.pendingSkillChoices[0];
+  if (pending == null || pending.ownerSeat !== seat)
+    throw new Error(`botSkillChoiceDecision:座位 ${seat} 无待决选择(驱动器 bug)`); // 零兜底
+  if (pending.skillId === "xingshang") return { use: true, targetSeat: pending.targetSeat };
+  const ranked = engine.players
+    .map((t, s) => ({ t, s }))
+    .filter(({ t, s }) => s !== seat && !t.isBankrupt)
+    .sort((a, b) => netWorth(b.t) - netWorth(a.t)); // 稳定排序:并列保持座位序(序小在前)
+  if (ranked.length === 0) return { use: false };
+  return { use: true, targetSeat: ranked[0]!.s };
+}
+
 /** 主动技意图(#188 档 3;#817 实例定位对):策略表对单个技能实例的「用/不用 + 偏好目标
  *  序」。净值贪心、确定性(不掷骰,并列取座位序小者);exported 供单测。可发性仍以技能
  *  目标段 choicesFor 的 available 为准(ADR-0013 同口径)。意图按技评估(同技实例策略
@@ -434,6 +456,15 @@ export function botAct(engine: GameEngine): void {
       // 出牌阶段(#122/T2 → #148/T6 策略 → #188 档 3 并入主动技):按策略表(§8)经
       // driveJinnang 推进——bot/托管/接管同一套(#580 行为单源)。
       driveJinnang(engine);
+      break;
+    }
+
+    case "AwaitingSkillChoice": {
+      // 「你可」待决(#1377):bot/托管/接管同走 botSkillChoiceDecision(决策单源),
+      // 应答命令落引擎后续问或重入回合收口(endTurn)。
+      const seat = engine.decisionOwner;
+      const d = botSkillChoiceDecision(engine, seat);
+      engine.respondSkillChoice(seat, d.use, d.targetSeat);
       break;
     }
 

@@ -24,6 +24,11 @@ export interface TriggerSkill {
    *  - "actor":时机主体恰为当前行动玩家(activeIndex,属主不限)——当前所有派发点主体即行动者,
    *    与 "any" 等价;未来出现「非行动玩家」主体的时机(如回合外失银)时二者分化。 */
   scope?: "self" | "actor" | "others" | "any";
+  /** 「你可」可选发动形制(#1377,被动技首个可选发动):效果命中时不自动结算而是挂
+   *  待决(choices.ts PendingSkillChoice 队列,回合收口 endTurn 入口开窗),发动成立时
+   *  本技在本槽的技能标记归零(超出部分随覆写舍弃)。缺省 false=命中即自动结算
+   *  (现役其余被动技全是自动形制)。 */
+  fireResetsMarks?: boolean;
 }
 
 /** 名将主动技(#188 档 3):数据声明,与被动技(TriggerSkill·时机驱动)同表并存。
@@ -221,6 +226,29 @@ export const SKILLS: SkillDef[] = [
     // 每次回合开始派发都参评,效果内部落账给持有者(ctx.owner);同青囊的 any 先例,
     // 双池共享(司马懿↔邓艾)=首批共享三技之后的新共享先例。
     scope: "any",
+  },
+  // ── 被动技·「你可」可选发动(#1377,曹丕放逐/行殇):效果命中挂待决不自动结算,
+  // 回合收口 endTurn 入口开窗(choices.ts);名将池本票不动——新技不可达,测试走
+  // planter.armHero 直授(#1375 拍板)。文案=规格 #1375 Solution 节定稿原文。──
+  {
+    id: "fangzhu",
+    name: "放逐",
+    desc: "受到伤害时,获得等同于伤害值的「放逐」标记;受到伤害后,若「放逐」值达到 60,你可指定一名其他诸侯,使其跳过下一个回合,并重置「放逐」标记数。",
+    when: "StaminaLoss",
+    effect: "fangzhuMark",
+    params: { threshold: 60 },
+    scope: "self", // 伤害=主公损失体力:主体恒属主本人(体力唯一写口内派发)
+    fireResetsMarks: true, // 发动重置「放逐」标记数(超出 60 的部分随归零舍弃)
+  },
+  {
+    id: "xingshang",
+    name: "行殇",
+    desc: "一名其他诸侯进入休整状态时,你可使其休整回合数+1。",
+    when: "TurnSkipImposed",
+    effect: "xingshangOffer",
+    // scope="others":主体=被跳者,自己休整不触发;原因过滤(只认耗竭)在效果内判——
+    // 缓兵之计的跳过(jinnang)与行殇本笔(xingshang)均不触发。
+    scope: "others",
   },
   // ── 主动技(出牌阶段手动,#188 档 3)──
   {

@@ -59,6 +59,7 @@ const MOMENT_LABEL: Record<GameMoment, string> = {
   CashLost: "失银",
   TurnSkipImposed: "被跳回合",
   StaminaChanged: "体力变动",
+  StaminaLoss: "体力损耗", // #1377 放逐攒怒挂点(枚举新增的编译期穷尽项,标签随族)
   ReputationChanged: "声望变动",
   // 破产与终局
   PlayerBankrupt: "破产出局",

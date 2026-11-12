@@ -43,11 +43,24 @@ export interface HeroRow {
 
 /** 快照麾下槽位行(#785,ADR-0036:槽位全量=游戏状态——heroId+已授技(池序)+按技冷却
  *  账;「同一名将不同玩家持不同技」随快照可表达。名/画像是展示字段,消费端按
- *  heroId 回查名将表补(heroes.ts 单源)。 */
+ *  heroId 回查名将表补(heroes.ts 单源)。技能标记(#1377)非空才产键(键缺席=空容器
+ *  规范缺省,非数据兜底)。 */
 export interface HeroSlotRow {
   heroId: string;
   skillIds: string[];
   lastFired: Record<string, number>;
+  marks?: Record<string, number>;
+}
+
+/** 技能标记规范化(#1377 序列化空态口径):剥 0 值键,全空返回 undefined(快照不产键)。
+ *  归零(fireResetsMarks 后的 {skillId: 0})与未启技的 {} 同为规范空;非零标记必产键。 */
+function canonicalMarks(
+  marks: Record<string, number> | undefined,
+): Record<string, number> | undefined {
+  if (marks == null) return undefined;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(marks)) if (v !== 0) out[k] = v;
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** 快照玩家行(netWorth 为派生列,UI 直读免重算)。 */
@@ -165,6 +178,9 @@ export interface GameSnapshot {
   pendingJinnang: import("./jinnang-execution").PendingJinnang | null;
   /** 技能目标段载荷(#188 档 3):出牌阶段选技后的选人子状态;null=无。 */
   pendingSkill: import("./jinnang-execution").PendingHeroSkill | null;
+  /** 「你可」待决队列(#1377,被动技可选发动):时机命中的挂问,回合收口逐条开窗;
+   *  空队不产键(undefined=规范缺省,无此技对局的快照与摘要指纹零扰动)。 */
+  pendingSkillChoices?: import("./choices").PendingSkillChoice[];
   /** 擂鼓步数加成(#188 档 3):本回合 rollAndMove 消费;发动与掷骰之间可被快照广播,须保真。 */
   heroDiceBonus: number;
   /** 反应窗挂起态(#281,god-view):公告/应答/续结算载荷全部随快照走(ADR-0017,
@@ -254,8 +270,10 @@ interface SnapshotField<K extends keyof GameSnapshot> {
   write: (e: GameEngine, s: GameSnapshot) => void;
 }
 
-/** 全部条目的联合(键类型恰好覆盖 GameSnapshot 的键,多键/错键在编译期炸出)。 */
-type SnapshotFieldEntry = { [K in keyof GameSnapshot]: SnapshotField<K> }[keyof GameSnapshot];
+/** 全部条目的联合(键类型恰好覆盖 GameSnapshot 的键,多键/错键在编译期炸出)。
+ *  -? 剥掉映射继承的可选性:可选键(如 #1377 pendingSkillChoices)的条目本身不可缺席,
+ *  只是 read 可返回 undefined(空态不产键)。 */
+type SnapshotFieldEntry = { [K in keyof GameSnapshot]-?: SnapshotField<K> }[keyof GameSnapshot];
 
 /** 序列化单点清单(唯一):条目序 = 快照键序(serialize 产出序)。各条目 write 相互独立、
  *  均不读骰不互读,restore 按序循环应用即正确(无跨键次序依赖)。 */
@@ -456,6 +474,16 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
+    // 「你可」待决队列(#1377):非空必产键、空队不产键(undefined 序列化即缺,
+    // canonicalize 同口径跳过)——无此技对局的摘要指纹零扰动;恢复全量回灌(纯数据深拷贝)
+    key: "pendingSkillChoices",
+    read: (e) =>
+      e.pendingSkillChoices.length > 0 ? e.pendingSkillChoices.map((c) => ({ ...c })) : undefined,
+    write: (e, s) => {
+      e.pendingSkillChoices = (s.pendingSkillChoices ?? []).map((c) => ({ ...c }));
+    },
+  },
+  {
     // 擂鼓步数加成(#188 档 3):发动与掷骰之间可被广播/落盘,恢复须保真
     key: "heroDiceBonus",
     read: (e) => e.heroDiceBonus,
@@ -624,12 +652,18 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           level: h.level,
           group: h.group,
         })),
-        // 麾下槽位全量(#785):已授技与冷却账是游戏状态,原样深拷贝(展示字段客户端回查表补)
-        heroes: p.heroes.map((slot) => ({
-          heroId: slot.heroId,
-          skillIds: [...slot.skillIds],
-          lastFired: { ...slot.lastFired },
-        })),
+        // 麾下槽位全量(#785):已授技与冷却账是游戏状态,原样深拷贝(展示字段客户端回查表补);
+        // 技能标记(#1377)规范化后非空才产键——空容器/全零=规范缺省,无此技对局的快照与
+        // 摘要指纹零扰动(槽位缺容器=非标记感知构造,同规范缺省序列化为空)
+        heroes: p.heroes.map((slot) => {
+          const marks = canonicalMarks(slot.marks);
+          return {
+            heroId: slot.heroId,
+            skillIds: [...slot.skillIds],
+            lastFired: { ...slot.lastFired },
+            ...(marks != null ? { marks } : {}),
+          };
+        }),
         treasures: p.treasures.map((t) => ({
           id: t.id,
           name: t.name,
@@ -658,11 +692,15 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.skipTurns = ps.skipTurns;
         p.resting = ps.resting;
         // heroes:槽位全量回灌(#785,直拷不回查——heroId 查无目录属数据 bug,派发时
-        //        经 heroById 当场炸出,不在此静默滤除)
+        //        经 heroById 当场炸出,不在此静默滤除);技能标记(#1377)恢复恒置空表
+        //        (roster 头注「三路标记感知构造」的第三路:写侧空容器不产键=序列化空态
+        //        规范,读侧必须重建容器——否则空标记槽往返后 addSkillMarks 在合法通路
+        //        当场炸,#1377 评审修复)
         p.heroes = ps.heroes.map((row) => ({
           heroId: row.heroId,
           skillIds: [...row.skillIds],
           lastFired: { ...row.lastFired },
+          marks: { ...row.marks },
         }));
         p.reputation = ps.reputation;
         p.stamina = ps.stamina;

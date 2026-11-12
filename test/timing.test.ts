@@ -1,5 +1,5 @@
 // 时机框架单测:派发点位正确性 / 座位序×技能序确定性 / scope 四过滤 / cooldown /
-// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 36 时机各挂点至少一例
+// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 37 时机各挂点至少一例
 // (18 个新时机的场景构造:peekDie 预读骰面 + landActiveOn 恰落目标格)。
 // 现有 3 名将的行为等价断言(moveBonus+1 / 曹丕+50 / 星彩+20)在 game.test.ts,此处测框架本身。
 import { describe, it, expect, afterEach } from "bun:test";
@@ -226,7 +226,7 @@ describe("时机框架:派发点位", () => {
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
     // seed=1(#827 重钉:36 城 9×4 环序重排,选都/行军骰流重钓):两家分选交州/长沙,
-    // 两回合落点均为无主普通城(落格族时机由「36 时机各挂点一例」的场景构造覆盖),
+    // 两回合落点均为无主普通城(落格族时机由「37 时机各挂点一例」的场景构造覆盖),
     // 途经棋子/城池如实钉住——本例主旨是框架派发顺序本身
     expect(calls).toEqual([
       "SetupComplete",
@@ -1451,6 +1451,21 @@ describe("时机框架:事件化第二批(#456)", () => {
     expect(entries.filter((x) => x.moment === "StaminaChanged").map((x) => x.ctx)).toEqual([
       { subject: seat, delta: -100 }, // 机遇路 −100 恰一派;耗竭结算/休整回满均不派
     ]);
+  });
+
+  it("StaminaLoss:体力唯一写口损失方向一律派发(delta=夹紧后实际损失恒负);增益方向不派(#1377 放逐攒怒挂点)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    const entries = recordMomentCtx(e);
+    testEngine(e).applyEncounter(mover, enc({ kind: "cash", delta: 0, staminaDelta: -30 }));
+    // 与 StaminaChanged 同点并存双派:彼处记机遇路事件面,此处是任何来路损失的机制挂点
+    expect(entries.filter((x) => x.moment === "StaminaLoss").map((x) => x.ctx)).toEqual([
+      { subject: seat, delta: -30 },
+    ]);
+    e.addStamina(seat, 50); // 增益:不派(温泉/赈济不攒)
+    expect(entries.filter((x) => x.moment === "StaminaLoss")).toHaveLength(1);
   });
 
   it("ReputationChanged:addReputation 唯一写口单点广播——天命城 +20 派发(事件流 before/after 差值在调用点,并存不冲突)", () => {

@@ -154,7 +154,9 @@ describe("破产清算", () => {
       const offer = e.offeredHeroes[idx]!;
       e.resolveHeroPick(idx);
       // 再招重掷(#787):授技=候选行预掷子集(≥1、池内),冷却账清零;遣散不保留旧授技
-      expect(p.heroes).toEqual([{ heroId: "zhouyu", skillIds: offer.skillIds, lastFired: {} }]);
+      expect(p.heroes).toEqual([
+        { heroId: "zhouyu", skillIds: offer.skillIds, lastFired: {}, marks: {} }, // marks(#1377):标记感知构造
+      ]);
       expect(offer.skillIds.length).toBeGreaterThanOrEqual(1);
       expect(offer.skillIds.every((id) => heroById("zhouyu").skillPool.includes(id))).toBe(true);
       return;
