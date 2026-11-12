@@ -12,7 +12,13 @@ import { isTriggerSkill, skillById, type TriggerSkill } from "./skills";
 import type { TreasureDef } from "./treasures";
 import type { LandOutcome, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
-import { computeChoices, type ChoiceOption } from "./choices";
+import {
+  computeChoices,
+  enterSkillChoiceWindowIfOwed,
+  respondSkillChoice,
+  type ChoiceOption,
+  type PendingSkillChoice,
+} from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
@@ -105,6 +111,7 @@ import {
   emitGameEvent,
   noteMomentEvent,
   abortGame,
+  CMD_BRIEF,
   type GameEvent,
 } from "./game-events";
 import { formatMoney } from "./money";
@@ -154,6 +161,7 @@ export type TurnPhase =
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
   | "AwaitingReaction" // 反应窗(#281):锦囊宣布/行军途经城池的识破、拦检询问
+  | "AwaitingSkillChoice" // 「你可」选择闸(#1377):被动技可选发动待决(放逐/行殇),endTurn 入口挂问、respondSkillChoice 应答后重入收口
   | "Land"
   | "EndTurn"
   | "GameOver";
@@ -191,27 +199,10 @@ export type GameCommand =
   // use=true 时 cardId=打出的反应锦囊;shareSeat 仅识破根窗 AOE 必带=被保护份的座位(替他人
   // 拆招即指他人份;连环计两份任意一张识破即全计作废,shareSeat 可省略);反识破链环窗
   // 不带份(争夺份随窗载荷,#571 ADR-0060)。
-  | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number };
-
-/** 命令 → 中文动词(cmd 行 brief 用;机读 detail 为完整命令 JSON)。 */
-const CMD_BRIEF: Record<GameCommand["type"], string> = {
-  rollAndMove: "行军",
-  buyProperty: "购地",
-  upgradeProperty: "扩军",
-  endDecision: "按兵不动",
-  resolveHeroPick: "招贤",
-  resolveEncounterChoice: "机遇抉择",
-  resolveTreasureOwner: "珍宝交涉",
-  sellTreasureBankruptcy: "变卖珍宝",
-  sellPropertyBankruptcy: "变卖城池",
-  cashHeroBankruptcy: "遣散名将",
-  confirmBankruptcySettle: "清算确认",
-  useJinnang: "用锦囊",
-  useHeroSkill: "出技",
-  useBookSkill: "用书学技",
-  dismissHero: "遣散",
-  respondReaction: "反应窗应答",
-};
+  | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number }
+  // 「你可」应答(#1377):seat 必须等于挂问属主(seat 随命令过网/进日志,重放据此复现);
+  // use=false=暂不发(标记保留);use=true 放逐必带 targetSeat,行殇目标既定(载荷自带)。
+  | { type: "respondSkillChoice"; seat: number; use: boolean; targetSeat?: number };
 
 /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家);表现态 floaters 的行类型,
  *  经 engine.presentation.drainFloaters() 消费(破坏性读)。
@@ -288,6 +279,10 @@ export class GameEngine {
   /** 技能目标段载荷(#188 档 3):出牌阶段内选技后的选人子状态;null=无。与 pendingJinnang
    *  互斥(同一时刻至多一个子状态)。随快照走(目标段中途断线可恢复)。 */
   pendingSkill: PendingHeroSkill | null = null;
+  /** 「你可」待决队列(#1377,被动技可选发动):时机命中的效果入队,回合收口 endTurn
+   *  入口逐条开窗(AwaitingSkillChoice 相位),respondSkillChoice 应答后续问或续收口;
+   *  决策者=首问属主。随快照走(空队不产键,空态=规范缺省)。 */
+  pendingSkillChoices: PendingSkillChoice[] = [];
   /** 擂鼓步数加成(#188 档 3):出牌阶段发动 warDrum 技写入,本回合 rollAndMove 掷骰后
    *  取走清零。可序列化——发动与掷骰之间可被快照广播/落盘,与瞬态 marchBonus(同一次
    *  rollAndMove 内写读平衡)不同,必须跨进程保真。 */
@@ -508,6 +503,11 @@ export class GameEngine {
    *  AwaitingTreasureOwner(珍宝交涉)= 城主(treasureVisitor.ownerIdx,可能 ≠ 访客)。
    *  收口此查询,避免各驱动方(network-client / room / engine-helpers / state)各自手抄推导。 */
   get decisionOwner(): number {
+    if (this.turnPhase === "AwaitingSkillChoice") {
+      const pending = this.pendingSkillChoices[0];
+      if (pending == null) throw new Error("AwaitingSkillChoice 相位无待决选择(状态机 bug)"); // 零兜底
+      return pending.ownerSeat;
+    }
     return this.turnPhase === "AwaitingTreasureOwner"
       ? (this.treasureVisitor?.ownerIdx ?? this.activeIndex)
       : this.activeIndex;
@@ -630,6 +630,11 @@ export class GameEngine {
     respondReaction(this, seat, use, cardId, shareSeat);
   }
 
+  /** 「你可」应答(#1377 公共入口,UI/bot 驱动器/托管代驾同走):薄委托 → choices.respondSkillChoice。 */
+  respondSkillChoice(seat: number, use: boolean, targetSeat?: number): void {
+    respondSkillChoice(this, seat, use, targetSeat);
+  }
+
   /** 待决策落格的地产定义(价格/等级口径单一出处):薄委托 → movement-flow.pendingLandDef
    *  (choices.ts/bot 经壳消费)。 */
   pendingLandDef(): PropertyDef {
@@ -673,6 +678,9 @@ export class GameEngine {
   // ──────────────────────────── 回合结束 / 胜负 ────────────────────────────
   // #320 去私有化(ADR-0019 条款 3):机遇/耗竭域 encounter-flow.ts 结算路径直调 g.endTurn 收尾回合
   endTurn(): void {
+    // 「你可」选择闸(#1377):有待决先挂窗应答后重入本口收尾(队列见空即落空,零扰动);
+    // 先于 TurnEnd 派发——罚跳落账早于下回合推进,skipTurns 消费环按既定口径消费。
+    if (enterSkillChoiceWindowIfOwed(this)) return;
     // 收口边界事务性(#649):先拨离 Awaiting* 相位,再进 TurnEnd 派发同步抛错点。
     // 域收口范式是「清载荷 → endTurn」(treasure-flow/recruitment/encounter-flow 三处同构),
     // 若先跑可能抛错的收口段后拨相位,异常炸出的同时引擎滞留「已清载荷未拨相位」失配态
@@ -893,6 +901,8 @@ export class GameEngine {
     // 给定 seed 后 bot 行为确定,重放自动重算(见 docs/reference/对局日志.md「命令流重放」)。
     // 反应窗应答(#281)例外:归属=被询问座位(cmd.seat,非 decisionOwner——反应窗天然
     // 多属主),seat 随命令过网,与 pickCapital 的 seat 随 detail 过网同款。
+    // 「你可」应答(#1377)不设例外:决策者唯一=挂问属主,恰为本相位 decisionOwner,通用
+    // 命令行归属一致;非法座位的替答在 respondSkillChoice 内警告拒绝(真实 seat 随 detail JSON 留痕)。
     if (cmd.type === "respondReaction") {
       const responder = this.players[cmd.seat];
       this.logEvent(
@@ -933,6 +943,8 @@ export class GameEngine {
         return this.cashHeroBankruptcy(cmd.heroId);
       case "confirmBankruptcySettle":
         return this.confirmBankruptcySettle();
+      case "respondSkillChoice": // 「你可」应答(#1377):决策者=挂问属主=本相位 decisionOwner
+        return this.respondSkillChoice(cmd.seat, cmd.use, cmd.targetSeat);
       case "useJinnang":
         return this.resolveJinnang(cmd.cardId ?? null, cmd.targets, cmd.cancel);
       case "useHeroSkill":
@@ -1005,7 +1017,13 @@ export class GameEngine {
               throw new Error(
                 `未知效果 EffectId "${skill.effect}"(技能 ${skill.id}):注册表查不到=数据 bug`,
               );
-            const ectx: EffectCtx = { ...ctx, moment, owner: ownerSeat };
+            const ectx: EffectCtx = {
+              ...ctx,
+              moment,
+              owner: ownerSeat,
+              skillId: skill.id, // 击发技与其槽位(#1377):效果按实例落账(技能标记记槽)
+              slotHeroId: slot.heroId,
+            };
             if (!effectFn(this, ectx, skill.params ?? {})) continue; // 条件不满足:静默跳过(不记战报/冷却)
             slot.lastFired[skill.id] = this.round; // 记冷却轮次入槽(无 cooldown 的技能记录无害)
             emitGameEvent(this, ownerSeat, {
@@ -1205,10 +1223,15 @@ export class GameEngine {
     executeJinnang(this, user, userSeat, def, targets, exempt);
   }
 
-  /** 体力增减(#130):clamp 0~100,返回落账后的体力值。 */
+  /** 体力增减(#130):clamp 0~100,返回落账后的体力值。损失方向派发 StaminaLoss 时机
+   *  (#1377,放逐攒怒挂点:任何来路的损失一律广播,含打空最后一笔;delta=夹紧后实际
+   *  损失额,恒负值;增益不派——温泉/赈济不攒)。 */
   addStamina(seat: number, delta: number): number {
     const p = this.players[seat];
-    p.stamina = Math.max(0, Math.min(STAMINA_MAX, p.stamina + delta));
+    const before = p.stamina;
+    p.stamina = Math.max(0, Math.min(STAMINA_MAX, before + delta));
+    if (p.stamina < before)
+      this.dispatchMoment("StaminaLoss", { subject: seat, delta: p.stamina - before });
     return p.stamina;
   }
 

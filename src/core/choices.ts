@@ -7,13 +7,13 @@
 import type { GameEngine, TurnPhase } from "./authority";
 import { canUpgrade } from "./economy";
 import { tileIndexOfProperty } from "./board";
-import type { ActiveSkillDef } from "./skills";
-import { isActiveSkill, skillById } from "./skills";
+import type { ActiveSkillDef, TriggerSkill } from "./skills";
+import { isActiveSkill, isTriggerSkill, skillById } from "./skills";
 import { findHolding } from "./player";
 import { HERO_CAPACITY } from "./constants";
 import { heroById } from "./heroes";
 import { HEROES } from "./heroes";
-import { skillBookLearners, type HeroSlot } from "./roster";
+import { heroSlotOf, resetSkillMarks, skillBookLearners, type HeroSlot } from "./roster";
 import { isSkillBook } from "./treasures";
 import type { EncounterChoiceOption, EncounterTier } from "./encounters";
 import { jinnangCardOf, isReactionCard, TARGET_DOMAIN_STAGES, type JinnangEffect } from "./jinnang";
@@ -492,6 +492,7 @@ export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceO
   AwaitingEncounter: encounterChoices,
   AwaitingJinnang: jinnangChoices,
   AwaitingBankruptcySettle: bankruptcyChoices,
+  AwaitingSkillChoice: skillChoiceChoices,
 };
 
 /** 自动执行例外名单(ADR-0013 决议 3):这些相位即使唯一选项也照常弹卷轴。 */
@@ -502,4 +503,170 @@ export const EXCLUDED_FROM_AUTO: ReadonlySet<TurnPhase> = new Set(["AwaitingBank
  *  已整线退役,#1065)。 */
 export function computeChoices(e: GameEngine, phase: TurnPhase): ChoiceOption[] {
   return PHASE_CHOICES[phase]?.(e) ?? [];
+}
+
+// ─────────────────── 「你可」选择闸(#1377,被动技可选发动形制)───────────────────
+// 放逐/行殇式被动技命中时不自动结算:效果层把待决入队(fangzhuMark/xingshangOffer),
+// 回合收口 endTurn 入口逐条开窗(AwaitingSkillChoice 相位),真人经 respondSkillChoice
+// 命令应答(选目标/放弃),bot 由驱动器按 botSkillChoiceDecision(bot.ts 单源)代答。
+// 形制对齐反应窗(ADR-0017):停相位等应答、bot 不外显相位、零兜底(相位与载荷失配
+// 当场炸);通道独立于 pendingReaction——反应窗的公告/应答事件与折叠面按牌语义收紧,
+// 技能待决无牌面,快照队列即状态(联机经校准快照同步,呈现接线归交付票 #1378)。
+
+/** 「你可」待决选择:时机命中且条件满足的效果挂起态,回合收口逐条开窗。纯数据,
+ *  可序列化(快照非空才产键,空队=规范缺省)。 */
+export interface PendingSkillChoice {
+  /** 待决技 id(fangzhu/xingshang 共用形制)。 */
+  skillId: string;
+  /** 麾下槽位定位(放逐发动标记归零落槽)。 */
+  heroId: string;
+  /** 决策者=技属主座位(应答命令须同座)。 */
+  ownerSeat: number;
+  /** 触发主体座位(StaminaLoss 受损者 / TurnSkipImposed 被跳者)。 */
+  subjectSeat: number;
+  /** 既定目标座位(行殇=被跳者);放逐缺省=应答时选(不许指定自己,choices 校验)。 */
+  targetSeat?: number;
+}
+
+/** 待决入队(效果注册表专用通道,effects.ts 域内直呼——同 roster.addSkillMarks 通路):
+ *  同一槽位同一待决已在队=幂等不重问(阈值达成后标记未清,同回合再损失不再重复挂问);
+ *  发动归零后新损失产生的是新问,不受此限。 */
+export function queueSkillChoice(g: GameEngine, choice: PendingSkillChoice): void {
+  const dup = g.pendingSkillChoices.some(
+    (c) =>
+      c.skillId === choice.skillId &&
+      c.heroId === choice.heroId &&
+      c.ownerSeat === choice.ownerSeat &&
+      c.subjectSeat === choice.subjectSeat &&
+      c.targetSeat === choice.targetSeat,
+  );
+  if (dup) return;
+  g.pendingSkillChoices.push({ ...choice });
+}
+
+/** 回合收口的「你可」闸(endTurn 入口调):队列空=无事(返回 false,零扰动);
+ *  非空先弃破产属主的残问(与派发器跳过破产玩家同口径,破产者无决策),弃空则照常
+ *  收口;否则停相位 AwaitingSkillChoice 挂首问等应答。bot 不即席代答——窗在 endTurn
+ *  入口停相位后控制权交还驱动器,下一泵 botAct 按策略应答(bot.ts 决策单源),
+ *  相位对全 bot 驱动链外显一拍即被代答续收。 */
+export function enterSkillChoiceWindowIfOwed(g: GameEngine): boolean {
+  if (g.pendingSkillChoices.length === 0) return false;
+  g.pendingSkillChoices = g.pendingSkillChoices.filter((c) => !g.players[c.ownerSeat].isBankrupt);
+  const pending = g.pendingSkillChoices[0];
+  if (pending == null) return false;
+  const skill = skillById(pending.skillId);
+  if (!isTriggerSkill(skill)) throw new Error(`「你可」待决 ${pending.skillId} 非被动技(数据 bug)`); // 零兜底
+  g.turnPhase = "AwaitingSkillChoice";
+  const owner = g.players[pending.ownerSeat];
+  const targetTxt =
+    pending.targetSeat != null ? `,目标 ${g.players[pending.targetSeat].guohao}` : "";
+  g.logEvent(
+    "system",
+    owner.guohao,
+    `${owner.guohao}「${skill.name}」可达发动条件,可指定目标或暂不发${targetTxt}`,
+    `skillChoiceAwait skill=${pending.skillId} hero=${pending.heroId} owner=${owner.id} subject=${g.players[pending.subjectSeat].id}`,
+  );
+  return true;
+}
+
+/** 「你可」应答(公共入口,UI/bot 驱动器/托管代驾同走):校验「仅决策者、目标合法」
+ *  后落账;放逐发动=目标 skipTurns +1(与缓兵之计同形制叠加)+ 追加一笔被强加跳回合
+ *  (reason=xingshang,韬光养晦按笔计酬)+ 本槽标记归零;放弃=标记保留。应答后队列
+ *  续问(停下一窗)或重入回合收口(endTurn,队列空即正常收尾)。非法命令警告拒绝,
+ *  不占待决名额(窗原地保留)。 */
+export function respondSkillChoice(
+  g: GameEngine,
+  seat: number,
+  use: boolean,
+  targetSeat?: number,
+): void {
+  if (!g.assertPhase("AwaitingSkillChoice", "respondSkillChoice")) return;
+  const pending = g.pendingSkillChoices[0];
+  if (pending == null)
+    throw new Error("respondSkillChoice:AwaitingSkillChoice 相位无待决选择(状态机 bug)"); // 零兜底
+  const owner = g.players[pending.ownerSeat];
+  const skill = skillById(pending.skillId);
+  if (!isTriggerSkill(skill)) throw new Error(`「你可」待决 ${pending.skillId} 非被动技(数据 bug)`); // 零兜底
+  if (seat !== pending.ownerSeat) {
+    g.warn(`respondSkillChoice:座位 ${seat} 非本窗决策者`);
+    return;
+  }
+  if (use) {
+    const target = pending.targetSeat ?? targetSeat;
+    if (target == null) {
+      g.warn("respondSkillChoice:发动缺目标座位");
+      return;
+    }
+    if (target === seat) {
+      g.warn("respondSkillChoice:不能指定自己");
+      return;
+    }
+    if (g.players[target].isBankrupt) {
+      g.warn("respondSkillChoice:目标已出局");
+      return;
+    }
+    g.pendingSkillChoices.shift(); // 先离队再落账:发动内派发不再回看本问
+    fireSkillChoice(g, pending, skill, target);
+  } else {
+    g.pendingSkillChoices.shift(); // 放弃:标记保留(归零只在发动时发生,再攒再问)
+    g.logEvent(
+      "system",
+      owner.guohao,
+      `${owner.guohao} 暂不发「${skill.name}」`,
+      `skillChoiceDecline skill=${pending.skillId} hero=${pending.heroId} owner=${owner.id}`,
+    );
+  }
+  if (g.pendingSkillChoices.length > 0) {
+    enterSkillChoiceWindowIfOwed(g); // 续问:停下一窗(bot 座位由驱动器下一泵代答)
+    return;
+  }
+  g.endTurn(); // 队列清空:重入回合收口(入口闸见空即正常收尾)
+}
+
+/** 发动落账(#1377):目标 skipTurns +1(叠加语义,缓兵之计同形制)+ 追加一笔
+ *  「被强加跳回合」时机(subject=目标,reason=xingshang:行殇过滤只认耗竭故不递归,
+ *  韬光养晦按笔计酬=设计联动);fireResetsMarks 技另把本槽标记归零(超出部分舍弃)。 */
+function fireSkillChoice(
+  g: GameEngine,
+  pending: PendingSkillChoice,
+  skill: TriggerSkill,
+  target: number,
+): void {
+  const owner = g.players[pending.ownerSeat];
+  const victim = g.players[target];
+  victim.skipTurns += 1;
+  g.dispatchMoment("TurnSkipImposed", { subject: target, reason: "xingshang" });
+  if (skill.fireResetsMarks) resetSkillMarks(heroSlotOf(owner, pending.heroId), skill.id);
+  g.logEvent(
+    "system",
+    owner.guohao,
+    `${owner.guohao} 发动「${skill.name}」:${victim.guohao} 下回合被拖住`,
+    `skillChoiceFire skill=${skill.id} hero=${pending.heroId} owner=${owner.id} target=${victim.id} skip=${victim.skipTurns}`,
+  );
+}
+
+/** AwaitingSkillChoice 选项集(ADR-0013 注册表):发动目标候选(放逐=存活他人逐座校验,
+ *  行殇=既定目标)+「暂不发」。命令面=respondSkillChoice(use+targetSeat),选项集为
+ *  UI/bot 的可用性口径(快照 choices 透出)。 */
+function skillChoiceChoices(e: GameEngine): ChoiceOption[] {
+  const pending = e.pendingSkillChoices[0];
+  if (pending == null) return []; // 非本相位无决策:注册表按相位调入,理论不达
+  const options: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
+    const ok =
+      pending.targetSeat != null
+        ? seat === pending.targetSeat
+        : seat !== pending.ownerSeat && !t.isBankrupt;
+    const reason = ok
+      ? undefined
+      : pending.targetSeat != null
+        ? "非本技目标"
+        : seat === pending.ownerSeat
+          ? "不能指定自己"
+          : t.isBankrupt
+            ? "已出局"
+            : undefined;
+    return { id: `t${seat}`, label: t.guohao || t.name, available: ok, reason, targetSeat: seat };
+  });
+  options.push({ id: "decline", label: "暂不发", available: true });
+  return options;
 }

@@ -18,6 +18,12 @@ export interface HeroSlot {
   heroId: string;
   skillIds: string[];
   lastFired: Record<string, number>;
+  /** 技能标记(#1377,槽位通用序列化字段):按技 id 计数的积攒容器(放逐攒怒用;
+   *  遣散/换技整槽随弃,无孤儿键)。可选=构造点是否标记感知(授技单点 grantHeroSlot/
+   *  种植件 armHero/快照恢复/事件折叠四路恒置空表);缺容器的槽写入标记当场炸(零兜底,
+   *  addSkillMarks),读未启技=0 是计数器规范缺省(skillMarksOf)。快照非空才产键
+   *  (snapshot.ts,空容器=规范缺省,对局摘要指纹零扰动;恢复与折叠重建容器)。 */
+  marks?: Record<string, number>;
 }
 
 /** 授技衰减基数(#969,ADR-0046):每多一技,授得概率 ÷5。三技将 1 技 25/31(80.6%)、
@@ -55,7 +61,7 @@ export function grantHeroSlot(
   hero: HeroDef,
   granted: string[],
 ): HeroSlot {
-  const slot: HeroSlot = { heroId: hero.id, skillIds: [...granted], lastFired: {} };
+  const slot: HeroSlot = { heroId: hero.id, skillIds: [...granted], lastFired: {}, marks: {} };
   player.heroes.push(slot);
   g.recruitedHeroIds.add(hero.id);
   g.dispatchMoment("HeroRecruited", { subject: g.players.indexOf(player), heroId: hero.id });
@@ -73,6 +79,32 @@ export function heroSlotOf(player: Player, heroId: string): HeroSlot {
   const slot = player.heroes.find((s) => s.heroId === heroId);
   if (slot == null) throw new Error(`麾下槽位:玩家 ${player.id} 无将 ${heroId}(数据 bug)`);
   return slot;
+}
+
+// ───────────────────────── 技能标记(#1377,「你可」形制的积攒容器)─────────────────────────
+// 读写单点:计数器语义=未启技读 0(规范缺省,非数据缺失);容器缺席=构造点未初始化,
+// 写入当场炸(零兜底——标记感知构造三路见 HeroSlot.marks 头注)。
+
+/** 标记读口(单测/效果层同用):未启技=0。 */
+export function skillMarksOf(slot: HeroSlot, skillId: string): number {
+  return slot.marks?.[skillId] ?? 0;
+}
+
+/** 标记累加写口(效果层专用;返回累加后总额)。损失额为正值入账,增益不进此口
+ *  (StaminaLoss 只派损失方向,timing.ts 口径)。 */
+export function addSkillMarks(slot: HeroSlot, skillId: string, amount: number): number {
+  if (slot.marks == null)
+    throw new Error(`技能标记:槽位 ${slot.heroId} 无标记容器(构造点未初始化,数据 bug)`);
+  slot.marks[skillId] = (slot.marks[skillId] ?? 0) + amount;
+  return slot.marks[skillId];
+}
+
+/** 标记归零(#1377 放逐发动):覆写清零即超出部分舍弃(非累减),达成
+ *  「发动后需再攒 60 才能再放」的节奏口径。 */
+export function resetSkillMarks(slot: HeroSlot, skillId: string): void {
+  if (slot.marks == null)
+    throw new Error(`技能标记:槽位 ${slot.heroId} 无标记容器(构造点未初始化,数据 bug)`);
+  slot.marks[skillId] = 0;
 }
 
 // ──────────────────────────── 技能书·学技(#1146)────────────────────────────

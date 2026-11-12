@@ -493,8 +493,9 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       // ── 名将族 ──
       case "heroRecruited": {
         const p = foldTarget(engine, ev);
-        // skillIds=本次授技(权威态随事件下行,折叠建槽不重掷,#785)
-        p.heroes.push({ heroId: ev.heroId, skillIds: [...ev.skillIds], lastFired: {} });
+        // skillIds=本次授技(权威态随事件下行,折叠建槽不重掷,#785);marks 恒置空表
+        // (槽位标记感知构造的折叠第四路,与快照恢复同口径——同形断言 #1377 评审修复)
+        p.heroes.push({ heroId: ev.heroId, skillIds: [...ev.skillIds], lastFired: {}, marks: {} });
         engine.recruitedHeroIds.add(ev.heroId); // 招贤池占位(offeredHeroes 候选 = 招贤校准档)
         break;
       }

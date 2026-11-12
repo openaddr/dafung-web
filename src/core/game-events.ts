@@ -17,13 +17,36 @@
 //     抽锦囊进手/声望变更/体力变更/跳过回合)在各域
 //     模块结算点直呼,reason 用领域词
 //     短横 slug(供应/税/行情/机遇/横征/连环/天命/耗竭……开放词表,新来源即新 slug)。
-import type { GameEngine, VictoryReason } from "./authority";
+import type { GameEngine, GameCommand, VictoryReason } from "./authority";
 import type { GameMoment, MomentCtx } from "./timing";
 import type { EncounterTier } from "./encounters";
 import type { MovePath } from "./board";
 import { findHolding } from "./player";
 import { heroSlotOf } from "./roster";
 import { netWorth } from "./networth";
+
+/** 命令 → 中文动词(cmd 行战报 brief 用;机读 detail 为完整命令 JSON)。原属引擎壳,
+ *  #1377 随壳行数锁(#325 只减不增)迁入战报词汇域;消费=authority.submitCommand
+ *  命令行落账,权威单点不变。 */
+export const CMD_BRIEF: Record<GameCommand["type"], string> = {
+  rollAndMove: "行军",
+  buyProperty: "购地",
+  upgradeProperty: "扩军",
+  endDecision: "按兵不动",
+  resolveHeroPick: "招贤",
+  resolveEncounterChoice: "机遇抉择",
+  resolveTreasureOwner: "珍宝交涉",
+  sellTreasureBankruptcy: "变卖珍宝",
+  sellPropertyBankruptcy: "变卖城池",
+  cashHeroBankruptcy: "遣散名将",
+  confirmBankruptcySettle: "清算确认",
+  useJinnang: "用锦囊",
+  useHeroSkill: "出技",
+  useBookSkill: "用书学技",
+  dismissHero: "遣散",
+  respondReaction: "反应窗应答",
+  respondSkillChoice: "技能发动抉择",
+};
 
 // ── 事件公共首部 ──
 /** 每条事件都携带:行动者座位(谁做的;null=系统/国库等无主行为)+ 发生时刻

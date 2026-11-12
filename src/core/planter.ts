@@ -359,6 +359,7 @@ export function armHero(e: GameEngine, seat: number, heroId: string, skillIds?: 
     heroId: hero.id,
     skillIds: skillIds ?? [...hero.skillPool],
     lastFired: {},
+    marks: {}, // 技能标记容器(#1377):标记感知构造(缺容器写标记会炸,HeroSlot.marks 头注)
   });
 }
 
