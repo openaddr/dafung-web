@@ -344,12 +344,14 @@ describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
 describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现金派发,实付 0 不派发", () => {
   const CAOPI = HEROES.find((h) => h.id === "caopi")!;
 
-  it("清算自救后清偿:实付现金派 CashLost,曹丕渔利恰得 50", () => {
+  it("清算自救后清偿:实付现金派 CashLost,渔利恰得 50", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
     const caopi = e.players.find((q) => q !== p)!;
-    armHero(e, caopi, CAOPI);
+    // 池收窄到受试技(#1378 曹丕池换血={放逐,行殇}后整池直授不再含渔利;渔利现役
+    // 单属诸葛亮,受试布场经 armHero 指定技直授,收窄先例同下例 hero-skill armSkill)
+    armHero(e, caopi, CAOPI, ["yuli"]);
     const caopiCash0 = caopi.cash;
     p.cash = 100;
     p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600
@@ -367,8 +369,9 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
     finishSetup(e);
     const p = e.activePlayer;
     const caopi = e.players.find((q) => q !== p)!;
-    // 池收窄到受试技(#1145 曹丕池扩趁火打劫后,致破腿的 PlayerBankrupt 会触发新联动技
-    // +500 干扰渔利精确断言;收窄布场同 test/hero-skill.test.ts armSkill 先例)
+    // 池收窄到受试技(#1378 曹丕池换血={放逐,行殇}:整池直授会连带挂可选技待决、
+    // 损失过阈再入待决队列,干扰渔利精确断言;收窄布场同 test/hero-skill.test.ts
+    // armSkill 先例)
     armHero(e, caopi, CAOPI, ["yuli"]);
     const caopiCash0 = caopi.cash;
     const levy: EncounterDef = {

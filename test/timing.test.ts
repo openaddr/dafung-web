@@ -1078,6 +1078,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
       e,
       e.players[caopiSeat],
       HEROES.find((h) => h.id === "caopi")!,
+      ["yuli"], // 池收窄到受试技(#1378 曹丕池换血:渔利现役单属诸葛亮,整池直授不再含渔利)
     ); // 渔利:他人失银 → +50
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
@@ -1231,7 +1232,8 @@ describe("时机框架:派发缺口补齐(#299)", () => {
       e,
       mover,
       HEROES.find((h) => h.id === "caopi")!,
-    ); // 曹丕挂 CashLost scope=others
+      ["yuli"], // 池收窄到受试技(#1378 曹丕池换血:渔利直授,见上例)
+    ); // 持技者挂 CashLost scope=others
     const moverSeat = e.players.indexOf(mover);
     const oppSeat = moverSeat === 0 ? 1 : 0;
     e.players[oppSeat].cash = 500;
@@ -1290,6 +1292,7 @@ describe("时机框架:派发缺口补齐(#299)", () => {
       e,
       user,
       HEROES.find((h) => h.id === "caopi")!,
+      ["yuli"], // 池收窄到受试技(#1378 曹丕池换血:渔利直授,见上例)
     );
     const userSeat = e.players.indexOf(user);
     const others = [0, 1, 2].filter((s) => s !== userSeat);

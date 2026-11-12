@@ -491,6 +491,9 @@ interface HandRackProps {
   junshi?: JunshiWindow;
   /** 反应窗态(#281);缺省 = 常态架。与 junshi 互斥(AwaitingReaction ≠ AwaitingJinnang)。 */
   reaction?: RackReaction;
+  /** 「你可」触发卡(#1378,SkillChoiceBanner 件,GameScreen 组装):待决技窗态,
+   *  与 reaction 同位同形(架上缘长出);相位互斥(AwaitingSkillChoice ≠ 上两窗)。 */
+  skillBanner?: ReactNode;
   /** 未选牌点按「出牌」的计数(#751 B1,GameScreen 持账本):变更一次=架上可用牌
    *  金圈脉冲一次(自门控 #715 同款状态语言)。 */
   nudgePulse?: number;
@@ -538,6 +541,7 @@ export const HandRack = memo(function HandRack({
   player,
   junshi,
   reaction,
+  skillBanner,
   nudgePulse = 0,
   bannerOnly = false,
 }: HandRackProps) {
@@ -833,8 +837,11 @@ export const HandRack = memo(function HandRack({
       {/* 反应窗横幅(#281):从手牌架上缘长出(P1-D「牌架即反应窗」);定位归架体
           (reaction-banner.css),挂载/卸载即窗开/窗收,横幅自带入场与倒计时。
           banner-only(#1006):架收起时横幅是本盒唯一内容,失去牌行依托后随零高
-          架体盒贴底下移,决策通路不断(倒计时弧/落印/不用/降噪口全可达)。 */}
+          架体盒贴底下移,决策通路不断(倒计时弧/落印/不用/降噪口全可达)。
+          「你可」触发卡(#1378)同位同形(skill-choice-banner.css):待决技窗的
+          发动/暂不发拍板面,相位互斥不并存。 */}
       {reaction?.banner}
+      {skillBanner}
       {!bannerOnly &&
         (renderCount > 0 ? (
           /* 手牌行:testid 沿用 jinnang-hand(契约零漂移;三态同一容器)。无上限(#250):

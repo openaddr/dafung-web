@@ -548,7 +548,8 @@ describe("折叠投影器 · 名将族", () => {
     ]);
 
     expect(e.players[0].heroes).toEqual([
-      { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} },
+      // marks 恒置空表(#1380 折叠建槽与引擎标记感知构造同形;空容器=规范缺省)
+      { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {}, marks: {} },
     ]);
     expect(e.recruitedHeroIds.has("zhouyu")).toBe(true);
   });
@@ -564,10 +565,12 @@ describe("折叠投影器 · 名将族", () => {
     );
     e.recruitedHeroIds.add("zhangxingcai");
     e.players[0].heroes[0].lastFired["leigu"] = 1; // 与折叠事件首部 round 对齐
-    // 快照往返:麾下槽位全量保真(授技/冷却账是游戏状态,展示字段另回查表补)
+    // 快照往返:麾下槽位全量保真(授技/冷却账是游戏状态,展示字段另回查表补);
+    // 恢复恒置标记容器(#1380:读侧重建 marks={},布场 testing.armHero 槽无此键,
+    // 比对按恢复形归一——空容器=规范缺省,语义等价)
     const mirror = makeEngine();
     mirror.restoreFromSnapshot(e.snapshot());
-    expect(mirror.players[0].heroes).toEqual(e.players[0].heroes);
+    expect(mirror.players[0].heroes).toEqual(e.players[0].heroes.map((s) => ({ marks: {}, ...s })));
     expect(mirror.recruitedHeroIds.has("zhangxingcai")).toBe(true);
     // 事件折叠:heroRecruited 携权威授技建槽,冷却按槽落账——与引擎槽逐字段同形
     const replica = makeEngine();
@@ -584,7 +587,10 @@ describe("折叠投影器 · 名将族", () => {
         moment: "BeforeMarch",
       }),
     ]);
-    expect(replica.players[0].heroes).toEqual(e.players[0].heroes);
+    // 折叠建槽恒置标记容器(#1380),与恢复形同归一(见上)
+    expect(replica.players[0].heroes).toEqual(
+      e.players[0].heroes.map((s) => ({ marks: {}, ...s })),
+    );
     expect(replica.recruitedHeroIds.has("zhangxingcai")).toBe(true);
   });
 

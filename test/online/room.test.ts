@@ -20,6 +20,8 @@ import {
 import { resolveGuohaoClash } from "../../src/core/guohao";
 import { JINNANG_CARDS } from "../../src/core/jinnang";
 import { GameEngine, type TurnPhase } from "../../src/core/authority";
+import { armHero, setStamina } from "../../src/core/planter";
+import { heroSlotOf, skillMarksOf } from "../../src/core/roster";
 import type { EventKind } from "../../src/core/event-tiers";
 import { createDice } from "../../src/core/dice";
 import { foldEventBatch } from "../../src/app/net/event-fold";
@@ -1169,6 +1171,60 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
     ).toBe(true);
     // 对局确有进展(托管后 driveBots 续推:选都走完进 Playing,不再永久挂)
     expect(["Playing", "GameOver"]).toContain(e.phase);
+  });
+
+  it("「你可」选择闸窗停摆(#1378 真修):超时代发「暂不发」(标记保留),不代开托管", async () => {
+    // 回归例(不修必挂:旧行为=停摆代开托管→驱动链按 bot 策略代答=发动,本例断言
+    // 零 autopilot 事件 + 发动未发生,双锚都红)。布景同 caopi-skill-choice-online
+    // (armHero 直授+setStamina 过阈+endTurn 停窗),停摆武装经 applyCommand 触发的
+    // 驱动链出口(链停真人座位→#118 stall 上表),超时到点泵送。
+    const clock = new ManualClock();
+    const events: Record<string, unknown>[] = [];
+    const reg = new RoomRegistry(
+      new InMemoryPersistence(),
+      (_roomId, event) => events.push(event as Record<string, unknown>),
+      undefined,
+      { decisionTimeoutMs: 25, clock },
+    );
+    const created = reg.createRoom({
+      seatCount: 3,
+      botIdx: new Set([2]),
+      hostConfig: { seed: 42 },
+    });
+    const roomId = created.room.roomId;
+    reg.joinSeat(roomId); // seat1 人类(guest)
+    reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
+    await reg.startGame(roomId, created.token, undefined, testMapProvider);
+    const e = reg.get(roomId)!.engine!;
+    for (let i = 0; i < 20 && e.phase === "Setup"; i++)
+      await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]!);
+    expect(e.phase).toBe("Playing");
+    // 注:decisionTimeoutMs>0 时链尾常驻武装 #118,不做事后时钟排干(排干即代开托管,
+    // 旧行为的既有例);残留挂表由下一次链首 clear(bot-driver 链首撤 stall/autoRoll)
+    // 收口,链跑一轮后按 size 精确断言。
+    // 布景(被测环前拍):seat0 直授放逐 → 损失 70 过阈 → endTurn 停窗
+    e.activeIndex = 0;
+    armHero(e, 0, "caopi", ["fangzhu"]);
+    setStamina(e, 0, 30);
+    e.endTurn();
+    expect<string>(e.turnPhase).toBe("AwaitingSkillChoice");
+    // 链跑一轮触发 #118 武装(命令本体被相位守卫警告拒绝:座位 1 非决策者,窗不动)
+    await reg.applyCommand(roomId, { type: "respondSkillChoice", seat: 1, use: false });
+    expect<string>(e.turnPhase).toBe("AwaitingSkillChoice");
+    expect(clock.size).toBe(1); // 恰 stall(seat0)一表项
+    // 泵送:停摆窗到点 → 代发「暂不发」(与手点同一条 respondSkillChoice 命令路径)
+    for (let i = 0; i < 4000 && e.pendingSkillChoices.length > 0; i++) {
+      clock.fireAll();
+      await macroTick();
+    }
+    // 不代开托管:全程零 autopilot 事件(旧行为的发动路径由此红)
+    expect(events.some((ev) => ev.ev === "autopilot")).toBe(false);
+    // 暂不发落账:放弃=标记保留(spec 语义),战报留痕,窗收续推
+    expect(e.pendingSkillChoices).toHaveLength(0);
+    expect(skillMarksOf(heroSlotOf(e.players[0], "caopi"), "fangzhu")).toBe(70);
+    expect(e.log.some((l) => l.detail.includes("skillChoiceDecline"))).toBe(true);
+    expect(e.players[1].skipTurns).toBe(0); // 发动未发生
+    expect(e.turnPhase).not.toBe("AwaitingSkillChoice");
   });
 
   it("decisionTimeoutMs=0(缺省)→ 永不代开托管(真人座位正常等待,历史行为)", async () => {

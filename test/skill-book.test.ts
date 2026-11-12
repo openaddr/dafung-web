@@ -336,16 +336,16 @@ describe("用书学技(#1146 命令面)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const me = e.activePlayer;
-    armHero(e, me, HEROES[1]!, ["yuli"]); // 曹丕:池全被动(渔利/掷金)
+    armHero(e, me, HEROES[1]!, ["fangzhu"]); // 曹丕:池全被动(放逐/行殇,#1378 池换血)
     e.recruitedHeroIds.add(HEROES[1]!.id);
-    armBook(e, 0, "yuli");
-    armBook(e, 0, "zhijin");
+    armBook(e, 0, "fangzhu");
+    armBook(e, 0, "xingshang");
     me.jinnangHand = [];
     me.jinnangHandCount = 0;
     e.turnPhase = "AwaitingJinnang";
-    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "yuli", me.heroes[0]!.heroId);
-    expect(e.turnPhase).toBe("AwaitingJinnang"); // 尚有掷金书
-    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "zhijin", me.heroes[0]!.heroId);
+    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "fangzhu", me.heroes[0]!.heroId);
+    expect(e.turnPhase).toBe("AwaitingJinnang"); // 尚有行殇书
+    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "xingshang", me.heroes[0]!.heroId);
     expect<TurnPhase>(e.turnPhase).toBe("Roll"); // 书尽且被动技不入窗 → 收卷
   });
 });

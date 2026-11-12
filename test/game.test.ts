@@ -210,11 +210,13 @@ describe("名将(英雄)", () => {
     expect(holder.cash).toBe(cash1); // 非 6 不加
   });
 
-  it("曹丕·onOtherLoseCash:他人失财时 +50,自己失财不触发", () => {
+  it("渔利·onOtherLoseCash:他人失财时 +50,自己失财不触发", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const holder = e.players[1];
-    armHero(e, holder, hero("caopi"));
+    // 池收窄到受试技(#1378 曹丕池换血={放逐,行殇}:渔利现役单属诸葛亮,受试布场
+    // 经 armHero 指定技直授;整池直授会让可选技待决入队,干扰 +50 精确断言)
+    armHero(e, holder, hero("caopi"), ["yuli"]);
     const cash0 = holder.cash;
     e.dispatchMoment("CashLost", { subject: 0 });
     expect(holder.cash).toBe(cash0 + 50);

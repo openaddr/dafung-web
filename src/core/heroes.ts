@@ -22,9 +22,11 @@ export function heroById(id: string): HeroDef {
   return hero;
 }
 
-// 首批共享表(ADR-0036 拍板,零新增数值):疾行=周瑜↔张星彩、擂鼓=张星彩↔周瑜、
-// 掷金=张星彩↔曹丕;#1142 卧龙入表,火攻=周瑜↔诸葛亮、渔利=曹丕↔诸葛亮再入共享,
-// 余两条单属主(青囊/赈济);池大小 = 强度旋钮(周瑜/张星彩池 3、曹丕/华佗/诸葛亮池 2,不对称有意)。
+// 首批共享表(ADR-0036 拍板,零新增数值):疾行=周瑜↔张星彩、擂鼓=张星彩↔周瑜;
+// #1142 卧龙入表,火攻=周瑜↔诸葛亮、渔利再入共享;#1378 曹丕池换血后共享仅四条
+// (疾行/擂鼓/火攻/岁俸),渔利=诸葛亮单属、掷金=张星彩单属;
+// 余单属主(青囊/赈济/放逐/行殇);池大小 = 强度旋钮(周瑜/张星彩/司马懿/邓艾/曹仁/
+// 糜竺池 3、曹丕/华佗/诸葛亮池 2,不对称有意)。
 export const HEROES: HeroDef[] = [
   {
     id: "zhouyu",
@@ -36,7 +38,7 @@ export const HEROES: HeroDef[] = [
     id: "caopi",
     image: "/assets/heroes/hero-caopi-sgs.png",
     name: "曹丕",
-    skillPool: ["yuli", "zhijin", "chenhuodajie"], // {渔利,掷金,趁火打劫}(#1145 扩池)
+    skillPool: ["fangzhu", "xingshang"], // {放逐,行殇}(#1378 池换血:挨打攒怒罚人,三国杀契合)
   },
   {
     id: "zhangxingcai",

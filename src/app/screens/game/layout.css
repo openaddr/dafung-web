@@ -398,6 +398,29 @@
 .game-layout .seat .strack.low i {
   background: var(--color-danger);
 }
+/* 放逐标记进度轨(#1378):格底缘 2px 金色进度(攒怒中在场)——状态表达 §4.6,
+   进度即状态不落文字标牌(数值/名词在 aria-label);满档(待决窗问挂起中)转
+   亮金呼吸(fx-breathe 谷值 0.55,亮度只升不降语义;reduced-motion 退静态亮金)。 */
+.game-layout .seat .skmark {
+  position: absolute;
+  inset-inline: 3px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px 1px 0 0;
+  background: color-mix(in srgb, var(--color-paper) 30%, transparent);
+  overflow: hidden;
+  pointer-events: none;
+}
+.game-layout .seat .skmark i {
+  display: block;
+  height: 100%;
+  background: var(--color-gold);
+}
+.game-layout .seat .skmark.ready i {
+  background: var(--color-gold-bright);
+  --breath-lo: 0.55;
+  animation: fx-breathe calc(var(--dur-med) * 2) var(--ease-sine) infinite;
+}
 /* 行2 汉字五账式(#1128):「城/牌/将/宝/望」+ tabular 计数,单色淡纸,
    space-between 把行2 余量分到发丝线两侧成组间隙;发丝线组分隔(#770)保留
    (高频读数|低频藏品)。旧五枚彩色 SVG(城楼/牌背组/战盔/玉璧/墨竹)整线
@@ -579,7 +602,13 @@
 .game-layout .handzone .hand-rack:has(> .reaction-banner) {
   flex: 1 1 auto;
 }
-.game-layout .handzone .hand-rack :is(button, .reaction-banner) {
+/* 「你可」触发卡在场同回全宽(#1378,反应窗 #840 ④ 同例外档):触发卡横幅
+   left/right:0 + max-width:100% 锚架体盒(skill-choice-banner.css)——hug 窄架
+   会把发动询问长文案挤成竖排字气球。 */
+.game-layout .handzone .hand-rack:has(> .skill-banner) {
+  flex: 1 1 auto;
+}
+.game-layout .handzone .hand-rack :is(button, .reaction-banner, .skill-banner *) {
   pointer-events: auto;
 }
 /* 签面(原仪表条「签」徽章平移,testid dice-face 不变;原型 .diceseal 制式):
@@ -624,6 +653,10 @@
     animation: none;
     border-color: color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
     color: var(--color-paper);
+  }
+  /* 放逐标记满档呼吸退静态亮金(#1378,进度色变仍承状态) */
+  .game-layout .seat .skmark.ready i {
+    animation: none;
   }
 }
 

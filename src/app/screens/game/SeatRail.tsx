@@ -32,6 +32,8 @@
 // 旧「#700 前双挂浮两遍」随仪表条本体不复存在)。
 import { memo, useState } from "react";
 import { formatMoney } from "@core/money";
+import { skillMarksOf } from "@core/roster";
+import { isTriggerSkill, skillById } from "@core/skills";
 import { playerColor, playerSealText, rgba } from "@core/theme";
 import { useStablePlayers, type GameSnapshot, type SnapshotPlayer } from "@app/store/gameStore";
 import { useAutopilotOn, useNetStore } from "@app/store/netStore";
@@ -45,6 +47,24 @@ import "./seat-target.css";
 /** 体力色条转朱砂的濒耗竭线(原 SeatPopModal 单源迁本件,#1097 弹层退役;
  *  格上血条与诸侯详情体力条同规)。 */
 export const STAMINA_LOW = 30;
+
+/** 放逐标记阈值(#1378)读技表单源(core/skills fangzhu params;技表数据 bug
+ *  当场炸出,不兜底)。 */
+const FANGZHU_THRESHOLD = (() => {
+  const def = skillById("fangzhu");
+  if (!isTriggerSkill(def)) throw new Error("放逐标记:技表 fangzhu 非被动技(数据 bug)");
+  return def.params!.threshold;
+})();
+
+/** 放逐标记进度(#1378):麾下槽位技能标记容器读 fangzhu 计数(读口单源
+ *  roster.skillMarksOf,未启技=0 规范缺省);无标记=不挂(攒怒中才在场)。
+ *  ready=标记已达阈值(待决窗问挂起中),呈现档位供样式呼吸。 */
+function fangzhuMarkOf(p: SnapshotPlayer): { mark: number; ready: boolean } | null {
+  let mark = 0;
+  for (const slot of p.heroes) mark = Math.max(mark, skillMarksOf(slot, "fangzhu"));
+  if (mark <= 0) return null;
+  return { mark, ready: mark >= FANGZHU_THRESHOLD };
+}
 
 /** 目标段(#256/#417)单席点击槽:available=候选(金圈呼吸,点选=选中);
  *  selected=已选中(实金停持,再点取消);不可用席位照列不动,点按=轻晃
@@ -122,6 +142,9 @@ const SeatCell = memo(function SeatCell({
   // 死区轻晃(#743 判词 E/#751 C 批):目标段不可选席位点按→格身一次轻晃(视觉反馈,
   // §4.6 色变/位移即状态,不加文字章),随 animationEnd 自清——一次性演出不驻类。
   const [shake, setShake] = useState(false);
+  // 放逐标记进度(#1378):攒怒中(标记>0)挂席位格底缘金色进度轨,满档呼吸;
+  // 状态表达 §4.6(进度即状态,不落文字标牌;数值与名词在 aria-label)。
+  const skillMark = fangzhuMarkOf(p);
   // 变化浮标(#495,全员含自机):首帧只立基准不浮,跨快照跳变才出标。浮标挂行内
   // relative 容器(带 testid 的数值本体保持纯文本,e2e textContent 断言不受浮标串扰)。
   const cashFloats = useDeltaFloat(p.cash);
@@ -243,6 +266,24 @@ const SeatCell = memo(function SeatCell({
           </span>
         </div>
       </div>
+      {/* 放逐标记进度(#1378):格底缘 2px 金色进度轨(攒怒中在场,满档呼吸),
+          状态表达 §4.6——进度即状态,格上零文字标牌;数值与名词进 aria-label。
+          阈值读技表单源(SeatRail 模块头 FANGZHU_THRESHOLD);超出阈值的部分随
+          发动归零舍弃,进度封顶 100%。 */}
+      {skillMark != null && (
+        <span
+          className={"skmark" + (skillMark.ready ? " ready" : "")}
+          data-testid={TESTIDS.seatSkillMark(seat)}
+          role="img"
+          aria-label={`放逐 ${skillMark.mark}/${FANGZHU_THRESHOLD}`}
+        >
+          <i
+            style={{
+              width: `${Math.min(100, Math.round((skillMark.mark / FANGZHU_THRESHOLD) * 100))}%`,
+            }}
+          />
+        </span>
+      )}
       {/* 目标段点击层(#256/#417):真按钮覆盖格面(键盘可达,不自写交互语义);
           点格=选中/再点取消(选中实金停持 .picked,样式 seat-target.css),打出走
           动作条「出」确认钮。不可选席(#743 判词 E/#751 C 批):disabled 会吞点击
