@@ -99,6 +99,7 @@
 import type { GameEngine } from "@core/authority";
 import type { Player, PropertyHolding } from "@core/model";
 import type { GameEvent, GameEventBody } from "@core/game-events";
+import { fullDefenseOf, resetToFull } from "@core/defense";
 import type { PropertyDef } from "@core/economy";
 import type {
   PendingReaction,
@@ -361,6 +362,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           group: def.group,
           level: 0,
           maxLevel: def.maxLevel,
+          defense: fullDefenseOf(0), // 建都=持有起点,防御满值(#1386;与引擎 setup-flow 同口径)
         });
         // 建城扣费只有 cost 无 cashChanged:Setup 期现金不入折叠(#386 注记保持),开局校准覆盖
         break;
@@ -374,6 +376,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           group: def.group,
           level: 0,
           maxLevel: def.maxLevel,
+          defense: fullDefenseOf(0), // 购入即易主,防御满值(#1386;与引擎 economy.buy 同口径)
         });
         break;
       }
@@ -387,6 +390,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           group: def.group,
           level: 0,
           maxLevel: def.maxLevel,
+          defense: fullDefenseOf(0), // 赐城=易主入册,防御满值(#1386;与引擎 encounter-flow 同口径)
         });
         break;
       }
@@ -396,6 +400,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const holding = owner.properties.find((h) => h.propertyId === ev.propertyId);
         if (holding != null) {
           holding.level = ev.newLevel;
+          resetToFull(holding); // 等级一变防御即重置满值(#1386;与引擎升级两挂点同口径)
         } else {
           // 副本无持有仍入册(机遇「天赐城池」无事件获城的缺口级联,见文件头):按事件面
           // 补册(等级=事件声明的变更后等级),其余漂移由水合纠正
@@ -404,6 +409,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
             group: def.group,
             level: ev.newLevel,
             maxLevel: def.maxLevel,
+            defense: fullDefenseOf(ev.newLevel), // 补册按满值(#1386),漂移由水合纠正
           });
         }
         break;
@@ -412,6 +418,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const p = foldTarget(engine, ev);
         for (const propertyId of ev.downgradedPropertyIds) {
           const holding = p.properties.find((h) => h.propertyId === propertyId);
+          // 降级不重置防御(#1386):外敌乘虚直接降级不走防御值,与引擎 exhaustIfDepleted 同口径
           if (holding != null) holding.level -= 1; // 查无 = 赐城缺口级联,略过待水合(文件头)
         }
         p.skipTurns += ev.restTurns; // 休整回合数随事件显式走(不做相邻推断)
@@ -425,6 +432,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         if (ev.toSeat != null) {
           const creditor = eventSeatPlayer(engine, ev.toSeat, "assetTransferred.toSeat");
           if (moved != null) {
+            resetToFull(moved); // 转移=易主,防御重置满值(#1386;与引擎 settleDebt 同口径)
             creditor.properties.push(moved); // 等级/组别随册转移(降级漂移由校准节点纠正)
           } else {
             const def = propertyDefOf(engine, ev.propertyId);
@@ -433,6 +441,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
               group: def.group,
               level: 0, // 副本无持有时的等级漂移,水合纠正
               maxLevel: def.maxLevel,
+              defense: fullDefenseOf(0),
             });
           }
         } // toSeat=null:回无主/销毁,出册即完成

@@ -75,3 +75,32 @@ describe("tileIndexOfProperty(propertyId 反查单源)", () => {
     expect(() => tileIndexOfProperty(board, "不存在的城")).toThrow(/不在棋盘/);
   });
 });
+
+describe("距离谓词(#1386:默认「距离」=双向最短,单向必写「前方距离」)", () => {
+  const from = idx("长安"); // 关中图 28 格单环,蛇头长安=tile 0
+
+  it("自己格距离为 0(拷问 Q3:玩家所落格=距离 0)", () => {
+    expect(board.distance(from, from)).toBe(0);
+    expect(board.forwardDistance(from, from)).toBe(0);
+  });
+
+  it("相邻格距离为 1", () => {
+    expect(board.distance(from, from + 1)).toBe(1);
+    expect(board.forwardDistance(from, from + 1)).toBe(1);
+  });
+
+  it("双向取环上较短一侧:正向 26 格的城按反向 2 格计(火攻射程门的核心语义)", () => {
+    expect(board.forwardDistance(from, from + 26)).toBe(26);
+    expect(board.distance(from, from + 26)).toBe(2);
+  });
+
+  it("对跖点两侧等长,距离=半环(28 格→14)", () => {
+    expect(board.distance(from, from + 14)).toBe(14);
+  });
+
+  it("反向格正向数要跨尾:前方距离=正向步数(火烧连营溅射语义)", () => {
+    const last = board.count - 1;
+    expect(board.forwardDistance(last, 0)).toBe(1);
+    expect(board.distance(from - 2, from)).toBe(2); // 负差跨环同样归一
+  });
+});

@@ -78,6 +78,7 @@ function forceVisit(e: GameEngine, defId: string, ownerIdx: number) {
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
   }
   e.treasureVisitor = { def: e.catalog.get(defId)!, ownerIdx };

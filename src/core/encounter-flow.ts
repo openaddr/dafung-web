@@ -30,6 +30,7 @@ import { EXHAUSTION_REST_TURNS, HERO_CAPACITY } from "./constants";
 import { drawJinnangTraced } from "./jinnang-execution";
 import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
+import { fullDefenseOf } from "./defense";
 import type { PropertyDef } from "./economy";
 
 /** 耗竭入口(#130):体力归 0 的 Seat 调用(机遇结算后)。全自动结算、无抉择相位
@@ -534,6 +535,7 @@ function applyGrantCityEffect(
     group: defCity.group,
     level: 0,
     maxLevel: defCity.maxLevel,
+    defense: fullDefenseOf(0), // 赐城=易主入册,防御满值(#1386)
   });
   // 城池变更留痕(ADR-0015,本写点补齐 #457):赐城即易主(无主 → 得城者),形状对齐购地
   g.propertyChanges.push({

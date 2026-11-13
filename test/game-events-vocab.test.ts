@@ -10,6 +10,7 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { loadMap } from "@core/board-loader";
 import { testEngine, armHero } from "@core/testing";
+import { fullDefenseOf } from "@core/defense";
 import { HEROES } from "@core/heroes";
 import { ENCOUNTERS } from "@core/encounters";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
@@ -137,7 +138,7 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     const spare = e.board.tiles.find(
       (t) => t.event == null && t.propertyId !== capProp,
     )!.propertyId!;
-    victim.properties.push({ propertyId: spare, group: "a", level: 1, maxLevel: 3 });
+    victim.properties.push({ propertyId: spare, group: "a", level: 1, maxLevel: 3, defense: 4 });
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
     e.resolveHeroSkill("zhouyu", "huogong"); // other 域:先入目标段
@@ -360,6 +361,7 @@ describe("事件流(#385 缺口 1):购地被拒/按兵不动 propertyRejected", 
       group: "g",
       level: def.maxLevel, // 已满级 → 扩军不可用,仅剩按兵不动假选择
       maxLevel: def.maxLevel,
+      defense: fullDefenseOf(def.maxLevel),
     });
     beginGameEventBatch(e);
     t.landActiveAt(tile.index);
@@ -464,6 +466,7 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
       group: "g",
       level: 0,
       maxLevel: 3,
+      defense: 5,
     });
     owner.jinnangHand = ["半路杀出"];
     owner.jinnangHandCount = 1;
@@ -607,6 +610,7 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
       group: "g",
       level: 1, // 实降城:1 → 0 封底,入降级清单
       maxLevel: 3,
+      defense: 4,
     });
     e.addStamina(seat, -100); // 体力归 0(耗竭线上)
     beginGameEventBatch(e);

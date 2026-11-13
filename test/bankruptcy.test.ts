@@ -74,6 +74,7 @@ function giveSellableCity(e: GameEngine, p: Player): { propId: string; lv0Value:
     group: def.group,
     level: 0,
     maxLevel: def.maxLevel,
+    defense: 5,
   });
   return { propId: def.id, lv0Value: def.valueByLevel[0] };
 }

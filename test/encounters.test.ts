@@ -10,6 +10,7 @@ import { botAct, encounterCashImpact, repCoefficient } from "@core/bot";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
 import { HEROES } from "@core/heroes";
 import { capitalSupplyOf } from "@core/movement-flow";
+import { fullDefenseOf } from "@core/defense";
 import { beginGameEventBatch } from "@core/game-events";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import {
@@ -158,6 +159,7 @@ function benignTile(e: GameEngine): number {
     group: def.group,
     level: 0,
     maxLevel: def.maxLevel,
+    defense: 5,
   });
   return t.index;
 }
@@ -1161,6 +1163,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
       group: d.group,
       level,
       maxLevel: d.maxLevel,
+      defense: fullDefenseOf(level),
     });
     return d.id;
   }
@@ -1356,6 +1359,7 @@ describe("耗竭自动收口 × 出牌阶段(#452):唯一选项自动路径不�
       group: d.group,
       level,
       maxLevel: d.maxLevel,
+      defense: fullDefenseOf(level),
     });
   }
 

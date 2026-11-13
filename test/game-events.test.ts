@@ -383,6 +383,7 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
       group: "a",
       level: 0,
       maxLevel: 3,
+      defense: 5,
     });
     owner.treasures.push({ id: "锦囊袋", name: "锦囊袋", level: 1, desc: "" });
     t.place(e.players.indexOf(visitor), tile.index);

@@ -553,6 +553,7 @@ describe("锦囊目标段(T3)", () => {
       group: "a",
       level: 0,
       maxLevel: 3,
+      defense: 5,
     });
     e.jinnangUsedTags = [];
     armJinnang(e, ["火烧连营"]);
@@ -591,6 +592,7 @@ describe("锦囊目标段(T3)", () => {
       group: "a",
       level: 1,
       maxLevel: 3,
+      defense: 4,
     });
     armJinnang(e, ["火烧连营"]);
     e.resolveJinnang("火烧连营");

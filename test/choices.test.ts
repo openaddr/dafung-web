@@ -11,6 +11,7 @@ import { createDice } from "@core/dice";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { EXCLUDED_FROM_AUTO, type ChoiceOption } from "@core/choices";
+import { fullDefenseOf } from "@core/defense";
 import { ENCOUNTERS, type EncounterTier } from "@core/encounters";
 import { HEROES } from "@core/heroes";
 import { botAct } from "@core/bot";
@@ -101,6 +102,7 @@ describe("选项集注册表(choices.ts)", () => {
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     armDecision(e, "OwnProperty", def.id);
     expect(opt(e.choicesFor(), "upgrade")!.available).toBe(true);
@@ -146,6 +148,7 @@ describe("选项集注册表(choices.ts)", () => {
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     e.pendingDebt = { amount: 99999, creditor: null };
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
@@ -220,6 +223,7 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
       group: def.group,
       level: def.maxLevel,
       maxLevel: def.maxLevel,
+      defense: fullDefenseOf(def.maxLevel),
     });
     const turn0 = e.turnNumber;
     testEngine(e).landActiveAt(tile.index);
@@ -259,6 +263,7 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");
@@ -299,6 +304,7 @@ describe("bot 对齐:决策经选项集过滤后行为不回归", () => {
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     armDecision(e, "OwnProperty", def.id);
     botAct(e);

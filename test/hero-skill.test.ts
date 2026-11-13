@@ -160,7 +160,7 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     const spare = e.board.tiles.find(
       (t) => t.event == null && t.propertyId !== capProp,
     )!.propertyId!;
-    victim.properties.push({ propertyId: spare, group: "a", level: 0, maxLevel: 3 });
+    victim.properties.push({ propertyId: spare, group: "a", level: 0, maxLevel: 3, defense: 5 });
     e.resolveHeroSkill("zhouyu", "huogong");
     expect(e.pendingSkill).toEqual({ heroId: "zhouyu", skillId: "huogong" });
     expect(seatOpt(e, 0)?.available).toBe(false);
@@ -190,6 +190,7 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
         group: "a",
         level: 2,
         maxLevel: 3,
+        defense: 3,
       },
     ];
     e.resolveHeroSkill("zhouyu", "huogong");
@@ -229,6 +230,7 @@ describe("主动技结算(#188 档 3)", () => {
       group: "a",
       level: 1,
       maxLevel: 3,
+      defense: 4,
     });
     const propCount = foe.properties.length;
     e.resolveHeroSkill("zhouyu", "huogong"); // 入目标段
@@ -323,14 +325,15 @@ describe("出牌阶段 bot 决策(#188 档 3)", () => {
       )
       .map((t) => t.propertyId!);
     e.players[rich].properties.push(
-      { propertyId: plains[0], group: "a", level: 1, maxLevel: 3 },
-      { propertyId: plains[1], group: "a", level: 1, maxLevel: 3 },
+      { propertyId: plains[0], group: "a", level: 1, maxLevel: 3, defense: 4 },
+      { propertyId: plains[1], group: "a", level: 1, maxLevel: 3, defense: 4 },
     );
     e.players[poor].properties.push({
       propertyId: plains[2],
       group: "a",
       level: 1,
       maxLevel: 3,
+      defense: 4,
     });
     botAct(e);
     const richHit = e.players[rich].properties.some(

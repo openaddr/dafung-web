@@ -50,6 +50,7 @@ describe("身价计算", () => {
       group: changan.group,
       level: 1,
       maxLevel: changan.maxLevel,
+      defense: 4,
     });
     expect(netWorth(p)).toBe(7600); // 仅剩现金(建城费 2400)
   });

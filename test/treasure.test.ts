@@ -57,6 +57,7 @@ function setupOwnerChoice(e: GameEngine, defId: string) {
     group: def.group,
     level: 0,
     maxLevel: def.maxLevel,
+    defense: 5,
   });
   owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
   e.treasureVisitor = { def, ownerIdx };
@@ -257,6 +258,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     testEngine(e).landActiveAt(tile.index);
@@ -280,6 +282,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
     e.treasureDeck = [];
@@ -302,6 +305,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
       group: def2.group,
       level: 0,
       maxLevel: def2.maxLevel,
+      defense: 5,
     });
     e2.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     testEngine(e2).landActiveAt(tile2.index);
@@ -339,6 +343,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
     // 落格探宝先成(probe Lv1 恒得),再交涉:premium 价付不起 → 清算自救挂起
@@ -377,6 +382,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
     e.treasureDeck = []; // 堆空:探宝事件位沉默留痕(treasureEmpty),不产可变卖资产
