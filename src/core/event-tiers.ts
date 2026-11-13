@@ -189,7 +189,7 @@ export const EVENT_TIERS = {
   heroSkillActivated: {
     fold: "fold+calibration",
     fx: "presented",
-    why: "主动技冷却(heroId 定槽,槽内 lastFired 键=skillId)+三面落账(warDrum 加成/relief 付费);demolish 随机降级目标不可知=校准兜底五项之一;表现=施法者 token 金圈一拍(fx-svg-pulse,landPulse 通道)+施展浮字升档(1.0× brush 字/玩家色细描边,#850)",
+    why: "主动技冷却(heroId 定槽,槽内 lastFired 键=skillId)+两面落账(warDrum 加成/relief 付费);fireBlast(#1388 定向火攻)的城损等级/防御值不在事件面=校准兜底,随校准快照对齐;表现=施法者 token 金圈一拍(fx-svg-pulse,landPulse 通道)+施展浮字升档(1.0× brush 字/玩家色细描边,#850)",
   },
   // ── 锦囊族 ──
   jinnangDrawn: {

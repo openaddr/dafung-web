@@ -55,11 +55,18 @@ export interface TileVisualState {
   isActive: boolean;
   /** 选都阶段已被选(标灰禁用)。 */
   isTaken: boolean;
-  /** 可交互高亮(轮到本地选都的候选集,呼吸脉冲金圈)。 */
+  /** 可交互高亮(轮到本地的可点候选集:选都候选 / 目标段选城候选,#1388 T2 并入,
+   *  呼吸脉冲金圈在氛围层,本态兼类契约与压暗例外)。 */
   isSelectable: boolean;
   /** X4(#23) 选都候选序号(1 基,引擎滚出顺序;null=非候选)。候选集全座位可见:
    *  静态低透明金圈(bv-candidate)是非决策席档,本地可点脉冲由 isSelectable 升档。 */
   capitalCandidateOrder: number | null;
+  /** 目标段选城候选(#1388 T2):主动技城目标段的可点候选格(金环呼吸在氛围层
+   *  crown,与选都同通路;本态挂 data-city-target 供 e2e/选择器契约)。 */
+  isCityTarget: boolean;
+  /** 目标段选城·选中定靶(#1388 T2,#417 同族):实金双环停持(呼吸停、恒定不闪),
+   *  挂 data-city-target-selected。 */
+  isCityPicked: boolean;
 }
 
 interface TileProps {
@@ -352,6 +359,10 @@ export const Tile = memo(function Tile({
       id={`tile-${tile.index}`}
       data-tile={tile.index}
       data-name={tile.name}
+      /* 目标段选城(#1388 T2)选择器契约:e2e 候选=skillCityTarget(tileIndex)、
+          选中=skillCityTargetPicked(tileIndex)(testids 单源),勿散落属性串。 */
+      data-city-target={state.isCityTarget || undefined}
+      data-city-target-selected={state.isCityPicked || undefined}
       transform={`translate(${tile.position.x} ${tile.position.y}) scale(${TILE_SCALE})`}
     >
       {/* 命中高亮底 + 都城/焦点光晕 */}
@@ -543,6 +554,33 @@ export const Tile = memo(function Tile({
           stroke={rgba(Theme.gold)}
           strokeWidth={2}
         />
+      ) : null}
+      {/* 目标段选城·选中定靶(#1388 T2,#417 选中态同语):实金双环停持——外实金环+
+          内发丝线(#510 漆金环口径,seat-target.css .picked 同族),呼吸 crown 已随
+          选中出列(候选呼吸停),恒定不闪;状态表达 §4.6 纯环制不加文字标牌。 */}
+      {state.isCityPicked ? (
+        <g className="bv-city-picked-ring">
+          <rect
+            x={-57}
+            y={-49}
+            width={114}
+            height={98}
+            rx={12}
+            fill="none"
+            stroke={rgba(Theme.goldBright)}
+            strokeWidth={3}
+          />
+          <rect
+            x={-49.5}
+            y={-41.5}
+            width={99}
+            height={83}
+            rx={8}
+            fill="none"
+            stroke={rgba(Theme.gold)}
+            strokeWidth={1.2}
+          />
+        </g>
       ) : null}
     </g>
   );

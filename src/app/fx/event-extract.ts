@@ -522,9 +522,19 @@ export function extractBatchEvents(
         // 提取拍烤定,锚施法者当下所在格——landPulse 通道现仅本单一生产者,旧
         // 「行军落事件格定音」生产者已随功能格五型退役,#826/#828)+ 文案浮字升档
         // (cast 档:1.0× brush 字 + 玩家色细描边,色提取烤定;文案与旧口径同串)。
+        // 城目标域(#1388 T2)追加「施术者 → 目标城格」指向线(出牌墨线同语系,
+        // skillPointed 表现事件;席位域/none 域技无指向不出线)。
         const seat = eventSeat(engine, ev);
         const anchor = playerAnchor(engine, seat);
         events_.push({ kind: "landPulse", tileIndex: anchor.atTile, x: anchor.x, y: anchor.y });
+        if (ev.skillKind === "fireBlast") {
+          const to = engine.board.positionOf(ev.targetTileIndex);
+          events_.push({
+            kind: "skillPointed",
+            playerId: engine.players[seat].id,
+            lines: [{ x1: anchor.x, y1: anchor.y, x2: to.x, y2: to.y }],
+          });
+        }
         events_.push({
           kind: "textFloat",
           playerId: engine.players[seat].id,

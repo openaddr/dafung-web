@@ -11,6 +11,7 @@ import { createDice } from "@core/dice";
 import { loadMap } from "@core/board-loader";
 import { testEngine, armHero } from "@core/testing";
 import { fullDefenseOf } from "@core/defense";
+import { grantProperty } from "@core/planter";
 import { HEROES } from "@core/heroes";
 import { ENCOUNTERS } from "@core/encounters";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
@@ -121,7 +122,7 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     expect(e.heroDiceBonus).toBe(2);
   });
 
-  it("火攻(other 域):targetSeat 随事件;结算内不派发时机(demolish 落账无事件,#457 口径)", () => {
+  it("火攻(城目标域,#1388):targetSeat 缺席(目标为城);结算内不派发时机(#457 口径)", () => {
     const e = makeEngine(3);
     finishSetup(e);
     const user = e.activePlayer;
@@ -132,27 +133,29 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
       user,
       HEROES.find((h) => h.id === "zhouyu")!,
     );
-    // 守卫布场:目标须过 demolish 守卫(有非都城可失才可指定)
+    // 布场(#1388 城目标域):射程内给对手授一座 Lv>0 城(placePlayer 布距离 + grantProperty)
     const victim = e.players[otherSeat];
-    const capProp = e.board.at(victim.capitalIndex)?.propertyId;
     const spare = e.board.tiles.find(
-      (t) => t.event == null && t.propertyId !== capProp,
-    )!.propertyId!;
-    victim.properties.push({ propertyId: spare, group: "a", level: 1, maxLevel: 3, defense: 4 });
+      (t) =>
+        t.event == null && t.propertyId != null && e.board.distance(user.position, t.index) <= 5,
+    )!;
+    grantProperty(e, otherSeat, spare.propertyId!, 1);
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
-    e.resolveHeroSkill("zhouyu", "huogong"); // other 域:先入目标段
-    e.resolveHeroSkill("zhouyu", "huogong", [otherSeat]); // 选定目标,发动
+    e.resolveHeroSkill("zhouyu", "huogong"); // 城目标域:先入目标段
+    e.resolveHeroSkill("zhouyu", "huogong", [spare.index]); // 选定目标城(tileIndex 提交),发动
     const events = e.snapshot().events;
     expect(kinds(events)).toEqual(["heroSkillActivated"]);
     expect(events[0]).toMatchObject({
       kind: "heroSkillActivated",
       seat: userSeat,
       skillId: "huogong",
-      skillKind: "demolish",
-      targetSeat: otherSeat,
+      skillKind: "fireBlast",
     });
-    expect(victim.properties.find((h) => h.propertyId === spare)?.level).toBe(0); // 降 1 级落账
+    expect("targetSeat" in events[0]).toBe(false); // 城目标域不带座位字段
+    expect(victim.properties.find((h) => h.propertyId === spare.propertyId)?.defense).toBe(
+      fullDefenseOf(1) - 1,
+    ); // 火焰伤害 1 点落账(防御值 4→3)
   });
 });
 

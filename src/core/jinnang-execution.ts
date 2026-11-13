@@ -5,7 +5,13 @@
 // 公共方法薄委托(authority.ts);反应窗域(reaction-window.ts)续结算经 g.executeJinnang/
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
 import type { GameEngine } from "./authority";
-import { activeSkillOf, computeChoices, hasUsableJinnang, skillOptionId } from "./choices";
+import {
+  activeSkillOf,
+  cityTargetOptionId,
+  computeChoices,
+  hasUsableJinnang,
+  skillOptionId,
+} from "./choices";
 import { tileIndexOfProperty } from "./board";
 import { diceShuffle, jinnangCardOf, TARGET_DOMAIN_STAGES } from "./jinnang";
 import { formatMoney } from "./money";
@@ -30,7 +36,8 @@ import {
   type ReactionViewSeed,
 } from "./reaction-window";
 import { emitGameEvent } from "./game-events";
-import { resetToFull } from "./defense";
+import { applyFireDamage, resetToFull } from "./defense";
+import { findHolding } from "./player";
 import type { Player } from "./model";
 
 // ── 锦囊/出牌阶段引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
@@ -47,7 +54,9 @@ export interface PendingJinnang {
 /** 技能目标段载荷(#188 档 3;#817 携实例定位):选技后进入选人子状态(AwaitingJinnang
  *  相位内重算选项集);heroId+skillId=麾下实例定位对(与选项 id/命令同形状,拼接单源
  *  choices.skillOptionId),发动直落本实例。随快照走(目标段中途断线可恢复)。
- *  与锦囊 pendingJinnang 互斥(同一时刻至多一个子状态)。 */
+ *  与锦囊 pendingJinnang 互斥(同一时刻至多一个子状态)。
+ *  提交通道(#1388 T2 目标域分派):席位域 targets=[座位];城目标域(火攻)targets=
+ *  [目标城 tileIndex](候选选项 targetTileIndex 同值,id 拼接单源 choices.cityTargetOptionId)。 */
 export interface PendingHeroSkill {
   heroId: string;
   skillId: string;
@@ -307,12 +316,13 @@ function settleJinnangPlay(
 // ──────────────────────────── 名将主动技(#188 档 3)────────────────────────────
 // 出牌阶段(AwaitingJinnang)内与锦囊同窗决策:resolveHeroSkill 与 resolveJinnang 并列的
 // 命令入口。校验(冷却/持有/目标)单源选项集(choices.ts),UI/bot 永不裁决(ADR-0013);
-// 结算复用既有路径(火攻=demolishOnVictim),不新造 effect kind;结算内不派发时机
+// 结算复用既有单点(火攻=defense.applyFireDamage,#1388 T2 定向化);结算内不派发时机
 // (防技能链级联,与 grantSkillCash 不派发 CashGained 同口径)。
 
 /** 发动主动技(#817 实例定位):heroId+skillId 须定位到决策者麾下主动技实例且选项集
- *  可用(冷却/费用/目标门槛);无目标域发动即结算(直落本实例槽内账),other/any 域入
- *  目标段(pendingSkill,选项集重算为候选名单);cancel=作罢(回卡牌段或收卷,不记冷却)。 */
+ *  可用(冷却/费用/目标门槛);无目标域发动即结算(直落本实例槽内账),席位域(other/any)
+ *  与城目标域(#1388 T2 火攻)入目标段(pendingSkill,选项集重算为候选名单——席位域=
+ *  候选座位,城目标域=合法城清单);cancel=作罢(回卡牌段或收卷,不记冷却)。 */
 export function resolveHeroSkill(
   g: GameEngine,
   heroId: string,
@@ -350,8 +360,11 @@ export function resolveHeroSkill(
       return;
     }
     const [target] = targets;
-    if (!computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
-      g.warn(`目标不可用:座位 ${target}`);
+    // 目标段复验单源=选项集(#1388 T2 目标域分派:席位域 id=t<座位>;城目标域
+    // id=c<tileIndex>,拼接单源 choices.cityTargetOptionId)
+    const wantId = skill.target === "city" ? cityTargetOptionId(target) : `t${target}`;
+    if (!computeChoices(g, "AwaitingJinnang").some((o) => o.id === wantId && o.available)) {
+      g.warn(`目标不可用:${skill.target === "city" ? "城格" : "座位"} ${target}`);
       return;
     }
     g.pendingSkill = null;
@@ -401,7 +414,8 @@ function cancelPendingSkill(g: GameEngine): void {
 }
 
 /** 主动技结算:冷却记账入槽(#785 槽内账,同名技各槽各账)+ 公开事件(施展浮字由 fx 面按
- *  事件派生,与出牌同口径)+ 效果落账。目标合法性已由目标段选项集校验,此处不再复核。 */
+ *  事件派生,与出牌同口径)+ 效果落账。目标合法性已由目标段选项集校验,此处不再复核。
+ *  targets 语义随目标域(#1388 T2):席位域=[座位];城目标域=[目标城 tileIndex]。 */
 function fireHeroSkill(
   g: GameEngine,
   userSeat: number,
@@ -412,32 +426,58 @@ function fireHeroSkill(
   const user = g.players[userSeat];
   slot.lastFired[skill.id] = g.round;
   // 施展宣告走 heroSkillActivated 事件(fx 面文案浮字,#719 死写删除;heroId=槽定位,
-  // 折叠按槽记账,同名技多槽不串账)
-  emitGameEvent(g, userSeat, {
-    kind: "heroSkillActivated",
-    heroId: slot.heroId,
-    skillId: skill.id,
-    skillKind: skill.kind,
-    ...(targets.length > 0 ? { targetSeat: targets[0] } : {}),
-  }); // 事件流(#384):主动技发动(发动者=seat;none 域无 targetSeat 字段)
+  // 折叠按槽记账,同名技多槽不串账)。事件体按目标域判别(#1388 T2,#585 口径:漏传
+  // 目标在类型层面不可表达)——fireBlast 必带目标城(propId+tileIndex,fx 指向线锚城格
+  // /fold 留账两处消费),relief 必带 targetSeat,warDrum 无目标字段;载荷缺失=目标段
+  // 状态机 bug,响亮炸出(零兜底)。
+  if (skill.kind === "fireBlast") {
+    const tileIndex = targets[0];
+    if (tileIndex === undefined) throw new Error("火攻宣告缺目标城格(目标段载荷缺失,状态机 bug)"); // 零兜底
+    const propId = g.board.at(tileIndex).propertyId;
+    if (propId == null) throw new Error(`火攻宣告目标格 ${tileIndex} 无城(状态机 bug)`); // 零兜底
+    emitGameEvent(g, userSeat, {
+      kind: "heroSkillActivated",
+      heroId: slot.heroId,
+      skillId: skill.id,
+      skillKind: "fireBlast",
+      targetPropertyId: propId,
+      targetTileIndex: tileIndex,
+    });
+  } else if (skill.kind === "relief") {
+    const seat = targets[0];
+    if (seat === undefined) throw new Error("赈济宣告缺目标座位(目标段载荷缺失,状态机 bug)"); // 零兜底
+    emitGameEvent(g, userSeat, {
+      kind: "heroSkillActivated",
+      heroId: slot.heroId,
+      skillId: skill.id,
+      skillKind: "relief",
+      targetSeat: seat,
+    });
+  } else {
+    emitGameEvent(g, userSeat, {
+      kind: "heroSkillActivated",
+      heroId: slot.heroId,
+      skillId: skill.id,
+      skillKind: "warDrum",
+    });
+  } // 事件流(#384):主动技发动(发动者=seat;目标域随 skillKind 判别分支)
+  const targetAudit =
+    skill.target === "city"
+      ? targets.length > 0
+        ? `prop=${g.board.at(targets[0]!).propertyId ?? "-"} tile=${targets[0]}`
+        : "-"
+      : targets.length > 0
+        ? g.players[targets[0]].id
+        : "-";
   g.logEvent(
     "skill",
     user.guohao,
     `${user.guohao} 施展主动技【${skill.name}】`,
-    `heroSkill owner=${user.id} skill=${skill.id} kind=${skill.kind} target=${targets.length > 0 ? g.players[targets[0]].id : "-"}`,
+    `heroSkill owner=${user.id} skill=${skill.id} kind=${skill.kind} target=${targetAudit}`,
   );
   switch (skill.kind) {
-    case "demolish":
-      // 火攻 = 火烧连营同款 demolish 结算(#226 守卫:都城可降不可失)。
-      // #457 拍定:城损时机(PropertyDemolished/Lost)只挂锦囊路调用侧,火攻主动技路
-      // 不派——守「主动技结算内不派发时机」既有口径(见本文件头「结算内不派发时机」)。
-      demolishOnVictim(
-        g,
-        user,
-        g.players[targets[0]],
-        `主动技【${skill.name}】`,
-        `heroSkill owner=${user.id} skill=${skill.id}`,
-      );
+    case "fireBlast":
+      fireBlastOnCity(g, user, skill, targets[0]); // 火攻定向结算(#1388 T2;技路不派城损时机,#457)
       break;
     case "relief": {
       const cost = skill.params?.cost;
@@ -484,6 +524,51 @@ function fireHeroSkill(
       throw new Error(`主动技结算未接入:${String(exhausted)}(#188 档 3)`);
     }
   }
+}
+
+/** 火攻定向结算(#1388 T2,规格 #1386):对目标城(tileIndex 载荷)造成技表 damage 点
+ *  火焰伤害,结算单点=defense.applyFireDamage(T1 交付,本域只消费不复制)。合法性
+ *  (射程/等级/城主/冷却)单源目标段选项集(choices.heroSkillCityTargets 装配 +
+ *  resolveHeroSkill 提交复验),本函数只结算;空格/无主到达此处=目标门被绕过,响亮炸
+ *  (零兜底)。
+ *  战报=「主动技【火攻】」来源段风格,果分文案:demolished=城防降为 N 级 /
+ *  absorbed=防御值降至 N(0 级都城打空=打空吸收)/ lost=失城「X」——lost 在火攻
+ *  不可达(目标门要求等级>0,等级>0 城在单点内只会降级不归失城分支),到得了即目标门
+ *  被绕过,当场炸(同 demolishOnVictim 空池口径)。
+ *  #457 现状拍板:城损时机(PropertyDemolished/Lost)只挂锦囊路调用侧,火攻技路
+ *  不派,本票不翻转;降级/失城留痕(propertyChanges)由单点内照 ADR-0015 写。 */
+function fireBlastOnCity(
+  g: GameEngine,
+  user: Player,
+  skill: ActiveSkillDef,
+  tileIndex: number | undefined,
+): void {
+  const damage = skill.params?.damage;
+  if (damage === undefined) throw new Error(`火攻技 ${skill.id} 缺伤害参数 damage(数据 bug)`); // 零兜底
+  if (tileIndex === undefined) throw new Error("火攻结算缺目标城格(目标段载荷缺失,状态机 bug)"); // 零兜底
+  const propId = g.board.at(tileIndex).propertyId;
+  if (propId == null) throw new Error(`火攻目标格 ${tileIndex} 无城(候选清单只出城格,状态机 bug)`);
+  const victim = g.findOwner(propId);
+  if (victim == null)
+    throw new Error(`火攻目标城 ${propId} 无主(无主城不受火焰伤害,目标门应已拦,状态机 bug)`);
+  const cityName = g.board.at(tileIndex).name;
+  const outcome = applyFireDamage(g, victim, propId, damage);
+  if (outcome.kind === "lost")
+    throw new Error(`火攻结算出 lost(城 ${propId} 应为等级>0):目标门被绕过(状态机 bug)`);
+  const h = findHolding(victim, propId);
+  if (h == null) throw new Error(`火攻结算后城 ${propId} 不在 ${victim.guohao} 名下(状态机 bug)`); // 零兜底
+  const resultTxt =
+    outcome.kind === "demolished"
+      ? `城防降为 ${h.level} 级`
+      : h.defense === 0
+        ? "防御值打空,火焰伤害被吸收"
+        : `防御值降至 ${h.defense}`;
+  g.logEvent(
+    "system",
+    user.guohao,
+    `${user.guohao} 主动技【${skill.name}】:${victim.guohao} 的「${cityName}」${resultTxt}`,
+    `heroFire owner=${user.id} skill=${skill.id} victim=${victim.id} prop=${propId} tile=${tileIndex} outcome=${outcome.kind} level=${h.level} defense=${h.defense}`,
+  );
 }
 
 /** 用牌收尾(#122/T3):重算卡牌段,同回合仍有可用牌(异类标签)→ 停留卷轴;否则进 Roll。 */
@@ -783,22 +868,22 @@ export function executeJinnang(
 }
 
 /** demolish 结果(#457):供锦囊路调用侧择一派发 PropertyDemolished/Lost——
- *  派发不进单点(火攻主动技路共用本单点但不派,拍定两调用点分别挂)。 */
+ *  派发不进单点(调用侧按果择一,#457 拍定)。 */
 interface DemolishOutcome {
   kind: "demolished" | "lost";
   propertyId: string;
   tileIndex: number;
 }
 
-/** demolish 结算单点(#122 火烧连营 与 #188 档 3 周瑜火攻共用):随机降目标一座
+/** demolish 结算单点(#122 火烧连营锦囊专用;#1388 T2 起火攻主动技已切城目标域走
+ *  defense.applyFireDamage,不再共用):随机降目标一座
  *  Lv>0 城 1 级(都城可降);城防全 0 级则失一座非都城(都城不可失,#226 根因修复:
  *  失城只从非都城中取,与耗竭「都城可降不可失」、破产「都城不可变卖」同口径)。
  *  「仅剩 0 级都城」的目标已被选项集门槛(demolishTargetOk)拦下,空池 = 门槛被绕过,
  *  当场抛出(零兜底:让状态机 bug 在出生地暴露)。
- *  返回 DemolishOutcome(#457):城损时机的派发归锦囊路调用侧(火烧连营按果派发;
- *  火攻主动技路「结算内不派发」口径不派),本单点只结算不派发。
- *  sourceLabel=战报来源段(「使用锦囊【火烧连营】」/「主动技【火攻】」);
- *  auditPrefix=机读 detail 前缀(各自保留原键名)。 */
+ *  返回 DemolishOutcome(#457):城损时机的派发归锦囊路调用侧(火烧连营按果派发),
+ *  本单点只结算不派发。
+ *  sourceLabel=战报来源段(「使用锦囊【火烧连营】」);auditPrefix=机读 detail 前缀。 */
 function demolishOnVictim(
   g: GameEngine,
   user: Player,

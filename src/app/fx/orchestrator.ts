@@ -206,6 +206,12 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         }
         break;
       }
+      case "skillPointed":
+        // 出技指示线(#1388 T2):城目标域主动技的「施术者→目标城格」线,渲染件与
+        // 出牌墨线同一 sink 通道。技路不叠线不再错位判据(技批无反应窗/无出牌线),
+        // deferSync 照应即可发即忘。
+        for (const l of ev.lines) sink.spawnJinnangLine(l.x1, l.y1, l.x2, l.y2);
+        break;
       case "peekRevealed":
         // 窥探弹层(#575):viewer-only 演出同步下发(fxStore 开关态,关闭即清),
         // 不占编排时长——游戏在弹层后照常推进;非 viewer 座位由弹层组件按

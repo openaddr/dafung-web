@@ -73,7 +73,6 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
     heroId: "guanyu",
     skillId: "warDrumZhangfei",
     skillKind: "warDrum",
-    targetSeat: 1,
   },
   { kind: "jinnangDrawn", count: 1, reason: "encounter" },
   { kind: "reputationChanged", delta: 10, reason: "encounter" },

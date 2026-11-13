@@ -273,9 +273,13 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
   // 目标段选中席(#417 统一口径:首点选中/再点同席取消——不再点席位即出;席位点击层
   // 与数字键共用此选中态,执行走动作条「出」确认钮)。进/出目标段即清空重选。
   const [junshiTargetSeat, setJunshiTargetSeat] = useState<number | null>(null);
+  // 城目标段选中格(#1388 T2,#417 同族:首点选中/再点同格取消/点他格改选;棋盘点格
+  // 点击层共用此选中态,执行走动作条「出」确认钮)。进/出目标段即清空重选。
+  const [junshiTargetTile, setJunshiTargetTile] = useState<number | null>(null);
   useEffect(() => {
     setJunshiSelectedId(null);
     setJunshiTargetSeat(null);
+    setJunshiTargetTile(null);
   }, [junshiTargeting, junshiUp]);
   // 帧诊采样器(ADR-0047):采样生命周期=对局屏生命周期——挂载开采/卸载停采,
   // 设置「性能诊断」行随时导诊断包(真机卡顿取证;桌面探针测不到真机体感)。
@@ -297,6 +301,15 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
         (typeof snapshot.choices)[number] & { targetSeat: number }
       >)
     : [];
+  // 城目标段候选(#1388 T2):choices 城选项(四件结构化载荷,available 引擎已闸——
+  // 合法城清单空时技选项灰置「射程内无可烧之城」,根本进不了目标段)。域互斥:目标段
+  // 在城域时候席选项恒空(候选形状单源 choices.ts)。
+  const junshiCityOptions = junshiTargeting
+    ? (snapshot.choices.filter((o) => o.targetTileIndex != null) as Array<
+        (typeof snapshot.choices)[number] & { targetTileIndex: number }
+      >)
+    : [];
+  const junshiCityTargeting = junshiCityOptions.length > 0;
 
   // 与 DecisionScrollLayer.dispatch 同款可选拍点(registry 未就绪时不发;GameScreenLive
   // 只在 controller/map 就位后挂载,正常流到不了 null)。
@@ -318,10 +331,24 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
     setWarReportOpen(true);
   }, []);
 
-  // 卡牌段确认(动作钮「出牌」)与目标段确认(动作钮「出」)共用拍点:选中项/选中席
-  // 发命令;落印音效随一期迁移。
+  // 卡牌段确认(动作钮「出牌」)与目标段确认(动作钮「出」)共用拍点:选中项/选中席/
+  // 选中格发命令;落印音效随一期迁移。
   const junshiConfirm = () => {
     if (junshiTargeting) {
+      if (junshiCityTargeting) {
+        // 城目标域(#1388 T2):提交通道 targets=[目标城 tileIndex](choices 候选
+        // targetTileIndex 同值);载荷必在(城目标段只属 pendingSkill,jinnang 卡
+        // 不产城候选)——`!` 直取失载荷当场炸出(零兜底,同 junshiSeatCmd 口径)。
+        if (junshiTargetTile == null) return;
+        getAudio().play("stamp");
+        dispatchCommand({
+          type: "useHeroSkill",
+          heroId: junshiPendingSkill!.heroId,
+          skillId: junshiPendingSkill!.skillId,
+          targets: [junshiTargetTile],
+        });
+        return;
+      }
       if (junshiTargetSeat == null) return;
       getAudio().play("stamp");
       dispatchCommand(junshiSeatCmd(junshiTargetSeat));
@@ -360,6 +387,21 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
   // 打出经 junshiConfirm(动作条「出」)。
   const junshiToggleSeat = (targetSeat: number) =>
     setJunshiTargetSeat((cur) => (cur === targetSeat ? null : targetSeat));
+  // 城目标段选格(#1388 T2):棋盘格点击层同写一个选中态(#417 同一选择口径:首点
+  // 选中/再点同格取消/点他格改选);打出经 junshiConfirm(动作条「出」)。
+  const junshiToggleTile = (tileIndex: number) =>
+    setJunshiTargetTile((cur) => (cur === tileIndex ? null : tileIndex));
+  // 落格点击路由(#1388 T2):城目标段在窗时候选格点击=选格,不再走选都/详情路由;
+  // 非候选格=死区(候选金环呼吸+全场压暗已表意,§4.6;席位域不可选槽轻晃同判词,
+  // 格侧死区零反馈可接受——压暗态一眼可辨不可点)。其余相位原路由(useCapitalPick)。
+  const handleTileClick = (tileIndex: number) => {
+    if (junshiCityTargeting) {
+      if (junshiCityOptions.some((o) => o.targetTileIndex === tileIndex))
+        junshiToggleTile(tileIndex);
+      return;
+    }
+    onTileClick(tileIndex);
+  };
   const junshiSeatCmd = (targetSeat: number): GameCommand =>
     junshiPendingSkill != null
       ? {
@@ -620,9 +662,18 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
             players={players}
             /* L47:视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
             viewSeat={localPlayer.id}
-            /* 点格相位路由(Playing 详情 / Setup 选都 / 灰城 hint)在 useCapitalPick */
-            onTileClick={onTileClick}
+            /* 点格相位路由(Playing 详情 / Setup 选都 / 灰城 hint)在 useCapitalPick;
+               城目标段(#1388 T2)在窗时改选格路由(候选格=选格,handleTileClick) */
+            onTileClick={handleTileClick}
             selectableTiles={selectableTiles}
+            /* #1388 T2 目标段选城:候选金环呼吸(选都 crown 同通路)+ 选中实金停持环;
+               候选集/选中格从快照 choices 城选项派生,非城域恒 undefined/null */
+            cityTargetTiles={
+              junshiCityTargeting
+                ? new Set(junshiCityOptions.map((o) => o.targetTileIndex))
+                : undefined
+            }
+            cityPickedTileIndex={junshiCityTargeting ? junshiTargetTile : null}
             /* X4(#23):候选集全座位透传——非决策席也见静态金圈与壹贰叁序号印 */
             candidateTiles={offeredCapitals ?? undefined}
             /* #256 目标段:可用候选席位的棋子金虚线环呼吸(与席位格金圈同步) */
@@ -817,7 +868,13 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
         {junshiUp && (
           <ActionBar
             segment={junshiTargeting ? "target" : "card"}
-            playEnabled={junshiTargeting ? junshiTargetSeat != null : junshiSelected != null}
+            playEnabled={
+              junshiTargeting
+                ? junshiCityTargeting
+                  ? junshiTargetTile != null // 城目标段(#1388 T2):选中格点亮「出」
+                  : junshiTargetSeat != null
+                : junshiSelected != null
+            }
             onPlay={junshiConfirm}
             onPass={junshiPass}
             rightShift={!junshiTargeting && junshiSelected != null}

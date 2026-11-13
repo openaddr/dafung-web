@@ -135,6 +135,16 @@ export type PresentationEvent =
       cardId: string;
       lines: { x1: number; y1: number; x2: number; y2: number }[];
     }
+  /** 出技指示线(#1388 T2):城目标域主动技(fireBlast)的「施术者 → 目标城格」指向线
+   *  ——出牌墨线同语系(heroSkillActivated 事件直译,event-extract 生产;渲染复用
+   *  同一 sink 线件,生长→停持→淡出同节拍)。席位域技(relief/warDrum)无指向不出线,
+   *  本事件不产。 */
+  | {
+      kind: "skillPointed";
+      /** 施术者玩家 id(事件语义信息;线段端点已解析,渲染不再回查)。 */
+      playerId: string;
+      lines: { x1: number; y1: number; x2: number; y2: number }[];
+    }
   /** 窥探弹层(#575,军情密探即时窥探):viewer-only 一次性演出——peekApplied 事件
    *  直译,弹层陈列被窥者锦囊手牌(hand 随事件走,redactEvents 逐座位裁、非 viewer
    *  恒空,ADR-0016),牌背→翻面 stagger 入场,点击任意处/X 关闭,关闭即逝、无持续

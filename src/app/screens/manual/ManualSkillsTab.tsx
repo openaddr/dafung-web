@@ -16,6 +16,7 @@ const ACTIVE_TARGET_LABEL: Record<ActiveSkillDef["target"], string> = {
   none: "无目标",
   other: "一名其他诸侯",
   any: "任一诸侯(含己)",
+  city: "一座合法城(射程内)", // #1388 T2 城目标域(火攻定向化)
 };
 
 /** 时机中文短名(被动技小注;全集 Record,编译期穷尽)。 */

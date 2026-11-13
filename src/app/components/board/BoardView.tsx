@@ -80,6 +80,13 @@ interface BoardViewProps {
   onTileClick?: (index: number) => void;
   /** 可交互高亮城池集合(如选都阶段轮到本地的候选)。 */
   selectableTiles?: ReadonlySet<number>;
+  /** 目标段选城候选(#1388 T2):主动技城目标段的合法城格集(引擎 choices 城选项,
+   *  可用性已闸)——金环呼吸复用选都氛围 crown 通路,选中格出列改实金停持环;
+   *  格上另挂 data-city-target 契约(e2e/选择器单源)。 */
+  cityTargetTiles?: ReadonlySet<number>;
+  /** 目标段选城·选中格(#1388 T2,#417 同族:首点选中/再点取消/点他城改选);
+   *  null=未选中。 */
+  cityPickedTileIndex?: number | null;
   /** X4(#23) 选都候选集(引擎 offeredCapitals,滚出顺序):全座位可见——
    *  静态低透明金圈 + 壹贰叁序号印是全座档;「轮到本地可点脉冲」由 selectableTiles 升档。 */
   candidateTiles?: readonly number[];
@@ -177,6 +184,8 @@ export function BoardView({
   viewSeat,
   onTileClick,
   selectableTiles,
+  cityTargetTiles,
+  cityPickedTileIndex,
   candidateTiles,
   activeTileIndex,
   isSetupPhase = false,
@@ -186,6 +195,18 @@ export function BoardView({
   className,
 }: BoardViewProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  // 目标段选城(#1388 T2)两路候选集:全集(selectableFull)供格态 isSelectable——
+  // 选中格保持 bv-selectable 类,聚焦压暗(:has 规则的 :not(.bv-selectable) 例外)
+  // 不吃它;呼吸 crown 出列集(targetCrowns)=全集摘选中格,实金停持环即位(Tile)。
+  const selectableFull = cityTargetTiles ?? selectableTiles;
+  const targetCrowns = useMemo(() => {
+    if (cityTargetTiles == null) return selectableTiles;
+    if (cityPickedTileIndex == null || !cityTargetTiles.has(cityPickedTileIndex))
+      return cityTargetTiles;
+    const minus = new Set(cityTargetTiles);
+    minus.delete(cityPickedTileIndex);
+    return minus;
+  }, [cityTargetTiles, cityPickedTileIndex, selectableTiles]);
   // Board/catalog 直接吃 registry 现成对局上下文(#1273):两者是引擎构造入参、对局期
   // 不可变(换局随 setController 整体换新),不再从原始 JSON 第二次全量 loadMap——
   // 开局链上的同图双析就此消失。仅 GameScreenLive 挂载(已守卫 controller 就位),
@@ -254,8 +275,10 @@ export function BoardView({
         capitalGuohao: capitalP ? capitalP.guohao : null,
         isActive: activeTileIndex === tile.index,
         isTaken: !!(isSetupPhase && capitalP),
-        isSelectable: selectableTiles?.has(tile.index) ?? false,
+        isSelectable: selectableFull?.has(tile.index) ?? false,
         capitalCandidateOrder: candidateOrder.get(tile.index) ?? null,
+        isCityTarget: cityTargetTiles?.has(tile.index) ?? false,
+        isCityPicked: cityPickedTileIndex === tile.index,
       };
       const stable = prev?.get(tile.index);
       if (stable !== undefined && tileStateEqual(stable, next)) {
@@ -277,8 +300,10 @@ export function BoardView({
     players,
     activeTileIndex,
     isSetupPhase,
-    selectableTiles,
+    selectableFull,
     candidateOrder,
+    cityTargetTiles,
+    cityPickedTileIndex,
   ]);
 
   // F1:城池 JSX 整体 memo(依赖都是身份稳定的派生值),hover 等无关重渲不再重建 40 城 vnode。
@@ -367,7 +392,8 @@ export function BoardView({
         activePlayerId={activePlayerId}
         mineId={viewSeat}
         skipTokenIds={skipTokenIds}
-        selectableTiles={selectableTiles}
+        /* 呼吸 crown 集(#1388 T2 目标段选城并入:候选出列选中格停持;选都期即原集) */
+        selectableTiles={targetCrowns}
         setupUnselected={isSetupPhase}
         svgRef={svgRef}
       />

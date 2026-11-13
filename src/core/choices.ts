@@ -60,6 +60,15 @@ export interface ChoiceOption {
   skillHeroId?: string;
   skillText?: string;
   skillHero?: string;
+  /** 城目标段选项专属(#1388 T2):候选城四件随选项派生透出(快照 choices 通道,棒2 UI
+   *  消费)。id=`c${targetTileIndex}`(拼接单源 cityTargetOptionId,label=城名);
+   *  targetTileIndex=提交通道(命令 targets=[tileIndex],与席位域 targetSeat 同款对称);
+   *  targetPropertyId/targetOwnerSeat/targetDistance=候选清单结构化载荷(城 id/城主座位/
+   *  双向最短距离,呈现数据,合法性不由此判定)。席位域选项不携带本组字段。 */
+  targetPropertyId?: string;
+  targetOwnerSeat?: number;
+  targetDistance?: number;
+  targetTileIndex?: number;
 }
 
 /** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
@@ -230,9 +239,10 @@ function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
   ];
 }
 
-/** demolish 目标守卫(#226 口径,火烧连营与周瑜火攻共用):城防有 Lv>0 可降、或有非都城
+/** demolish 目标守卫(#226 口径,火烧连营锦囊专用):城防有 Lv>0 可降、或有非都城
  *  可失,二者居一才可指定——「仅剩 0 级都城」的目标无城可毁,失城分支又不许动都城
- *  (与耗竭/破产同口径),放行只会烧空。 */
+ *  (与耗竭/破产同口径),放行只会烧空。(#1388 T2 火攻主动技已切城目标域,不再共用
+ *  本守卫;随机降级/失城语义归锦囊路。) */
 export function demolishTargetOk(e: GameEngine, target: number): { ok: boolean; reason?: string } {
   const t = e.players[target];
   const capPropId = t.capitalIndex >= 0 ? (e.board.at(t.capitalIndex)?.propertyId ?? null) : null;
@@ -267,23 +277,76 @@ export function jinnangTargetOk(
   return { ok: true };
 }
 
-/** 主动技目标有效性(#188 档 3):目标域按技能定义分派;附加守卫走共享口径。
+/** 主动技目标有效性(#188 档 3;席位域专用):目标域按技能定义分派。
  *  注:主动技不受反应窗/锦囊任何庇护(#229/#281 口径:技能不走 announce 通道,不可被识破),
- *  故此处无锦囊类守卫。 */
+ *  故此处无锦囊类守卫。城目标域(#1388 T2)不走席位校验——合法性单源
+ *  heroSkillCityTargets,误入本口=调用方目标域分派 bug,当场炸(零兜底)。 */
 export function heroSkillTargetOk(
   e: GameEngine,
   user: number,
   target: number,
   skill: ActiveSkillDef,
 ): { ok: boolean; reason?: string } {
+  if (skill.target === "city")
+    throw new Error(
+      `heroSkillTargetOk:技 ${skill.id} 为城目标域,不走席位校验(合法性单源 heroSkillCityTargets,#1388)`,
+    );
   const t = e.players[target];
   if (t.isBankrupt) return { ok: false, reason: "已出局" };
   if (target === user && skill.target !== "any") return { ok: false, reason: "不能指定自己" };
-  if (skill.targetGuard === "demolish") {
-    const verdict = demolishTargetOk(e, target);
-    if (!verdict.ok) return verdict;
-  }
   return { ok: true };
+}
+
+/** 城目标段选项 id 拼接单源(#1388 T2):`c${tileIndex}`——候选选项 id、resolveHeroSkill
+ *  目标段复验、UI 提交(targetTileIndex)三处同一形状,唯此一处拼(与 skillOptionId 同纪律)。 */
+export function cityTargetOptionId(tileIndex: number): string {
+  return `c${tileIndex}`;
+}
+
+/** 火攻合法城清单(#1388 T2 城目标域,目标域谓词全局唯一单源):userSeat 视角下全部
+ *  「距离 ≤ 技表 params.range(双向最短,board.distance,#1386)且城池等级>0 且城主为他人」
+ *  的城。都城在域内合法(可降级,打空即停由 defense 单点管);无主城/己城/0 级城/射程外
+ *  一律不入选。choices 选项装配、目标段候选、bot 策略全回查本口,UI/bot 不复制谓词
+ *  (ADR-0013)。确定性:座位序×持有序遍历,排序归消费方(bot 自带打分)。 */
+export interface HeroSkillCityTarget {
+  propertyId: string;
+  tileIndex: number;
+  name: string; // 城名(候选钮 label)
+  level: number; // 城池等级(候选呈现 + bot 打分第一序)
+  ownerSeat: number; // 城主座位
+  distance: number; // 攻方所在格→城格的双向最短距离(#1386 距离谓词)
+}
+
+export function heroSkillCityTargets(
+  e: GameEngine,
+  userSeat: number,
+  skill: ActiveSkillDef,
+): HeroSkillCityTarget[] {
+  if (skill.target !== "city")
+    throw new Error(`heroSkillCityTargets:技 ${skill.id} 非城目标域(调用方分派 bug)`);
+  const range = skill.params?.range;
+  if (range === undefined) throw new Error(`火攻技 ${skill.id} 缺射程参数 range(数据 bug)`); // 零兜底
+  const me = e.players[userSeat];
+  const out: HeroSkillCityTarget[] = [];
+  for (const owner of e.players) {
+    const seat = e.players.indexOf(owner);
+    if (seat === userSeat || owner.isBankrupt) continue;
+    for (const h of owner.properties) {
+      if (h.level <= 0) continue; // 等级门:0 级城不可指定(打空即失的门不在此开)
+      const tileIndex = tileIndexOfProperty(e.board, h.propertyId);
+      const distance = e.board.distance(me.position, tileIndex);
+      if (distance > range) continue; // 射程门
+      out.push({
+        propertyId: h.propertyId,
+        tileIndex,
+        name: e.board.at(tileIndex).name,
+        level: h.level,
+        ownerSeat: seat,
+        distance,
+      });
+    }
+  }
+  return out;
 }
 
 /** AwaitingJinnang(出牌阶段,#122/T2 + #188 档 3):统一决策窗——锦囊卡牌段 + 就绪主动技 +
@@ -316,9 +379,25 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
   }
   const pendingSkill = e.pendingSkill;
   if (pendingSkill) {
-    // 技能目标段(#188 档 3):候选按技能目标域逐一校验(守卫单源 heroSkillTargetOk)
     const skill = activeSkillOf(p, pendingSkill.heroId, pendingSkill.skillId);
     const userSeat = e.players.indexOf(p);
+    // 城目标段(#1388 T2):候选=合法城清单(谓词单源 heroSkillCityTargets),逐城携
+    // 城名(label)/城 id/城主/距离;作罢不记冷却(与席位域同口径)。
+    if (skill?.target === "city") {
+      const targets: ChoiceOption[] = heroSkillCityTargets(e, userSeat, skill).map(
+        (c): ChoiceOption => ({
+          id: cityTargetOptionId(c.tileIndex),
+          label: c.name,
+          available: true,
+          targetPropertyId: c.propertyId,
+          targetOwnerSeat: c.ownerSeat,
+          targetDistance: c.distance,
+          targetTileIndex: c.tileIndex,
+        }),
+      );
+      return [...targets, { id: "cancel", label: "作罢", available: true }];
+    }
+    // 席位域目标段(#188 档 3):候选按技能目标域逐一校验(守卫单源 heroSkillTargetOk)
     const targets: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
       const verdict = skill
         ? heroSkillTargetOk(e, userSeat, seat, skill)
@@ -440,11 +519,17 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
       let available = cdLeft === 0;
       let reason = cdLeft > 0 ? `冷却中(还差 ${cdLeft} 轮)` : undefined;
       if (available) {
-        // 冷却就绪后再验执行门槛:费用 → 目标候选存在(技级一验,同技实例共用)
+        // 冷却就绪后再验执行门槛:费用 → 目标候选存在(技级一验,同技实例共用;
+        // 城目标域=合法城清单非空,#1388 T2,谓词单源 heroSkillCityTargets)
         const cost = skill.params?.cost ?? 0;
         if (cost > 0 && p.cash < cost) {
           available = false;
           reason = "银两不足";
+        } else if (skill.target === "city") {
+          if (heroSkillCityTargets(e, userSeat, skill).length === 0) {
+            available = false;
+            reason = "射程内无可烧之城";
+          }
         } else if (skill.target !== "none") {
           const anyTarget = e.players.some(
             (_, seat) => heroSkillTargetOk(e, userSeat, seat, skill).ok,

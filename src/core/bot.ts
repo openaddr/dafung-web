@@ -5,7 +5,7 @@ import type { Player } from "./model";
 import type { EncounterEffect } from "./encounters";
 import type { PendingReaction } from "./reaction-window";
 import { jinnangCardOf } from "./jinnang";
-import { activeSkillOf, heroSkillTargetOk, isSkillOption, skillOptionId } from "./choices";
+import { activeSkillOf, heroSkillCityTargets, isSkillOption, skillOptionId } from "./choices";
 import { netWorth } from "./networth";
 import { guidePriceOf, isSkillBook } from "./treasures";
 import { skillBookLearners } from "./roster";
@@ -293,29 +293,35 @@ export function botSkillChoiceDecision(
 }
 
 /** 主动技意图(#188 档 3;#817 实例定位对):策略表对单个技能实例的「用/不用 + 偏好目标
- *  序」。净值贪心、确定性(不掷骰,并列取座位序小者);exported 供单测。可发性仍以技能
- *  目标段 choicesFor 的 available 为准(ADR-0013 同口径)。意图按技评估(同技实例策略
- *  相同),实例定位对只为查技表与发动落点。
- *  火攻=城最多者(与火烧连营同则);赈济=自身体力 <70 且付得起时自疗;
- *  擂鼓=可用即用(免费步数 +2,过都城补给更频繁)。 */
-function heroSkillIntent(engine: GameEngine, heroId: string, skillId: string): JinnangIntent {
+ *  序」。净值贪心、确定性(不掷骰);exported 供单测。可发性仍以技能目标段 choicesFor 的
+ *  available 为准(ADR-0013 同口径)。意图按技评估(同技实例策略相同),实例定位对只为
+ *  查技表与发动落点。
+ *  火攻(#1388 T2 定向化,统一原则与人类同参数):合法城清单单源引擎
+ *  (choices.heroSkillCityTargets,bot 不复制谓词),择优=等级最高→购价(purchasePrice)
+ *  最高→再平手 tileIndex 小(确定性,不按玩家身份分档);无合法城不出技(与选项集
+ *  「射程内无可烧之城」同口)。targets=偏好序的目标城 tileIndex(城目标域提交通道)。
+ *  赈济=自身体力 <70 且付得起时自疗;擂鼓=可用即用(免费步数 +2,过都城补给更频繁)。 */
+export function heroSkillIntent(
+  engine: GameEngine,
+  heroId: string,
+  skillId: string,
+): JinnangIntent {
   const me = engine.activePlayer;
   const mySeat = engine.players.indexOf(me);
-  const others = engine.players
-    .map((t, seat) => ({ t, seat }))
-    .filter(({ t, seat }) => seat !== mySeat && !t.isBankrupt);
-  const byKeyDesc = (key: (x: { t: Player; seat: number }) => number) =>
-    [...others].sort((a, b) => key(b) - key(a)); // 稳定排序:并列保持座位序(序小在前)
   const skill = activeSkillOf(engine.players[mySeat], heroId, skillId);
   if (!skill) throw new Error(`未知主动技:${heroId}·${skillId}(决策者麾下无此实例,数据 bug)`); // 同 jinnangCardOf 口径:查不到就炸
   switch (skill.kind) {
-    case "demolish": {
-      // 火攻:城最多者,且须过 demolish 守卫(有可降/可失之城)——守卫镜像只筛「用不用 +
-      // 偏好序」,提交时引擎目标段选项集逐段复验
-      const ranked = byKeyDesc(({ t }) => t.properties.length).filter(
-        ({ seat }) => heroSkillTargetOk(engine, mySeat, seat, skill).ok,
-      );
-      return { use: ranked.length > 0, targets: ranked.map(({ seat }) => seat) };
+    case "fireBlast": {
+      // 合法城里择优:等级最高→购价最高→tileIndex 小(稳定排序:全序键,无并列歧义)
+      const ranked = heroSkillCityTargets(engine, mySeat, skill)
+        .map((c) => {
+          const def = engine.catalog.get(c.propertyId);
+          if (def == null)
+            throw new Error(`bot 火攻择优:城 ${c.propertyId} 不在 catalog(数据 bug)`); // 零兜底
+          return { tileIndex: c.tileIndex, level: c.level, price: def.purchasePrice };
+        })
+        .sort((a, b) => b.level - a.level || b.price - a.price || a.tileIndex - b.tileIndex);
+      return { use: ranked.length > 0, targets: ranked.map(({ tileIndex }) => tileIndex) };
     }
     case "relief": {
       const cost = skill.params?.cost ?? 0;
@@ -350,16 +356,23 @@ function commitJinnangTargets(engine: GameEngine, cardId: string): boolean {
   return true;
 }
 
-/** 技能目标段提交(#188 档 3;#817 实例定位对):按意图偏好序对着引擎技能目标段选项集
- *  选第一个可用者;偏好全不可发 → 作罢(不记冷却)返回 false。 */
+/** 技能目标段提交(#188 档 3;#817 实例定位对;#1388 T2 目标域分派):按意图偏好序逐个
+ *  对着引擎技能目标段选项集找可用者(席位域匹配 targetSeat、城目标域匹配
+ *  targetTileIndex),偏好在前者优先成交;偏好全不可发 → 作罢(不记冷却)返回 false。
+ *  (遍历序=偏好序而非选项序:选项集是座位/候选陈列序,谁先谁后与策略排序无关。) */
 function commitHeroSkillTargets(engine: GameEngine, heroId: string, skillId: string): boolean {
   const prefs = heroSkillIntent(engine, heroId, skillId).targets ?? [];
-  const opt = engine
-    .choicesFor()
-    .find((o) => o.available && o.targetSeat != null && prefs.includes(o.targetSeat));
-  if (opt?.targetSeat != null) {
-    engine.resolveHeroSkill(heroId, skillId, [opt.targetSeat]);
-    return true;
+  const options = engine.choicesFor();
+  for (const w of prefs) {
+    const opt = options.find(
+      (o) =>
+        o.available && (o.targetTileIndex != null ? o.targetTileIndex === w : o.targetSeat === w),
+    );
+    if (opt != null) {
+      const target = opt.targetTileIndex ?? opt.targetSeat!;
+      engine.resolveHeroSkill(heroId, skillId, [target]);
+      return true;
+    }
   }
   engine.resolveHeroSkill(heroId, skillId, undefined, true); // 作罢
   return false;
