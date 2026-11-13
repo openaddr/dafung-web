@@ -159,6 +159,17 @@ export const TESTIDS = {
    *  自选目标起仪表条身份区「你」印在目标段兼任自己候选钮,复用本族 testid
    *  (对手席位格与仪表条同一选择器通路)。 */
   seatTarget: (seat: number) => `seat-target-${seat}` as const,
+  /** 目标段选城候选(#1388 T2 火攻定向):棋盘格即点击层(Tile 根 data-tile 承载,
+   *  候选挂 data-city-target;金环呼吸在氛围层 crown,格上零文字标牌 §4.6)。
+   *  点选=选中/再点同格取消/点他格改选(#417 同族),打出走动作条「出」
+   *  (actionbarTarget);作罢钮复用 actionbarCancel。CSS 选择器形(skillChip 同款)。 */
+  skillCityTarget: (tileIndex: number) => `[data-tile="${tileIndex}"][data-city-target]`,
+  /** 目标段选城·选中定靶态(实金双环停持,呼吸停;Tile 根挂 data-city-target-selected)。 */
+  skillCityTargetPicked: (tileIndex: number) =>
+    `[data-tile="${tileIndex}"][data-city-target-selected]`,
+  /** 全局计数选择器(skillChipAny 同款:候选总数/选中总数断言用)。 */
+  skillCityTargetAny: "[data-city-target]",
+  skillCityTargetPickedAny: "[data-city-target-selected]",
 
   // ── 手牌架(#238 常驻;#256 出牌阶段态;#254 叠加压缩)──
   /** 锦囊(#122):己方手牌容器 / 单张牌面(带牌名)。#238/T3:jinnangHand 挂手牌架的

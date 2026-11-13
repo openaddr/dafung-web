@@ -38,7 +38,7 @@
 //                 skillFired/heroSkillActivated → 冷却记账(heroId 定槽,槽内 lastFired,
 //                 键=skillId,#785 实例化);主动技按技表(skills.ts)参数落账:
 //                 warDrum → heroDiceBonus、relief → 现金-费(目标体力随 staminaChanged 折)、
-//                 demolish → 不折(随机降级目标不可知 = 校准兜底五项之一)
+//                 fireBlast → 不折(火攻城损等级/防御值不在事件面 = 校准兜底,#1388)
 //   锦囊族        jinnangDrawn → 手牌数+count/牌库数-count(内容=暗牌与牌序不折,
 //                 ADR-0016);jinnangReshuffled → 牌库数+count/弃堆清零(洗后牌序不折);
 //                 jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额);
@@ -69,7 +69,7 @@
 //                 reaction(=pendingReaction.view)不折自得
 //
 // ── 校准兜底项(#384 判定表对账:折叠器不碰,由快照水合纠正,ADR-0020 决策 3)──
-//   ①城池降级精确等级:火烧连营/火攻随机降级目标与结果不在任何事件(demolish 结算无事件)
+//   ①城池降级精确等级:火烧连营随机降级与火攻城损等级/防御值不在任何事件(结算无专属事件,#1388)
 //   ②窃玉偷香珍宝转移:treasureStolen 只宣告不转移(双方珍宝列表校准)
 //   ③出牌阶段目标段子状态:pendingJinnang/pendingSkill 无专属事件
 //   ⑤Setup 期字段:draftOrder/draftRolls/currentDraftIndex/offeredCapitals/usedGuohao/
@@ -555,8 +555,8 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           case "relief":
             user.cash -= requireSkillParam(skill, "cost"); // 目标体力随 staminaChanged(heroRelief)折
             break;
-          case "demolish":
-            break; // 随机降级目标与结果不可知 = 校准兜底五项之一,不折
+          case "fireBlast":
+            break; // 火攻城损等级/防御值不在事件面(#1388)= 校准兜底,随快照对齐
         }
         break;
       }

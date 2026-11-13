@@ -60,6 +60,8 @@ export function TileThumb({
     isTaken: false,
     isSelectable: false,
     capitalCandidateOrder: null,
+    isCityTarget: false, // 缩略图无目标段语境(#1388 T2 状态字段显式归零,非兜底)
+    isCityPicked: false,
   };
   return (
     <svg

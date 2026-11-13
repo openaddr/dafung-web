@@ -32,7 +32,7 @@ export interface TriggerSkill {
 }
 
 /** 名将主动技(#188 档 3):数据声明,与被动技(TriggerSkill·时机驱动)同表并存。
- *  结算复用既有路径(火攻=demolish 语义),不新造 effect kind;
+ *  结算复用既有单点(火攻=defense.applyFireDamage,#1388 T2 定向化);
  *  技能结算内不派发时机(与 grantSkillCash 的防连锁口径一致)。
  *  目标校验单源在 choices.ts(引擎命令提交时复核,UI/bot 永不裁决,ADR-0013)。 */
 export interface ActiveSkillDef {
@@ -40,15 +40,18 @@ export interface ActiveSkillDef {
   name: string; // 火攻(卷轴选项 label 组合为「名将·技名」)
   cooldown: number; // 冷却(轮):发动后过 cooldown 轮才可再发动
   desc: string; // 卷轴文案(效果自证,与结算互证)
-  /** 目标域:none=无目标(发动即结算);other=一名其他存活玩家;any=任一存活玩家(含自己)。 */
-  target: "none" | "other" | "any";
-  /** 结算路径(游戏内唯一定义处):demolish=降 1 级/失城(火烧连营同款);relief=付费回体力;
-   *  warDrum=本回合下一次掷骰步数加成。 */
-  kind: "demolish" | "relief" | "warDrum";
-  /** 目标附加守卫(demolish 专属):有 Lv>0 城可降、或有非都城可失,二者居一才可指定
-   *  (#226 口径:都城可降不可失)。 */
-  targetGuard?: "demolish";
-  /** 技能参数(纯数据,可序列化):relief={cost,stamina};warDrum={bonus}。 */
+  /** 目标域:none=无目标(发动即结算);other=一名其他存活玩家;any=任一存活玩家(含自己);
+   *  city=一座合法城(#1388 T2 城目标域:候选=合法城清单,谓词单源 choices.heroSkillCityTargets
+   *  ——距离 ≤ params.range 且城池等级>0 且城主为他人;提交通道=目标城 tileIndex)。 */
+  target: "none" | "other" | "any" | "city";
+  /** 结算路径(游戏内唯一定义处):fireBlast=对目标城造成 params.damage 点火焰伤害
+   *  (结算单点 defense.applyFireDamage,#1388);relief=付费回体力;
+   *  warDrum=本回合下一次掷骰步数加成。旧 demolish(随机降级/失城,#226)已随火攻
+   *  定向化退役,锦囊路火烧连营的 demolish 结算单点(jinnang-execution
+   *  demolishOnVictim)保留仍在用。 */
+  kind: "fireBlast" | "relief" | "warDrum";
+  /** 技能参数(纯数据,可序列化):fireBlast={range,damage};relief={cost,stamina};
+   *  warDrum={bonus}。缺必填项结算时响亮抛错(零兜底)。 */
   params?: Record<string, number>;
 }
 
@@ -246,11 +249,13 @@ export const SKILLS: SkillDef[] = [
     id: "huogong",
     name: "火攻",
     cooldown: 5,
-    // 火烧连营同款 demolish 结算(复用 #226 守卫:都城可降不可失)
-    desc: "火烧一座敌城:指定一名诸侯,其一处城防降 1 级;城防尽毁则失一座城(都城不失)。",
-    target: "other",
-    targetGuard: "demolish",
-    kind: "demolish",
+    // #1388 T2 定向化(规格 #1386 定稿文案):城目标域,目标域谓词单源
+    // choices.heroSkillCityTargets(距离 ≤ range 且城池等级>0 且城主为他人);
+    // 结算单点 defense.applyFireDamage(1 点火焰伤害,#1386/#1387 防御值系统)。
+    desc: "指定一座距离你5格以内、城防等级>0、其他诸侯的城池,对其造成1点火焰伤害。",
+    target: "city",
+    kind: "fireBlast",
+    params: { range: 5, damage: 1 },
   },
   {
     id: "leigu",

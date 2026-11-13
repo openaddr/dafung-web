@@ -27,6 +27,8 @@ const IDLE_STATE = {
   isTaken: false,
   isSelectable: false,
   capitalCandidateOrder: null,
+  isCityTarget: false,
+  isCityPicked: false,
 };
 
 const markupOf = (tier: CityTier): string =>

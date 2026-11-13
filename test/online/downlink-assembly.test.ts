@@ -204,7 +204,6 @@ const ALL_KIND_BODIES: GameEventBody[] = [
     heroId: "guanyu",
     skillId: "warDrumZhangfei",
     skillKind: "warDrum",
-    targetSeat: 1,
   },
   { kind: "jinnangDrawn", count: 1, reason: "encounter" },
   { kind: "jinnangReshuffled", count: 3 },

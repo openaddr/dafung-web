@@ -611,8 +611,9 @@ describe("折叠投影器 · 名将族", () => {
         kind: "heroSkillActivated",
         heroId: "zhouyu",
         skillId: "huogong",
-        skillKind: "demolish",
-        targetSeat: 1,
+        skillKind: "fireBlast", // #1388 T2:城目标域必带目标城(判别联合,#585 口径)
+        targetPropertyId: "changangan",
+        targetTileIndex: 0,
       }),
     ]);
 
@@ -620,7 +621,7 @@ describe("折叠投影器 · 名将族", () => {
     expect(e.players[0].heroes[0].lastFired["huogong"]).toBe(1);
   });
 
-  it("主动技三类落账:warDrum 加成(骰时消费)/relief 付费/demolish 不折", () => {
+  it("主动技三类落账:warDrum 加成(骰时消费)/relief 付费/fireBlast 不折", () => {
     const e = makeEngine();
     armHero(e, e.players[0], HEROES[0]); // 周瑜:火攻槽位归属(事件按 heroId 定槽)
     armHero(e, e.players[0], HEROES[2]);
@@ -646,8 +647,9 @@ describe("折叠投影器 · 名将族", () => {
         kind: "heroSkillActivated",
         heroId: "zhouyu",
         skillId: "huogong",
-        skillKind: "demolish",
-        targetSeat: 1,
+        skillKind: "fireBlast",
+        targetPropertyId: "changangan",
+        targetTileIndex: 0,
       }),
     ]);
 

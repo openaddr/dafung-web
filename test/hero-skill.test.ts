@@ -12,7 +12,10 @@ import { heroById } from "@core/heroes";
 import { skillById } from "@core/skills";
 import { SKILLS } from "@core/skills";
 import { hasUsableJinnang, isSkillOption, skillOptionId } from "@core/choices";
-import { botAct } from "@core/bot";
+import { botAct, heroSkillIntent } from "@core/bot";
+import { fullDefenseOf } from "@core/defense";
+import { grantProperty, placePlayer, setDefense } from "@core/planter";
+import type { GameMoment, MomentCtx } from "@core/timing";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
@@ -80,6 +83,44 @@ const skillOpt = (e: GameEngine, heroId: string, skillId: string) =>
 
 const seatOpt = (e: GameEngine, seat: number) => e.choicesFor().find((o) => o.id === `t${seat}`);
 
+/** 城目标段候选选项(#1388):按提交通道 tileIndex 取候选。 */
+const cityOpt = (e: GameEngine, tileIndex: number) =>
+  e.choicesFor().find((o) => o.targetTileIndex === tileIndex);
+
+/** 把一座无主普通城授给 seat 并拉到指定等级(种植件 grantProperty,防御随等级回满)。
+ *  anchorTileIndex/maxDist:只在锚点 maxDist 格内选城(火攻射程布景用);选不中当场炸。 */
+function grantCityNear(
+  e: GameEngine,
+  seat: number,
+  level: number,
+  anchorTileIndex: number,
+  maxDist = 5,
+): { propertyId: string; tileIndex: number } {
+  const taken = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
+  const tile = e.board.tiles.find(
+    (t) =>
+      t.event == null &&
+      t.propertyId != null &&
+      !taken.has(t.propertyId) &&
+      e.board.distance(anchorTileIndex, t.index) <= maxDist,
+  );
+  if (tile == null || tile.propertyId == null)
+    throw new Error(`测试布场:锚点 ${anchorTileIndex} ${maxDist} 格内无空闲普通城`);
+  grantProperty(e, seat, tile.propertyId, level);
+  return { propertyId: tile.propertyId, tileIndex: tile.index };
+}
+
+/** 派发时机记录(同 test/timing.test.ts recordMomentCtx 缝约定):spy 不改行为只记账。 */
+function recordMomentKinds(e: GameEngine): string[] {
+  const kinds: string[] = [];
+  const orig = e.dispatchMoment.bind(e);
+  (e as { dispatchMoment: (m: GameMoment, ctx: MomentCtx) => void }).dispatchMoment = (m, ctx) => {
+    kinds.push(m);
+    return orig(m, ctx);
+  };
+  return kinds;
+}
+
 describe("出牌阶段:主动技选项集(#188 档 3)", () => {
   it("无目标技就绪 → 实例选项就绪(id=skill:<heroId>:<skillId>,携实例定位),发动后冷却中灰置,过冷却轮复活", () => {
     const e = prepared();
@@ -138,7 +179,7 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     expect(hasUsableJinnang(e)).toBe(false);
   });
 
-  it("费用技(赈济)银两不足灰置「银两不足」;目标域 other 自取灰置「不能指定自己」", () => {
+  it("费用技(赈济)银两不足灰置「银两不足」;作罢不记冷却", () => {
     const e = prepared();
     const p = armSkill(e, "huatuo", "zhenji");
     p.cash = 50; // 付不起 100
@@ -152,55 +193,6 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     e.resolveHeroSkill("huatuo", "zhenji", undefined, true); // 作罢:不记冷却
     expect(e.pendingSkill).toBe(null);
     expect(e.activePlayer.heroes[0].lastFired["zhenji"]).toBeUndefined();
-    e.turnPhase = "AwaitingJinnang";
-    // other 域(火攻)排除自己;他人须过 demolish 守卫(有非都城可失才可指定)
-    armSkill(e, "zhouyu", "huogong");
-    const victim = e.players[1];
-    const capProp = e.board.at(victim.capitalIndex)?.propertyId;
-    const spare = e.board.tiles.find(
-      (t) => t.event == null && t.propertyId !== capProp,
-    )!.propertyId!;
-    victim.properties.push({ propertyId: spare, group: "a", level: 0, maxLevel: 3, defense: 5 });
-    e.resolveHeroSkill("zhouyu", "huogong");
-    expect(e.pendingSkill).toEqual({ heroId: "zhouyu", skillId: "huogong" });
-    expect(seatOpt(e, 0)?.available).toBe(false);
-    expect(seatOpt(e, 0)?.reason).toBe("不能指定自己");
-    expect(seatOpt(e, 1)?.available).toBe(true);
-  });
-
-  it("火攻目标守卫复用 #226 口径:仅剩 0 级都城灰置「无可毁之城」", () => {
-    const e = prepared(42, [
-      { name: "A", isBot: false, guohao: "魏" },
-      { name: "B", isBot: true, guohao: "蜀" },
-      { name: "C", isBot: true, guohao: "吴" },
-    ]);
-    if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
-    const p = armSkill(e, "zhouyu", "huogong");
-    const me = e.players.indexOf(e.activePlayer);
-    const others = [0, 1, 2].filter((x) => x !== me);
-    // 布场:对手甲仅剩 0 级都城(守卫拦截);对手乙持一座 Lv>0 非都城
-    //(整扇门得有可指定者,选项集才进目标段)
-    const [blocked, valid] = others;
-    e.players[blocked].properties = [];
-    const capV = e.board.at(e.players[valid].capitalIndex)?.propertyId;
-    e.players[valid].properties = [
-      {
-        propertyId: e.board.tiles.find((t) => t.event == null && t.propertyId !== capV)!
-          .propertyId!,
-        group: "a",
-        level: 2,
-        maxLevel: 3,
-        defense: 3,
-      },
-    ];
-    e.resolveHeroSkill("zhouyu", "huogong");
-    expect(e.pendingSkill).toEqual({ heroId: "zhouyu", skillId: "huogong" });
-    expect(seatOpt(e, me)?.available).toBe(false);
-    expect(seatOpt(e, me)?.reason).toBe("不能指定自己");
-    expect(seatOpt(e, blocked)?.available).toBe(false);
-    expect(seatOpt(e, blocked)?.reason).toBe("无可毁之城");
-    expect(seatOpt(e, valid)?.available).toBe(true);
-    void p;
   });
 });
 
@@ -215,38 +207,6 @@ describe("主动技结算(#188 档 3)", () => {
     e.resolveHeroSkill("huatuo", "zhenji", [1]); // 提交目标
     expect(hua.cash).toBe(900); // 付 100
     expect(e.players[1].stamina).toBe(100); // 90 + 30 → clamp 100
-  });
-
-  it("火攻:有可降城 → 降 1 级 + 冷却记账;全 0 级(有非都城)→ 失一座回无主", () => {
-    const e = prepared();
-    armSkill(e, "zhouyu", "huogong");
-    const foe = e.players[1];
-    const capPropId = e.board.at(foe.capitalIndex)?.propertyId;
-    const plain = e.board.tiles.find(
-      (t) => t.event == null && t.propertyId !== capPropId,
-    )!.propertyId!;
-    foe.properties.push({
-      propertyId: plain,
-      group: "a",
-      level: 1,
-      maxLevel: 3,
-      defense: 4,
-    });
-    const propCount = foe.properties.length;
-    e.resolveHeroSkill("zhouyu", "huogong"); // 入目标段
-    e.resolveHeroSkill("zhouyu", "huogong", [1]); // 提交目标
-    expect(foe.properties.find((h) => h.propertyId === plain)?.level).toBe(0); // 降 1 级
-    expect(foe.properties.length).toBe(propCount); // 不失城
-    expect(e.activePlayer.heroes[0].lastFired["huogong"]).toBe(e.round);
-
-    // 全 0 级 → 失城分支:非都城消失回无主,都城持仓恒在(#226)
-    e.round += 5; // 过冷却
-    e.turnPhase = "AwaitingJinnang";
-    e.resolveHeroSkill("zhouyu", "huogong"); // 入目标段(守卫复验:全 0 级但有非都城可失)
-    e.resolveHeroSkill("zhouyu", "huogong", [1]); // 提交目标
-    expect(foe.properties.some((h) => h.propertyId === plain)).toBe(false);
-    expect(foe.properties.some((h) => h.propertyId === capPropId)).toBe(true);
-    expect(e.findOwner(plain)).toBe(null);
   });
 
   it("擂鼓:本回合掷骰步数 +2(骰面不变),行军后清零;快照往返:冷却/目标段/加成保真", () => {
@@ -281,7 +241,7 @@ describe("主动技结算(#188 档 3)", () => {
     void p;
   });
 
-  it("快照往返:技能目标段载荷(携实例定位)随快照走,镜像端可继续选人结算", () => {
+  it("快照往返:技能目标段载荷(携实例定位)随快照走,镜像端可继续选人/选城结算", () => {
     const e = prepared();
     armSkill(e, "huatuo", "zhenji");
     e.resolveHeroSkill("huatuo", "zhenji"); // 入目标段
@@ -295,6 +255,22 @@ describe("主动技结算(#188 档 3)", () => {
     mirror.resolveHeroSkill("huatuo", "zhenji", [1]);
     expect(mirror.players[1].stamina).toBe(Math.min(100, staminaBefore + 30));
     expect(mirror.pendingSkill).toBe(null);
+    // 城目标域(#1388):载荷形状同一对,候选清单随攻方位置派生、往返逐字一致,镜像端可继续点城结算
+    const e3 = prepared();
+    armSkill(e3, "zhouyu", "huogong");
+    const me3 = e3.activeIndex;
+    const granted = grantCityNear(e3, 1 - me3, 1, e3.players[me3].position);
+    placePlayer(e3, me3, granted.tileIndex);
+    e3.resolveHeroSkill("zhouyu", "huogong");
+    expect(e3.pendingSkill).toEqual({ heroId: "zhouyu", skillId: "huogong" });
+    const mirror3 = makeEngine(1);
+    mirror3.restoreFromSnapshot(e3.snapshot());
+    expect(mirror3.pendingSkill).toEqual({ heroId: "zhouyu", skillId: "huogong" });
+    expect(JSON.stringify(mirror3.choicesFor())).toBe(JSON.stringify(e3.choicesFor()));
+    mirror3.resolveHeroSkill("zhouyu", "huogong", [granted.tileIndex]);
+    expect(
+      mirror3.players[1 - me3].properties.find((h) => h.propertyId === granted.propertyId)?.defense,
+    ).toBe(fullDefenseOf(1) - 1);
   });
 });
 
@@ -307,47 +283,207 @@ describe("出牌阶段 bot 决策(#188 档 3)", () => {
     expect(e.turnPhase).toBe("Roll");
   });
 
-  it("strategy:火攻挑城最多者;中途停在技能目标段 → 裸调续推目标段不卡死(#580 同款入口)", () => {
-    const e = prepared(42, [
-      { name: "A", isBot: true, guohao: "魏" },
-      { name: "B", isBot: true, guohao: "蜀" },
-      { name: "C", isBot: true, guohao: "吴" },
-    ]);
-    if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
-    armSkill(e, "zhouyu", "huogong");
-    const me = e.players.indexOf(e.activePlayer);
-    const [rich, poor] = [0, 1, 2].filter((x) => x !== me);
-    // 布场:rich 两座 Lv>0 城,poor 一座 → 偏好序 [rich, poor](城最多者先)
-    const capOf = (seat: number) => e.board.at(e.players[seat].capitalIndex)?.propertyId;
-    const plains = e.board.tiles
-      .filter(
-        (t) => t.event == null && t.propertyId !== capOf(rich) && t.propertyId !== capOf(poor),
-      )
-      .map((t) => t.propertyId!);
-    e.players[rich].properties.push(
-      { propertyId: plains[0], group: "a", level: 1, maxLevel: 3, defense: 4 },
-      { propertyId: plains[1], group: "a", level: 1, maxLevel: 3, defense: 4 },
-    );
-    e.players[poor].properties.push({
-      propertyId: plains[2],
-      group: "a",
-      level: 1,
-      maxLevel: 3,
-      defense: 4,
-    });
-    botAct(e);
-    const richHit = e.players[rich].properties.some(
-      (h) => (h.propertyId === plains[0] || h.propertyId === plains[1]) && h.level === 0,
-    );
-    expect(richHit).toBe(true); // 城最多者挨烧(demolish 随机降其一座)
-    expect(e.players[poor].properties.find((h) => h.propertyId === plains[2])?.level).toBe(1); // 未被波及
-    // 中途停在技能目标段(#580 后同款裸调入口):续推完成目标段结算,不卡死
+  it("strategy:中途停在技能目标段 → 裸调续推目标段不卡死(#580 同款入口)", () => {
     const e2 = prepared();
     armSkill(e2, "huatuo", "zhenji");
     e2.resolveHeroSkill("huatuo", "zhenji"); // 入目标段
     botAct(e2);
     expect(e2.pendingSkill).toBe(null);
     expect(e2.turnPhase).toBe("Roll");
+  });
+});
+
+// ── 火攻定向化(#1388 T2 城目标域,规格 #1386)──
+describe("火攻定向化(#1388 T2 城目标域)", () => {
+  it("射程门(#1386 双向距离):5 格内城入候选(携城名/城主/距离/城 id),6 格外拒;段内改位后越权提交被引擎复验拒绝", () => {
+    const e = prepared();
+    armSkill(e, "zhouyu", "huogong");
+    const me = e.activeIndex;
+    const foeSeat = 1 - me;
+    const { propertyId, tileIndex } = grantCityNear(e, foeSeat, 1, e.players[me].position);
+    const n = e.board.count;
+    placePlayer(e, me, (tileIndex - 5 + n) % n); // 距离恰 5(布景距离用 placePlayer,#1295)
+    expect(skillOpt(e, "zhouyu", "huogong")?.available).toBe(true);
+    e.resolveHeroSkill("zhouyu", "huogong"); // 入目标段
+    const cand = cityOpt(e, tileIndex);
+    expect(cand?.id).toBe(`c${tileIndex}`); // 候选 id 拼接单源 choices.cityTargetOptionId
+    expect(cand?.label).toBe(e.board.at(tileIndex).name);
+    expect(cand).toMatchObject({
+      targetPropertyId: propertyId,
+      targetOwnerSeat: foeSeat,
+      targetDistance: 5,
+      targetTileIndex: tileIndex,
+    });
+    // 段内攻方改位到 6 格外(客户端陈旧载荷场景):提交越权目标被选项集复验拒绝——不结算不记冷却
+    placePlayer(e, me, (tileIndex - 6 + n) % n);
+    e.resolveHeroSkill("zhouyu", "huogong", [tileIndex]);
+    expect(e.pendingSkill).toEqual({ heroId: "zhouyu", skillId: "huogong" }); // 段未消费
+    expect(e.activePlayer.heroes[0].lastFired["huogong"]).toBeUndefined();
+    expect(e.players[foeSeat].properties.find((h) => h.propertyId === propertyId)?.defense).toBe(
+      fullDefenseOf(1),
+    ); // 满值未动
+    e.resolveHeroSkill("zhouyu", "huogong", undefined, true); // 作罢出段(不记冷却)
+    e.turnPhase = "AwaitingJinnang";
+    expect(skillOpt(e, "zhouyu", "huogong")?.available).toBe(false);
+    expect(skillOpt(e, "zhouyu", "huogong")?.reason).toBe("射程内无可烧之城");
+  });
+
+  it("目标门:0 级城(含 0 级都城)拒/己城拒/无主城不计入;都城等级>0 即合法(可降级)", () => {
+    const e = prepared();
+    armSkill(e, "zhouyu", "huogong");
+    const me = e.activeIndex;
+    const foeSeat = 1 - me;
+    const myCapTile = e.players[me].capitalIndex;
+    const foeCapTile = e.players[foeSeat].capitalIndex;
+    const foeCap = e.board.at(foeCapTile).propertyId!;
+    // 开局全场 0 级:站上对手都城格(距离 0)也无城可选——等级门与「0 级都城拒」一拍双证
+    placePlayer(e, me, foeCapTile);
+    expect(skillOpt(e, "zhouyu", "huogong")?.available).toBe(false);
+    expect(skillOpt(e, "zhouyu", "huogong")?.reason).toBe("射程内无可烧之城");
+    // 己城拉 Lv1 + 对手获一座射程内 Lv1 城;站己城格——候选恰一座:己城(距离 0)拒、
+    // 射程内其余无主城/0 级城一律不计入
+    grantProperty(e, me, e.board.at(myCapTile).propertyId!, 1);
+    const nearTile = e.board.tiles.find(
+      (t) =>
+        t.event == null &&
+        t.propertyId != null &&
+        e.board.distance(myCapTile, t.index) <= 5 &&
+        e.findOwner(t.propertyId) == null,
+    );
+    if (nearTile == null || nearTile.propertyId == null)
+      throw new Error("测试布场:己都城 5 格内无无主城(换种子)"); // 零兜底
+    grantProperty(e, foeSeat, nearTile.propertyId, 1);
+    placePlayer(e, me, myCapTile);
+    e.resolveHeroSkill("zhouyu", "huogong"); // 入目标段:候选=合法城清单(#1388 城目标段形制)
+    const cands = e.choicesFor().filter((o) => o.targetTileIndex != null);
+    expect(cands.map((o) => o.targetPropertyId)).toEqual([nearTile.propertyId]);
+    // 都城合法:对手都城拉 Lv1、防御压到 1;段仍开着(候选随攻方位置重算),段内指定都城
+    grantProperty(e, foeSeat, foeCap, 1);
+    setDefense(e, foeSeat, foeCap, 1);
+    placePlayer(e, me, foeCapTile);
+    e.resolveHeroSkill("zhouyu", "huogong", [foeCapTile]); // 指定都城
+    const capH = e.players[foeSeat].properties.find((h) => h.propertyId === foeCap)!;
+    expect(capH.level).toBe(0); // 都城降 1 级(可降)
+    expect(capH.defense).toBe(fullDefenseOf(0)); // 回满新等级满值(resetToFull 单口)
+    expect(e.findOwner(foeCap)).not.toBe(null); // 都城不失(失城通路不在火攻)
+  });
+
+  it("结算·absorbed:防御值 4→3 纯扣防,战报「主动技【火攻】…防御值降至 N」;作罢不记冷却;冷却在账(5 轮)", () => {
+    const e = prepared();
+    armSkill(e, "zhouyu", "huogong");
+    const me = e.activeIndex;
+    const foeSeat = 1 - me;
+    const { propertyId, tileIndex } = grantCityNear(e, foeSeat, 1, e.players[me].position);
+    placePlayer(e, me, tileIndex); // 站上目标城格(距离 0 ≤ 5)
+    // 作罢不记冷却(既有 PendingHeroSkill 口径)
+    e.resolveHeroSkill("zhouyu", "huogong");
+    expect(e.pendingSkill).toEqual({ heroId: "zhouyu", skillId: "huogong" });
+    e.resolveHeroSkill("zhouyu", "huogong", undefined, true);
+    expect(e.pendingSkill).toBe(null);
+    expect(e.activePlayer.heroes[0].lastFired["huogong"]).toBeUndefined();
+    // 提交目标城(tileIndex 载荷)→ absorbed
+    e.turnPhase = "AwaitingJinnang";
+    e.resolveHeroSkill("zhouyu", "huogong");
+    e.resolveHeroSkill("zhouyu", "huogong", [tileIndex]);
+    const h = e.players[foeSeat].properties.find((x) => x.propertyId === propertyId)!;
+    expect(h.defense).toBe(fullDefenseOf(1) - 1); // 4→3 纯扣防未归零
+    expect(h.level).toBe(1); // 不降级
+    expect(e.activePlayer.heroes[0].lastFired["huogong"]).toBe(e.round); // 发动记冷却
+    const line = e.log.find((l) => l.detail.includes("heroFire"));
+    expect(line?.brief).toContain("主动技【火攻】");
+    expect(line?.brief).toContain(`「${e.board.at(tileIndex).name}」`);
+    expect(line?.brief).toContain("防御值降至 3");
+    // 冷却在账:冷却期灰置报剩余轮数,过 5 轮复活
+    e.turnPhase = "AwaitingJinnang";
+    e.round += 4;
+    const cd = skillOpt(e, "zhouyu", "huogong");
+    expect(cd?.available).toBe(false);
+    expect(cd?.reason).toContain("冷却");
+    e.round += 1;
+    expect(skillOpt(e, "zhouyu", "huogong")?.available).toBe(true);
+  });
+
+  it("结算·demolished:防御打空降 1 级回满,战报「城防降为 N 级」;技路不派 PropertyDemolished/Lost 时机(#457 现状钉)", () => {
+    const e = prepared();
+    armSkill(e, "zhouyu", "huogong");
+    const me = e.activeIndex;
+    const foeSeat = 1 - me;
+    const { propertyId, tileIndex } = grantCityNear(e, foeSeat, 2, e.players[me].position);
+    setDefense(e, foeSeat, propertyId, 1); // 2 级城防御压到 1:一烧归零
+    placePlayer(e, me, tileIndex);
+    const dispatched = recordMomentKinds(e);
+    e.resolveHeroSkill("zhouyu", "huogong");
+    e.resolveHeroSkill("zhouyu", "huogong", [tileIndex]);
+    const h = e.players[foeSeat].properties.find((x) => x.propertyId === propertyId)!;
+    expect(h.level).toBe(1); // 归零降 1 级
+    expect(h.defense).toBe(fullDefenseOf(1)); // 回满新等级满值
+    const line = e.log.find((l) => l.detail.includes("heroFire"));
+    expect(line?.brief).toContain("城防降为 1 级");
+    // 现状拍板钉(#457):城损时机只挂锦囊路调用侧,火攻技路不派
+    expect(dispatched.filter((m) => m === "PropertyDemolished" || m === "PropertyLost")).toEqual(
+      [],
+    );
+  });
+
+  it("heroSkillIntent 打分链(统一原则):等级最高→购价最高→tileIndex 小;无合法城不出技", () => {
+    const e = prepared();
+    armSkill(e, "zhouyu", "huogong");
+    const me = e.activeIndex;
+    const foeSeat = 1 - me;
+    const anchor = e.players[me].position;
+    const low = grantCityNear(e, foeSeat, 1, anchor);
+    const highA = grantCityNear(e, foeSeat, 2, anchor);
+    const highB = grantCityNear(e, foeSeat, 2, anchor);
+    // 等级最高:两个 Lv2 候选胜出,低级城垫底
+    const intent = heroSkillIntent(e, "zhouyu", "huogong");
+    expect(intent.use).toBe(true);
+    expect(intent.targets![intent.targets!.length - 1]).toBe(low.tileIndex);
+    // 平手取购价最高(目录现读),再平手取 tileIndex 小
+    const price = (pid: string) => e.catalog.get(pid)!.purchasePrice;
+    const expected =
+      price(highA.propertyId) !== price(highB.propertyId)
+        ? price(highA.propertyId) > price(highB.propertyId)
+          ? highA
+          : highB
+        : highA.tileIndex < highB.tileIndex
+          ? highA
+          : highB;
+    expect(intent.targets![0]).toBe(expected.tileIndex);
+    // 无合法城不出技(全场 0 级基线)
+    const e2 = prepared();
+    armSkill(e2, "zhouyu", "huogong");
+    expect(heroSkillIntent(e2, "zhouyu", "huogong")).toEqual({ use: false, targets: [] });
+  });
+
+  it("strategy:bot 同 seed 定向出技——择射程内最高级城;无合法城不出技(与人类同参数,#580 行为单源)", () => {
+    const seats = (guohao: string): SeatConfig[] => [
+      { name: "A", isBot: true, guohao },
+      { name: "B", isBot: true, guohao: "蜀" },
+    ];
+    const e = prepared(42, seats("魏"));
+    if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
+    armSkill(e, "zhouyu", "huogong");
+    const me = e.activeIndex;
+    const foeSeat = 1 - me;
+    const anchor = e.players[me].position;
+    const low = grantCityNear(e, foeSeat, 1, anchor, 4);
+    const high = grantCityNear(e, foeSeat, 2, anchor, 5);
+    botAct(e);
+    expect(
+      e.players[foeSeat].properties.find((h) => h.propertyId === high.propertyId)?.defense,
+    ).toBe(fullDefenseOf(2) - 1); // 最高级城挨烧(2 级防御 3→2)
+    expect(
+      e.players[foeSeat].properties.find((h) => h.propertyId === low.propertyId)?.defense,
+    ).toBe(fullDefenseOf(1)); // 低级城未动
+    expect(e.activePlayer.heroes[0].lastFired["huogong"]).toBe(e.round);
+    expect(e.turnPhase).toBe("Roll");
+    // 无合法城(全场 0 级):不出技,收卷进 Roll,零冷却账
+    const e2 = prepared(42, seats("吴"));
+    if (e2.turnPhase === "AwaitingJinnang") e2.resolveJinnang(null);
+    armSkill(e2, "zhouyu", "huogong");
+    botAct(e2);
+    expect(e2.turnPhase).toBe("Roll");
+    expect(e2.activePlayer.heroes[0].lastFired["huogong"]).toBeUndefined();
   });
 });
 

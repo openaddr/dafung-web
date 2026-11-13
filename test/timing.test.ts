@@ -14,6 +14,7 @@ import { fullDefenseOf } from "@core/defense";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
+import { placePlayer } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
@@ -1645,7 +1646,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     ]);
     expect(entries2.filter((x) => x.moment === "PropertyDemolished")).toHaveLength(0);
 
-    // ③ 火攻主动技:城照样损,时机不派(主动技结算内不派发,既有口径)
+    // ③ 火攻主动技(#1388 城目标域):城照样损,时机不派(主动技结算内不派发,既有口径)
     const e3 = makeEngine(1);
     finishSetup(e3);
     armHero(
@@ -1655,13 +1656,14 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     );
     const victimSeat3 = 1 - e3.activeIndex;
     const city3 = giveCity(e3, victimSeat3, 2);
+    placePlayer(e3, e3.activeIndex, city3.tileIndex); // 布距离:站上目标城格(distance=0 ≤ 射程 5)
     armJinnang(e3, []);
     const entries3 = recordMomentCtx(e3);
     e3.resolveHeroSkill("zhouyu", "huogong");
-    e3.resolveHeroSkill("zhouyu", "huogong", [victimSeat3]);
+    e3.resolveHeroSkill("zhouyu", "huogong", [city3.tileIndex]); // 城目标域:提交目标城 tileIndex
     expect(
-      e3.players[victimSeat3].properties.find((h) => h.propertyId === city3.propertyId)!.level,
-    ).toBe(1);
+      e3.players[victimSeat3].properties.find((h) => h.propertyId === city3.propertyId)!.defense,
+    ).toBe(fullDefenseOf(2) - 1); // 城照样损(1 点火焰伤害吸收,等级不动)
     expect(
       entries3.filter((x) => x.moment === "PropertyDemolished" || x.moment === "PropertyLost"),
     ).toHaveLength(0); // 钉住口径:两调用点分别挂,单点与火攻路都不派

@@ -235,17 +235,35 @@ export interface SkillFiredBody {
   skillId: string;
   moment: GameMoment;
 }
-/** 名将主动技发动(#384,#188 档 3 三类:demolish/relief/warDrum);
+/** 名将主动技发动(#384,#188 档 3 三类;#1388 T2 火攻定向化后 kind=fireBlast/relief/warDrum,
+ *  旧 demolish 随机降级形退役);
  *  seat=发动者,heroId=属主槽定位(#785 槽位化:冷却账内嵌槽,折叠按 heroId 定槽记账,
- *  同名技多槽不串账),targetSeat=目标座位(none 域=擂鼓无目标,字段缺席);费用/加成等
- *  技参数由技表 skills.ts 按 skillId 现查。 */
-export interface HeroSkillActivatedBody {
+ *  同名技多槽不串账);费用/加成等技参数由技表 skills.ts 按 skillId 现查。
+ *  判别联合(#1388 T2,零兜底:漏传目标在类型层面不可表达,#585 口径)——
+ *  fireBlast=城目标域,body 必带目标城(targetPropertyId+targetTileIndex,fold/指向线锚
+ *  城格两处消费);relief=席位域必带 targetSeat;warDrum=none 域无目标字段。 */
+export interface FireBlastSkillBody {
   kind: "heroSkillActivated";
   heroId: string;
   skillId: string;
-  skillKind: "demolish" | "relief" | "warDrum";
-  targetSeat?: number;
+  skillKind: "fireBlast";
+  targetPropertyId: string;
+  targetTileIndex: number;
 }
+export interface ReliefSkillBody {
+  kind: "heroSkillActivated";
+  heroId: string;
+  skillId: string;
+  skillKind: "relief";
+  targetSeat: number;
+}
+export interface WarDrumSkillBody {
+  kind: "heroSkillActivated";
+  heroId: string;
+  skillId: string;
+  skillKind: "warDrum";
+}
+export type HeroSkillActivatedBody = FireBlastSkillBody | ReliefSkillBody | WarDrumSkillBody;
 /** 抽锦囊进手(#384):座位+张数口径,不写牌名——暗牌内容不过事件,与对局日志
  *  「抽了一张锦囊」同隐私口径(ADR-0016)。开局发牌不发(开局校准点覆盖,与初始
  *  现金/体力同口径);游戏时进手(机遇/锦囊城)经 drawJinnangTraced 产出,

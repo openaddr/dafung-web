@@ -28,6 +28,8 @@ const IDLE_STATE = {
   isTaken: false,
   isSelectable: false,
   capitalCandidateOrder: null,
+  isCityTarget: false,
+  isCityPicked: false,
 };
 
 describe("特殊城池两字徽标(#828)", () => {

@@ -11,6 +11,7 @@ import { HEROES } from "@core/heroes";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import { botReactionDecision } from "@core/bot";
 import { armHero } from "@core/testing";
+import { placePlayer } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
@@ -535,13 +536,15 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     if (!zhouyu) throw new Error("HEROES 表缺 zhouyu(数据 bug)");
     // 火攻单技布场:共享池的擂鼓会在结算后留住出牌窗(收卷相位断言被互扰)
     armHero(e, user, { ...zhouyu, skillPool: ["huogong"] });
+    placePlayer(e, userSeat, victim.capitalIndex); // 布距离(#1388 城目标域):站上都城格(distance 0 ≤ 5)
     e.turnPhase = "AwaitingJinnang";
     e.resolveHeroSkill("zhouyu", "huogong"); // 入目标段
-    e.resolveHeroSkill("zhouyu", "huogong", [victimSeat]);
+    e.resolveHeroSkill("zhouyu", "huogong", [victim.capitalIndex]); // 提交目标城 tileIndex
     expect(e.pendingReaction).toBeNull(); // 不开窗
     const phaseAfter = e.turnPhase as TurnPhase; // 断言收窄:结算收卷相位
     expect(phaseAfter).toBe("Roll");
-    expect(victim.properties[0].level).toBe(1); // 火攻照常结算
+    expect(victim.properties[0].level).toBe(2); // 火攻照常结算(1 点火焰伤害:防御值吸收,等级不动)
+    expect(victim.properties[0].defense).toBe(2); // 防御值 3→2
     expect(victim.jinnangHand).toEqual(["识破诡计"]); // 牌留手
   });
 });
