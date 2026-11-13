@@ -214,6 +214,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
       group: "g",
       level: 1,
       maxLevel: 3,
+      defense: 4,
     });
     testEngine(e).landActiveAt(tile.index); // 己城可扩 → AwaitingDecision(OwnProperty)
     if (e.turnPhase !== "AwaitingDecision") return;
@@ -423,6 +424,7 @@ describe("事件→动效映射表(合成批)", () => {
       group: "g",
       level: 0,
       maxLevel: 3,
+      defense: 5,
     });
     const out = synth(e, [
       {
@@ -584,6 +586,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
       group: "g",
       level: 0,
       maxLevel: 3,
+      defense: 5,
     });
     const out = synth(e, [
       { kind: "propertyGranted", seat: 0, round: 1, turn: 1, propertyId: tile.propertyId! },
@@ -611,6 +614,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
       group: "g",
       level: 1,
       maxLevel: 3,
+      defense: 4,
     });
     const taken = synth(e, [
       { kind: "assetTransferred", seat: 0, round: 1, turn: 1, propertyId: propId, toSeat: 1 },

@@ -77,7 +77,7 @@ export interface SnapshotPlayer {
   capitalIndex: number;
   skipTurns: number;
   resting: boolean; // 体力耗竭休整中(#130):skipTurns 消费完即回满体力
-  properties: { propertyId: string; level: number; group: string }[];
+  properties: { propertyId: string; level: number; group: string; defense: number }[];
   heroes: HeroSlotRow[];
   treasures: TreasureRow[];
   reputation: number; // 声望无界,开局 0(#121;#1090 去夹紧)
@@ -651,6 +651,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           propertyId: h.propertyId,
           level: h.level,
           group: h.group,
+          defense: h.defense, // 防御值随快照走(#1386:联机/恢复一致)
         })),
         // 麾下槽位全量(#785):已授技与冷却账是游戏状态,原样深拷贝(展示字段客户端回查表补);
         // 技能标记(#1377)规范化后非空才产键——空容器/全零=规范缺省,无此技对局的快照与
@@ -727,6 +728,9 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
             group: h.group ?? def?.group ?? "z",
             level: h.level,
             maxLevel: def?.maxLevel ?? 3,
+            // 防御值(#1386):旧落盘记录缺此键不兜底——undefined 直灌让问题暴露
+            // (项目零兼容口径,同上方 encounterFlags 的直灌口径)
+            defense: h.defense,
           };
         });
       });

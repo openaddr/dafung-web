@@ -372,6 +372,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     const cash0 = mover.cash;
     testEngine(e).landActiveAt(tile.index);
@@ -393,6 +394,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     const holding = () => owner.properties.find((x) => x.propertyId === def.id)!;
     /** 手工置 AwaitingTreasureOwner(endTurn 会推进 activeIndex,每步拨回访客)。 */
@@ -434,6 +436,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");

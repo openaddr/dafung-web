@@ -161,7 +161,7 @@ describe("grantProperty(授房产/等级,裸写形)", () => {
     grantProperty(e, 0, pid, 1);
     const def = e.catalog.get(pid)!;
     expect(e.players[0].properties).toEqual([
-      { propertyId: pid, group: def.group, level: 1, maxLevel: def.maxLevel },
+      { propertyId: pid, group: def.group, level: 1, maxLevel: def.maxLevel, defense: 4 },
     ]);
     grantProperty(e, 0, pid, 3); // 已持有=改等级(bot 城拉级/满级金框形态)
     expect(e.players[0].properties).toHaveLength(1);

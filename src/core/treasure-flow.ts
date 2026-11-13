@@ -8,6 +8,7 @@ import { guidePriceOf, premiumPriceOf } from "./treasures";
 import { findHolding } from "./player";
 import { formatMoney } from "./money";
 import { canUpgrade } from "./economy";
+import { resetToFull } from "./defense";
 import type { Player } from "./model";
 
 /** 抽珍宝并拼点判定(珍宝城落格固定事件位,#825 自 ADR-0024 链尾挂件迁来:探宝先于
@@ -103,6 +104,7 @@ export function resolveTreasureOwner(
   // 挂在交易达成时(城主选定 fair 且珍宝已离手入托管),此后买家破产退宝也不回滚。
   if (action.type === "fair" && canUpgrade(holding)) {
     holding.level += 1;
+    resetToFull(holding); // 成交升级=等级变动,防御重置满值(升级回满=奖励,#1386)
     // 城池变更留痕(ADR-0015):公道买卖成交升级(PropertyUpgraded 另一挂点),
     // 与扩军同维度(等级变更、归属不变)
     g.propertyChanges.push({

@@ -30,6 +30,7 @@ import {
   type ReactionViewSeed,
 } from "./reaction-window";
 import { emitGameEvent } from "./game-events";
+import { resetToFull } from "./defense";
 import type { Player } from "./model";
 
 // ── 锦囊/出牌阶段引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
@@ -810,6 +811,7 @@ function demolishOnVictim(
   if (upgradable.length > 0) {
     const h = upgradable[Math.floor(g.dice.nextFloat() * upgradable.length)];
     h.level -= 1;
+    resetToFull(h); // 降级=等级变动,防御重置新等级满值(#1386;旧火烧连营/旧火攻仍工作,防御值跟等级走)
     g.propertyChanges.push({
       tileIndex: tileIndexOf(h.propertyId),
       level: h.level,

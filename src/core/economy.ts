@@ -2,6 +2,7 @@
 // 他人落城走珍宝交涉——公道买卖成交才升级;收入全靠卖珍宝与都城补给)。
 // 地产类型随域走(#326 types.ts 解散,ADR-0019):地产定义/交易结果/坐地起价公式由本文件拥有。
 import type { Player, PropertyHolding } from "./model";
+import { fullDefenseOf, resetToFull } from "./defense";
 import { findHolding } from "./player";
 
 /** 城池档位(ADR-0034 四档城制;ADR-0042 决策 3 数据面显式化):单字中文口径,
@@ -40,7 +41,7 @@ export type TransactionResult =
 
 export const canUpgrade = (h: PropertyHolding): boolean => h.level < h.maxLevel;
 
-/** 购买无主地产(购入即为 Lv.0)。现金不足拒绝。 */
+/** 购买无主地产(购入即为 Lv.0,防御=满值——购入即易主,#1386)。现金不足拒绝。 */
 export function buy(buyer: Player, def: PropertyDef): TransactionResult {
   if (buyer.cash < def.purchasePrice) return { status: "InsufficientFunds" };
   buyer.cash -= def.purchasePrice;
@@ -49,16 +50,19 @@ export function buy(buyer: Player, def: PropertyDef): TransactionResult {
     group: def.group,
     level: 0,
     maxLevel: def.maxLevel,
+    defense: fullDefenseOf(0),
   });
   return { status: "Ok", newLevel: 0 };
 }
 
-/** 升级自有地产(L+1,免费——自己到达己城可选扩军,本作无升级费)。满级/未持有拒绝。 */
+/** 升级自有地产(L+1,免费——自己到达己城可选扩军,本作无升级费)。满级/未持有拒绝。
+ *  升级=等级变动,防御重置新等级满值(升级回满=奖励,#1386)。 */
 export function upgrade(owner: Player, def: PropertyDef): TransactionResult {
   const h = findHolding(owner, def.id);
   if (!h) return { status: "NotOwned" };
   if (!canUpgrade(h)) return { status: "AlreadyMaxLevel", newLevel: h.level };
   h.level += 1;
+  resetToFull(h);
   return { status: "Ok", newLevel: h.level };
 }
 
@@ -81,6 +85,7 @@ export function settleDebt(player: Player, creditor: Player | null, amount: numb
   if (creditor) creditor.cash += player.cash;
   player.cash = 0;
   if (creditor) {
+    for (const h of player.properties) resetToFull(h); // 转移=易主,防御重置新主名下满值(#1386)
     creditor.properties.push(...player.properties);
     creditor.treasures.push(...player.treasures);
   }

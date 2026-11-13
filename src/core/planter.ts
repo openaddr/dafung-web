@@ -23,6 +23,7 @@
 // 种植件——种植只负责被测环之前的布置。再缺能力=补种植件(op 联合加 kind),force
 // 不复活(#1303 收口退役)。
 import type { EnginePhase, GameEngine, TurnPhase } from "./authority";
+import { fullDefenseOf, resetToFull } from "./defense";
 import { heroById } from "./heroes";
 import { jinnangCardOf } from "./jinnang";
 import type { LogEvent } from "./model";
@@ -82,6 +83,14 @@ export interface GrantPropertyOp {
   seat: number;
   propertyId: string;
   level: number;
+}
+
+/** 防御值指令(裸写形):让 seat 名下 propertyId 这座城的防御值=defense 终态(#1387)。 */
+export interface SetDefenseOp {
+  kind: "setDefense";
+  seat: number;
+  propertyId: string;
+  defense: number;
 }
 
 /** 塞名将指令(裸写形):把 heroId 名将以槽位行追加进 seat 麾下(skillIds 缺省=整池
@@ -222,6 +231,7 @@ export type PlantOp =
   | SetStaminaOp
   | PlacePlayerOp
   | GrantPropertyOp
+  | SetDefenseOp
   | ArmHeroOp
   | ArmHeroOfferOp
   | GiveTreasureFromDeckOp
@@ -316,7 +326,9 @@ export function placePlayer(e: GameEngine, seat: number, position: number): void
  *  group 与 maxLevel 自城目录(catalog PropertyDef)派生:loadMap 校验 group 必配、
  *  maxLevel 地图级必配,无兜底可加;旧站点手写行的 purchasePrice:1000 是已删字段的
  *  死重量(持有价零玩法消费,模型注释单源),随收编退役。目录外地块与越界座位当场
- *  炸;level 不校验(负级/超上限是测试作者的场景决定,同 setCash 口径,响在被测面)。 */
+ *  炸;level 原不校验(负级/超上限是测试作者的场景决定),防御值(#1386)入模后
+ *  持有行必带防御——等级写定即 resetToFull,越界等级在满值表处响亮抛错(越界等级
+ *  无满值可回,种不出的状态不静默);「种受损态」由 setDefense 在本件之后叠加。 */
 export function grantProperty(
   e: GameEngine,
   seat: number,
@@ -330,6 +342,7 @@ export function grantProperty(
   const held = p.properties.find((h) => h.propertyId === propertyId);
   if (held) {
     held.level = level;
+    resetToFull(held); // 等级一变防御即重置满值(与生产升级/降级同口径,#1386)
     return;
   }
   p.properties.push({
@@ -337,7 +350,23 @@ export function grantProperty(
     group: def.group,
     level,
     maxLevel: def.maxLevel,
+    defense: fullDefenseOf(level), // 入册即满值(满值表单源;越界等级响亮抛错,#1386)
   });
+}
+
+/** 【判词(setDefense 一处,#1387)】种防御值=裸写形:生产防御值只经等级变动重置满值
+ *  (resetToFull 挂点:购入/建都/赐城/扩军/公道买卖升级/破产转移/旧 demolish 降级)
+ *  与火焰伤害结算(applyFireDamage)变动,平时不回复——「直接摆到指定受损/满溢态」
+ *  无生产流程,走真通路需耗点数伤害且过目标门,断言面前置不可控,直写是唯一通路。
+ *  未持有城当场炸(无主城不存在防御值);数值不校验(负值/超满值是测试作者的场景
+ *  决定,同 setCash 口径,响在被测面)。 */
+export function setDefense(e: GameEngine, seat: number, propertyId: string, defense: number): void {
+  const p = e.players[seat];
+  if (p == null) throw new Error(`setDefense:座位 ${seat} 不存在(共 ${e.players.length} 席)`);
+  const held = p.properties.find((h) => h.propertyId === propertyId);
+  if (held == null)
+    throw new Error(`setDefense:${propertyId} 不在座位 ${seat} 名下(无主城无防御值)`);
+  held.defense = defense;
 }
 
 /** 【判词(armHero/armHeroOffer 名将候选族共一处,#1300)】塞名将/候选=裸写形:麾下
@@ -638,6 +667,9 @@ export function applyPlant(e: GameEngine, op: PlantOp): void {
       return;
     case "grantProperty":
       grantProperty(e, op.seat, op.propertyId, op.level);
+      return;
+    case "setDefense":
+      setDefense(e, op.seat, op.propertyId, op.defense);
       return;
     case "armHero":
       armHero(e, op.seat, op.heroId, op.skillIds);

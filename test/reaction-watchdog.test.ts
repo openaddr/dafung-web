@@ -176,7 +176,13 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     // 旧前提;bot 自带珍宝不参与(交涉看城主持有,bot 不会落自己城开窗),不影响任何断言。
     e.players[0].treasures = [];
     e.players[1].treasures = [];
-    e.players[1].properties.push({ propertyId: lot, group: "a", level: 1, maxLevel: 3 });
+    e.players[1].properties.push({
+      propertyId: lot,
+      group: "a",
+      level: 1,
+      maxLevel: 3,
+      defense: 4,
+    });
     const turnBefore = e.turnNumber;
 
     // 出牌宣布走引擎公共方法(两段:入目标段 → 提交目标),此刻尚未跑链、未武装

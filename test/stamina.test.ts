@@ -4,6 +4,7 @@
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
+import { fullDefenseOf } from "@core/defense";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
@@ -33,6 +34,7 @@ function giveProperty(e: GameEngine, seat: number, level: number): string {
     group: def.group,
     level,
     maxLevel: def.maxLevel,
+    defense: fullDefenseOf(level),
   });
   return def.id;
 }

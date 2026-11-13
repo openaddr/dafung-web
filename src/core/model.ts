@@ -12,6 +12,10 @@ export interface PropertyHolding {
   group: string;
   level: number;
   maxLevel: number;
+  /** 防御值(#1386/#1387):城池等级附带的受损额度,持有态恒有。等级一变(升级/降级/
+   *  易主)即重置满值(单口 resetToFull,满值表单源 defense.ts;升级回满=奖励),
+   *  平时不回复;唯一下行口=applyFireDamage 火焰伤害结算(外敌乘虚直接降级不走此字段)。 */
+  defense: number;
 }
 
 /** 玩家。CapitalIndex=-1 表示尚未选都。 */

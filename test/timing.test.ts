@@ -10,6 +10,7 @@ import { EFFECTS } from "@core/effects";
 import { HEROES, type HeroDef } from "@core/heroes";
 import { SKILLS, type TriggerSkill } from "@core/skills";
 import { guidePriceOf } from "@core/treasures";
+import { fullDefenseOf } from "@core/defense";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
@@ -846,6 +847,7 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     const entries = recordMomentCtx(e);
     landActiveOn(e, tile.index);
@@ -913,6 +915,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     const entries = recordMomentCtx(e);
     landActiveOn(e, tile.index); // 落己城 → 扩军抉择
@@ -970,6 +973,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     e.players[ownerSeat].treasures.push({ id: "trade-t", name: "交割测试宝", level: 1 });
     const price = 100; // guidePriceOf(1) = 100 分
@@ -1012,6 +1016,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     e.players[ownerSeat].treasures.push({ id: "trade-t", name: "退宝测试宝", level: 1 });
     e.players[visitorSeat].cash = 0; // 买家无现金且无可变卖资产(仅都城)→ 直接破产
@@ -1043,6 +1048,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     e.players[ownerSeat].treasures.push({ id: "escrow-t", name: "托管测试宝", level: 3 }); // 指导价=交涉价
     e.players[visitorSeat].cash = 10; // 付不起 → 变卖自救
@@ -1087,6 +1093,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
       group: def.group,
       level: 0,
       maxLevel: def.maxLevel,
+      defense: 5,
     });
     e.players[ownerSeat].treasures.push({ id: "trade-t", name: "联动测试宝", level: 1 }); // 指导价 100
     const price = guidePriceOf(1);
@@ -1150,6 +1157,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
       group: extraDef.group,
       level: 0,
       maxLevel: extraDef.maxLevel,
+      defense: 5,
     });
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: null };
@@ -1520,6 +1528,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
       group: def.group,
       level,
       maxLevel: def.maxLevel,
+      defense: fullDefenseOf(level),
     });
     return { propertyId: def.id, tileIndex: tile.index };
   }

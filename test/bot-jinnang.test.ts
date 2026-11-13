@@ -196,7 +196,7 @@ describe("锦囊 bot 策略(#148)", () => {
       (t) => t.propertyId != null && e.findOwner(t.propertyId) == null,
     )!.propertyId!;
     const cap2 = e.players[2].properties[0];
-    e.players[2].properties.push({ ...cap2, propertyId: free, level: 1 }); // 2 座城 > 他人 1 座
+    e.players[2].properties.push({ ...cap2, propertyId: free, level: 1, defense: 4 }); // 2 座城 > 他人 1 座
     expect(jinnangIntent(e, "火烧连营").targets).toEqual([2, 1]);
     armJinnang(e, ["火烧连营"]);
     botAct(e);

@@ -15,6 +15,7 @@ import { ENCOUNTERS, type EncounterDef } from "@core/encounters";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import { beginGameEventBatch } from "@core/game-events";
+import { fullDefenseOf } from "@core/defense";
 import { armHero, testEngine } from "@core/testing";
 import guanzhongData from "../../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
@@ -66,6 +67,7 @@ function grantHolding(e: GameEngine, seat: number, propertyId: string, level: nu
     group: def.group,
     level,
     maxLevel: def.maxLevel,
+    defense: fullDefenseOf(level),
   });
 }
 
@@ -313,6 +315,7 @@ describe("折叠投影器 · 城池族", () => {
         group: "a",
         level: 0,
         maxLevel: 3,
+        defense: 5,
       },
     ]);
     expect(e.players[0].cash).toBe(cash0); // Setup 期现金由开局校准覆盖
@@ -340,7 +343,7 @@ describe("折叠投影器 · 城池族", () => {
     const e = makeEngine();
     foldEventBatch(e, [ev(0, { kind: "propertyGranted", propertyId: "prop-luoyang" })]);
     expect(e.players[0].properties).toEqual([
-      { propertyId: "prop-luoyang", group: "a", level: 0, maxLevel: 3 },
+      { propertyId: "prop-luoyang", group: "a", level: 0, maxLevel: 3, defense: 5 },
     ]);
   });
 

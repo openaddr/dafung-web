@@ -16,6 +16,7 @@ import { createTreasureDeck } from "./treasures";
 import { isSingleCjk } from "./constants";
 import { formatMoney } from "./money";
 import { beginGameEventBatch, emitGameEvent } from "./game-events";
+import { fullDefenseOf } from "./defense";
 import type { TileDef } from "./board";
 
 /** 设置某座位的国号(单汉字);非法/冲突清空拒绝。 */
@@ -174,6 +175,7 @@ function pickCapitalInternal(
     group: def.group,
     level: 0,
     maxLevel: def.maxLevel,
+    defense: fullDefenseOf(0), // 建都=持有起点,防御满值(#1386)
   });
   player.capitalIndex = tileIndex;
   player.position = tileIndex;

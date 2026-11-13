@@ -928,7 +928,9 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     // 本场景只验反应窗的座位校验——未进窗就直置军师相位,与进相路径无关。
     if (e.turnPhase !== "AwaitingJinnang") e.turnPhase = "AwaitingJinnang";
     const capId = e.board.at(e.players[victimSeat].capitalIndex!)?.propertyId;
-    e.players[victimSeat].properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];
+    e.players[victimSeat].properties = [
+      { propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+    ];
     e.resolveJinnang("火烧连营"); // 入目标段
     e.resolveJinnang("火烧连营", [victimSeat]); // 宣布 → 反应窗挂起
     expect(e.turnPhase as string).toBe("AwaitingReaction");
