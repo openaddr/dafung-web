@@ -1,7 +1,5 @@
-// React 层的全局游戏状态(zustand):持有 engine.snapshot() 的可序列化数据 + UI 态。
-// 这是旧 fullRender() 的新等价物——旧渲染层每次引擎变化后命令式重画 DOM,
-// React 层改为:控制器每次引擎变化后调 syncFromEngine() 把 snapshot 灌进 store,
-// 组件订阅 store 声明式重渲。
+// React 全局游戏状态(zustand):控制器经 syncFromEngine 写入可序列化快照,组件订阅渲染。
+// 同时持有屏幕、交互门与提示等 UI 态;可变引擎实例另存模块引用。
 import { useMemo, useRef } from "react";
 import { create } from "zustand";
 import type { GameEngine } from "@core/authority";
@@ -9,16 +7,13 @@ import type {
   GameSnapshot as CoreGameSnapshot,
   SnapshotPlayer as CoreSnapshotPlayer,
 } from "@core/snapshot";
-// #117 收编:提示 TTL 统一收口 fx/timings.ts(与 netStore 同一常量,不再双处 1800)。
+// 提示 TTL 与 netStore 共用 timings.UI.hintTtlMs。
 import { UI } from "@app/fx/timings";
 
-/** 引擎快照类型(serializeGame 的返回结构;联机 snapshot 消息同构,可直灌 store)。
- *  store 直存 core 快照本体(#786 拆派生读口:麾下行=槽位全量,展示字段按 heroId
- *  回查名将表的活由各消费面自做,装配层不再有 UI 视图派生)。 */
+/** core 快照原形;展示字段由消费方按 id 查询,store 不持派生副本。 */
 export type GameSnapshotCore = CoreGameSnapshot;
 
-/** 快照里的玩家行(core 原形直存:heroes=麾下槽位全量(heroId+已授技+冷却账),
- *  UI 槽位原生读,#786)。 */
+/** core 玩家快照行,heroes 保留槽位的已授技与冷却账。 */
 export type SnapshotPlayer = CoreSnapshotPlayer;
 
 /** 快照里的珍宝行(serializeGame 只序列化 id/name/level/desc,不含价字段——价格由
@@ -38,7 +33,7 @@ export type GameSnapshot = CoreGameSnapshot;
 //    non-reactive 字段好:不占用 store 类型,控制器/调试钩子可直接导入读写)。
 let currentEngine: GameEngine | null = null;
 
-// F4:hint 过期定时器(见 pushHint 注释;TTL 为三屏统一后的单一口径,常量收编 fx/timings.ts UI.hintTtlMs)。
+// 唯一提示过期定时器,由 pushHint/reset 清理。
 let gameHintTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** 取当前引擎实例(无对局时 null)。控制器与调试钩子用它做命令入口。 */
@@ -63,34 +58,28 @@ interface GameStoreState {
   viewSeat: number;
   /** 此刻本地玩家能否操作(由控制器判定写入:UI 不自行推导,保持单一来源)。 */
   interactive: boolean;
-  /** 本座位动作在途(#611「行军中…」提示源,与 interactive 同拍由控制器写入):
+  /** 本座位动作在途(「行军中…」提示源,与 interactive 同拍由控制器写入):
    *  命令已发未回或本座位行军会话未落定——按钮灰且轮到我时的等待条文案来源。 */
   selfPresenting: boolean;
 
   // ── UI 态 ──
   screen: Screen;
-  /** 提示文案(旧 flashHint 的新等价物;null = 不显示)。 */
+  /** 提示文案(null = 不显示)。 */
   hint: string | null;
-  /** 提示级别(F4):error = 红底白字 chip(醒目);info = 原灰面板样式。 */
+  /** 提示级别:error = 红底白字 chip;info = 灰面板样式。 */
   hintLevel: "error" | "info";
 
   // ── actions ──
-  /** 读引擎 snapshot + 派生量写入 state(旧 fullRender 的新等价物)。控制器在每次引擎变化后调用。 */
+  /** 控制器在引擎变化后调用,将 engine.snapshot() 整体写入 state。 */
   syncFromEngine: (engine: GameEngine) => void;
   setViewSeat: (seat: number) => void;
   setInteractive: (interactive: boolean) => void;
   setSelfPresenting: (selfPresenting: boolean) => void;
-  /** 短暂提示:F4 起过期逻辑下沉到 store(统一 1.8s,重复 push 先清旧定时器),
-   *  渲染层不再各自 setTimeout——原来 game 1.5s / lobby 1.8s / App+solo-setup 永不
-   *  过期,三套口径同一文案行为不一致。level 决定渲染样式(error=红 chip)。 */
+  /** 短暂提示,过期由 store 统一管理;重复 push 重新计时,level 决定样式。 */
   pushHint: (hint: string | null, level?: "error" | "info") => void;
   setScreen: (screen: Screen) => void;
-  /** 回无对局初值(ADR-0062 测试可隔离性缝,#1284 量实):bun test 单进程多文件
-   *  共享模块注册表,zustand 模块单例跨文件纠缠(探针实锤:A 文件写入的
-   *  viewSeat/hint/screen 哨兵在后跑文件原样可见)——接线测试文件先后渲染时
-   *  显式重置防串扰。生产无调用方(App 弃局走 setController(null)+切屏,残留
-   *  快照无消费面),不挂任何生产通路;引擎引用不归本缝管,解绑走既有显式通路
-   *  setEngine(null)。 */
+  /** 测试显式重置模块单例,避免 Bun 跨文件共享状态串扰(ADR-0065)。
+   *  引擎引用另由 setEngine(null) 解绑。 */
   reset: () => void;
 }
 
@@ -104,16 +93,14 @@ export const useGameStore = create<GameStoreState>((set) => ({
   hintLevel: "error",
 
   syncFromEngine: (engine) => {
-    // core 快照直灌(#786 拆派生读口)。全量替换快照:引擎每次动作都是新的序列化
+    // core 快照直灌。全量替换快照:引擎每次动作都是新的序列化
     // 对象,浅比较引用即触发订阅组件重渲。
     set({ snapshot: engine.snapshot() });
   },
   setViewSeat: (seat) => set({ viewSeat: seat }),
   setInteractive: (interactive) => set({ interactive }),
   setSelfPresenting: (selfPresenting) => set({ selfPresenting }),
-  // F4:定时器归 store 持有(模块级单例——同一时刻只有一条 hint 在屏)。
-  // 重复 push 先清旧定时器,保证「最新一条 1.8s 后消失」;原来屏层各自 setTimeout,
-  // App/solo-setup 没挂定时器导致提示永不过期(评审 F4 的口径漂移点)。
+  // 同时只保留最新提示的过期计时;重复 push 先取消旧定时器。
   pushHint: (hint, level = "error") => {
     if (gameHintTimer != null) clearTimeout(gameHintTimer);
     gameHintTimer = hint === null ? null : setTimeout(() => set({ hint: null }), UI.hintTtlMs);
@@ -144,10 +131,10 @@ export function useLocalPlayer(): SnapshotPlayer {
   return useGameStore((s) => s.snapshot!.players[s.viewSeat]);
 }
 
-/** 玩家行值等(#1140 渲染税):键循环逐字段比,嵌套数组(properties/heroes/
+/** 玩家行值等:键循环逐字段比,嵌套数组(properties/heroes/
  *  treasures)逐项两级浅等——嵌套元素皆扁平记录({propertyId,level}/{heroId,…}/
  *  {id,name,level,desc})或原始值(jinnangHand),两级全覆盖;键循环而非手抄字段表,
- *  类型增字段自动纳入比较(Tile #1023 链 A tileStateEqual 同法)。 */
+ *  类型增字段自动纳入比较。 */
 function snapshotPlayerEqual(a: SnapshotPlayer, b: SnapshotPlayer): boolean {
   for (const key in a) {
     const av = a[key as keyof SnapshotPlayer];
@@ -187,14 +174,8 @@ function snapshotPlayerEqual(a: SnapshotPlayer, b: SnapshotPlayer): boolean {
   return true;
 }
 
-/** 快照玩家值等复用(#1140 渲染税,Tile #1023 链 A 屏级推广):引擎每 sync 产出
- *  全新 players 数组与元素对象,引用直传会逐个击穿下游 memo——席位格(每事件全列
- *  重渲)、手牌架、棋子/氛围双宿主(React.memo 被 players 新引用打穿,slot 派生
- *  每拍两遍)、随时可开的弹层族(开着随快照实时重渲成了每拍陪跑)。本钩子照算
- *  之后逐席位浅等,内容不变复用上一份元素引用,全部复用时连数组一起复用——
- *  「实时重渲」语义不变(内容变了照样新对象),只是内容没变的拍不再制造新身份。
- *  消费方(GameScreenLive/SeatRail/GameTopBar/DecisionScrollLayer)各自调用,
- *  各自持有上一份。 */
+/** sync 会产生新的 players 引用;逐席位值等时复用元素,全部复用时连数组一起复用。
+ *  内容变化仍产生新引用供下游 memo 更新;各消费方独立持有自己的上一份。 */
 export function useStablePlayers(players: SnapshotPlayer[]): SnapshotPlayer[] {
   const prevRef = useRef<SnapshotPlayer[] | null>(null);
   return useMemo(() => {

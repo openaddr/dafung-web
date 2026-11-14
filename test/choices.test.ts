@@ -196,7 +196,7 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     const { tile, def } = freeProperty(e);
     const turn0 = e.turnNumber;
     p.cash = def.purchasePrice - 1;
-    testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
+    testEngine(e).landActiveAt(tile.index); // 场景组合:摆位 + Land + 落格结算
     expect(e.turnPhase).not.toBe("AwaitingDecision");
     expect(e.turnNumber).toBe(turn0 + 1); // 直接结束回合
     expect(
@@ -332,7 +332,7 @@ describe("快照 choices 派生字段", () => {
   });
 
   it("机遇选项章:encounterTier 三档镜像 def.tier 随选项出快照(#847)", () => {
-    // 三档各取一条抉择机遇,经 testEngine.enterEncounter 确定性入相(绕过抽取随机),
+    // 三档各取一条抉择机遇,经 GameEngine.enterEncounterPhase 确定性入相(绕过抽取随机),
     // 钉「注册表给机遇选项盖章 encounterTier=def.tier」的镜像关系——UI 三档视觉分档
     // (DecisionScrolls 题印/侧饰条色)唯一数据源在此,章缺失即 UI 分档失明。
     const byId = (id: string) => ENCOUNTERS.find((c) => c.id === id)!;
@@ -345,7 +345,7 @@ describe("快照 choices 派生字段", () => {
       expect(byId(id).tier, `${id} 目录档位`).toBe(tier); // 钉值先对目录自证
       const e = makeEngine(1);
       finishSetup(e);
-      testEngine(e).enterEncounter(byId(id));
+      e.enterEncounterPhase(e.activePlayer, byId(id));
       expect(e.turnPhase, `${id} 入抉择相位`).toBe("AwaitingEncounter");
       const opts = e.choicesFor();
       expect(opts.length, `${id} 真两难(≥2 选项)`).toBeGreaterThanOrEqual(2);

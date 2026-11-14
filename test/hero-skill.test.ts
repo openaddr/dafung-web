@@ -558,7 +558,7 @@ describe("授技掷骰(#787,ADR-0036)", () => {
     const e = makeEngine(11);
     finishSetup(e);
     const picker = e.activePlayer;
-    testEngine(e).tryRecruitHero(picker);
+    e.tryRecruitHero(picker);
     expect(e.turnPhase).toBe("AwaitingHeroPick");
     expect(e.offeredHeroes.length).toBe(3);
     for (const offer of e.offeredHeroes) {

@@ -9,7 +9,7 @@ import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
 import { isTriggerSkill, skillById } from "@core/skills";
 import { EFFECTS } from "@core/effects";
-import { testEngine, armHero } from "@core/testing";
+import { armHero } from "@core/testing";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
@@ -99,7 +99,7 @@ describe("华佗在池(#133)", () => {
     for (let seed = 1; seed <= 20 && !seen; seed++) {
       const e = makeEngine(seed);
       finishSetup(e);
-      testEngine(e).tryRecruitHero(e.activePlayer); // 窄口触达私有招贤步骤(同 game.test.ts)
+      e.tryRecruitHero(e.activePlayer); // 公共招贤步骤(同 game.test.ts)
       expect(e.turnPhase).toBe("AwaitingHeroPick");
       expect(e.offeredHeroes.length).toBe(3); // 池 5 位 → 三选一
       if (e.offeredHeroes.some((h) => h.def.id === "huatuo")) seen = true;

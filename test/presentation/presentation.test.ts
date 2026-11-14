@@ -242,7 +242,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     const capTile = e.board.at(p.capitalIndex);
     p.cash = 0;
     p.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" });
-    testEngine(e).payOrLiquidate(p, null, 500); // 窄口触达私有清算入口
+    e.payOrLiquidate(p, null, 500); // 公共清算入口
     if (e.turnPhase !== "AwaitingBankruptcySettle") return; // 未入清算相位(理论不可达)才空转
     const sellEvents = stepEvents(e, () =>
       e.submitCommand({ type: "sellTreasureBankruptcy", treasureId: "t1" }),
@@ -298,7 +298,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     p.cash = def.purchasePrice - 1;
     const pre = e.players.map((pl) => pl.position as number | null);
     beginGameEventBatch(e);
-    testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
+    testEngine(e).landActiveAt(tile.index); // 场景组合:摆位 + Land + 落格结算
     const events = extractBatchEvents(e, e.gameEvents, pre);
     const text = events.find((ev) => ev.kind === "textFloat");
     expect(text).toBeDefined();

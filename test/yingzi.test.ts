@@ -1,10 +1,6 @@
-// 英姿七面骰(#1390,spec #1386 周瑜重做):静态被动技首例——掷骰面数数据化。
-// 判层自查(ADR-0062):守的是引擎规则面(面数推导/三路掷骰/钉骰契约),全走层①②
-// 无头单测——签面字表「七」= 数据表(constants.SIGN_FACES)逐字钉在本件,不轻上 e2e
-// (呈现面 DiceOverlay/DuelSignsOverlay/HandZone 全部直读 SIGN_FACES 单源,字表对
-// 呈现是结构性保证,无第二处字面可漂)。
-// 缝约定同 test/skill-expansion.test.ts(makeEngine/finishSetup/走廊布场模式复制,
-// 不 import 测试文件;只测引擎公共面);行军走廊同口径(街亭 P14 起步,骰 7 落赤壁)。
+// 英姿七面骰:经引擎公共面验证面数推导、三路掷骰与钉骰契约。
+// 签面字符共用 constants.SIGN_FACES;场景由 planter 构造(ADR-0065)。
+// 行军走廊从街亭 P14 起步,骰 7 落赤壁。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";

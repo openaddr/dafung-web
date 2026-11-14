@@ -162,7 +162,7 @@ describe("位满改发书(#1146 四渠道统一)", () => {
       text: "义士来投",
       effect: { kind: "grantHero", fallbackCash: 200 },
     };
-    testEngine(e).applyEncounter(mover, def);
+    e.settleEncounter(mover, def);
     expect(mover.heroes.length).toBe(HERO_CAPACITY); // 不再得将
     expect(mover.cash).toBe(cash0); // 零折现
     expect(mover.treasures.filter(isSkillBook).length).toBeGreaterThanOrEqual(1);
@@ -173,7 +173,7 @@ describe("位满改发书(#1146 四渠道统一)", () => {
     const mover2 = e2.activePlayer;
     for (const h of HEROES) e2.recruitedHeroIds.add(h.id);
     const cash02 = mover2.cash;
-    testEngine(e2).applyEncounter(mover2, def);
+    e2.settleEncounter(mover2, def);
     expect(mover2.treasures.filter(isSkillBook).length).toBe(0);
     expect(mover2.cash).toBe(cash02 + 200);
   });

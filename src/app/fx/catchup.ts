@@ -1,7 +1,6 @@
-// 落后即校准判据(#610,ADR-0029 不变量③):演出落后于权威产出时,治理演出,
-// 不锁人、不硬等。判据 = 混合尺、分类非布尔(#570 决议;#600 colyseus drift 三分同构
-// ——瞬时抖动平滑吸收,持续发散才校准):
-//   主尺 = 未消费批数(到达序游标差,机器时间:负载免疫、e2e 天然不误触发);
+// 落后即校准判据(ADR-0029):演出落后于权威产出时,治理演出,不锁人、不硬等。
+// 瞬时抖动平滑吸收,持续发散才校准:
+//   主尺 = 未消费批数(到达序游标差,不随机器负载变化);
 //   辅尺 = 批龄(本批入队至今的等待,防单批超长漏报——主尺的盲区)。
 // 三档:steady(在线内)/ catchup(单次超线,升追帧倍率=演出仍在,只是更快)/
 // snap(连续 N 批超线,升吸附档=过时演出无因果意义,整块作废)。判据输入非法当场
@@ -20,12 +19,11 @@ interface LagInput {
 interface CatchupDecision {
   tier: CatchupTier;
   /** 本拍生效的追帧速度倍率(调用方经 setCatchupScale 写入,消费在 timings.scStage
-   *  的时长除法:演出时长 = 基准 ÷ 本值——积压越深播得越快,#570 决议正典方向)。 */
+   *  的时长除法:演出时长 = 基准 ÷ 本值——积压越深播得越快)。 */
   runtimeScale: number;
 }
 
-/** 调试桥只读计数(__dafung.fxCatchup 经 E2E_DEBUG_BRIDGE_KEY 门禁透出,e2e 可断言、
- *  现场排查可取)。累计值,不随 resetEventFace 复位——诊断面看全程,不看单局。 */
+/** __dafung.fxCatchup 门禁内透出的诊断计数;全程累计,不随 resetEventFace 复位。 */
 export const catchupCounters = {
   laggyBatches: 0,
   catchupBatches: 0,
@@ -35,12 +33,8 @@ export const catchupCounters = {
   lastRuntimeScale: 1,
 };
 
-// ── 瞬空钉(#1254,ADR-0059 决策 1;词条 GLOSSARY「瞬空」)──
-// 测试可钉死的常开吸附档:钉住期间演出出队点(snapshot-effects dequeueChunk)一律走
-// 吸附档——未播演出整块弃播、棋盘直切引擎终态,引擎状态分毫不动。唯一写入口 = 调试桥
-// __dafung.setSnapPin(双门禁内,生产构建零暴露);产品默认 false 零变化,不钉 = 正常
-// 三档判定,不静默改行为(零兜底);解除即恢复正常三档。脊柱例不用(它们守「开」档
-// 的无缝衔接);消费方 = quickStart postRoll 快进通路与中盘构造器守卫对拍。
+// 瞬空钉(ADR-0065):调试桥 setSnapPin 使 SnapshotEffects.dequeueChunk 常开吸附档。
+// 未播演出整块弃播、棋子直切引擎终态,不改引擎状态;产品默认关闭,解除后恢复正常三档。
 let snapPin = false;
 export const setSnapPin = (on: boolean): void => {
   snapPin = on;

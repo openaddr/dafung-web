@@ -1,27 +1,22 @@
-// 时长常量(bot 延时/动画节奏),集中调参——迁移自 src/render/timings.ts,
-// 并补阶段 6 新增的行军/瞬时特效时长(render/ 删除前两处不要交叉引用)。
-// 与 CSS 动效 token 的关系(C8 #107):唯一源 core/theme.ts Motion,gen:theme 产出 tokens.css。
-// 本文件数值恰等于某 --dur-* 的字段直接引用 Motion(app→core 单向依赖,theme.ts 零依赖无环),
-// 改 Motion 一处 CSS/JS 同步;不等的字段是编排窗口(非 token 节拍),保留字面量单独调参。
-// #610 起分两条缩放通道,下方时长表全是各自通道的活投影(getter),取数时求值:
-//   演出编排时长(MARCH/FX/DICE/DUEL/CEREMONY/DESK 六族,#885 起 desk 震屏入表)
-//   吃 scStage = e2e 键 × 追帧除法(ADR-0029 ③ 正典方向:积压越深播得越快,1.5~3x 压缩);
-//   界面/节拍类(UI.*、GHOST、AUTO_*、BOT、反应窗倒计时弧、判据时距)只吃 sc
-//   (e2e 键)——它们不是棋盘演出,压缩治不了积压、只会与权威节拍失配。
-// 追帧速度倍率变化即时作用于播放期取数,无键无追帧时逐位恒等(直通不落地板)。
+// 客户端演出编排与界面时长,集中调参。
+// CSS 动效 token 唯一源为 core/theme.ts Motion,gen:theme 产出 tokens.css。
+// 与 --dur-* 同值的字段直接引用 Motion;其余编排窗口保留独立调参。
+// 下方时长表按取数时的倍率求值,分两条缩放通道:
+//   演出编排(MARCH/FX/DICE/DUEL/CEREMONY/DESK)经 scStage:先做 sc 缩放,再除追帧速度倍率;
+//   界面/节拍(UI、GHOST、反应窗倒计时弧、判据时距)只吃 sc(e2e 键),保持与权威节拍对齐。
+// 追帧积压越深播得越快(ADR-0029);倍率变化即时作用于播放期取数。
+// 无倍率键且无追帧时逐位恒等,不落地板。
 import { Motion } from "@core/theme";
 
-/** e2e 时间倍率(#114):共享 fixture 在页面加载前写入 localStorage;生产/真人局
- *  无此键,S===1 时 sc 直通(不落地板——80ms 级短拍必须保持原值)。 */
+/** 调试时间倍率:按需辅助在模块加载前写入 localStorage;未注入时 S===1,
+ *  sc 直通(不落地板——80ms 级短拍必须保持原值)。 */
 export const E2E_TIME_SCALE_KEY = "dafung-e2e-time-scale";
-/** e2e 调试桥门禁键(双门禁之一,同 ZCode VITE_ZCODE_E2E_STORE_BRIDGE 口径):
- *  `__dafung` 引擎钩子只在 `import.meta.env.DEV` 或本键非空时注册——生产构建
- *  默认不暴露引擎改写面(单机模式控制台可作弊/误触),e2e 与截图脚手架经
- *  addInitScript 预置本键即开,测试/生产分野不靠约定靠门禁。 */
+/** 调试桥门禁键:installDebugHooks 仅在 dev 构建或 localStorage 预置本键时
+ *  注册 __dafung。按需辅助在页面初始化前注入;正式构建未注入时不挂载调试桥。 */
 export const E2E_DEBUG_BRIDGE_KEY = "dafung-e2e-debug-bridge";
 /** e2e 反应窗时长覆盖(单机,毫秒):联机的同款配置经 server env E2E_REACTION_MS
  *  注入 registry(#284);单机进程内房间(LocalController)经本键走同一 registry
- *  选项。键由 e2e fixtures 页面加载前写入;生产/真人局无此键=不覆盖,走 core
+ *  选项。按需辅助在页面加载前写入本键;未注入时不覆盖,走 core
  *  REACTION_WINDOW_MS 常量表——配置缺席不是兜底,与 server.ts 同模式。 */
 export const E2E_REACTION_MS_KEY = "dafung-e2e-reaction-ms";
 /** 读反应窗覆盖(0 = 不覆盖):无 localStorage 环境(bun 单测跑 app 模块)按未注入。 */
@@ -42,14 +37,8 @@ export const e2eBotStepMs = (): number | null => {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 ? n : null;
 };
-/** 地板:headless+软渲下 expect 轮询的可观察下限,保瞬态演出(骰子签面/横幅)可被断言。 */
+/** 仅调试时间倍率应用此观察下限;生产恒等直通,追帧除法不再落地板。 */
 export const TIME_SCALE_FLOOR_MS = 100;
-
-/** 缩放工厂(纯函数单测缝):乘倍率、四舍五入、地板托底;非法倍率按 1 语义(仍带地板)。 */
-export const makeScaler = (scale: number): ((ms: number) => number) => {
-  const s = Number.isFinite(scale) && scale > 0 ? scale : 1;
-  return (ms) => Math.max(Math.round(ms * s), TIME_SCALE_FLOOR_MS);
-};
 
 const S = (() => {
   if (typeof localStorage === "undefined") return 1;

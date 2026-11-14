@@ -1,55 +1,18 @@
-// 测试窄口(spec #107 C3):引擎白盒触达的唯一合法通道——仅 test/ 可 import,
-// 生产代码(src/app、scripts)import 本文件 = 架构违规。
-//
-// 能力两件:
-//  1. 相位摆位:把引擎摆到指定 turnPhase 的前置态(place/placeActive/forceTurnPhase/armDecision);
-//  2. 内部步骤触达:测试实际在用的私有步骤清单(resolveLanding /
-//     tryRecruitHero / payOrLiquidate——grep test/ 统计口径,2026-08)。
-// 方法全部显式签名,不放 any;对私有成员的窄化集中在本类构造器一处(全仓库测试面
-// 因此不再出现散落的 as any 直写引擎内部)。dispatchMoment 是引擎 public 方法,测试
-// 直调即可,无需经此口;timing.test.ts 的 dispatchMoment 间谍为类型化测试替身,保留原位。
+// 测试场景工具:仅 test/ 可 import,生产代码(src/app、scripts)不得引用。
+// 负责相位摆位、落格组合与合成名将登记/清退;引擎步骤直接调用 GameEngine 公共方法。
 import type { GameEngine, TurnPhase } from "./authority";
-import type { EncounterDef } from "./encounters";
 import type { HeroDef } from "./heroes";
 import { HEROES } from "./heroes";
 import type { PendingLandKind } from "./movement-flow";
 import type { Player } from "./model";
 import type { HeroOffer } from "./recruitment";
 
-/** 引擎私有步骤的测试触达面(签名与 authority.ts 私有方法**人工对齐**)。实况:缝经
- *  构造器 `as unknown as` 转型,编译期不校验本接口与引擎私有签名的漂移——漂移在运行时
- *  以「not a function」炸出;对齐靠本接口逐项对照 authority.ts 私有方法清单(#459 已
- *  对齐两处,applyEncounter/enterEncounter 的返回联合)。 */
-interface EngineTestInternals {
-  resolveLanding(): void;
-  tryRecruitHero(mover: Player): "offered" | "silent";
-  payOrLiquidate(
-    mover: Player,
-    creditor: Player | null,
-    amount: number,
-  ): "ok" | "liquidating" | "bankrupt";
-  settleEncounter(
-    mover: Player,
-    def: EncounterDef,
-  ): "settled" | "liquidating" | "bankrupt" | "exhausted";
-  maybeApplyEncounter(
-    mover: Player,
-  ): "none" | "settled" | "deciding" | "exhausted" | "liquidating" | "bankrupt";
-  enterEncounterPhase(
-    mover: Player,
-    def: EncounterDef,
-  ): "deciding" | "liquidating" | "bankrupt" | "exhausted";
-}
-
 class TestEngine {
   /** 被包引擎(公开只读引用,测试沿用原有断言习惯)。 */
   readonly engine: GameEngine;
-  private readonly internals: EngineTestInternals;
 
   constructor(engine: GameEngine) {
     this.engine = engine;
-    // 全仓库唯一允许的引擎内部窄化点(替代散落各测试的 as any 直写)
-    this.internals = engine as unknown as EngineTestInternals;
   }
 
   // ──────────────────────────── 相位摆位 ────────────────────────────
@@ -77,17 +40,12 @@ class TestEngine {
     this.engine.turnPhase = "AwaitingDecision";
   }
 
-  // ──────────────────────────── 内部步骤触达 ────────────────────────────
+  // ──────────────────────────── 场景组合 ────────────────────────────
 
-  /** 触达私有落格结算(前置:活跃玩家已在目标格、turnPhase 可为 Land——land() 一并置)。 */
-  resolveLanding(): void {
-    this.internals.resolveLanding();
-  }
-
-  /** 落格前置对:置 Land 相位并触发私有落格结算(等价测试常用两连直写)。 */
+  /** 落格前置对:置 Land 相位并结算落格。 */
   land(): void {
     this.engine.turnPhase = "Land";
-    this.internals.resolveLanding();
+    this.engine.resolveLanding();
   }
 
   /** 摆位 + 落格一步到位(测试最高频组合:摆活跃玩家到 tile 并结算落格)。 */
@@ -96,52 +54,13 @@ class TestEngine {
     this.land();
   }
 
-  /** 触达私有招贤纳士(三选一候选生成)。返回 "silent"=池空/满员事件沉默(#824)。 */
-  tryRecruitHero(mover: Player): "offered" | "silent" {
-    return this.internals.tryRecruitHero(mover);
-  }
-
   /** 对局日志扁平文本(机遇顺序断言用;#123)。 */
   logText(): string {
     return this.engine.log.map((l) => `${l.brief} ${l.detail}`).join("\n");
   }
-
-  /** 触达机遇触发+抽取全流程(验开关与必出抽取;#123,ADR-0035)。 */
-  maybeApplyEncounter(
-    mover: Player,
-  ): "none" | "settled" | "deciding" | "exhausted" | "liquidating" | "bankrupt" {
-    return this.internals.maybeApplyEncounter(mover);
-  }
-
-  /** 触达机遇结算(指定具体事件,绕过触发/抽取随机;#123)。返回联合与
-   *  encounter-flow.settleEncounter 全量对齐(含 exhausted,#459)。 */
-  applyEncounter(
-    mover: Player,
-    def: EncounterDef,
-  ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
-    return this.internals.settleEncounter(mover, def);
-  }
-
-  /** 触达抉择机遇入相(指定具体事件,绕过触发/抽取随机;#124):等价引擎抽中 choices 型
-   *  机遇后的进入逻辑——可用选项 ≤1 自动执行(回合收尾),≥2 进 AwaitingEncounter。
-   *  mover=当前活跃玩家。返回联合与 encounter-flow.enterEncounterPhase
-   *  全量对齐(恒不返回 settled,含 exhausted,#459)。 */
-  enterEncounter(def: EncounterDef): "deciding" | "liquidating" | "bankrupt" | "exhausted" {
-    const mover = this.engine.activePlayer;
-    return this.internals.enterEncounterPhase(mover, def);
-  }
-
-  /** 触达私有付款或触发清算(破产清算路径的引擎入口)。 */
-  payOrLiquidate(
-    mover: Player,
-    creditor: Player | null,
-    amount: number,
-  ): "ok" | "liquidating" | "bankrupt" {
-    return this.internals.payOrLiquidate(mover, creditor, amount);
-  }
 }
 
-/** 测试访问器工厂:包一个引擎作白盒触达(test/ 专用)。 */
+/** 测试场景工厂:组合引擎前置态与落格步骤(test/ 专用)。 */
 export function testEngine(engine: GameEngine): TestEngine {
   return new TestEngine(engine);
 }
@@ -180,7 +99,3 @@ export function armHero(e: GameEngine, p: Player, hero: HeroDef, skillIds?: stri
 export function heroOffer(def: HeroDef, skillIds?: string[]): HeroOffer {
   return { def, skillIds: skillIds ?? [...def.skillPool] };
 }
-
-// 种植件 re-export(#1298):种植件本体住 ./planter(生产可 import——桥转发契约,
-// 判词见该文件头注),此处转出保「单测统一从 testing.ts 取白盒工具」的旧 import 路径。
-export { applyPlant, giveJinnang, type PlantOp } from "./planter";

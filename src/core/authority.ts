@@ -587,8 +587,7 @@ export class GameEngine {
   // endDecision)、落格结算(resolveLanding;resolveCityEvent/resolveProperty/
   // enterDecisionPhase 域内自洽不留壳)与都城补给(capitalSupplyOf;applyResupply
   // 域内自洽不留壳)均为自由函数,在 movement-flow.ts,首参接引擎实例。
-  // 壳内仅留同名公共方法薄委托(外部 importer 无感):命令口经 submitCommand 分发、
-  // bot 直调、testing.ts 白盒窄面触达 resolveLanding。跨域往返与既有票一致走壳上
+  // 壳内仅留同名公共方法薄委托:命令口经 submitCommand 分发、bot 直调;跨域往返走壳上
   // 薄委托:reaction-window 续走经 g.marchTraverse/g.settleMarchLanding 回调;机遇/
   // 探宝(珍宝城固定事件位)/escrow/锦囊抽牌/招贤经各自壳上方法消费;开拦检窗由域模块直调
   // reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
@@ -664,7 +663,7 @@ export class GameEngine {
   // ──────────────────────────── 落格处理 ────────────────────────────
 
   /** 落格结算(己都城/城池三分/事件城固定事件,#826 全城池制):薄委托 → movement-flow.resolveLanding
-   *  (testing.ts 白盒窄面、reaction-window 拦停止步与 encounter-flow 机遇解毕续结算经此)。 */
+   *  (reaction-window 拦停止步与 encounter-flow 机遇解毕续结算经此)。 */
   resolveLanding(): void {
     resolveLanding(this);
   }
@@ -837,8 +836,8 @@ export class GameEngine {
   // (hasMarketableAssets)、破产善后(finalizeBankruptcy)、凑足即止硬守卫
   // (assertStillOwing)、三变卖(sellTreasure/sellProperty/cashHero)与清算确认
   // (confirmBankruptcySettle)均为自由函数,首参接引擎实例;与 economy.ts 分层(清算
-  // 流程≠经济交易原语)。壳内仅留同名方法薄委托:公共五入口(UI/bot/联机 + testing.ts
-  // 白盒窄面 + encounter-flow 经 g.payOrLiquidate 消费)+ escrow 交割/退回两步(去私有化:
+  // 流程≠经济交易原语)。壳内仅留同名方法薄委托:公共五入口(UI/bot/联机 +
+  // encounter-flow 经 g.payOrLiquidate 消费)+ escrow 交割/退回两步(去私有化:
   // resolveTreasureOwner 壳内消费、confirmBankruptcySettle 域内直调)。
 
   /** 交割托管:买家付清价款 → 珍宝交货给买家。薄委托 → bankruptcy.deliverEscrow
@@ -854,7 +853,7 @@ export class GameEngine {
 
   /** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。
    *  薄委托 → bankruptcy.payOrLiquidate(#320/#321 去私有化 ADR-0019 条款 3:机遇域
-   *  encounter-flow.ts 效果结算直调;testing.ts 白盒窄面亦经此公共面触达)。 */
+   *  encounter-flow.ts 效果结算直调)。 */
   payOrLiquidate(
     mover: Player,
     creditor: Player | null,
@@ -1077,8 +1076,8 @@ export class GameEngine {
   // ──────────────────────────── 招贤纳士(#326,ADR-0019)────────────────────────────
   /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。返回 "silent"=满额/无货事件沉默
    *  (收尾归调用方:都城 endTurn,招贤城续交易链 #824)。
-   *  #323 去私有化(ADR-0019 条款 3):落格结算 movement-flow.resolveLanding 经 g. 直调;
-   *  testing.ts 白盒窄面照旧。#326 域本体迁 recruitment.ts,薄委托 → recruitment.tryRecruitHero。 */
+   *  #323 去私有化(ADR-0019 条款 3):落格结算 movement-flow.resolveLanding 经 g.tryRecruitHero 直调;
+   *  #326 域本体迁 recruitment.ts,薄委托 → recruitment.tryRecruitHero。 */
   tryRecruitHero(mover: Player): "offered" | "silent" {
     return tryRecruitHero(this, mover);
   }
@@ -1238,9 +1237,9 @@ export class GameEngine {
   // ──────────────── 机遇主流程 + 体力耗竭(#123/#124/#130/#132,ADR-0019)────────────────
   // 域逻辑在 encounter-flow.ts(#320):机遇触发/加权抽取、抉择机遇入相与选项结算、效果
   // 结算(八种效果各归小函数)、机遇体力接线与耗竭善后均为自由函数,首参接引擎实例;
-  // 与数据表 encounters.ts 分层(流程≠配置)。壳内仅留同名方法薄委托:公共四入口(UI/bot/
+  // 与数据表 encounters.ts 分层(流程≠配置)。壳内仅留同名方法薄委托:公共入口(UI/bot/
   // 联机 + reaction-window 经 g.maybeApplyEncounter 消费)+ 入相/即时结算两步(去私有化:
-  // 域内经 g.xxx 往返消费,兼作 testing.ts 白盒窄面 EngineTestInternals 触达点)。
+  // 域内经 g.enterEncounterPhase/g.settleEncounter 往返消费)。
 
   /** 耗竭入口(#130):薄委托 → encounter-flow.exhaustIfDepleted(机遇体力接线归 0 时域内直调)。 */
   exhaustIfDepleted(seat: number): "none" | "resolved" {
@@ -1261,7 +1260,7 @@ export class GameEngine {
   }
 
   /** 抉择机遇入相(#124):薄委托 → encounter-flow.enterEncounterPhase(#320 去私有化:
-   *  域内经 g.enterEncounterPhase 往返 + testing.ts 白盒窄面)。 */
+   *  域内经 g.enterEncounterPhase 往返)。 */
   enterEncounterPhase(
     mover: Player,
     def: EncounterDef,
@@ -1275,7 +1274,7 @@ export class GameEngine {
   }
 
   /** 即时机遇结算(#123):薄委托 → encounter-flow.settleEncounter(#320 去私有化:
-   *  域内经 g.settleEncounter 往返 + testing.ts 白盒窄面)。 */
+   *  域内经 g.settleEncounter 往返)。 */
   settleEncounter(
     mover: Player,
     def: EncounterDef,

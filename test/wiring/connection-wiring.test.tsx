@@ -1,6 +1,5 @@
-// #1421 / ADR-0062 层④:真横幅+真 store+真 OnlineController 公共恢复行为。
-// socket/fetch 是系统边界,只在边界布场;不测假 DOM 几何、不泵演出、不等退避墙钟。
-// 实测 98ms(2026-11-14):按钮缺席先红,点击恢复/忙碌防重/打开仍校准/摘要撤条再绿。
+// 恢复接线(ADR-0065):真实横幅、store 与 OnlineController 的公共恢复行为。
+// socket/fetch 仅在系统边界布场;验证恢复、防重及摘要校准撤条,不等退避墙钟。
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from "bun:test";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -133,7 +132,7 @@ it("耗尽后恢复入口与校准忙碌", async () => {
   });
   const banner = () => container.querySelector(`[data-testid="${TESTIDS.connectionBanner}"]`);
   const retry = banner()!.querySelector("button");
-  // 旧横幅只有“请刷新页面”,此处行为红不依赖新方法/新选择器缺席。
+  // 从横幅公开交互入口验证恢复行为。
   expect(retry).not.toBeNull();
   expect(retry!.textContent).toBe("重新连接");
   act(() => retry!.dispatchEvent(new MouseEvent("click", { bubbles: true })));

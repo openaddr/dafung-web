@@ -1,40 +1,18 @@
-// 仅在用户明确要求页面观察、截图对比或性能/浏览器复现时使用;不接入验证门槛。
-// 发版前视觉对照工具:上一 tag 构建 vs 当前工作树,四场景并排图(#1258;ADR-0059 决策 2)。
+// 明确请求页面观察、截图对比或浏览器复现时的一次性辅助(ADR-0065),不接入验证门槛。
+// 比较指定 tag 与当前工作树,生成 844×390 移动横屏四场景并排图。
+// 用法:bun run visual:compare [--tag vX.Y.Z];缺省取最新 v* tag。
+// tag 侧在独立 git worktree 构建并以 :4330 预览,当前侧构建后以 :4331 预览。
+// Node 运行 Playwright,Vite preview JS API 管理静态服务;端口占用直接失败。
 //
-// 用法: bun run visual:compare [--tag vX.Y.Z]      (缺省 tag = git tag 最新 v*,CalVer)
-// 跑法与起服通道同 scripts/shot.mjs:本脚本用 node 跑(bun 直接跑 playwright 会超时,
-// 运行时沿用 Node),起服走 vite preview JS API(进程内收放,
-// 端口 strictPort 占用即响亮失败)。真值侧 = git worktree(逃生舱通道)checkout 该
-// tag → bun install → bun run build → 静态服 :4330;当前侧 = 本检出 build → :4331。
-//
-// 场景(两侧同一驱动器,844×390 移动横屏标准档):
-//   01-home        主页
-//   02-setup       单机设置屏(机遇开关按 route 归零,同 e2e disableEncounters 口径)
-//   03-game        对局静帧:UI 旅程开局(选都确认落定)→ parkMyTurn 停靠冻结
-//                  (轮询快照停靠人类自身回合 Awaiting 态 → clockPause → 复核,语义照抄
-//                  e2e/react-helpers.ts parkMyTurn;冻结只钉时钟回调,钉不住同步命令链)
-//   04-gameover    终局屏(胜利覆盖层):plant(armGameOver) 造态。
-//                  判词:视觉对照前提态,走破产终局族种植件(#1301,判词单源
-//                  src/core/planter.ts)——只需可表示不需可达(终局态由身价目标结算产生,
-//                  无「直判胜负」公共命令)。造不出来 → 降级三场景并上报(exit 3),不硬扛。
-//
-// 确定性(同 tag 两跑应逐字节一致,自查=两跑控制台 sha256 对拍):
-//   seed 钉 1486(quickStart 家族钉谱种子=人类座位 0 首回合)+ 机遇 route 归零
-//   + clockPause 冻结 + context reducedMotion:"reduce"(氛围层常驻动画按 app 自带
-//   M-9 静态口径钉死——旗停摇/呼吸钉中程;实锤:screenshot animations:"disabled"
-//   压不住 bv-flag-sway 无限摇,两跑 42 像素旗姿漂移)+ 截图 animations:"disabled"
-//   (钉一次性出场动画)+ fonts.ready + 双 rAF 排帧;两侧各开独立 context
-//   (localStorage 零残留)。
-//
-// 判读:左=上一 tag(真值),右=当前工作树;已知必然差异=版本号行(__APP_VERSION__
-// 各取自本侧 package.json),其余差异=本版视觉改动候选项,人工过目。
-// 非门禁:不进任何 check 链,不做像素 diff 自动判定(ADR-0059:像素 diff 自动门禁
-// 继续否决——flake 零容忍)。
-// 产出: tmp/visual-compare/<tag>/NN-<场景名>.png(左右并排+头注条),控制台逐图列
-// 路径与 sha256。退出码:0=四场景齐;3=终局屏造态失败(降级三场景);1=硬失败。
-//
-// 用后清理:真值侧 worktree(<主树>-wt-visreg)与两侧 dist 保留不清——重跑复用,
-// 手工清理 = git worktree remove --force <该目录>。
+// 场景:主页、单机设置、对局静帧、终局。对局经 UI 开局,parkMyTurn 停靠后冻结时钟;
+// 冻结不拦同步命令链,因此须复核停靠态。终局前态经 core/planter.armGameOver 构造,
+// 造态失败报告 exit 3 并保留前三场景。
+// 确定性输入:固定 seed、route 关闭机遇、clockPause、reducedMotion、禁用截图动画、
+// fonts.ready 与双 rAF;两侧各用独立 context,避免 localStorage 残留。
+// 左为 tag、右为工作树,版本号取各侧 package.json;差异由人工判读。
+// 产出:tmp/visual-compare/<tag>/NN-<场景名>.png 与控制台 sha256。
+// 退出码:0=四场景齐,3=终局造态失败,1=硬失败。
+// tag worktree(<主树>-wt-visreg)与 dist 保留供重跑;按需 git worktree remove --force 清理。
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -154,7 +132,7 @@ const browser = await chromium.launch({
   args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
 });
 
-/** 读引擎快照(god view,同 e2e snap)。 */
+/** 读当前 store 的全量快照。 */
 const snap = (page) => page.evaluate(() => window.__dafung.snapshot());
 const waitFxIdle = (page) =>
   page.waitForFunction(
@@ -182,7 +160,7 @@ const park = (s) =>
   s.decisionOwner === 0 &&
   s.turnPhase.startsWith("Awaiting");
 
-/** 人类自身回合 Awaiting 停靠 + 时钟冻结(语义照抄 e2e/react-helpers.ts parkMyTurn):
+/** 人类自身回合 Awaiting 停靠后冻结时钟:
  *  轮询体内代发「暂不交易/不用」两类 bot 回合询问窗,停靠即冻结后复核——冻结 gap 内被
  *  同步链推走则解冻续等下一拍。锦囊「不出」不放行(AwaitingJinnang 本身是合法停靠)。 */
 async function parkMyTurn(page, timeoutMs = 90_000) {
@@ -215,7 +193,7 @@ async function captureSide(port, sideDir) {
   });
   const page = await ctx.newPage();
   // 演出加速 + 调试桥门禁键(单源 src/app/fx/timings.ts;字面量
-  // 随 shot.mjs 注记同步)。机遇 route 归零 = e2e disableEncounters 同口径(确定性)。
+  // 随 shot.mjs 注记同步)。route 关闭机遇以固定场景输入。
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.25"));
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-debug-bridge", "1"));
   await page.route("**/config/jiyu.json", (route) =>
@@ -265,7 +243,7 @@ async function captureSide(port, sideDir) {
   try {
     await waitFxIdle(page);
     await page.evaluate(() => {
-      // 破产终局族种植件(#1301):isOver+winner+phase=GameOver 一体,引擎终局写入同款三件套。
+      // armGameOver 一并设置 isOver/winner/phase,保持终局前态一致。
       window.__dafung.plant({ kind: "armGameOver", winnerSeat: 0 });
       window.__dafung.controller().sync();
     });

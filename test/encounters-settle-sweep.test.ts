@@ -4,15 +4,15 @@
 // 数据验同一行数据(镜像测试,验证纪律三条款③禁)。本 sweep 补「逐实体正算例」统一层,不替代
 // 存量深度例(封顶/耗竭/灰显/保底放行/章闸语义各归专例,#grill Q7)。现状背景(grill 清点):
 // 60 条中 33 条在 test/ 零结算出现、22 条散落行为例、5 条仅结构引用。
-// 到站缝:抽取(档位/加权/池过滤)已有独立单测,本 sweep 经 testEngine.applyEncounter/enterEncounter
-// 指定条目绕抽取(#123/#124 缝,签名人工对齐 authority 私有);闸门选项一律种到可用(章/珍宝/现金
+// 到站缝:抽取(档位/加权/池过滤)已有独立单测,本 sweep 经 GameEngine.settleEncounter/enterEncounterPhase
+// 指定条目绕抽取;闸门选项一律种到可用(章/珍宝/现金
 // 代价,将池/无主城用全新局自带),不许静默跳过(零兜底)。
 // 布场配方照抄 test/encounters.test.ts(makeEngine/finishSetup,how-to 场景配方跨文件照抄惯例)。
 import { describe, it, expect, afterEach } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import { sweepTestHeroes, testEngine } from "@core/testing";
+import { sweepTestHeroes } from "@core/testing";
 import { resolveEncounterChoice } from "@core/encounter-flow";
 import {
   ENCOUNTERS,
@@ -178,10 +178,10 @@ describe(`机遇逐实体结算 sweep(${rows.length} 行=31 即时+29 抉择×�
       const before = snap(e, mover);
 
       if (row.option) {
-        testEngine(e).enterEncounter(row.def);
+        e.enterEncounterPhase(e.activePlayer, row.def);
         if (e.turnPhase === "AwaitingEncounter") resolveEncounterChoice(e, row.optionIndex!);
       } else {
-        testEngine(e).applyEncounter(mover, row.def);
+        e.settleEncounter(mover, row.def);
       }
       // 结算收口:不该停在等选项(≤1 可用的自动执行与 resolve 两路都已续跑)
       expect(e.turnPhase).not.toBe("AwaitingEncounter");
@@ -236,7 +236,7 @@ describe(`机遇逐实体结算 sweep(${rows.length} 行=31 即时+29 抉择×�
     const eff = def.effect as Extract<EncounterEffect, { kind: "grantCity" }>;
     setStamina(e, seat, 50);
     const before = snap(e, mover);
-    testEngine(e).applyEncounter(mover, def);
+    e.settleEncounter(mover, def);
     const after = snap(e, mover);
     expect(after.properties).toBe(before.properties); // 不赐城
     expect(after.cash).toBe(before.cash + eff.fallbackCash); // 折现
