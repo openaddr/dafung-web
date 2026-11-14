@@ -46,6 +46,7 @@
     "tauri:desktop": "tauri dev",
     "tauri:android:dev": "tauri android dev",
     "tauri:android:build": "tauri android build",
+    "test:apk": "bun scripts/apk-smoke.ts",
     "release": "bun scripts/release.ts",
     "gen:theme": "bun scripts/generate-theme-tokens.ts"
   },
