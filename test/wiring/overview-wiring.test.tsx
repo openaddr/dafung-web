@@ -542,6 +542,8 @@ describe("诸侯详情接线(自 react-warlords-overview 迁入,#1316 批T2)", (
     if (heroModal == null) throw new Error("接线测试:名将名录未挂载(名将钻入接线断)");
     expect(heroModal.textContent).toContain("麾下名将 · 1 席");
     expect(heroModal.textContent).toContain(planted.heroName);
+    expect(q(heroModal, TESTIDS.heroInspectionName)!.textContent).toBe(planted.heroName);
+    expect(q(heroModal, TESTIDS.heroInspectionActions)).toBeNull();
     await closeDrill(TESTIDS.seatHeroModal, "名将名录");
     // 珍宝槽 → 珍宝列表(种植 2 件,陈列 2 卡)
     await openOverview();

@@ -64,6 +64,7 @@ import { loadMap } from "@core/board-loader";
 import { GameEngine, type GameCommand, type SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { applyPlant, type PlantOp } from "@core/planter";
+import { heroById } from "@core/heroes";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
@@ -378,7 +379,7 @@ describe("全浮层布局接线(自 react-layout 迁入,#1317 批T3)", () => {
     writeEngine((e) => {
       const s = e.snapshot();
       s.players[0].heroes.push(
-        { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} },
+        { heroId: "zhouyu", skillIds: [...heroById("zhouyu").skillPool], lastFired: {} },
         { heroId: "huatuo", skillIds: ["qingnang", "zhenji"], lastFired: {} },
       );
       s.recruitedHeroIds.push("zhouyu", "huatuo");
@@ -403,15 +404,18 @@ describe("全浮层布局接线(自 react-layout 迁入,#1317 批T3)", () => {
     // 右上 X 关闭,卸载零残留(退场协议走完)
     click(modalQ(TESTIDS.modalClose)!);
     await waitUnmounted(() => modalQ(TESTIDS.treasureModal), "珍宝弹层应随 X 卸载");
-    // 点「名将」圆钮 → 名将弹层:HeroCardFace 详情档网格
+    // 点「名将」圆钮 → 人物卷:画像签可达,正文随当前名将切换
     click(q(el, TESTIDS.pileHeroes)!);
     await settle();
     const heroModal = modalQ(TESTIDS.heroModal);
     if (heroModal == null) throw new Error("接线测试:名将弹层未挂载(三圆钮通路断)");
     expect(heroModal.querySelector(".pile-title")!.textContent).toContain("名将");
-    const names = [...heroModal.querySelectorAll(".m-name")].map((n) => n.textContent);
-    expect(names).toContain("周瑜");
-    expect(names).toContain("华佗");
+    expect(q(heroModal, TESTIDS.heroInspectionName)!.textContent).toBe("周瑜");
+    expect(q(heroModal, TESTIDS.heroInspectionSelect("zhouyu"))).not.toBeNull();
+    const huatuo = q(heroModal, TESTIDS.heroInspectionSelect("huatuo"))!;
+    expect(huatuo).not.toBeNull();
+    click(huatuo);
+    expect(q(heroModal, TESTIDS.heroInspectionName)!.textContent).toBe("华佗");
     // Esc 关闭(Base UI 底件行为),卸载零残留
     pressEscape();
     await waitUnmounted(() => modalQ(TESTIDS.heroModal), "名将弹层应随 Esc 卸载");

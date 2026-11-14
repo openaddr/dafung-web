@@ -14,7 +14,7 @@
 // 五签 tab 行:名将/技能/锦囊/珍宝/机遇,选中态=金描边+上浮(DESIGN §4.6 状态视觉
 // 通道,无文字标牌);位移/描边过渡走 --dur/--ease token,无自造常驻动画。
 // props={open,onClose} 纯受控,不绑屏不绑路由(游戏内直接复用);签选态存本地 state。
-// 内容=五签 stub(T1 只留文件缝,T2/T3 填肉);样式全走 tailwind utilities + token
+// 内容=各签目录(珍宝采用图文行册,其余沿既有陈列);壳样式走 tailwind utilities + token
 // arbitrary values,壳皮由底件 paper-skin 承担。
 import { useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";

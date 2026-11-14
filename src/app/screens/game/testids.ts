@@ -97,6 +97,14 @@ export const TESTIDS = {
   /** 两独立弹层容器(无互切页签;右上 X 关闭,关闭钮 testid 共用)。 */
   treasureModal: "treasure-modal",
   heroModal: "hero-modal",
+  /** 人物卷(#1446):当前麾下画像签、人物与实授技能文稿。 */
+  heroInspectionSelect: (heroId: string) => `hero-inspection-select-${heroId}` as const,
+  heroInspectionRoster: "hero-inspection-roster",
+  heroInspectionPortrait: "hero-inspection-portrait",
+  heroInspectionName: "hero-inspection-name",
+  heroInspectionSkills: "hero-inspection-skills",
+  heroInspectionSkill: (skillId: string) => `hero-inspection-skill-${skillId}` as const,
+  heroInspectionActions: "hero-inspection-actions",
   /** 技能书可点格(#1146,treasureId=书实例 id):己方出牌阶段+可学时为真 button;
    *  不可用态(非出牌阶段/无可学者)同挂点但非交互渲染,禁用原因进 title。 */
   bookUse: (treasureId: string) => `book-use-${treasureId}` as const,

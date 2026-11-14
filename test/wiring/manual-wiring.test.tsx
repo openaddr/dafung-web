@@ -33,6 +33,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import { act } from "react";
 import { useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { TREASURES } from "@core/treasures";
 import { MANUAL_TID } from "@app/screens/manual/testids";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore } from "@app/store/gameStore";
@@ -113,6 +114,59 @@ afterAll(async () => {
 });
 
 describe("手册详情叠层接线(ADR-0062 层④,#1288 批一):点卡 → 叠层 DOM 投影", () => {
+  // #1445:守住列表无需详情即可读全文与指导价、目录全收及同级目录序；约 0.2s。
+  // 只观测公开按钮与文字；长文实绘、行列几何及滚动留给浏览器。
+  it("珍宝行册:全目录可直读名称、全文和指导价,保留品级与同级目录序", async () => {
+    mount();
+    const tab = q(document, MANUAL_TID.tabTreasures);
+    if (tab == null) throw new Error("接线测试:珍宝签缺席");
+    await act(async () => click(tab));
+    const body = q(document, MANUAL_TID.body);
+    if (body == null) throw new Error("接线测试:手册正文缺席");
+    const rows = [...body.querySelectorAll<HTMLButtonElement>("button[data-testid]")];
+    expect(rows).toHaveLength(TREASURES.length);
+    expect(rows.slice(0, 4).map((row) => row.dataset.testid)).toEqual(
+      ["hat", "zhuojiu", "hubing", "suanchou"].map(MANUAL_TID.card),
+    );
+    expect(rows.at(-1)?.dataset.testid).toBe(MANUAL_TID.card("seal"));
+    for (const treasure of TREASURES) {
+      const row = q(body, MANUAL_TID.card(treasure.id));
+      if (row == null) throw new Error(`接线测试:珍宝 ${treasure.id} 未收录`);
+      expect(row.textContent).toContain(treasure.name);
+      if (treasure.desc != null) expect(row.textContent).toContain(treasure.desc);
+      expect(row.querySelector("button")).toBeNull();
+    }
+    expect(q(body, MANUAL_TID.card("hat"))?.textContent).toContain("指导价100 两");
+    expect(q(body, MANUAL_TID.card("seal"))?.textContent).toContain("指导价3000 两");
+  });
+
+  // #1445:守住无画心的正常态与行到详情、关闭回列表的真实接线；约 0.4s。
+  it("珍宝详情:无画心行打开正确详情,两处均显正常空态,关闭后可继续选下一行", async () => {
+    mount();
+    const tab = q(document, MANUAL_TID.tabTreasures);
+    if (tab == null) throw new Error("接线测试:珍宝签缺席");
+    await act(async () => click(tab));
+    const row = q(document, MANUAL_TID.card("suanchou"));
+    if (row == null) throw new Error("接线测试:算筹行缺席");
+    expect(row.textContent).toContain("暂无画心");
+    expect(row.querySelector("img")).toBeNull();
+    await act(async () => click(row));
+    const detail = q(document, MANUAL_TID.detail("suanchou"));
+    if (detail == null) throw new Error("接线测试:算筹详情未打开");
+    expect(detail.getAttribute("aria-label")).toBe("算筹");
+    expect(detail.textContent).toContain("账房先生握了一辈子的竹签");
+    expect(detail.textContent).toContain("暂无画心");
+    expect(detail.querySelector("img")).toBeNull();
+    const close = q(detail, TESTIDS.modalClose);
+    if (close == null) throw new Error("接线测试:珍宝详情关闭钮缺席");
+    click(close);
+    await waitUnmounted(() => q(document, MANUAL_TID.detail("suanchou")), "算筹详情应关闭");
+    const next = q(document, MANUAL_TID.card("hat"));
+    if (next == null) throw new Error("接线测试:详情返回后草帽行缺席");
+    await act(async () => click(next));
+    expect(q(document, MANUAL_TID.detail("hat"))?.getAttribute("aria-label")).toBe("草帽");
+  });
+
   // 名将详情(e2e「名将详情」例迁入,#1288):点周瑜卡开技能全览只读弹层——可达名
   // (题名将名)、只读语境契约(不传 onPick → 无「收为麾下」拍板钮,spec 决议⑤)、
   // 可关回(壳 X → 退场协议卸载),全 testid 有无断言。

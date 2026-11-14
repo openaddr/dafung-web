@@ -1,25 +1,34 @@
-// 珍宝签(#1071,spec #1069 决议⑤ T2 装配):TREASURES 全量 6 种 TreasureCardFace
-// 网格(装裱形制,art 走 treasureImagePath(id) 回查目录画心,陈列数=目录种数)按
-// level 升序陈列(同级保持目录序,sort 稳定)+ 点卡开 PileShell 大档详情:
-// 画心大图(金框)+ 品级角标 + 指导价(guidePriceOf 带「两」后缀,formatMoney 单源)
-// + 风味描述。陈列档 em 基=CARD_WALL_BASE_PX(card-wall.ts 单源,名将签同拍;
-// 108×144):六件一行恰收进 844×390 体部宽
-// (940 弹层内容宽 753px:6×108+5×14=718),更窄 flex-wrap 换行、体部内滚承接。
-// 点击壳=SelectableFaceButton 单源(#1188;text-left 保留旧行为)。
-// 交互语义(开合)归本件;选中语言=hover 金描边光圈(§4.6,名将/锦囊签同款);
-// testid 消费 MANUAL_TID.card(id)/detail(id),id=目录英文 id。
+// 组件收口:器物级图文行册直接用 Base UI Button 行为层；详情沿用 PileShell。
+// 珍宝签(#1445):左画心、中名称与全文、右品级与指导价。目录按品级升序、同级
+// 目录序陈列；详情叠层打开期间列表保持挂载，返回继续原位置。画心与价格消费单源。
 import { useState } from "react";
+import { Button } from "@base-ui/react/button";
 import { TREASURES, guidePriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
-import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
-import { SelectableFaceButton } from "@app/components/card/SelectableFaceButton";
 import { PileShell } from "@app/screens/game/PileModal";
-import { CARD_WALL_BASE_PX } from "./card-wall";
 import { MANUAL_TID } from "./testids";
+import "./treasure-rows.css";
 
 /** 陈列序:level 升序(同级保持目录序;sort 稳定,模块级只排一次)。 */
 const TREASURE_ROWS = [...TREASURES].sort((a, b) => a.level - b.level);
+
+/** 无画心是目录内正常态；列表与详情使用同一画心槽，不渲染空 src 图片。 */
+function TreasureArt({ id, name, large = false }: { id: string; name: string; large?: boolean }) {
+  const image = treasureImagePath(id);
+  return (
+    <span className={`manual-treasure-art${large ? " manual-treasure-art-detail" : ""}`}>
+      {image != null ? (
+        <img src={image} alt={large ? `${name}画心` : ""} />
+      ) : (
+        <span className="manual-treasure-art-empty">
+          <span aria-hidden="true">宝</span>
+          <span>暂无画心</span>
+        </span>
+      )}
+    </span>
+  );
+}
 
 /** 珍宝大档详情体:画心大图(金框双线语义=漆金描边衬纸)+ 右列品级角标/指导价/描述。 */
 function TreasureDetailBody({
@@ -35,13 +44,7 @@ function TreasureDetailBody({
 }) {
   return (
     <div className="flex items-start justify-center gap-5 py-1">
-      <div className="shrink-0 rounded-[6px] border-2 border-[color-mix(in_srgb,var(--color-lacquer-gold)_45%,transparent)] bg-[color-mix(in_srgb,var(--color-paper)_42%,var(--color-bg-deep))] p-1">
-        <img
-          src={treasureImagePath(id)}
-          alt={`${name}画心`}
-          className="h-[min(56dvh,300px)] w-auto rounded-[3px] object-cover"
-        />
-      </div>
+      <TreasureArt id={id} name={name} large />
       <div className="flex min-w-0 max-w-[300px] flex-col gap-3 pt-1.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {/* 品级角标:斜章制式(ManualModal「册」印同法),数字 tabular */}
@@ -59,33 +62,35 @@ function TreasureDetailBody({
   );
 }
 
-/** 珍宝签:全目录品级升序网格 + 大档详情叠层(spec #1069 决议⑤)。 */
+/** 珍宝签:全目录图文行册 + 大档详情叠层。 */
 export default function ManualTreasuresTab() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const detail = detailId != null ? TREASURE_ROWS.find((t) => t.id === detailId) : null;
   return (
     <>
-      <div className="flex flex-wrap justify-center gap-3.5">
-        {TREASURE_ROWS.map((t) => {
-          const image = treasureImagePath(t.id);
-          return (
-            <SelectableFaceButton
-              key={t.id}
-              data-testid={MANUAL_TID.card(t.id)}
-              title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}`}
-              onClick={() => setDetailId(t.id)}
-              style={{ fontSize: `${CARD_WALL_BASE_PX}px` }}
-              className="text-left"
-            >
-              <TreasureCardFace
-                name={t.name}
-                level={t.level}
-                desc={t.desc}
-                art={image != null ? <img src={image} alt="" /> : undefined}
-              />
-            </SelectableFaceButton>
-          );
-        })}
+      <div className="manual-treasure-rows">
+        {TREASURE_ROWS.map((t) => (
+          <Button
+            key={t.id}
+            data-testid={MANUAL_TID.card(t.id)}
+            title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}`}
+            onClick={() => setDetailId(t.id)}
+            className="manual-treasure-row"
+          >
+            <TreasureArt id={t.id} name={t.name} />
+            <span className="manual-treasure-copy">
+              <span className="manual-treasure-name">{t.name}</span>
+              {t.desc != null && <span className="manual-treasure-desc">{t.desc}</span>}
+            </span>
+            <span className="manual-treasure-value">
+              <span className="manual-treasure-grade">品级 {t.level}</span>
+              <span className="manual-treasure-price">
+                <span className="sr-only">指导价</span>
+                {formatMoney(guidePriceOf(t.level))}
+              </span>
+            </span>
+          </Button>
+        ))}
       </div>
       {detail != null && (
         <PileShell

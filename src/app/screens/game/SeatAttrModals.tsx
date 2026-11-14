@@ -1,7 +1,7 @@
 // 组件收口:已收口——格上明细三路,复用 PileShell→ui/dialog 装配;唯一入口=诸侯详情四钻入(细则 docs/design/组件收口.md)
 // 席位格图标直达明细弹层族(#701,spec #697 ④):格上战盔/玉璧/墨竹点开的
-// 三路只读明细——名将名录与珍宝列表照现役 PileModal 名录/卡面同构装配(PileShell +
-// HeroCardFace/TreasureCardFace 公开件;名将/珍宝是投影全员公开信息,逐件可陈),
+// 三路只读明细——名将复用 HeroInspectionModal 人物卷,珍宝复用 PileShell +
+// TreasureCardFace;两者均只读当前席位的公开快照,
 // 声望为轻量数值明细(终态 #1099:大数+三档概率条+三档百分比明文,零冗余文案)。
 // 空陈列照常可开:
 // 计数如实报 0;空网格接 #768 器物空态制式(斜放朱印+短注,单源
@@ -12,7 +12,7 @@
 import { memo } from "react";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { PileShell, PileZone, treasureFace, treasurePrice } from "./PileModal";
-import { HeroCardFace } from "@app/components/card/HeroCardFace";
+import { HeroInspectionModal } from "./HeroInspectionModal";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { REP_TIER_COLORS, RepProbBar, repTierPct } from "./RepProbBar";
 import { TESTIDS } from "./testids";
@@ -22,36 +22,9 @@ import "./seat-detail.css";
 /** 格上图标直达的明细种类(城池走现役 #622 CityLedgerModal,不在本族)。 */
 export type SeatDetailKind = "hero" | "gem" | "rep";
 
-/** 名将名录(战盔→):现役名将弹层同构(题名/朱印/陈列网格逐字对齐),数据按席。 */
+/** 名将钻入与自己的藏品入口共用人物卷;不传命令即只读。 */
 function SeatHeroModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }) {
-  return (
-    <PileShell
-      title="名将"
-      seal="将"
-      sub={`${p.guohao} · 麾下名将`}
-      testid={TESTIDS.seatHeroModal}
-      ariaLabel={`名将 · ${p.guohao}`}
-      onClose={onClose}
-    >
-      <PileZone>麾下名将 · {p.heroes.length} 席</PileZone>
-      {p.heroes.length === 0 ? (
-        <div className="flex justify-center py-6">
-          <SealEmpty char="将" note="虚位以待" title="暂无名将" />
-        </div>
-      ) : (
-        <div className="pile-hero-grid">
-          {p.heroes.map((slot) => (
-            <HeroCardFace
-              key={slot.heroId}
-              heroId={slot.heroId}
-              skillIds={slot.skillIds}
-              size="detail"
-            />
-          ))}
-        </div>
-      )}
-    </PileShell>
-  );
+  return <HeroInspectionModal player={p} testid={TESTIDS.seatHeroModal} onClose={onClose} />;
 }
 
 /** 珍宝列表(玉璧→):现役珍宝弹层同构(装裱卡陈列+指导价名牌),数据按席。 */

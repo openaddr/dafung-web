@@ -1,7 +1,7 @@
 // 组件收口:已收口——PileShell 共用壳(藏品/选宝/窥探/学技),底件 ui/dialog,挂载不夺焦;#708 矮屏规范=夹高视口−64px+头部钉住+体部内滚+footer 钉底(细则 docs/design/组件收口.md)
 // 藏品弹层(#361,spec #357 T4):牌架双入口点开的两独立弹层——点「珍宝」开珍宝
 // 弹层(装裱卡大格网格陈列全件,带指导价与品级角标)、点「名将」开名将弹层
-// (HeroCardFace 详情档网格,麾下全部);标题随入口、右上 X,无互切页签、无
+// (共用 HeroInspectionModal 人物卷,画像签切将);标题随入口、右上 X,无互切页签、无
 // 「府库」品名(视觉基准 proto/treasure/r5.html 节二/节三)。
 //
 // 壳走 ui/dialog 底件(Base UI:焦点陷阱/Esc/点外关闭全部白拿,不自写交互语义,
@@ -22,17 +22,16 @@ import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { useDialogExit } from "@app/hooks/use-dialog-exit";
-import { HeroCardFace } from "@app/components/card/HeroCardFace";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { formatMoney } from "@core/money";
 import { guidePriceOf, isSkillBook, type TreasureDef } from "@core/treasures";
-import { heroById } from "@core/heroes";
 import { skillBookLearners } from "@core/roster";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
 import { SkillBookLearnModal } from "./SkillBookLearnModal";
+import { HeroInspectionModal } from "./HeroInspectionModal";
 import "./pile-modal.css";
 
 /** 技能书条目形状(isSkillBook 收窄面):选人弹窗本地态的最小类型。 */
@@ -275,66 +274,6 @@ function TreasureGrid({
   );
 }
 
-/** 名将弹层内容:麾下全部名将的 HeroCardFace 详情档网格(技能全文档,16px 基,
- *  矮横屏档 8px 基见 pile-modal.css);画像缺失(image="")或加载失败由卡面显「像」
- *  占位(组件内既有语义)。空席(#851 空态器物化)接 #768 斜放朱印制式。
- *  遣散钮(#1147):每将卡下一枚,己方回合可用(dismissReady=本地决策+对局中+自己
- *  回合,GameScreen 计算);二段式确认(TreasurePickModal 成交钮同惯例——首点武装
- *  「确认遣散」,再点同将才发命令:遣散不可逆[整槽弃+回池],误触防线);非己回合
- *  禁用态,原因进 title(状态表达原则:禁用即不可点,不另立文字标牌)。 */
-function HeroGrid({
-  player,
-  dismissReady,
-  onDismiss,
-}: {
-  player: SnapshotPlayer;
-  dismissReady: boolean;
-  onDismiss?: (heroId: string) => void;
-}) {
-  const [armedId, setArmedId] = useState<string | null>(null);
-  return (
-    <>
-      <PileZone>麾下名将 · {player.heroes.length} 席</PileZone>
-      {player.heroes.length === 0 ? (
-        <div className="flex justify-center py-6">
-          <SealEmpty char="将" note="虚位以待" title="暂无名将" />
-        </div>
-      ) : (
-        <div className="pile-hero-grid">
-          {player.heroes.map((slot) => {
-            const armed = armedId === slot.heroId;
-            const dismissible = dismissReady && onDismiss != null;
-            const name = heroById(slot.heroId).name;
-            return (
-              <div className="pile-hero-slot" key={slot.heroId}>
-                <HeroCardFace heroId={slot.heroId} skillIds={slot.skillIds} size="detail" />
-                <button
-                  type="button"
-                  data-testid={TESTIDS.heroDismiss(slot.heroId)}
-                  className={"hero-dismiss" + (armed ? " armed" : "")}
-                  disabled={!dismissible}
-                  title={!dismissible ? "己方回合可遣散" : armed ? undefined : "再点一次确认"}
-                  aria-label={`${armed ? "确认遣散" : "遣散"}${name}`}
-                  onClick={() => {
-                    if (armed) {
-                      onDismiss?.(slot.heroId);
-                      setArmedId(null);
-                    } else {
-                      setArmedId(slot.heroId);
-                    }
-                  }}
-                >
-                  {armed ? "确认遣散" : "遣散"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </>
-  );
-}
-
 /** 藏品弹层(#361):kind 决定陈列内容与题名(player = 本地视角玩家,数据单源快照)。
  *  用书通路(#1146):onUseBook/bookPlayReady 由对局屏传入,书可点态只在己方出牌阶段;
  *  其余挂载语境缺省=书恒陈列不可点。 */
@@ -376,6 +315,17 @@ export const PileModal = memo(function PileModal({
   onDismiss,
   onClose,
 }: PileModalProps) {
+  if (kind === "heroes") {
+    return (
+      <HeroInspectionModal
+        player={player}
+        testid={TESTIDS.heroModal}
+        dismissReady={dismissReady}
+        onDismiss={onDismiss}
+        onClose={onClose}
+      />
+    );
+  }
   return (
     <PileShell
       title={KIND_META[kind].title}
@@ -385,11 +335,7 @@ export const PileModal = memo(function PileModal({
       ariaLabel={`${KIND_META[kind].title} · ${player.guohao}`}
       onClose={onClose}
     >
-      {kind === "treasures" ? (
-        <TreasureGrid player={player} bookPlayReady={bookPlayReady} onUseBook={onUseBook} />
-      ) : (
-        <HeroGrid player={player} dismissReady={dismissReady} onDismiss={onDismiss} />
-      )}
+      <TreasureGrid player={player} bookPlayReady={bookPlayReady} onUseBook={onUseBook} />
     </PileShell>
   );
 }, pileModalEqual);

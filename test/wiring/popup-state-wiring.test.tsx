@@ -262,6 +262,18 @@ async function settle(): Promise<void> {
   });
 }
 
+/** 壳退场完毕才重开;断言仍只看挂载语义,不测动画时长。 */
+async function closePile(testid: string): Promise<void> {
+  click(modalQ(TESTIDS.modalClose)!);
+  const deadline = Date.now() + 2_000;
+  while (modalQ(testid) !== null && Date.now() < deadline) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+  }
+  expect(modalQ(testid)).toBeNull();
+}
+
 /** 事件按 kind 取批(快照 events=当前转移批;谓词内 kind 再收窄取字段)。 */
 function eventsOf(snap: GameSnapshot, kind: GameEvent["kind"]): GameEvent[] {
   return snap.events.filter((ev) => ev.kind === kind);
@@ -427,6 +439,11 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
       ),
     ).toBe(true);
     expect(s.turnPhase).toBe("AwaitingJinnang");
+    await closePile(TESTIDS.treasureModal);
+    click(q(el, TESTIDS.pileHeroes)!);
+    await settle();
+    expect(modalQ(TESTIDS.heroInspectionName)!.textContent).toBe("张星彩");
+    expect(modalQ(TESTIDS.heroInspectionSkill("leigu"))!.textContent).toContain("冷却 4 轮");
   });
 
   // ── ④多名可学选人叠层(react-skill-book 例②迁入,#1289 批二)──
@@ -447,12 +464,86 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
     const learn = modalQ(TESTIDS.bookLearnModal);
     if (learn == null) throw new Error("接线测试:选人叠层未挂载(多名可学分流断)");
     click(modalQ(TESTIDS.bookLearnItem("zhugeliang"))!);
+    await settle();
     // 快照真值:书消耗 + 指定将(诸葛亮)池序入槽 + 周瑜不动 + 叠层随结算收口。
     const s = snap();
     expect(s.players[0].treasures.filter((t) => t.kind === "book")).toHaveLength(0);
     expect(s.players[0].heroes[1]?.skillIds).toEqual(["huogong"]);
     expect(s.players[0].heroes[0]?.skillIds).toEqual(["yingzi"]);
     expect(modalQ(TESTIDS.bookLearnModal)).toBeNull();
+    await closePile(TESTIDS.treasureModal);
+    click(q(el, TESTIDS.pileHeroes)!);
+    await settle();
+    click(modalQ(TESTIDS.heroInspectionSelect("zhugeliang"))!);
+    await settle();
+    expect(modalQ(TESTIDS.heroInspectionName)!.textContent).toBe("诸葛亮");
+    expect(modalQ(TESTIDS.heroInspectionSkill("huogong"))).not.toBeNull();
+    expect(modalQ(TESTIDS.heroInspectionSkill("yingzi"))).toBeNull();
+  });
+
+  // 人物卷选择与真实命令:不修时没有画像签/独立当前人物,可在旧卡墙上跑红。
+  // 守住切将清确认、只显实授技、遣散后有效选择与空态;零几何,约一秒。
+  it("人物卷:切将清确认,遣散始终作用于当前名将并随名册刷新", async () => {
+    const { el, snap } = startGame((e) => {
+      plantIdleDecision(e);
+      applyPlant(e, { kind: "armHero", seat: 0, heroId: "zhouyu", skillIds: ["yingzi"] });
+      applyPlant(e, { kind: "armHero", seat: 0, heroId: "huatuo", skillIds: ["qingnang"] });
+    });
+    click(q(el, TESTIDS.pileHeroes)!);
+    await settle();
+    const name = () => modalQ(TESTIDS.heroInspectionName)!.textContent;
+    const dismiss = (id: string) => modalQ(TESTIDS.heroDismiss(id))!;
+    expect(modalQ(TESTIDS.heroInspectionSelect("zhouyu"))).not.toBeNull();
+    expect(name()).toBe("周瑜");
+    expect(modalQ(TESTIDS.heroInspectionSkill("yingzi"))).not.toBeNull();
+    expect(modalQ(TESTIDS.heroInspectionSkill("huogong"))).toBeNull();
+    click(dismiss("zhouyu"));
+    expect(dismiss("zhouyu").textContent).toBe("确认遣散");
+    click(modalQ(TESTIDS.heroInspectionSelect("huatuo"))!);
+    expect(name()).toBe("华佗");
+    expect(dismiss("huatuo").textContent).toBe("遣散");
+    expect(modalQ(TESTIDS.heroDismiss("zhouyu"))).toBeNull();
+    click(modalQ(TESTIDS.heroInspectionSelect("zhouyu"))!);
+    expect(dismiss("zhouyu").textContent).toBe("遣散");
+    click(dismiss("zhouyu"));
+    expect(snap().players[0].heroes).toHaveLength(2);
+    click(dismiss("zhouyu"));
+    expect(snap().players[0].heroes.map((s) => s.heroId)).toEqual(["huatuo"]);
+    expect(name()).toBe("华佗");
+    expect(dismiss("huatuo").textContent).toBe("遣散");
+    click(dismiss("huatuo"));
+    click(dismiss("huatuo"));
+    expect(snap().players[0].heroes).toHaveLength(0);
+    expect(modalQ(TESTIDS.heroModal)!.textContent).toContain("虚位以待");
+    expect(modalQ(TESTIDS.heroInspectionName)).toBeNull();
+  });
+
+  // 复用同一整屏缝补会话边界:名册成员变化、关闭重开与权限切换均不能续用旧确认。
+  it("人物卷:名册增员与关闭重开解除确认,非己回合沿规则禁用", async () => {
+    const { el, plant, snap } = startGame((e) => {
+      plantIdleDecision(e);
+      applyPlant(e, { kind: "armHero", seat: 0, heroId: "zhouyu", skillIds: ["yingzi"] });
+    });
+    click(q(el, TESTIDS.pileHeroes)!);
+    await settle();
+    const dismiss = () => modalQ(TESTIDS.heroDismiss("zhouyu"))!;
+    click(dismiss());
+    plant({ kind: "armHero", seat: 0, heroId: "huatuo", skillIds: ["qingnang"] });
+    expect(dismiss().textContent).toBe("遣散");
+    expect(modalQ(TESTIDS.heroInspectionName)!.textContent).toBe("周瑜");
+    click(dismiss());
+    await closePile(TESTIDS.heroModal);
+    click(q(el, TESTIDS.pileHeroes)!);
+    await settle();
+    expect(dismiss().textContent).toBe("遣散");
+    click(dismiss());
+    plant({ kind: "armPhase", activeIndex: 1 });
+    expect(dismiss().hasAttribute("disabled")).toBe(true);
+    expect(dismiss().getAttribute("title")).toBe("己方回合可遣散");
+    plant({ kind: "armPhase", activeIndex: 0 });
+    expect(dismiss().hasAttribute("disabled")).toBe(false);
+    expect(dismiss().textContent).toBe("遣散");
+    expect(snap().players[0].heroes.map((s) => s.heroId)).toEqual(["zhouyu", "huatuo"]);
   });
 
   // ── ⑤遣散二段确认(react-hero-dismiss 例①迁入,#1289 批二)──
