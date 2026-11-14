@@ -16,6 +16,8 @@ import {
 
 export { expect };
 export type { Browser, Page };
+// fixture 页从 playwright.config 继承移动环境;手建 context 不继承 use,统一走此出口。
+export { newMobileContext } from "./mobile-context";
 
 // 注入值(env 可覆盖):localStorage 只存字符串,注入的必须是数字字符串,
 // timings 侧对非法值按 1(全速)解释。

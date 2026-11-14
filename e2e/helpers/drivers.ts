@@ -20,13 +20,14 @@ import { E2E_DEBUG_BRIDGE_KEY } from "../../src/app/fx/timings";
 // 同一份实现,三层共用);只引类型,零运行时依赖。
 import type { PlantOp } from "../../src/core/planter";
 import { waitFxIdle } from "./settle";
+import { newMobileContext } from "../mobile-context";
 
 /** 联机 spec 的裸 browser context 需自带调试桥键:双门禁(2026-09-25)下生产构建
  *  无键不注册 window.__dafung,而 fixtures 的注入只覆盖 fixture page——raw context
  *  页面(coreState/onlinePickCapitals 的两端)会拿到 undefined。master 上已断的接线,
  *  随 #253 e2e 迁移修通;只建 context,页面由调用方 newPage()。 */
 export async function newBridgeContext(browser: Browser): Promise<BrowserContext> {
-  const ctx = await browser.newContext();
+  const ctx = await newMobileContext(browser);
   await ctx.addInitScript((key) => localStorage.setItem(key, "1"), E2E_DEBUG_BRIDGE_KEY);
   return ctx;
 }
