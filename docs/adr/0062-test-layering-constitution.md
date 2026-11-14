@@ -27,6 +27,8 @@
 
 两个完整客户端栈(OnlineController + gameStore/netStore)经**真 WebSocket** 连进程内引擎服务器(`scripts/server.ts` 起临时端口),零 DOM 零浏览器;断言 = store 投影状态逐字段收敛 + 关键节点事件批折算对账(event-fold 结果),零 DOM。传输恒取真 WS——测试跑的就是生产传输面(重连/心跳/真实分帧),不造第二套 socket 语义(统一原则);ADR-0055 故障注入代理的真服务器语义直接复用。单机半已由 local-room 守,本层只补联机。
 
+健康路径的隔离范例为 `test/online/online-dual-run.test.ts` 的「双栈真 WS 对跑」(#1436):每端独立 Bun 子进程,分别持有生产控制器、模块缓存、gameStore/netStore 与连接。IPC 只传具体测试意图和同步读数,不传对局协议;真实上下行仍经生产 WebSocket。公开状态对账为两端引擎与各自 store 的四向等式,私密手牌按座位可见性分别与本端引擎对账;座位与连接必须读取每端真实 store,不能用控制器座位替代。固定种子走到首掷后注册决策门冻结读数,不靠静置猜稳定;单端重置只用于隔离证明和收摊,不能帮助状态收敛。恢复与反应窗旧例尚待迁移,其共享单例装配不再作为新增用例范例。装配、关闭和定向命令见[开发与测试](../how-to/开发与测试.md)「双端对跑隔离装配」。
+
 ### 接线测试(层④新增)
 
 bun test 进程内 happy-dom 渲染**真 React 组件 + 真 store**。断言宪法:**只许 DOM 结构 / testid / 类名 / store 状态;禁几何**(假 DOM 无排版引擎,`getBoundingClientRect` 恒 0)、**禁像素、禁演出泵与真实时钟**;响应式分档允许 stub matchMedia 断类名。第一波只收 store 投影型纯渲染组件;泵驱动组件(行军/横幅/反应窗)留浏览器——演出的存在性归 visual-compare(与 ADR-0059 瞬空判据同构:接线归组件级,存在归真渲染)。
