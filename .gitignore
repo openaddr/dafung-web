@@ -5,7 +5,7 @@ dist/
 # ===== 测试诊断与单次辅助产物(可再生,统一在 tmp/)=====
 tmp/
 *.log
-# dogfood QA 证据截图只留本地不入库,报告 docs/dogfood/report.md 照常入库
+# dogfood 截图仅本地保留;单次辅助产物统一放 tmp/
 docs/dogfood/screenshots/
 
 # ===== 引擎/服务器运行时状态 =====

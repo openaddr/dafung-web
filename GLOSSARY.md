@@ -525,13 +525,13 @@ _Avoid_: 直改生产状态、深种(已废)
 种植件两形制之一:内部走引擎公共结算通道,不变量全保真。
 _Avoid_: 摆终态→裸写形、快进(已废)
 
-**瞬空(Presentation Snap Pin,ADR-0059)**:
+**瞬空(Presentation Snap Pin,ADR-0065)**:
 演出层测试阀门:把吸附档钉成测试常开档;排查专用,产品侧不暴露。
 
-**双端对跑(Dual-client Headless Run,ADR-0062)**:
+**双端对跑(Dual-client Headless Run,ADR-0065)**:
 联机无浏览器集成层:两个完整客户端栈经真 WebSocket 连进程内引擎服务器。
 _Avoid_: 「联机 store 级」、双端模拟、协议测试(已废)
 
-**接线测试(Wiring Test,ADR-0062)**:
+**接线测试(Wiring Test,ADR-0065)**:
 关键无浏览器组件层:进程内渲染真 React 组件+真 store,断言「点击→命令→UI 更新」。
 _Avoid_: 「组件级测试」、组件单测、渲染测试(已废)
