@@ -10,7 +10,8 @@
 //   FRAME_PROBE_PORT   preview 端口(默认 4330,撞车换口)
 import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "@playwright/test";
-import { distFreshness, stampDistBuild } from "./dist-freshness.ts";
+import { distFreshness } from "./dist-freshness.ts";
+import { MOBILE_CONTEXT_OPTIONS } from "./mobile-context.ts";
 
 const MS = Number(process.env.FRAME_PROBE_MS ?? 20000);
 const SEED = process.env.FRAME_PROBE_SEED ?? "7";
@@ -73,15 +74,17 @@ try {
   const fresh = distFreshness();
   if (!fresh.fresh) {
     console.log(`[probe] dist 陈旧(${fresh.reason}),build…`);
-    spawnSync("bun", ["run", "build"], { shell: win, stdio: "inherit" });
-    stampDistBuild();
+    const build = spawnSync("bun", ["run", "build"], { shell: win, stdio: "inherit" });
+    if (build.error) throw build.error;
+    if (build.status !== 0)
+      throw new Error(`build 失败(exit ${build.status},signal ${build.signal})`);
   }
   await waitServer(URL);
 
   // 段 2:真机档开一局托管对局(autopilot 前置=无人值守,diag spec 同款)
   browser = await chromium.launch({ channel: "msedge" });
   const ctx = await browser.newContext({
-    viewport: { width: 844, height: 390 },
+    ...MOBILE_CONTEXT_OPTIONS,
     deviceScaleFactor: 3,
   });
   await ctx.addInitScript(() => {

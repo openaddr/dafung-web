@@ -7,6 +7,7 @@ import { loadMap } from "@core/board-loader";
 import { TREASURE_PRICE, TREASURES, createTreasureDeck, premiumPriceOf } from "@core/treasures";
 import { beginGameEventBatch } from "@core/game-events";
 import { testEngine } from "@core/testing";
+import { armPhase, armVisitor, giveTreasure, grantProperty, setCash } from "@core/planter";
 
 const MAP = loadMap(guanzhongData);
 
@@ -209,6 +210,76 @@ describe("珍宝系统", () => {
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
     expect(owner.cash).toBe(ownerCash0);
   });
+});
+
+// 守住托管清算的跨进程续办:公开交涉命令真挂债,JSON 恢复后真变卖/确认。
+// 原有直跑例不经过序列化;此处只补自救交割与破产退宝两条规则期望,预计单例毫秒级。
+describe("托管清算 JSON 恢复(#1441)", () => {
+  for (const scenario of [
+    {
+      name: "自救交割",
+      cash: 550,
+      finalCash: 50,
+      sellerGain: 600,
+      bankrupt: false,
+      buyerTreasures: ["escrow-candidate"],
+      sellerTreasures: [],
+    },
+    {
+      name: "清算失败退宝",
+      cash: 1,
+      finalCash: 0,
+      sellerGain: 101,
+      bankrupt: true,
+      buyerTreasures: [],
+      sellerTreasures: ["escrow-candidate"],
+    },
+  ]) {
+    it(`恢复后${scenario.name}:债主回链、资金与托管珍宝各归其位`, () => {
+      const e = makeEngine(1);
+      finishSetup(e);
+      const buyerSeat = e.activeIndex;
+      const sellerSeat = 1 - buyerSeat;
+      const propertyId = e.board.tiles.find(
+        (tile) => tile.propertyId != null && e.findOwner(tile.propertyId) == null,
+      )!.propertyId!;
+      grantProperty(e, sellerSeat, propertyId, 0);
+      giveTreasure(e, sellerSeat, [
+        { id: "escrow-candidate", name: "待交割珍宝", level: 5, desc: "" },
+      ]);
+      giveTreasure(e, buyerSeat, [{ id: "liquidation-fund", name: "旧藏", level: 1, desc: "" }]);
+      setCash(e, buyerSeat, scenario.cash);
+      armVisitor(e, propertyId, sellerSeat);
+      armPhase(e, { turnPhase: "AwaitingTreasureOwner" });
+      e.resolveTreasureOwner({ type: "fair", treasureId: "escrow-candidate" });
+      expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+
+      const snapshot = JSON.parse(JSON.stringify(e.snapshot()));
+      const restored = makeEngine(2);
+      restored.restoreFromSnapshot(snapshot);
+      expect(restored.pendingDebt!.creditor).toBe(restored.players[sellerSeat]);
+      expect(restored.escrowTreasure!.treasure.id).toBe("escrow-candidate");
+      const sellerCash = restored.players[sellerSeat].cash;
+      restored.sellTreasureBankruptcy("liquidation-fund");
+      restored.confirmBankruptcySettle();
+
+      expect(restored.players[buyerSeat].cash).toBe(scenario.finalCash);
+      expect(restored.players[sellerSeat].cash - sellerCash).toBe(scenario.sellerGain);
+      expect(restored.players[buyerSeat].isBankrupt).toBe(scenario.bankrupt);
+      expect(restored.players[buyerSeat].treasures.map((t) => t.id)).toEqual(
+        scenario.buyerTreasures,
+      );
+      expect(restored.players[sellerSeat].treasures.map((t) => t.id)).toEqual(
+        scenario.sellerTreasures,
+      );
+      expect(restored.pendingDebt).toBeNull();
+      expect(restored.escrowTreasure).toBeNull();
+      expect(restored.treasureVisitor).toBeNull();
+      // 恢复端续办不得改到存档来源的玩家对象。
+      expect(e.players[buyerSeat].cash).toBe(scenario.cash);
+      expect(e.players[buyerSeat].treasures.map((t) => t.id)).toEqual(["liquidation-fund"]);
+    });
+  }
 });
 
 describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {

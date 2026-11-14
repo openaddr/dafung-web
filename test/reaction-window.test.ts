@@ -11,7 +11,7 @@ import { HEROES } from "@core/heroes";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import { botReactionDecision } from "@core/bot";
 import { armHero } from "@core/testing";
-import { grantProperty, placePlayer } from "@core/planter";
+import { giveJinnang, grantProperty, pinDice, placePlayer } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
@@ -376,6 +376,38 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
 });
 
 describe("半路杀出(MarchPassedCity 反应窗)", () => {
+  // #1441:守行军挂起载荷经真实 JSON 往返后仍能续走;固定走廊、毫秒级,不比较两份实现。
+  it("拦检挂起 JSON 恢复:拒拦后续走原落点,未用牌保留且源局不变", () => {
+    const e = prepared();
+    const moverSeat = e.activeIndex;
+    const ownerSeat = 1 - moverSeat;
+    for (const player of e.players)
+      expect([START, PASSED, LAND]).not.toContain(player.capitalIndex);
+    placePlayer(e, moverSeat, START);
+    grantProperty(e, ownerSeat, "prop-xianyang", 2);
+    giveJinnang(e, ownerSeat, ["半路杀出"]);
+    pinDice(e, "march", [2]);
+    e.rollAndMove();
+    expect(e.turnPhase).toBe("AwaitingReaction");
+    const snapshot = JSON.parse(JSON.stringify(e.snapshot())) as ReturnType<GameEngine["snapshot"]>;
+    const restored = makeEngine(123);
+    restored.restoreFromSnapshot(snapshot);
+    beginGameEventBatch(restored);
+    restored.respondReaction(ownerSeat, false);
+    expect(restored.pendingReaction).toBeNull();
+    expect(restored.players[moverSeat].position).toBe(LAND);
+    expect(restored.turnPhase).toBe("AwaitingDecision");
+    expect(restored.players[ownerSeat].jinnangHand).toEqual(["半路杀出"]);
+    expect(restored.jinnangDiscard).not.toContain("半路杀出");
+    expect(
+      restored.snapshot().events.filter((event) => event.kind === "marchArrived"),
+    ).toMatchObject([{ tileIndex: LAND }]);
+    expect(duelEventsOf(restored)).toEqual([]);
+    expect(e.turnPhase).toBe("AwaitingReaction");
+    expect(e.pendingReaction?.view.kind).toBe("march");
+    expect(e.players[moverSeat].position).toBe(START);
+  });
+
   it("城主持半路杀出:途经即开拦检窗;拦检胜=行人止步拦检城、照常落格结算(可被交涉)", () => {
     const { e, mover, moverSeat, ownerSeat } = marchUp({
       ownerCards: ["半路杀出"],
