@@ -80,6 +80,8 @@ import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { installControlledClock } from "./controlled-clock";
+import { GHOST, UI } from "@app/fx/timings";
 
 /** 晚绑模块型(late binding,红线见头注第 0 步;type-of-import 类型面静态引用,
  *  求值面零触碰,不破晚绑)。 */
@@ -130,6 +132,7 @@ function seedPlayingEngine(): GameEngine {
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
+let clock: ReturnType<typeof installControlledClock>;
 
 /** act() 内挂 GameScreen;卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -190,40 +193,14 @@ function click(el: Element): void {
   });
 }
 
-/** 异步拍收口(模板同款):弹层壳底件挂载拍有 RO 测量态更新,回调在 act 外落会刷
- *  act 警告噪声——让一拍宏任务并包进 act(断言面不依赖该拍,纯噪声治理)。 */
-async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
-}
+/** 宏任务让步与业务延时分开:本拍只排零延时任务,不跨越退场/钤印节拍。 */
+const settle = () => clock.settle();
 
-/** 有界等待弹层卸载(overview-wiring 同款):退场协议(卷轴幽灵帧 210ms/钤印节拍
- *  700ms)走完即卸——happy-dom 真定时器自然走时,轮询到位即收,超死线响亮红。
- *  判词:卸载后的「null 断言」必须等协议走完;协议在途就把在场 happy-dom 节点递给
- *  expect,断言失败路径的 diff 序列化会走节点循环引用(battle-wiring waitUnmounted
- *  判词,wire3 实锤)。 */
-async function waitUnmounted(query: () => Element | null, label: string): Promise<void> {
-  const deadline = Date.now() + 3_000;
-  while (query() != null && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
-  expect(query(), label).toBeNull();
-}
-
-/** 有界等待节点在场(终局出口钮专用):胜利屏出口钮按演出节拍延后挂载
- *  (showButton,UI.victoryButtonMs 防演出高潮期误触)——happy-dom 真定时器走时,
- *  轮询到位即收,超死线响亮红(e2e 的 toBeVisible 重试语义同构)。 */
-async function waitMounted(query: () => Element | null, label: string): Promise<void> {
-  const deadline = Date.now() + 3_000;
-  while (query() == null && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
-  if (query() == null) throw new Error(`接线测试:${label}`);
+/** 明确走完退场协议后断卸载,不轮询真实业务时钟。布尔断言避免失败时序列化
+ *  happy-dom 节点的循环引用;时间取生产单源,不缩短玩家节拍。 */
+async function finishExit(query: () => Element | null, label: string): Promise<void> {
+  await clock.advance(GHOST.frameMs);
+  expect(query() === null, label).toBe(true);
 }
 
 /** 弹层/卷轴查询口:选宝弹层/技能全览经 Portal 在 body;卷轴族在 GameScreen 卷轴层
@@ -319,18 +296,22 @@ beforeEach(() => {
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock = installControlledClock();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await settle(); // 原生异步测量余拍也包进 act,再卸组件执行各自的定时器清理
   if (root != null) {
     act(() => root!.unmount());
     root = null;
   }
+  if (container != null) container.remove();
   container = null;
   setController(null); // registry 换局销毁契约:控制器随例释放,不留活口
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock.restore();
 });
 
 afterAll(async () => {
@@ -346,7 +327,7 @@ describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
   // e2e callEngine 同语义)→三选一卷轴(无「不取」:引擎相位不接受 endDecision)→
   // 预掷明牌 chips≥1 →点候选技名 chip=开技能全览(池全貌逐技在列+未授灰置+看将不发
   // 命令)→关框→点卡体=开详情弹框(拍板唯一入口,「收为麾下」在场)→拍板→钤印节拍
-  // 后卷轴收场、候选清空。卷轴 210ms 幽灵帧+钤印 700ms 节拍由 waitUnmounted 收口。
+  // 后卷轴收场、候选清空。钤印与幽灵退场各按生产时长推进,不轮询真实业务延时。
   it("三选一:预掷明牌 chips+全览池对照,点卡/技名开全览先看后选,弹框拍板收将", async () => {
     const { el, engine, writeEngine, snap } = startGame([
       { kind: "armPhase", activeIndex: 0 }, // 候选拍板归活跃方(resolveHeroPick 授 activePlayer)
@@ -383,7 +364,7 @@ describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(scroll()).not.toBeNull();
     expect(snap().offeredHeroes).toHaveLength(3); // 看将不发命令
     click(docQ(TESTIDS.modalClose)!);
-    await waitUnmounted(() => docQ(TESTIDS.skillGlossary), "技能全览应随退场协议卸载");
+    await finishExit(() => docQ(TESTIDS.skillGlossary), "技能全览应随退场协议卸载");
     // 点卡体同开详情弹框(拍板唯一入口):拍板钮在场 →「收为麾下」→钤印节拍后卷轴
     // 收场、候选清空
     click(q(el, T.heroPickOption(1))!);
@@ -391,7 +372,8 @@ describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     const pick = docQ(TESTIDS.skillGlossaryPick);
     if (pick == null) throw new Error("接线测试:拍板钮缺席(招贤语境 onPick 通路断)");
     click(pick);
-    await waitUnmounted(scroll, "招贤卷轴应随拍板收场(钤印节拍+幽灵帧走完)");
+    await clock.advance(UI.pickSealMs);
+    await finishExit(scroll, "招贤卷轴应随拍板收场(钤印节拍+幽灵帧走完)");
     expect(snap().offeredHeroes).toHaveLength(0); // 候选清空
     expect(engine.players[0].heroes.some((h) => h.heroId === mid.id)).toBe(true); // 入麾下
   });
@@ -403,13 +385,14 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
   // 结算同一 premiumPriceOf;holding level=1,UI 与引擎同走 per-level 公式)→点选转
   // 「成交 · 至 要价」+结算行分解式「指导价 + 加价 = 入账」→返回回模式步(本地状态
   // 回退,不发命令)。
-  it("坐地起价:双行价签与引擎同公式,点选转成交价签,返回回模式步", () => {
+  it("坐地起价:双行价签与引擎同公式,点选转成交价签,返回回模式步", async () => {
     const handles = startGame();
     plantTrade(handles);
     const { engine } = handles;
     const scroll = () => docQ(T.treasureScroll);
     expect(scroll()).not.toBeNull();
     click(docQ(T.treasureModePremium)!);
+    await settle();
     const pick = () => docQ(T.treasurePick);
     expect(pick()).not.toBeNull();
     expect(pick()!.textContent).toContain("坐地起价"); // 标题随口径
@@ -475,8 +458,9 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
       action: { type: "fair", treasureId: "seal" },
     });
     // 层随结算收口(幽灵帧 210ms 走完;命令留痕已被钉住,层收跟拍不吃竞速)
-    await waitUnmounted(pick, "选宝层应随结算收口");
-    await waitUnmounted(() => docQ(T.treasureScroll), "交涉卷轴应随结算收场");
+    await clock.advance(GHOST.frameMs);
+    expect(pick() === null, "选宝层应随结算收口").toBe(true);
+    expect(docQ(T.treasureScroll) === null, "交涉卷轴应随结算收场").toBe(true);
   });
 });
 
@@ -522,7 +506,7 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(confirm().textContent).toBe("确认变卖");
     click(confirm());
     // 售出即收层(命令落账同步;入账等式归引擎单测)
-    await waitUnmounted(pick, "变卖选宝层应随结算收口");
+    await finishExit(pick, "变卖选宝层应随结算收口");
     // 重开清单随快照刷新(已卖件消失,余件仍在)
     click(q(el, T.bankruptcySellTreasureOpen)!);
     await settle();
@@ -538,7 +522,7 @@ describe("城池详情卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
   // 恒在;第二列按城型=都城补给|变卖价,#671 列语义钉)。选城与城型期望值读进程内引擎
   // 现值(与 e2e __dafung 桥读引擎同语义);空闲态前置=钉 AwaitingDecision+清落格投影
   // (armLanding null,停车坪判词单源 planter)。
-  it("对局中点城弹出只读详情:交易加成恒主列,第二列按城型", () => {
+  it("对局中点城弹出只读详情:交易加成恒主列,第二列按城型", async () => {
     const { el, engine, snap } = startGame([
       { kind: "armPhase", turnPhase: "AwaitingDecision" }, // 空闲态:点城=详情语义(选都期点城=定都流程,相位分流)
       { kind: "armLanding", landing: null }, // 清落格投影(决策卷轴不遮点城通路)
@@ -550,6 +534,7 @@ describe("城池详情卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     const tileEl = el.querySelector(`[data-tile="${idx}"]`);
     if (tileEl == null) throw new Error("接线测试:城池格点击层缺席(棋盘装配断)");
     click(tileEl);
+    await settle();
     const detail = docQ(T.tileDetailScroll);
     if (detail == null) throw new Error("接线测试:城池详情卷轴未挂载(点城通路断)");
     expect(detail.textContent).toContain("交易加成"); // 主列恒为交易加成
@@ -592,7 +577,11 @@ describe("购地卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(scroll()!.textContent).not.toContain("差");
     // 点买 → 命令受理,卷轴收(决策收口的 UI 面;购地结算与链序归引擎单测)
     click(docQ(TESTIDS.actionButton("buy"))!);
-    await waitUnmounted(scroll, "购地卷轴应随点买收卷(幽灵帧走完)");
+    expect(scroll()).not.toBeNull(); // 命令已受理,幽灵退场帧仍在
+    await clock.advance(GHOST.frameMs - 1);
+    expect(scroll()).not.toBeNull(); // 出口时刻之前仍保留退场节点
+    await clock.advance(1);
+    expect(scroll() === null, "购地卷轴应随点买收卷(幽灵帧走完)").toBe(true);
     expect(engine.findOwner(tile.propertyId)!.id).toBe(engine.players[0].id); // 购入落账
   });
 });
@@ -654,7 +643,11 @@ describe("终局屏(自 react-scrolls/react-abort 迁入,#1317 批T3)", () => {
     expect(docQ(T.victorySub)).not.toBeNull(); // 称帝行
     expect(docQ(T.victoryStandings)).not.toBeNull(); // 终榜一行
     // 出口钮按演出节拍延后挂载(showButton,防高潮期误触)
-    await waitMounted(() => docQ(T.victoryRestart), "出口钮未按节拍挂载");
+    expect(docQ(T.victoryRestart)).toBeNull();
+    await clock.advance(UI.victoryButtonMs - 1);
+    expect(docQ(T.victoryRestart)).toBeNull(); // 保护期尚差 1ms,出口仍不可点击
+    await clock.advance(1);
+    expect(docQ(T.victoryRestart)).not.toBeNull();
   });
 
   // ── ⑨对局作废(react-abort 例迁入)──
@@ -682,6 +675,10 @@ describe("终局屏(自 react-scrolls/react-abort 迁入,#1317 批T3)", () => {
     expect(docQ(T.victoryStandings)).toBeNull();
     // 出口按钮组与胜局同款(点击腿=location.reload,真浏览器 API 腿随例退役;
     // 按钮延后挂载节拍同⑤)
-    await waitMounted(() => docQ(T.victoryRestart), "出口钮未按节拍挂载");
+    expect(docQ(T.victoryRestart)).toBeNull();
+    await clock.advance(UI.victoryButtonMs - 1);
+    expect(docQ(T.victoryRestart)).toBeNull();
+    await clock.advance(1);
+    expect(docQ(T.victoryRestart)).not.toBeNull();
   });
 });

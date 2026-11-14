@@ -200,7 +200,7 @@ test.describe("锦囊 T3:底部手牌架", () => {
   // 与文本,零几何零真实输入),迁移落点=接线层 test/wiring/jinnang-wiring.test.tsx「点牌
   // 详情」例;Esc 关闭走底件 document 级 keydown(happy-dom 合成派发即达,非真实输入
   // 时序)。
-  // 真实段:裸指针长按序列(move→down 700ms→up)+补发 click 抑制的输入语义全真;
+  // 真实段:浏览器 touchStart→700ms→touchEnd+补发 click 抑制的输入语义全真;
   // 前置钉相位判词见 pinRackIdle。
   test("长按 500ms 同效开详情,随后的 click 不再触发(不弹两次)", async ({ page }) => {
     await pinRackIdle(page, 1472); // #653:出牌态长按=取消选中,先钉空闲态
@@ -208,14 +208,19 @@ test.describe("锦囊 T3:底部手牌架", () => {
     const card = page.getByTestId(TESTIDS.jinnangCard(cardId));
     const box = await card.boundingBox();
     if (!box) throw new Error("手牌无几何盒:架未渲染或被遮挡");
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
+    // Playwright tap 没有按住时长;CDP 送可信触点,由浏览器生成 touch/pointer 与抬指 click。
+    const touch = await page.context().newCDPSession(page);
+    await touch.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
+    });
     await page.waitForTimeout(700); // 越过 500ms 长按判定窗
-    await page.mouse.up();
+    await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await touch.detach();
     const detail = page.getByTestId(TESTIDS.jinnangDetail);
     await expect(detail).toBeVisible();
     await expect(detail).toHaveCount(1); // 抬指的合成 click 已被抑制,无二次弹层
-    await page.keyboard.press("Escape");
+    await detail.getByRole("button", { name: "关闭" }).tap();
     await expect(detail).toHaveCount(0);
   });
 
@@ -307,34 +312,38 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
   // 真实段:真实指针 hover→挥出→移出回落的完整输入链与挥出过渡几何(上浮/放大/
   // 邻牌让位/回落 ±2px)全真——交互几何即被测环。种植判词见 rackStandstill
   // (手牌无公共通路,断言面需 9 张特定牌形)。
-  test("hover 挥出全显:悬停牌上浮放大、邻牌两侧让位,移出回落", async ({ page }) => {
-    test.slow(); // 同上:停车坪等待的负载余量(三例共用 rackStandstill)
-    await rackStandstill(page, NINE_CARDS, 1476);
-    const CARD_W = await cardWidth(page);
-    const before = (await rackGeometry(page)).cards;
-    // 悬停第 5 张(有左右邻):牌钮中心被右侧牌盖住,落点取左缘窥条内(10px 处)
-    await page
-      .locator(`[data-testid="${TESTIDS.jinnangHand}"] > button`)
-      .nth(4)
-      .hover({ position: { x: 10, y: 60 } });
-    // 挥出过渡(--dur-fast)以几何落定为准(#305 替代固定 300ms):两拍全同即悬停稳态
-    const after = (await settledRackGeometry(page)).cards;
-    // 悬停牌:上浮 + 放大(1.12 倍级)
-    expect(after[4].y).toBeLessThan(before[4].y - 5);
-    expect(after[4].width).toBeGreaterThan(before[4].width * 1.05);
-    // 右邻让满幅(= 原全宽):悬停牌(除放大出界的描边外)不再被遮
-    expect(after[5].x).toBeGreaterThanOrEqual(after[4].x + CARD_W - 2);
-    // 邻牌让位(noname getSpreadOffset 语义):左邻左移、右邻右移
-    expect(after[3].x).toBeLessThan(before[3].x);
-    expect(after[5].x).toBeGreaterThan(before[5].x);
-    // 移出回落:几何回到常态(±2px 量测余量);同口径等回落过渡落定(#305 替代固定
-    // 300ms)。1px 实测过紧——swiftshader 亚像素合成下回落残差 1.28px(2026-10-02 取证),
-    // 2px 仍足以抓「没回去」级回归。
-    await page.mouse.move(0, 0);
-    const rest = (await settledRackGeometry(page)).cards;
-    rest.forEach((c, i) => {
-      expect(Math.abs(c.x - before[i].x)).toBeLessThanOrEqual(2);
-      expect(Math.abs(c.y - before[i].y)).toBeLessThanOrEqual(2);
+  test.describe("真实 hover 输入专项", () => {
+    // 只覆盖输入设备,沿用标准横屏尺寸;不新增桌面布局验收档。
+    test.use({ isMobile: false, hasTouch: false });
+    test("hover 挥出全显:悬停牌上浮放大、邻牌两侧让位,移出回落", async ({ page }) => {
+      test.slow(); // 同上:停车坪等待的负载余量(三例共用 rackStandstill)
+      await rackStandstill(page, NINE_CARDS, 1476);
+      const CARD_W = await cardWidth(page);
+      const before = (await rackGeometry(page)).cards;
+      // 悬停第 5 张(有左右邻):牌钮中心被右侧牌盖住,落点取左缘窥条内(10px 处)
+      await page
+        .locator(`[data-testid="${TESTIDS.jinnangHand}"] > button`)
+        .nth(4)
+        .hover({ position: { x: 10, y: 60 } });
+      // 挥出过渡(--dur-fast)以几何落定为准(#305 替代固定 300ms):两拍全同即悬停稳态
+      const after = (await settledRackGeometry(page)).cards;
+      // 悬停牌:上浮 + 放大(1.12 倍级)
+      expect(after[4].y).toBeLessThan(before[4].y - 5);
+      expect(after[4].width).toBeGreaterThan(before[4].width * 1.05);
+      // 右邻让满幅(= 原全宽):悬停牌(除放大出界的描边外)不再被遮
+      expect(after[5].x).toBeGreaterThanOrEqual(after[4].x + CARD_W - 2);
+      // 邻牌让位(noname getSpreadOffset 语义):左邻左移、右邻右移
+      expect(after[3].x).toBeLessThan(before[3].x);
+      expect(after[5].x).toBeGreaterThan(before[5].x);
+      // 移出回落:几何回到常态(±2px 量测余量);同口径等回落过渡落定(#305 替代固定
+      // 300ms)。1px 实测过紧——swiftshader 亚像素合成下回落残差 1.28px(2026-10-02 取证),
+      // 2px 仍足以抓「没回去」级回归。
+      await page.mouse.move(0, 0);
+      const rest = (await settledRackGeometry(page)).cards;
+      rest.forEach((c, i) => {
+        expect(Math.abs(c.x - before[i].x)).toBeLessThanOrEqual(2);
+        expect(Math.abs(c.y - before[i].y)).toBeLessThanOrEqual(2);
+      });
     });
   });
 });

@@ -76,6 +76,8 @@ import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { GHOST } from "@app/fx/timings";
+import { installControlledClock } from "./controlled-clock";
 
 /** 晚绑模块型(late binding,红线见头注第 0 步;type-of-import 类型面静态引用,
  *  求值面零触碰,不破晚绑)。 */
@@ -126,6 +128,7 @@ function seedPlayingEngine(): GameEngine {
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
+let clock: ReturnType<typeof installControlledClock>;
 
 /** act() 内挂 GameScreen;卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -186,24 +189,13 @@ function click(el: Element): void {
 /** 异步拍收口(模板同款):弹层壳底件挂载拍有 RO 测量态更新,回调在 act 外落会刷
  *  act 警告噪声——让一拍宏任务并包进 act(断言面不依赖该拍,纯噪声治理)。 */
 async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
+  await clock.settle();
 }
 
-/** 有界等待弹层卸载(overview-wiring 同款):退场协议(210ms「播完再移除」)走完
- *  即卸——happy-dom 真定时器自然走时,轮询到位即收,超死线响亮红。判词:卸载后的
- *  「null 断言」必须等协议走完;协议在途就把在场 happy-dom 节点递给 expect,断言
- *  失败路径的 diff 序列化会走节点循环引用(wire3 实锤:bun 序列化爆炸 17GB 死循环,
- *  探针二分定性),waitUnmounted 保证断言吃到的是已卸载后的 null。 */
-async function waitUnmounted(query: () => Element | null, label: string): Promise<void> {
-  const deadline = Date.now() + 2_000;
-  while (query() != null && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
-  expect(query(), label).toBeNull();
+/** 推进退场出口后断卸载;布尔断言避免失败时序列化 happy-dom 循环节点。 */
+async function finishExit(query: () => Element | null, label: string): Promise<void> {
+  await clock.advance(GHOST.frameMs);
+  expect(query() == null, label).toBe(true);
 }
 
 /** 弹层查询口:技能全览弹框经 Portal 渲染在 body,一律 document 级。 */
@@ -303,24 +295,28 @@ beforeEach(() => {
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock = installControlledClock();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await settle();
   if (root != null) {
     act(() => root!.unmount());
     root = null;
   }
+  if (container != null) container.remove();
   container = null;
   setController(null); // registry 换局销毁契约:控制器随例释放,不留活口
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock.restore();
 });
 
 afterAll(async () => {
   // 排干 React 调度器余拍(模板同款):release 后再触发会在无 window 环境抛
   // 「window is not defined」——window 还在时让完这一拍再拆 happy-dom。
-  await new Promise((r) => setTimeout(r, 0));
+  await Bun.sleep(0);
   await releaseHappyDom();
 });
 
@@ -380,7 +376,7 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     expect(hasClass(card(), "sel")).toBe(true);
     click(chip());
     click(confirm());
-    await waitUnmounted(banner, "落印后窗应随结算收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
+    await finishExit(banner, "落印后窗应随结算收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
     expect(snap().players[0].jinnangHand).not.toContain("识破诡计"); // 牌耗(离手)
     const log = snap()
       .log.map((l) => l.detail)
@@ -551,11 +547,9 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     expect(hasClass(modalQ(TESTIDS.skillGlossaryRow("huogong"))!, "is-hl")).toBe(true);
     expect(hasClass(modalQ(TESTIDS.skillGlossaryRow("yingzi"))!, "is-off")).toBe(true); // 池内未授
     expect(glossary.textContent).toContain("此面值递增1"); // 池内技描述全文(卡面上无描述)
-    // 关闭:X→退场协议(210ms「播完再移除」)走完即卸——有界等待(happy-dom 真定时器
-    // 自然走时);协议在途时节点仍在场,「卸载后断言吃到 null」才安全(在场元素进
-    // expect 会触发序列化循环引用爆炸,见 waitUnmounted 判词)。
+    // 关闭:X→控时推进退场出口后断卸载;布尔断言避免序列化在途 DOM 节点。
     click(modalQ(TESTIDS.modalClose)!);
-    await waitUnmounted(() => modalQ(TESTIDS.skillGlossary), "技能全览应随退场协议卸载");
+    await finishExit(() => modalQ(TESTIDS.skillGlossary), "技能全览应随退场协议卸载");
     // 点卡体=选中(主技名点击不触发选中的分流在 skillIdFromClick)→「出牌」打出
     click(lei);
     expect(hasClass(leiFace, "sel")).toBe(true);
@@ -583,7 +577,7 @@ describe("反应窗应答接线(自 react-reaction 迁入,#1317 批T3)", () => {
     click(q(document, TESTIDS.reactionDecline)!);
     // 窗收+留痕:权威侧 use=0 应答(reactionRespond);结算随行=中心受 1 点火焰伤害
     //(Lv1 满防 4→3,等级不动)
-    await waitUnmounted(
+    await finishExit(
       () => q(document, TESTIDS.reactionBanner),
       "不用后窗应随结算收横幅", // 窗收断言吃已卸载 null(wire3 判词)
     );
@@ -656,14 +650,14 @@ describe("反应窗应答接线(自 react-reaction 迁入,#1317 批T3)", () => {
     for (const op of huoshaoWindow(1, city1.tileIndex)) plant(op);
     expect(banner()).not.toBeNull();
     click(q(document, TESTIDS.reactionMute)!);
-    await waitUnmounted(banner, "降噪后代发应即收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
+    await finishExit(banner, "降噪后代发应即收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
     expect(respondCount()).toBe(1);
     expect(defenseOf(city1.propertyId)).toBe(3); // 结算随代发落地(本窗即时拍)
     // 第二道窗(同一行动者途经):零人工点击——静默期自动代发「不用」(接线=消费侧
     // useEffect 依窗实例号代发;状态机判词单源 reaction-mute.test)
     const city2 = plantCity();
     for (const op of huoshaoWindow(1, city2.tileIndex)) plant(op);
-    await waitUnmounted(banner, "静默期横幅不应弹出"); // 静默:横幅不弹(判词同上)
+    await finishExit(banner, "静默期横幅不应弹出"); // 静默:横幅不弹(判词同上)
     expect(snap().turnPhase).not.toBe("AwaitingReaction"); // 自动代发后窗已收
     expect(respondCount()).toBe(2); // 两份应答、一次点击=第二份必出自静默代发
     expect(defenseOf(city2.propertyId)).toBe(3); // 第二窗结算亦随代发落地(本窗即时拍)
@@ -676,7 +670,7 @@ describe("反应窗应答接线(自 react-reaction 迁入,#1317 批T3)", () => {
     for (const op of huoshaoWindow(2, capTile)) plant(op);
     expect(banner()).not.toBeNull();
     click(q(document, TESTIDS.reactionDecline)!); // 收尾放行,不留悬窗
-    await waitUnmounted(banner, "收尾放行后窗应收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
+    await finishExit(banner, "收尾放行后窗应收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
     expect(respondCount()).toBe(3);
     expect(defenseOf(capPid)).toBe(3); // 第三窗结算落地(本窗即时拍)
     expect(city1.propertyId).not.toEqual(city2.propertyId); // 三窗不重城自证(选址器 exclude)

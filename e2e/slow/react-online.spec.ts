@@ -17,7 +17,13 @@
 // 走引擎服务器(托管 dist + WS;playwright.config 第二个 webServer),端口随
 // E2E_GAME_PORT 隔离协议取值(与 config 同源,默认 3010)。
 // ⚠ 跑前需先 npm run build(dist 必须最新——两个 webServer 都消费 dist 产物)。
-import { testUnscaled as test, expect, type Browser, type Page } from "../fixtures";
+import {
+  testUnscaled as test,
+  expect,
+  newMobileContext,
+  type Browser,
+  type Page,
+} from "../fixtures";
 import type { Locator } from "@playwright/test";
 import {
   waitSettled,
@@ -172,16 +178,16 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
 });
 
 test("E7/X14:大厅国号方章 + 重名预告双端可见;房间码回车即加入", async ({ browser }) => {
-  const host = await (await browser.newContext()).newPage();
-  const g1 = await (await browser.newContext()).newPage();
-  const g2 = await (await browser.newContext()).newPage();
+  const host = await (await newMobileContext(browser)).newPage();
+  const g1 = await (await newMobileContext(browser)).newPage();
+  const g2 = await (await newMobileContext(browser)).newPage();
 
   // host 建房(3 座;R3-D1 #99:建房路径也带预设国号——host 侧 localStorage 预设「蜀」
   // (与 SoloSetup GUOHAO_PREF_KEY 同源),seat0 应挂「蜀」章;与加入者的「魏」不重名,不影响下方预告断言)
   await host.addInitScript(() => localStorage.setItem("dafung.guohao", "蜀"));
   await host.goto(`${ONLINE}/?online=1`);
-  await host.getByTestId(`${LID.seatCount}-plus`).click(); // X10 stepper:2 → 3 座
-  await host.getByTestId(LID.create).click();
+  await host.getByTestId(`${LID.seatCount}-plus`).tap(); // X10 stepper:2 → 3 座
+  await host.getByTestId(LID.create).tap();
   await expect(host.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
   const roomId = (await host.getByTestId(LID.roomCode).textContent())?.trim() ?? "";
 
@@ -192,7 +198,7 @@ test("E7/X14:大厅国号方章 + 重名预告双端可见;房间码回车即加
   // g1 点「加入」;g2 在输入框回车提交(X14 #33:form onSubmit 与点按等价)
   await g1.goto(`${ONLINE}/?online=1`);
   await g1.getByTestId(LID.joinInput).fill(roomId);
-  await g1.getByTestId(LID.join).click();
+  await g1.getByTestId(LID.join).tap();
   await expect(g1.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
 
   await g2.goto(`${ONLINE}/?online=1`);

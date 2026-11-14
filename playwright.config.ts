@@ -1,6 +1,7 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig } from "@playwright/test";
 import { basename } from "node:path";
 import { gameServerPort, staticPreviewPort } from "./scripts/dev-ports";
+import { MOBILE_CONTEXT_OPTIONS } from "./e2e/mobile-context";
 
 // ⚠️ runner 必须跑在 Node 上,不要迁 Bun(2026-09 实测 bun 1.4.0):①裸跑
 // `bun run --bun playwright test` 会静默 exit 0 且 0 条用例执行(pw 的
@@ -67,6 +68,7 @@ export default defineConfig({
   globalTimeout:
     (process.env.E2E_GLOBAL_TIMEOUT ? Number(process.env.E2E_GLOBAL_TIMEOUT) : 15) * 60_000,
   use: {
+    ...MOBILE_CONTEXT_OPTIONS,
     baseURL: `http://localhost:${STATIC_PORT}`,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
@@ -76,7 +78,6 @@ export default defineConfig({
     {
       name: "chromium",
       use: {
-        ...devices["Desktop Chrome"],
         // Windows 用系统 Edge(免下载自带浏览器);Linux/macOS 回退 playwright 自带
         // chromium(~/.cache/ms-playwright 缓存,首次需 npx playwright install chromium)。
         ...(process.platform === "win32" && { channel: "msedge" }),

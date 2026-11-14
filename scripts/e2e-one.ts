@@ -12,7 +12,6 @@
 // advisory 挡不住 bun/node 叠加窗,机械闸化成硬失败;阈值判据见 WATERMARK_GATE。
 import { spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, createWriteStream } from "node:fs";
-import { distFreshness, stampDistBuild } from "./dist-freshness";
 import { probeWatermark, warnIfLoaded } from "./e2e-watermark";
 
 const LOG = "tmp/e2e-one-last.log";
@@ -64,20 +63,12 @@ const exitCode = await new Promise<number>((resolve) => {
     });
 
   (async () => {
-    // 段 1:前端构建——dist 新鲜即跳(#986,scripts/dist-freshness.ts 保守判新,
-    // 存疑必 build):同树重复定向跑不再付重复 build 的墙钟。
-    const freshness = distFreshness();
-    if (freshness.fresh) {
-      tee("\n[e2e] dist 新鲜,跳过构建\n");
-    } else {
-      tee(`\n[e2e-one] ${freshness.reason},执行构建…\n`);
-      const buildCode = await run("bun", ["run", "--bun", "vite", "build"]);
-      if (buildCode !== 0) {
-        tee(`\n[e2e-one] build 失败(exit ${buildCode}),跳过 playwright。\n`);
-        resolve(buildCode);
-        return;
-      }
-      stampDistBuild();
+    // 段 1:与常规 build 共用打包完成判据;这里不声称跑过类型检查。
+    const buildCode = await run("bun", ["run", "build:bundle"]);
+    if (buildCode !== 0) {
+      tee(`\n[e2e-one] build 失败(exit ${buildCode}),跳过 playwright。\n`);
+      resolve(buildCode);
+      return;
     }
     // 段 2:playwright,参数透传。注意必须走 node 通道(不带 --bun:
     // bun 跑 playwright launch() 挂起,how-to「截图/探针通路」节在案)。
