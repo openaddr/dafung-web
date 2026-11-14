@@ -1,62 +1,24 @@
-// 双端对跑范例例(#1283,ADR-0062 层③):两个完整客户端栈(真 OnlineController + 真
-// gameStore/netStore)经**真 WebSocket**(bun 原生 WS 客户端 × 服务器真升级面)连**进程内
-// 引擎服务器**(scripts/server.ts 编程内起缝:export engineServer 句柄,PORT=0 随机临时
-// 端口),跑通 建房→入座→选图→开局→双端选都→Playing→服务器 #188 自动起摇代掷代行,
-// 断言 = 双端引擎公开投影逐字段收敛(含共享 gameStore 快照三方对账)+ 事件折算对账
-// (diceRolled/marchArrived 属 must-fold 档,无校准快照随行,折进两端副本的状态唯一来源
-// 是事件批折叠——两端一致即折算语义对账),零 DOM 断言。
+// 双端对跑范例(ADR-0062 层③):健康路径使用每端独立 Bun 子进程(#1436),
+// 各加载生产 OnlineController + gameStore/netStore,经生产 ReconnectingSocket 的真
+// WebSocket 连进程内服务器。IPC 只承载具体测试意图与同步读数,不是第二套对局传输。
 //
-// 装配配方(本层模板,后续对跑例照此抄):
-//   ① 服务器缝:beforeAll 先设 env 再动态 import scripts/server——import 即起服(进程内
-//      单例,重复 import 走模块缓存),句柄 .port 取实际口、.stop(true) 收摊。env 面:
-//      PORT=0(随机口)/HOST=127.0.0.1/ROOMS_DIR·LOGS_DIR·STATIC_DIR→tmp/EXTENSIONS_DIR→
-//      tmp 空目录(合法零包环境,不裹挟共享进程的引擎注册面)/JIYU_CONFIG→e2e/jiyu-off.json
-//      (机遇隔离,#118 教训)/E2E_BOT_STEP_MS=0/E2E_REACTION_MS=300(缩反应窗)/
-//      DECISION_TIMEOUT_MS·RETENTION_WINDOW_MS=0(看门狗全关:停摆=响亮挂测,协议级
-//      e2e 同款)。缝的判词见 scripts/server.ts「编程内起缝」注:单例长驻进程,导出已存在
-//      的 serve 结果是最小缝,不另设装配函数。
-//   ② 地址面:bun 运行时无 localStorage/location(量实,1.3.14)——补 localStorage 最小
-//      shim(仅 getItem/setItem/removeItem),经 server-base 单源的**既有覆写通路**
-//      (dafung.server-base,APK 联机改址同一条路;覆写存在时 getServerBase 短路,不触
-//      location)写入 http://127.0.0.1:<port>。客户端零注入缝:OnlineController→
-//      LobbyApi(REST fetch)→ReconnectingSocket(默认工厂 new WebSocket,bun 原生可用)
-//      全走生产装配路径,不造第二套 socket 语义。
-//   ③ 双栈:各 new OnlineController(guanzhong,"guanzhong")(同图,lobby 广播的 mapId
-//      不触发 rebuildForMap)→ host.createRoom / guest.joinRoom(REST 大厅,adoptRoom
-//      内建真 WS)。
-//   ④ 驱动纪律:各端只认自己的座位(draft 序不预设,谁轮到谁 setupPickCapital,读各自
-//      引擎的 offeredCapitals——落子时刻的候选已滚出被选都城);对局推进全服务器驱动
-//      (#188 autoRoll 代摇不代决策,停在首个决策门,DECISION_TIMEOUT=0 冻结=稳定读数点)。
-//   ⑤ 收敛读数:单线程内同步读三份投影(两端引擎 + 共享 gameStore 快照)原子成对比较,
-//      不等即重试;相等后静置一拍复读(排除「正被后续事件批推进」的瞬时相等);一切
-//      等待显式超时,超时即抛并附三方投影 JSON 转储(逐字段定位漂移,禁裸等)。
+// 装配配方:
+//   ① beforeAll 先设 env 再 import scripts/server;PORT=0/专属临时目录/零扩展包/
+//      关闭机遇与决策看门狗,afterAll stop(true)、还原 env、清临时目录。
+//   ② DualClientProcess 各拉起 dual-client-runtime.ts,每端私有模块缓存和完整客户端栈;
+//      最小 localStorage shim 只承载生产 server-base 既有覆写键,零 DOM。
+//   ③ 固定 seed 经既有 LobbyApi/adoptRoom 测试缝建房,guest 生产 joinRoom 入座;
+//      选图/开局/选都/今不用均调用生产控制器,上行下行始终是真 WS。
+//   ④ 每端同拍读自己的引擎快照和两个真实 store,公开字段作四向收敛,私密手牌
+//      按座位裁剪且与本端引擎对账;首掷后的注册决策门冻结读数,不猜静默拍距。
+//   ⑤ 先解散房间,再每端 destroy/清 registry/双 store reset/解绑引擎,断 IPC 并
+//      有界等待子进程退出;RPC 与阶段等待超时均带端名/操作/状态。guest 单独 reset
+//      的断言同时守住 host 座位、连接与私密投影不被覆盖。
 //
-// 本层禁什么(ADR-0062 层③口径):几何/像素/DOM 断言零容忍。演出链(DOM/音频)在 bun
-// 缺席由 SnapshotEffects 捕获报错不断言(local-room 先例 wisdom 复用)。保密截面不在
-// 收敛面:联机下行按座位投影(他人 jinnangHand/牌序 per-端不同是特性不是漂移),投影
-// 白名单只取公开字段(相位/回合/骰/路径/现金/位置/都城/地产/麾下/珍宝 id/手牌数)。
-//
-// store 单例纠缠(预期成本,ADR-0062 后果节;本例实测盘点):同进程双栈共享 zustand
-// 模块单例——netStore 的 per-端字段(mySeat/connection)最后写胜、随栈抖动,断言面避开
-// (只断双端同值的房间字段);gameStore 快照 = 最后同步端,因两端收敛故三方投影必一致。
-// per-端隔离治理(可重置/实例隔离)按可隔离性常设原则随票治理,src/app/store/** 不在本
-// 票文件所有权内(#1284 领域),此处仅盘点不下刀。收摊 reset netStore + setScreen 回
-// setup:现状盘点守 store 初值的默认池用例(event-feed)自带 reset,其余消费面吃 delta,
-// 复位后对任何执行序零污染。
-//
-// 重连场景范例(#1287 扩充,本文件第二例):在首例装配(配方①-⑤)之上走「真 WS 裸关
-// → ReconnectingSocket 退避重连 → 服务器整房摘要水合 → 双端 store 收敛恢复」全链;
-// 裸关缝/读数点/断言口径的判词见该例例注。分工判词:线级(裸协议客户端)重连语义归
-// test/online/protocol-online.test.ts 场景二/四/五,断线横幅可见性归 react-online-cutover
-// 浏览器地板例——三层各有其环,本例补的是生产客户端栈(OnlineController+双 store)
-// 过真断线的恢复语义,互不替代。
-//
-// 慢例归属:首例实测 ~1.5s(2026-11-08 标定,五连跑 1.49-1.57s),低于「单例 ≥3s 入
-// 慢池」判据(docs/how-to/开发与测试.md「把测试跑起来」),常驻默认池;重连例(#1287)
-// 单例 ≥3s(真退避 ~1s 起步墙钟=用例本体不可压缩,恢复类),按 local-room 骑局先例
-// itSlow 入 DAFUNG_SLOW(bun run test:slow / DAFUNG_SLOW=1 bun test 本文件)。
-// #1421/#1422 原座手动恢复例实测 269ms(2026-11-14),固定选都门+maxAttempts=0,
-// 无生产退避等待,留默认池;旧自动重连骑局仍按原慢池口径隔离。
+// 本层零 DOM/几何/像素/演出泵断言;公开投影保留 outcomeKind,不扩大 #1297 豁免。
+// 原座恢复、退避重连、反应窗暂沿用下方共享单例旧装配,后续 T6 迁移;新例请以
+// 隔离健康例和 dual-client-{process,runtime,observation}.ts 为范例。
+// 重连旧例仍归 DAFUNG_SLOW,健康路径常驻默认池;实测耗时随本票交付记录。
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -70,6 +32,8 @@ import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import guanzhongData from "../../public/maps/guanzhong.json" with { type: "json" };
 import { cmdMsg } from "../../scripts/wire";
+import { DualClientProcess } from "./dual-client-process";
+import type { DualClientObservation } from "./dual-client-observation";
 
 const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);
 
@@ -166,19 +130,6 @@ async function pickCapitalWhenTurn(c: OnlineController): Promise<void> {
     `座位 ${c.seat} 选都落子生效`,
     15_000,
   );
-}
-
-/** 轮到我出锦囊就「今不用」(useJinnang cardId=null):开局首回合的真人锦囊决策窗在
- *  DECISION_TIMEOUT=0 的测试环境无人代管,不 decline 就永远到不了 Roll——测试双端当
- *  「只出'今不用'的真人」,命令走真 WS(useJinnang 全命令通路),窗口闭后链归
- *  #188 autoRoll 代掷。返回是否发出了命令(调用方轮询重入;pending/演出未落定时
- *  interactive=false,dispatchCommand 自身守卫不发)。 */
-function declineJinnangIfAsked(c: OnlineController): boolean {
-  const e = c.engine;
-  if (e.phase !== "Playing" || e.turnPhase !== "AwaitingJinnang") return false;
-  if (e.decisionOwner !== c.seat || !c.interactive) return false;
-  c.dispatchCommand({ type: "useJinnang", cardId: null });
-  return true;
 }
 
 // ─── 公开投影(收敛面):引擎 Player 与快照 SnapshotPlayer 的结构公共面白名单 ───
@@ -461,107 +412,178 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     Reflect.deleteProperty(globalThis, "localStorage");
   }, 15_000);
 
-  it("双栈真 WS 对跑:建房→入座→选图→开局→双端选都→事件折算推进,双端公开投影逐字段收敛", async () => {
-    const a = new OnlineController(MAP, "guanzhong");
-    const b = new OnlineController(MAP, "guanzhong");
-    hostCtrl = a;
-    guestCtrl = b;
-
-    // 建房(host=座位0)+ 入座(guest=座位1):REST 大厅 + adoptRoom 内建真 WS
-    const created = await a.createRoom({ seats: 2 });
-    expect(created.ok).toBe(true);
-    roomId = created.roomId;
-    hostToken = created.seatToken;
-    expect(a.seat).toBe(0);
-    const joined = await b.joinRoom(roomId);
-    expect(joined.seat).toBe(1);
-    await until(
-      () => {
-        const net = useNetStore.getState();
-        return net.roomId === roomId && net.seats.length === 2 && net.seats.every((s) => s.online);
-      },
-      "双端入座并在线",
-      10_000,
-    );
-
-    // 选图(同图不触发 rebuildForMap)→ 开局(引擎在服务器侧构造,双端等广播)
-    await a.pickMap("guanzhong");
-    await a.startGame();
-
-    // 双端各自水合进 Setup(draft 序不预设),谁轮到谁落子
-    await until(() => hydratedOf(a) && a.engine.phase === "Setup", "host 端水合进 Setup", 15_000);
-    await until(() => hydratedOf(b) && b.engine.phase === "Setup", "guest 端水合进 Setup", 15_000);
-    expect(hydratedOf(a)).toBe(true);
-    expect(hydratedOf(b)).toBe(true);
-    await until(() => pickReady(a) || pickReady(b), "首轮选都就位", 15_000);
-    await pickCapitalWhenTurn(pickReady(a) ? a : b);
-    await pickCapitalWhenTurn(pickReady(a) ? a : b);
-
-    // 双端进 Playing(finishSetup 批 gameStarted 折算 + 校准快照水合,双保险同值)
-    await until(
-      () => a.engine.phase === "Playing" && b.engine.phase === "Playing",
-      "双端折叠/水合进 Playing",
-      15_000,
-    );
-
-    // 事件折算素材:服务器 #188 自动起摇(AUTO_ROLL_DELAY_MS=1s)代发 rollAndMove,
-    // 掷骰/行军族事件批(must-fold 档,无校准快照随行)折进两端只读副本;首掷前唯一
-    // 真人决策 = 开局锦囊窗,轮到就「今不用」(declineJinnangIfAsked,确定性不靠种子)
-    const rollDeadline = Date.now() + 30_000;
-    for (;;) {
-      if (a.engine.lastRoll != null && b.engine.lastRoll != null) break;
-      void declineJinnangIfAsked(a);
-      void declineJinnangIfAsked(b);
-      if (Date.now() > rollDeadline) {
-        throw new Error(`等待超时:两端折得首掷 diceRolled\n${stackDump()}`);
-      }
-      await Bun.sleep(25);
-    }
-
-    // 三方投影收敛:相等后静置复读,稳定相等才算数(读数点=决策门冻结或批间静默)
-    const deadline = Date.now() + 20_000;
-    let view: PublicProjection | null = null;
-    for (;;) {
-      const t1 = readTriple();
-      if (sameProjection(t1.a, t1.b) && sameProjection(t1.a, t1.s)) {
-        await Bun.sleep(300);
-        const t2 = readTriple();
-        if (
-          sameProjection(t1.a, t2.a) &&
-          sameProjection(t2.a, t2.b) &&
-          sameProjection(t2.a, t2.s)
-        ) {
-          view = t2.a;
-          break;
+  // 守住完整客户端隔离与事件折算;固定 seed,本体预算为首掷生产延迟加进程装配。
+  // 红证明:原共享装配在 guest 入座后,host 的 netStore.mySeat 实测由 0 变成 1。
+  it("双栈真 WS 对跑:建房→入座→选图→开局→双端选都→事件折算推进,每端 store 独立收敛", async () => {
+    const a = new DualClientProcess("host", serverBase);
+    let b: DualClientProcess | null = null;
+    const closeClients = async (): Promise<void> => {
+      const closed = await Promise.allSettled([a.close(), ...(b === null ? [] : [b.close()])]);
+      const errors = closed.filter((r) => r.status === "rejected").map((r) => r.reason);
+      if (errors.length > 0) throw new AggregateError(errors, "隔离双端收摊失败");
+    };
+    try {
+      b = new DualClientProcess("guest", serverBase);
+      const clients = [a, b] as const;
+      type Pair = [DualClientObservation, DualClientObservation];
+      const read = (): Promise<Pair> => Promise.all([clients[0].observe(), clients[1].observe()]);
+      const wait = async (desc: string, cond: (pair: Pair) => boolean): Promise<Pair> => {
+        const deadline = Date.now() + 15_000;
+        for (;;) {
+          const pair = await read();
+          if (cond(pair)) return pair;
+          if (Date.now() > deadline)
+            throw new Error(`隔离双端等待超时:${desc}\n${JSON.stringify(pair)}`);
+          await Bun.sleep(10);
         }
+      };
+      const created = await a.request({ kind: "createRoom", seats: 2, seed: 1 });
+      if (created.credentials === null) throw new Error("host 建房未返回凭证");
+      roomId = created.credentials.roomId;
+      hostToken = created.credentials.seatToken;
+      await b.request({ kind: "joinRoom", roomId });
+      const lobby = await wait("双方各自 store 入座并在线", (pair) =>
+        pair.every(
+          (v) =>
+            v.net.roomId === roomId &&
+            v.net.connection === "open" &&
+            v.net.seats.length === 2 &&
+            v.net.seats.every((seat) => seat.online),
+        ),
+      );
+      for (const [seat, endpoint] of lobby.entries()) {
+        expect(endpoint.net.mySeat, `端 ${seat} 的真实 netStore 座位`).toBe(seat);
+        expect(endpoint.game.viewSeat, `端 ${seat} 的真实 gameStore 视角`).toBe(seat);
+        expect(endpoint.net.connected).toBe(true);
+        expect(endpoint.net.connection).toBe("open");
+        expect(endpoint.net.connectionFailure).toBeNull();
       }
-      if (Date.now() > deadline) {
-        const t = readTriple();
-        throw new Error(
-          `三方投影未收敛(20s):\nA=${JSON.stringify(t.a)}\nB=${JSON.stringify(t.b)}\nS=${JSON.stringify(t.s)}`,
+
+      await a.request({ kind: "pickMap", mapId: "guanzhong" });
+      await a.request({ kind: "startGame" });
+      await wait("两端首帧摘要水合进 Setup", (pair) =>
+        pair.every((v) => v.hydrated && v.engine!.phase === "Setup"),
+      );
+      // 按当前候选与本端座位选都,不预设 draft 次序,不跨座代答。
+      for (let picked = 0; picked < 2; picked++) {
+        const pair = await wait("轮到本端选都", (views) =>
+          views.some(
+            (v) =>
+              v.engine!.phase === "Setup" &&
+              v.engine!.setupPhase === "PickCapital" &&
+              v.engine!.currentSetupPlayerIndex === v.net.mySeat,
+          ),
+        );
+        const seat = pair.findIndex((v) => v.engine!.currentSetupPlayerIndex === v.net.mySeat);
+        const tileIndex = pair[seat].engine!.offeredCapitals[0];
+        if (tileIndex === undefined) throw new Error(`座位 ${seat} 没有选都候选`);
+        await clients[seat].request({ kind: "pickCapital", tileIndex });
+        await wait(`座位 ${seat} 选都落账`, (views) =>
+          views.every(
+            (v) => v.engine!.phase === "Playing" || v.engine!.currentSetupPlayerIndex !== seat,
+          ),
         );
       }
-      await Bun.sleep(50);
+      const playing = await wait("双方进 Playing 并投影本端 store", (pair) =>
+        pair.every((v) => v.engine!.phase === "Playing" && v.game.snapshot!.phase === "Playing"),
+      );
+      // 私密内容只和本端引擎对账,另一端看到的是空手牌内容与公开手牌数。
+      const assertPrivateView = (pair: Pair): void => {
+        for (const [seat, endpoint] of pair.entries()) {
+          const live = endpoint.engine!.players;
+          const projected = endpoint.game.snapshot!.players;
+          expect(
+            projected.map((p) => p.jinnangHand),
+            `端 ${seat} 引擎↔本端 store 私密投影`,
+          ).toEqual(live.map((p) => p.jinnangHand));
+          expect(projected[seat].jinnangHand.length).toBeGreaterThan(0);
+          expect(projected[seat].jinnangHand).toHaveLength(projected[seat].jinnangHandCount);
+          expect(projected[1 - seat].jinnangHand).toEqual([]);
+          expect(projected[1 - seat].jinnangHandCount).toBeGreaterThan(0);
+          expect(projected[seat].jinnangHand).not.toEqual(
+            pair[1 - seat].game.snapshot!.players[seat].jinnangHand,
+          );
+        }
+      };
+      assertPrivateView(playing);
+
+      // 只放行首掷前的锦囊门,生产 autoRoll 起摇。到首掷后的注册决策门就停:
+      // 双人房无 bot、DECISION_TIMEOUT=0,这是冻结读数点,不用静置墙钟猜收敛。
+      const deadline = Date.now() + 15_000;
+      let final: Pair;
+      for (;;) {
+        const pair = await read();
+        const projected = pair.flatMap((v) => [
+          snapshotProjection(v.engine!),
+          snapshotProjection(v.game.snapshot!),
+        ]);
+        if (
+          pair.every(
+            (v) =>
+              v.engine!.lastRoll !== null &&
+              v.engine!.lastMove !== null &&
+              v.engine!.choices.length > 0,
+          ) &&
+          projected.every((v) => sameProjection(projected[0], v))
+        ) {
+          final = pair;
+          break;
+        }
+        if (Date.now() > deadline)
+          throw new Error(`首掷后四向公开投影未在决策门收敛\n${JSON.stringify(pair)}`);
+        for (const [seat, endpoint] of pair.entries()) {
+          if (endpoint.engine!.lastRoll === null || endpoint.engine!.lastMove === null)
+            await clients[seat].request({ kind: "declineJinnang" });
+        }
+        await Bun.sleep(10);
+      }
+      const view = snapshotProjection(final[0].engine!);
+      // 四向等式含 outcomeKind,不扩大恢复旧例对 Noop 漂移的字段豁免。
+      expect(snapshotProjection(final[0].game.snapshot!)).toEqual(view);
+      expect(snapshotProjection(final[1].engine!)).toEqual(view);
+      expect(snapshotProjection(final[1].game.snapshot!)).toEqual(view);
+      expect(view.phase).toBe("Playing");
+      expect(view.turnNumber).toBeGreaterThanOrEqual(1);
+      expect(view.lastRollDie).not.toBeNull();
+      expect(view.lastMove).not.toBeNull();
+      expect(view.players.some((p) => p.position !== p.capitalIndex)).toBe(true);
+      expect(view.takenCapitals).toHaveLength(2);
+      assertPrivateView(final);
+      for (const [seat, endpoint] of final.entries()) {
+        expect(endpoint.net.mySeat).toBe(seat);
+        expect(endpoint.game.viewSeat).toBe(seat);
+        expect(endpoint.net.connection).toBe("open");
+        expect(endpoint.net.connected).toBe(true);
+        expect(endpoint.net.host).toBe(0);
+        expect(endpoint.net.started).toBe(true);
+        expect(endpoint.net.mapId).toBe("guanzhong");
+      }
+
+      // guest 单独销毁/重置,host 的每端字段和私密内容仍保留本端值。
+      const resetGuest = await b.request({ kind: "reset" });
+      const hostAfterReset = await a.observe();
+      expect(resetGuest.net.mySeat).toBe(-1);
+      expect(resetGuest.net.connection).toBe("idle");
+      expect(resetGuest.net.connected).toBe(false);
+      expect(resetGuest.game.viewSeat).toBe(-1);
+      expect(resetGuest.game.snapshot).toBeNull();
+      expect(hostAfterReset.net.mySeat).toBe(0);
+      expect(hostAfterReset.net.connection).toBe("open");
+      expect(hostAfterReset.net.connected).toBe(true);
+      expect(hostAfterReset.game.viewSeat).toBe(0);
+      expect(hostAfterReset.game.snapshot!.players[0].jinnangHand).toEqual(
+        final[0].game.snapshot!.players[0].jinnangHand,
+      );
+      expect(snapshotProjection(hostAfterReset.game.snapshot!)).toEqual(view);
+    } finally {
+      // 房主在线时先解散,之后双端显式 reset→IPC断开→等待退出;失败也清理两端。
+      try {
+        await dismissCurrentRoom("隔离健康例收摊");
+      } finally {
+        await closeClients();
+      }
     }
-
-    // 事件折算对账(must-fold 族;状态唯一来源 = 事件批折叠,无校准快照背书)
-    expect(view!.phase).toBe("Playing"); // gameStarted 折算
-    expect(view!.turnNumber).toBeGreaterThanOrEqual(1); // turnStarted 折算
-    expect(view!.lastRollDie).not.toBeNull(); // diceRolled 折算(#188 autoRoll 代摇)
-    expect(view!.lastMove).not.toBeNull(); // marchArrived/capitalHalt 折算
-    expect(view!.players.some((p) => p.position !== p.capitalIndex)).toBe(true); // 有人离都行军
-    expect(view!.takenCapitals).toHaveLength(2); // 双端选都落账(capitalSelected×2)
-
-    // 房间元数据(双端同值面;per-端字段见头注「store 单例纠缠」盘点,不在断言面)
-    const net = useNetStore.getState();
-    expect(net.roomId).toBe(roomId);
-    expect(net.host).toBe(0);
-    expect(net.started).toBe(true);
-    expect(net.mapId).toBe("guanzhong");
-    expect(net.seats).toHaveLength(2);
-    expect(net.seats.every((seat) => seat.online)).toBe(true);
-    expect(net.connection).toBe("open");
-  }, 90_000);
+  }, 60_000);
 
   // #1421/#1422 契约守卫:真 REST 入座+真 WS 升级,固定 seed、双真人、零 bot,
   // guest 若先选都,经公共方法落一子后停在 host 门;guest 托管不推进真人门。恢复不清托管,

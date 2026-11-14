@@ -27,10 +27,11 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { chromium } from "playwright";
 import { preview } from "vite";
+import { MOBILE_CONTEXT_OPTIONS } from "./mobile-context.ts";
 
 export async function openShotSession({
   port = 5300,
-  viewport = { width: 844, height: 390 },
+  viewport = MOBILE_CONTEXT_OPTIONS.viewport,
   deviceScaleFactor = 2,
   /** true = 落格机遇关零(确定性无机遇卷轴;默认不 mock,读真实 public/config/jiyu.json)。 */
   zeroEncounter = false,
@@ -50,7 +51,7 @@ export async function openShotSession({
     ...(process.platform === "win32" && { channel: "msedge" }),
     args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
   });
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor });
+  const ctx = await browser.newContext({ ...MOBILE_CONTEXT_OPTIONS, viewport, deviceScaleFactor });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("[pageerror]", String(e).slice(0, 300)));
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.25")); // 演出加速,同 e2e

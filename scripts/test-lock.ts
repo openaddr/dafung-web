@@ -39,6 +39,23 @@ const argv = process.argv.slice(2);
 const entryFlag = argv.indexOf("--entry");
 const entry = entryFlag >= 0 ? argv[entryFlag + 1] : undefined;
 const cmd = entryFlag >= 0 ? argv.filter((_, i) => i !== entryFlag && i !== entryFlag + 1) : argv;
+// package 放行入口不接收追加参数,防止 --only/-t/--grep/--list/路径把全套缩成子集。
+// 定向 e2e:one 与裸 bun test 是各自独立的诊断入口,不在这里限制。
+const releaseCommands: Record<string, string[]> = {
+  test: ["bun", "scripts/bun-release.ts"],
+  "test:slow": ["bun", "scripts/bun-release.ts"],
+  "test:e2e": ["bun", "run", "test:e2e:one", "e2e/spine", "e2e/geometry", "e2e/browser"],
+  "test:e2e:slow": ["bun", "run", "test:e2e:one", "e2e/slow"],
+};
+if (entry !== undefined && Object.hasOwn(releaseCommands, entry)) {
+  const full = releaseCommands[entry]!;
+  if (cmd.length !== full.length || cmd.some((arg, index) => arg !== full[index])) {
+    console.error(
+      `[test-lock] ${entry} 完整放行不接受追加参数;定向诊断请用裸 bun test 或 test:e2e:one,列表用 npx playwright test --list。`,
+    );
+    process.exit(2);
+  }
+}
 if (cmd.length === 0) {
   console.error(
     "用法:bun scripts/test-lock.ts [--entry <入口名>] <命令...>(抢全量测试锁后执行命令,退出释放)",
