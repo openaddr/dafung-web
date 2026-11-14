@@ -11,7 +11,7 @@
 //   bun scripts/fetch-asset.ts --id hero:simayi:sgs --wiki "https://wiki.biligame.com/sgs/文件:司马懿-经典形象.png"
 //   bun scripts/fetch-asset.ts --id hero:simayi:sgs --wiki "https://patchwiki.biligame.com/images/sgs/0/0a/<hash>.png"
 //
-//   # noname 模式(#507:开源杀 jsdelivr 镜像;拼音→武将映射人工核对,见 docs/design/素材映射.md):
+//   # noname 模式(#507:开源杀 jsdelivr 镜像;拼音→武将映射人工核对,登记结果以 public/assets/manifest.json 为单源):
 //   bun scripts/fetch-asset.ts --id hero:huatuo:noname --noname huatuo --webp 82 --avatar 200
 //   bun scripts/fetch-asset.ts --id texture:zhulin --noname zhulin_bg --noname-dir background --category textures --webp 80 --max-height 1200
 //

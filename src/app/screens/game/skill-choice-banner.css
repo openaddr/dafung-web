@@ -1,7 +1,7 @@
 /* 「你可」选择闸触发卡(#1378)样式:反应窗横幅同形(容器几何/按钮种/候选笺
    逐项对齐 reaction-banner.css,独立类名不跨件复用——ReactionBanner 同判词)。
    色一律 var(--color-*) 或其 color-mix alpha 形式;动效时长/缓动走 token 单源;
-   文案笔书(新文案禁 font-deco,BRIEF §2);无倒计时弧(权威侧无窗级 deadline,
+   文案笔书(新文案禁 font-deco,DESIGN font-deco 条);无倒计时弧(权威侧无窗级 deadline,
    联机停摆超时=看门狗代发「暂不发」,#1378 真修——呈现零自造定时)。
 
    裸色豁免登记(#510 后存留,同 reaction-banner.css 口径):rgba(200,161,58,·)/

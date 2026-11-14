@@ -35,7 +35,7 @@ const contribution: ExtensionAuthorityContribution = {
       id: "taishici",
       name: "太史慈",
       // 技能池(ADR-0036):按池声明序引用上方注册的技(核心技亦可入池,如 "jixing")。
-      // 立绘(#751 画像统一收官):sgs 经典形象直取(curid=8974,素材映射.md)
+      // 立绘(#751 画像统一收官):sgs 经典形象直取(curid=8974,登记单源 public/assets/manifest.json)
       image: "/assets/heroes/hero-taishici-sgs.png",
       skillPool: ["taishici-yicong", "taishici-pozhen"],
     },

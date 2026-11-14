@@ -2,7 +2,7 @@
    长出)+ 架上反应牌呼吸金边。色一律 var(--color-*) 或其 color-mix alpha 形式
    (#510 玄墨鎏金:墨影 rgba(43,35,23,·) 退役,发丝线/弱轨改漆金细线);
    动效时长/缓动走 --dur-* 与 --ease-* token(tokens.css 单源)。文案笔书(新文案禁
-   font-deco,BRIEF §2);按钮种同 ActionBar 口径(墨钮=漆底金字金内环,次级=同底漆钮),
+   font-deco,DESIGN font-deco 条);按钮种同 ActionBar 口径(墨钮=漆底金字金内环,次级=同底漆钮),
    但本件独立类名(.reaction-btn)——actionbar-btn 作用域锁在 .game-layout .actionbar 下,
    不跨件复用选择器。
 
