@@ -17,7 +17,7 @@
 // 矮屏规范(#708,五族一处收口):壳最大高=视口高−64px(上下安全边);头部钉住,
 // 体部=ui/scroll-area 内滚(首帧可见滚动提示),底部操作行经 footer 槽钉住不随滚;
 // 矮横屏档行高自适应(卡基/列宽缩档)断头防治,细则全在 pile-modal.css 规范块。
-import { memo, useState, type ReactNode } from "react";
+import { lazy, memo, Suspense, useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
@@ -34,6 +34,10 @@ import type { SnapshotPlayer } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
 import { SkillBookLearnModal } from "./SkillBookLearnModal";
 import "./pile-modal.css";
+
+// #1400 一次性比选：仅专用 prototype 构建装入；普通入口与正式构建均不改。
+const HeroInspectPrototype =
+  import.meta.env.MODE === "prototype" ? lazy(() => import("./HeroInspectPrototype")) : null;
 
 /** 技能书条目形状(isSkillBook 收窄面):选人弹窗本地态的最小类型。 */
 type SkillBook = TreasureDef & { kind: "book"; skillId: string };
@@ -376,6 +380,17 @@ export const PileModal = memo(function PileModal({
   onDismiss,
   onClose,
 }: PileModalProps) {
+  if (
+    HeroInspectPrototype !== null &&
+    kind === "heroes" &&
+    new URLSearchParams(location.search).has("heroPrototype")
+  ) {
+    return (
+      <Suspense fallback={null}>
+        <HeroInspectPrototype player={player} onClose={onClose} />
+      </Suspense>
+    );
+  }
   return (
     <PileShell
       title={KIND_META[kind].title}

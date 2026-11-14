@@ -1,0 +1,424 @@
+/* PROTOTYPE #1400，全部限定名将原型壳；颜色与字族只消费现役 token。 */
+.pile-modal.hero-inspect-prototype {
+  height: calc(100dvh - 64px);
+  padding: 12px 20px 14px;
+  overflow: visible;
+}
+.hero-inspect-prototype.hip-with-tools {
+  height: calc(100dvh - 112px);
+  top: calc(50% - 24px);
+}
+.hero-inspect-prototype .pile-head {
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--hairline);
+}
+.hero-inspect-prototype .pile-body {
+  margin-top: 10px;
+  overflow: hidden;
+}
+.hero-inspect-prototype .pile-body > [data-slot="scroll-area-viewport"] {
+  display: flex;
+  flex-direction: column;
+}
+.hero-inspect-prototype .pile-body::before,
+.hero-inspect-prototype .pile-body::after {
+  display: none;
+}
+.hero-inspect-prototype h2,
+.hero-inspect-prototype h3,
+.hero-inspect-prototype p {
+  margin: 0;
+  font-weight: 400;
+}
+.hero-inspect-prototype h2 {
+  font-family: var(--font-title);
+  font-size: 23px;
+  letter-spacing: 3px;
+  color: var(--color-gold-bright);
+}
+.hero-inspect-prototype button {
+  font-family: var(--font-brush);
+  cursor: pointer;
+}
+.hero-inspect-prototype button:focus-visible {
+  outline: 2px solid var(--color-gold-bright);
+  outline-offset: -2px;
+}
+.hero-inspect-prototype button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.hip-variant {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+.hip-portrait {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-paper);
+  border: 1px solid var(--color-gold-deep);
+}
+.hip-portrait .lihui,
+.hip-portrait .lihui img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hip-portrait .lihui img {
+  object-fit: cover;
+  object-position: center 20%;
+}
+.hip-skills {
+  font-family: var(--font-wenkai);
+}
+.hip-skill {
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+.hip-skill:last-child {
+  border-bottom: 0;
+}
+.hip-skill-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 6px;
+}
+.hip-skill-head h3 {
+  color: var(--color-gold-bright);
+  font-family: var(--font-brush);
+  font-size: 21px;
+  letter-spacing: 2px;
+}
+.hip-cooldown {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-paper-dim);
+}
+.hip-skill p {
+  color: var(--color-paper);
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.hip-mark {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  flex: none;
+}
+.hip-mark.is-active {
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+.hip-reading {
+  flex: 1;
+  min-height: 0;
+}
+.hip-reading [data-slot="scroll-area-viewport"] {
+  padding-right: 12px;
+}
+.hip-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex: none;
+  padding-top: 6px;
+  border-top: 1px solid var(--hairline);
+  min-height: 42px;
+}
+.hip-actions:empty {
+  display: none;
+}
+.hip-dismiss {
+  height: 40px;
+  min-width: 86px;
+  padding: 0 15px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--color-panel);
+  color: var(--color-paper-dim);
+  font-size: 18px;
+}
+.hip-dismiss.is-armed {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+.hip-a {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: 68px 172px minmax(0, 1fr);
+  gap: 18px;
+}
+.hip-seals {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 10px;
+  border-right: 1px solid var(--hairline);
+}
+.hip-seal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--color-paper-dim);
+  background: transparent;
+  min-height: 48px;
+}
+.hip-seal .hip-portrait {
+  width: 31px;
+  height: 33px;
+}
+.hip-seal > span {
+  font-size: 14px;
+}
+.hip-seal[aria-pressed="true"] {
+  border-color: var(--color-gold);
+  background: var(--color-panel-hi);
+  color: var(--color-gold-bright);
+}
+.hip-a-hero {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-bottom: 2px;
+}
+.hip-a-hero > .hip-portrait {
+  flex: 1;
+  min-height: 0;
+}
+.hip-a-hero h2 {
+  position: absolute;
+  bottom: 12px;
+  left: 10px;
+  color: var(--color-lacquer-gold);
+  background: var(--color-lacquer);
+  padding: 6px 8px;
+  writing-mode: vertical-rl;
+}
+.hip-a-copy {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.hip-a .hip-skill:first-child {
+  padding-top: 2px;
+}
+.hip-b {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: 224px minmax(0, 1fr);
+  gap: 23px;
+}
+.hip-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-right: 1px solid var(--hairline);
+  padding-right: 13px;
+}
+.hip-roster-item {
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 12px;
+  padding: 6px;
+  min-height: 62px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--color-paper);
+  background: transparent;
+}
+.hip-roster-item[aria-pressed="true"] {
+  border-color: var(--color-gold);
+  background: var(--color-panel-hi);
+}
+.hip-roster-item > .hip-portrait {
+  width: 42px;
+  height: 49px;
+  flex: none;
+}
+.hip-roster-item > span {
+  min-width: 0;
+}
+.hip-roster-name {
+  display: block;
+  font-size: 20px;
+  letter-spacing: 2px;
+}
+.hip-roster-skills {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-paper-dim);
+}
+.hip-b-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.hip-b-title {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hairline);
+}
+.hip-b-title > span {
+  font-size: 12px;
+  color: var(--color-paper-dim);
+}
+.hip-b .hip-skill {
+  padding: 8px 0;
+}
+.hip-b .hip-skill-head {
+  margin-bottom: 3px;
+}
+.hip-c [data-slot="scroll-area-viewport"] {
+  padding-right: 12px;
+}
+.hip-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 86px;
+  gap: 19px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.hip-row:first-child {
+  padding-top: 0;
+}
+.hip-row:last-child {
+  border-bottom: 0;
+}
+.hip-row-id > .hip-portrait {
+  width: 80px;
+  height: 83px;
+}
+.hip-row-id h2 {
+  margin-top: 8px;
+  font-size: 20px;
+}
+.hip-row .hip-skill {
+  padding: 0 0 9px;
+}
+.hip-row .hip-skill + .hip-skill {
+  padding-top: 8px;
+}
+.hip-row .hip-skill-head {
+  margin-bottom: 3px;
+}
+.hip-row .hip-skill p {
+  font-size: 15px;
+  line-height: 1.65;
+}
+.hip-row-action {
+  align-self: start;
+  padding-top: 4px;
+}
+.hip-empty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+.hip-tools {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: -14px;
+  right: -14px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 1px solid var(--color-gold);
+  border-radius: 6px;
+  color: var(--color-paper);
+  background: var(--color-bg-deep);
+  box-shadow: var(--ink-shadow-lg);
+}
+.hip-tools button {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--color-paper);
+  padding: 0 9px;
+  font-size: 16px;
+  white-space: nowrap;
+}
+.hip-switcher {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+.hip-switcher > span {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-family: var(--font-wenkai);
+  font-size: 15px;
+  min-width: 112px;
+  justify-content: center;
+}
+.hip-switcher small {
+  font-size: 11px;
+  color: var(--color-paper-dim);
+}
+.hip-switcher button {
+  width: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.hip-forward {
+  transform: rotate(180deg);
+  display: flex;
+}
+.hip-tools .hip-scene {
+  border-left: 1px solid var(--hairline);
+  min-width: 128px;
+}
+.hip-note {
+  font-family: var(--font-wenkai);
+  font-size: 11px;
+  color: var(--color-paper-dim);
+  line-height: 1.5;
+}
+
+/* 原型工具条另占屏幕下缘；仅带工具的评样视图压缩名册，净样仍用完整标准壳。 */
+.hip-with-tools .hip-seals,
+.hip-with-tools .hip-roster {
+  min-height: 0;
+}
+.hip-with-tools .hip-seal {
+  padding: 1px;
+  gap: 1px;
+}
+.hip-with-tools .hip-seal .hip-portrait {
+  width: 27px;
+  height: 27px;
+}
+.hip-with-tools .hip-seal > span {
+  line-height: 17px;
+}
+.hip-with-tools .hip-roster-item {
+  min-height: 54px;
+  padding: 3px 5px;
+  gap: 8px;
+}
+.hip-with-tools .hip-roster-item > .hip-portrait {
+  width: 34px;
+  height: 40px;
+}
+.hip-with-tools .hip-roster-name {
+  font-size: 18px;
+  line-height: 1.2;
+}

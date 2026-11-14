@@ -12,6 +12,7 @@
     "fmt": "oxfmt",
     "build": "bun run --bun tsc --noEmit && bun run --bun vite build",
     "preview": "bun run --bun vite preview --port 4173",
+    "proto:heroes": "bun run --bun vite --mode prototype --host 127.0.0.1 --port 5184 --strictPort --open '/?heroPrototype=1&variant=A'",
     "visual:compare": "node scripts/visual-compare.mjs",
     "probe:frames": "node scripts/frame-probe.ts",
     "probe:cost": "node scripts/cost-probe.ts",
