@@ -59,22 +59,22 @@ test.describe("主动技目标段选城(#1388 T2 城目标段形制)", () => {
     await skillCard.click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
     // 候选点亮:恰好两候选带 data-city-target(金环呼吸在氛围层 crown,标记即契约)
-    await expect(page.locator(TESTIDS.skillCityTarget(a))).toBeVisible();
-    await expect(page.locator(TESTIDS.skillCityTarget(b))).toBeVisible();
-    await expect(page.locator(TESTIDS.skillCityTargetAny)).toHaveCount(2);
+    await expect(page.locator(TESTIDS.cityTarget(a))).toBeVisible();
+    await expect(page.locator(TESTIDS.cityTarget(b))).toBeVisible();
+    await expect(page.locator(TESTIDS.cityTargetAny)).toHaveCount(2);
     await page.screenshot({ path: "tmp/ui-shots/1388/candidates-lit.png" });
     // 首点选中(实金停持环+动作条「出」点亮)→ 再点同格取消(回禁用)→ 再点回选
-    await page.locator(TESTIDS.skillCityTarget(a)).click();
-    await expect(page.locator(TESTIDS.skillCityTargetPicked(a))).toBeVisible();
+    await page.locator(TESTIDS.cityTarget(a)).click();
+    await expect(page.locator(TESTIDS.cityTargetPicked(a))).toBeVisible();
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeEnabled();
-    await page.locator(TESTIDS.skillCityTarget(a)).click();
-    await expect(page.locator(TESTIDS.skillCityTargetPickedAny)).toHaveCount(0);
+    await page.locator(TESTIDS.cityTarget(a)).click();
+    await expect(page.locator(TESTIDS.cityTargetPickedAny)).toHaveCount(0);
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeDisabled();
-    await page.locator(TESTIDS.skillCityTarget(a)).click();
+    await page.locator(TESTIDS.cityTarget(a)).click();
     // 点他城改选:选中环 A 落 B 起,全场恒至多一个选中
-    await page.locator(TESTIDS.skillCityTarget(b)).click();
-    await expect(page.locator(TESTIDS.skillCityTargetPicked(b))).toBeVisible();
-    await expect(page.locator(TESTIDS.skillCityTargetPickedAny)).toHaveCount(1);
+    await page.locator(TESTIDS.cityTarget(b)).click();
+    await expect(page.locator(TESTIDS.cityTargetPicked(b))).toBeVisible();
+    await expect(page.locator(TESTIDS.cityTargetPickedAny)).toHaveCount(1);
     await page.screenshot({ path: "tmp/ui-shots/1388/picked.png" });
     // 动作条「出」提交(城目标域提交通道=targets=[tileIndex],引擎复验单源选项集)
     await page.getByTestId(TESTIDS.actionbarTarget).click();
@@ -149,13 +149,13 @@ test.describe("主动技目标段选城(#1388 T2 城目标段形制)", () => {
     await expect(skillCard).toBeEnabled();
     await skillCard.click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    await expect(page.locator(TESTIDS.skillCityTarget(a))).toBeVisible();
-    await page.locator(TESTIDS.skillCityTarget(a)).click();
+    await expect(page.locator(TESTIDS.cityTarget(a))).toBeVisible();
+    await page.locator(TESTIDS.cityTarget(a)).click();
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeEnabled();
     await page.getByTestId(TESTIDS.actionbarCancel).click(); // 作罢
     // 回卡牌段:目标段标记全撤,技能卡仍可用(不记冷却)
     await expect(page.getByTestId(TESTIDS.actionbarPlay)).toBeVisible();
-    await expect(page.locator(TESTIDS.skillCityTargetAny)).toHaveCount(0);
+    await expect(page.locator(TESTIDS.cityTargetAny)).toHaveCount(0);
     await expect(skillCard).toBeEnabled();
     const state = await engineState(
       page,

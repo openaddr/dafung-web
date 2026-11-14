@@ -61,8 +61,9 @@ export interface TileVisualState {
   /** X4(#23) 选都候选序号(1 基,引擎滚出顺序;null=非候选)。候选集全座位可见:
    *  静态低透明金圈(bv-candidate)是非决策席档,本地可点脉冲由 isSelectable 升档。 */
   capitalCandidateOrder: number | null;
-  /** 目标段选城候选(#1388 T2):主动技城目标段的可点候选格(金环呼吸在氛围层
-   *  crown,与选都同通路;本态挂 data-city-target 供 e2e/选择器契约)。 */
+  /** 目标段选城候选(#1388 T2 立,#1389 锦囊城指向域同款复用):技/锦囊城目标段的可点
+   *  候选格(金环呼吸在氛围层 crown,与选都同通路;本态挂 data-city-target 供
+   *  e2e/选择器契约)。 */
   isCityTarget: boolean;
   /** 目标段选城·选中定靶(#1388 T2,#417 同族):实金双环停持(呼吸停、恒定不闪),
    *  挂 data-city-target-selected。 */
@@ -359,8 +360,8 @@ export const Tile = memo(function Tile({
       id={`tile-${tile.index}`}
       data-tile={tile.index}
       data-name={tile.name}
-      /* 目标段选城(#1388 T2)选择器契约:e2e 候选=skillCityTarget(tileIndex)、
-          选中=skillCityTargetPicked(tileIndex)(testids 单源),勿散落属性串。 */
+      /* 目标段选城选择器契约:e2e 候选=cityTarget(tileIndex)、
+          选中=cityTargetPicked(tileIndex)(testids 单源),勿散落属性串。 */
       data-city-target={state.isCityTarget || undefined}
       data-city-target-selected={state.isCityPicked || undefined}
       transform={`translate(${tile.position.x} ${tile.position.y}) scale(${TILE_SCALE})`}

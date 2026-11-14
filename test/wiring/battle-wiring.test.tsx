@@ -229,10 +229,10 @@ function huoshaoWindow(userSeat: number, cityTile: number): PlantOp[] {
   ];
 }
 
-/** 受击城选址(接线种植地形约束):取「无主且 tileIndex<4」的首座城。上界来由:planter
- *  armReaction 的公开面校验仍把 view.targetSeats 当座位断言(判词未随 #1389 城指向域
- *  更新,残缺口已上报主线),城格号须 < 席位数才过得去;seed 67 落点下 tile 0=自机都城、
- *  tile 3=座 3 都城,tile 1/2 无主,两窗有解。exclude=已入用的城(多窗不重城)。 */
+/** 受击城选址(接线种植地形约束):取「无主且 tileIndex<4」的首座城。无主=多窗判词
+ *  需要(免烧行「无主,免于火焰」);上界 4 为既有断言的城名锚稳定保留——历史约束
+ *  (planter 公开面把 targetSeats 当座位断言、城格须 <席位数)已随 #1389/#1395 城份
+ *  域感知改走棋盘界,不再生效。exclude=已入用的城(多窗不重城)。 */
 function plantableCityTile(
   engine: GameEngine,
   exclude: ReadonlySet<string> = new Set(),

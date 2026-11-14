@@ -307,9 +307,11 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
         (typeof snapshot.choices)[number] & { targetSeat: number }
       >)
     : [];
-  // 城目标段候选(#1388 T2):choices 城选项(四件结构化载荷,available 引擎已闸——
-  // 合法城清单空时技选项灰置「射程内无可烧之城」,根本进不了目标段)。域互斥:目标段
-  // 在城域时候席选项恒空(候选形状单源 choices.ts)。
+  // 城目标段候选(#1388 T2 火攻技,#1389 起火烧连营锦囊同窗同款):choices 城选项
+  //(结构化载荷含 targetTileIndex,available 引擎已闸——技域合法城清单空时技选项灰置
+  //「射程内无可烧之城」根本进不了目标段;锦囊域候选=全部城池格恒非空)。点亮/点选
+  // 形制两域同款无第二形制(无主中心免伤是结算语义,UI 无差别)。域互斥:目标段在城域
+  // 时候席选项恒空(候选形状单源 choices.ts)。
   const junshiCityOptions = junshiTargeting
     ? (snapshot.choices.filter((o) => o.targetTileIndex != null) as Array<
         (typeof snapshot.choices)[number] & { targetTileIndex: number }
@@ -337,27 +339,32 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
     setWarReportOpen(true);
   }, []);
 
+  // 目标段提交命令装配(席位域 targets=[座位] / 城指向域 targets=[目标城 tileIndex]:
+  // 技=useHeroSkill、锦囊=useJinnang,四种组合命令形状同构一装配两域共用;城指向域
+  // (#1389 火烧连营)提交后由引擎按 cityTargetOptionId 对选项集复验,通道与候选 id
+  // 沿 choices 既有形状,不出第三条通路。目标段在窗恒有 pendingSkill/pendingCard
+  // 之一(引擎字段互斥单源),双缺=状态机 bug——`!` 直取失载荷当场炸出(零兜底)。
+  const junshiTargetCmd = (target: number): GameCommand =>
+    junshiPendingSkill != null
+      ? {
+          type: "useHeroSkill",
+          heroId: junshiPendingSkill.heroId,
+          skillId: junshiPendingSkill.skillId,
+          targets: [target],
+        }
+      : { type: "useJinnang", cardId: junshiPendingCard!.cardId, targets: [target] };
+
   // 卡牌段确认(动作钮「出牌」)与目标段确认(动作钮「出」)共用拍点:选中项/选中席/
   // 选中格发命令;落印音效随一期迁移。
   const junshiConfirm = () => {
     if (junshiTargeting) {
-      if (junshiCityTargeting) {
-        // 城目标域(#1388 T2):提交通道 targets=[目标城 tileIndex](choices 候选
-        // targetTileIndex 同值);载荷必在(城目标段只属 pendingSkill,jinnang 卡
-        // 不产城候选)——`!` 直取失载荷当场炸出(零兜底,同 junshiSeatCmd 口径)。
-        if (junshiTargetTile == null) return;
-        getAudio().play("stamp");
-        dispatchCommand({
-          type: "useHeroSkill",
-          heroId: junshiPendingSkill!.heroId,
-          skillId: junshiPendingSkill!.skillId,
-          targets: [junshiTargetTile],
-        });
-        return;
-      }
-      if (junshiTargetSeat == null) return;
+      // 城目标段(#1388 T2 形制,#1389 起锦囊城指向域同款):提交通道 targets=[目标城
+      // tileIndex](choices 候选 targetTileIndex 同值);席位域=targets=[选中席]。
+      // 选中必在(playEnabled 已闸的确认钮自门控),缺选静返=自门控口径(非兜底)。
+      const target = junshiCityTargeting ? junshiTargetTile : junshiTargetSeat;
+      if (target == null) return;
       getAudio().play("stamp");
-      dispatchCommand(junshiSeatCmd(junshiTargetSeat));
+      dispatchCommand(junshiTargetCmd(target));
       return;
     }
     if (junshiSelected == null) return;
@@ -393,8 +400,9 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   // 打出经 junshiConfirm(动作条「出」)。
   const junshiToggleSeat = (targetSeat: number) =>
     setJunshiTargetSeat((cur) => (cur === targetSeat ? null : targetSeat));
-  // 城目标段选格(#1388 T2):棋盘格点击层同写一个选中态(#417 同一选择口径:首点
-  // 选中/再点同格取消/点他格改选);打出经 junshiConfirm(动作条「出」)。
+  // 城目标段选格(#1388 T2 形制,#1389 锦囊城指向域同款):棋盘格点击层同写一个选中态
+  //(#417 同一选择口径:首点选中/再点同格取消/点他格改选);打出经 junshiConfirm
+  //(动作条「出」)。
   const junshiToggleTile = (tileIndex: number) =>
     setJunshiTargetTile((cur) => (cur === tileIndex ? null : tileIndex));
   // 落格点击路由(#1388 T2):城目标段在窗时候选格点击=选格,不再走选都/详情路由;
@@ -408,16 +416,6 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
     }
     onTileClick(tileIndex);
   };
-  const junshiSeatCmd = (targetSeat: number): GameCommand =>
-    junshiPendingSkill != null
-      ? {
-          type: "useHeroSkill",
-          heroId: junshiPendingSkill.heroId,
-          skillId: junshiPendingSkill.skillId,
-          targets: [targetSeat],
-        }
-      : { type: "useJinnang", cardId: junshiPendingCard!.cardId, targets: [targetSeat] };
-
   // 目标段数字键 1..n 选中可用席位(#417 与点选同口径:只选中,不打出;
   // useDigitKeyPick 单源;卡牌段数字键在 HandRack)。
   useDigitKeyPick(
@@ -687,10 +685,11 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
             /* L47:视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
             viewSeat={localPlayer.id}
             /* 点格相位路由(Playing 详情 / Setup 选都 / 灰城 hint)在 useCapitalPick;
-               城目标段(#1388 T2)在窗时改选格路由(候选格=选格,handleTileClick) */
+               城目标段(#1388 T2 技域,#1389 锦囊城指向域同款)在窗时改选格路由
+               (候选格=选格,handleTileClick) */
             onTileClick={handleTileClick}
             selectableTiles={selectableTiles}
-            /* #1388 T2 目标段选城:候选金环呼吸(选都 crown 同通路)+ 选中实金停持环;
+            /* 目标段选城:候选金环呼吸(选都 crown 同通路)+ 选中实金停持环;
                候选集/选中格从快照 choices 城选项派生,非城域恒 undefined/null */
             cityTargetTiles={
               junshiCityTargeting
