@@ -29,7 +29,6 @@ import { test, expect } from "../fixtures";
 import {
   skipUntilNextSeat,
   engineState,
-  snap,
   parkMyTurn,
   plantDemolishableCity,
   awaitReactionWindow,
@@ -194,16 +193,33 @@ test.describe("反应窗(#281 单机;#1317 批T3 后=名册地板三例)", () =>
   // 布场后 bot1 回合开始真打出火烧连营→窗真开(横幅/倒计时弧/架上金边/mini 签面几何锚
   // 即窗真开的呈现取证)→点牌落印真应答→识破留痕真结算窗收。前置=真实开局链
   // (soloAtBuyAsk 真 UI 选图开局/选都)+布场种植(判词见 plantCounterScenario 系助手)。
-  test("识破自保:横幅+倒计时弧+架上金边→点牌落印→识破留痕窗收(结算下沉单测)", async ({ page }) => {
+  test("识破自保:横幅+倒计时弧+架上金边→点牌选份落印→识破留痕窗收(结算下沉单测)", async ({
+    page,
+  }) => {
     await plantCounterScenario(page);
-    // 反应窗横幅:事件文案(带目标括注 #921,火烧连营=one 域,目标=城最多者人类)+ 朱砂
-    // 倒计时弧;架上识破诡计呼吸金边(.reactive)——视觉锚
+    // 反应窗横幅:事件文案(带目标括注 #921;火烧连营=城指向域 #1389,括注=受影响
+    // 城清单——火源+前方 1、2 格波及,人类唯一可失之城(plantDemolishableCity 全场
+    // 唯一可拆城)恒在其中)+ 朱砂倒计时弧;架上识破诡计呼吸金边(.reactive)——视觉锚
     const baseline = await awaitReactionWindow(page);
     const banner = page.getByTestId(TESTIDS.reactionBanner);
-    const snap0 = await snap(page);
-    await expect(banner.getByTestId(TESTIDS.reactionText)).toContainText(
-      `使用【火烧连营】(对 ${snap0.players[0].guohao})`,
+    // 受击城=人类名下唯一非都城(plantDemolishableCity 种植保证);括注与识破选份都锚它
+    const hit = await engineState(
+      page,
+      `(() => {
+      const cap = new Set(e.players.map((p) => p.capitalIndex));
+      for (let t = 0; t < e.board.count; t++) {
+        const tile = e.board.at(t);
+        if (tile.propertyId && !cap.has(t) && e.findOwner(tile.propertyId) === e.players[0])
+          return { tile: t, name: tile.name };
+      }
+      throw new Error("布场失真:人类无非都城受击城");
+    })()`,
     );
+    // 括注=受影响城清单(火源+波及城名串,清单内容随 bot 火源选择走,不钉死);
+    // 两个半断言:牌名括注前缀 + 受击城名在清单(=可保份在场,选份锚合法)
+    const text = banner.getByTestId(TESTIDS.reactionText);
+    await expect(text).toContainText("使用【火烧连营】(对 ");
+    await expect(text).toContainText(hit.name);
     await expect(banner.getByTestId(TESTIDS.reactionTimer)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.jinnangCard("识破诡计"))).toHaveClass(/reactive/);
     // mini 签面回正尺寸锚(#834 P0-3,特异性回归哨):hand-rack.css
@@ -235,8 +251,9 @@ test.describe("反应窗(#281 单机;#1317 批T3 后=名册地板三例)", () =>
     expect(geo.miniH, "mini 签面 em 基被特异性打回大卡(#834 回归)").toBeLessThanOrEqual(32);
     expect(geo.miniW, "jinnang 窗 mini 签面缺席(#751 A6 回归)").toBeGreaterThan(0);
     expect(geo.bannerH, "横幅未回落 ~60px 浮置带(#834 回归)").toBeLessThanOrEqual(80);
-    // 点牌落印确认,识破留痕 + 窗收(双牌皆耗/城不降级等结算细节由单测守)
-    await answerReactionWindow(page, { mode: "counter", card: "识破诡计" });
+    // 城指向域应答=点牌→选受击城份令牌→落印(#1389 未选份落印禁用);识破留痕 + 窗收
+    // (双牌皆耗/城不降级等结算细节由单测守)
+    await answerReactionWindow(page, { mode: "counter", card: "识破诡计", seat: hit.tile });
     await pollReactionSettled(page, baseline, { countered: true });
   });
 

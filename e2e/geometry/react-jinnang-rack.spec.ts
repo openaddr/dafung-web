@@ -27,7 +27,7 @@
 import { test, expect } from "../fixtures";
 // parkMyTurn(#1216 波3)上收 react-helpers 共享:语义注释随迁见该函数注(本 spec 调用
 // 全走缺省 freeze=true 停车坪口径)。
-import { parkMyTurn, pollReactionSettled, quickStart, snap } from "../react-helpers";
+import { engineState, parkMyTurn, pollReactionSettled, quickStart, snap } from "../react-helpers";
 import { plant } from "../helpers/drivers";
 import { TESTIDS } from "../../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
@@ -428,16 +428,37 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
     // 30s——横幅展示(倍率缩放)与权威看门狗同读此值(#284 单源),收起→断言→重开
     // →应答的点击链不再与默认窗的 2.5s 展示档赛跑;火烧连营根窗 + 人手持识破诡计,
     // 结算走真引擎通路(不经 bot 链,配方参照 react-reaction.spec plantCounterScenario
-    // 的窗形状,省其开局/种植长链)。(塞牌经 giveJinnang #1298;窗载荷经 armReaction
-    // #1301)
+    // 的窗形状,省其开局/种植长链)。城指向域(#1389):目标=受击城 tileIndex——受击城
+    // 先入人类名下(识破候选=有主受击城,引擎 settle 断言受击城恒有主;选址=读现值
+    // 取首个无主非都城格,grantProperty 种植件 #1300 判词单源 src/core/planter.ts),
+    // view.targetSeats 与 payload.targets 均为城格清单(battle-wiring huoshaoWindow 同形)。
+    // (塞牌经 giveJinnang #1298;窗载荷经 armReaction #1301)
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["识破诡计"] });
+    const hit = await engineState(
+      page,
+      `(() => {
+      const cap = new Set(e.players.map((p) => p.capitalIndex));
+      for (let t = 0; t < e.board.count; t++) {
+        const tile = e.board.at(t);
+        if (tile.propertyId && !cap.has(t) && !e.findOwner(tile.propertyId))
+          return { tile: t, propertyId: tile.propertyId };
+      }
+      throw new Error("种植失败:无无主非都城池格");
+    })()`,
+    );
+    await plant(page, {
+      kind: "grantProperty",
+      seat: 0,
+      propertyId: hit.propertyId,
+      level: 1,
+    });
     await plant(page, {
       kind: "armReaction",
       view: {
         kind: "jinnang",
         cardId: "火烧连营",
         userSeat: 1,
-        targetSeats: [0],
+        targetSeats: [hit.tile],
         queriedBySeat: [0],
         windowMs: 30000,
       },
@@ -445,7 +466,7 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
         kind: "jinnang",
         userSeat: 1,
         cardId: "火烧连营",
-        targets: [0],
+        targets: [hit.tile],
       },
     });
     const banner = page.getByTestId(TESTIDS.reactionBanner);
@@ -462,11 +483,16 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
       vh: document.documentElement.clientHeight,
     }));
     expect(geo.bottom).toBeGreaterThanOrEqual(geo.vh - 40); // 贴底下移(视口相对,横幅入场动画只会更低)
-    // 点呼吸钮重开:牌行回场,选牌→落印应答,窗收结算(识破落空,reactionCounter 留痕)
+    // 点呼吸钮重开:牌行回场,选牌→选受击城份→落印应答(城指向域未选份落印禁用,
+    // #1389 自门控;份令牌 testid=reaction-seat-<城格>,battle-wiring 同形),窗收结算
+    // (识破拆计,reactionCounter 留痕)
     await page.getByTestId(TESTIDS.jinnangToggle).click();
     const card = page.getByTestId(TESTIDS.jinnangCard("识破诡计"));
     await expect(card).toBeVisible();
     await card.click();
+    const chip = page.getByTestId(TESTIDS.reactionSeat(hit.tile));
+    await expect(chip).toBeVisible();
+    await chip.click();
     await expect(page.getByTestId(TESTIDS.reactionConfirm)).toBeEnabled();
     const baseline = await snap(page).then((s) => ({
       cash: s.players.map((p: any) => p.cash),

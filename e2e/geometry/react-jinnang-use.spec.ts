@@ -36,7 +36,7 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
 
 /** 给 bot 1 挪一座 1 级非都城(#305 自 jinnang-play-line 并入):火烧连营的
  *  目标守卫(demolishTargetOk)要求「有 Lv>0 可降或有非都城城」,开局各座只有都城
- *  不达标——不种则目标段无候选席位。
+ *  不达标——不种则目标段无候选城格。
  *  #1300 收编:授城走 grantProperty 种植件(判词单源 src/core/planter.ts:引擎无授城
  *  公共命令,购地命令受行军路线+现金约束到不了指定格指定级;选址=测试侧读现值,
  *  种植件只收终态行),断言面需「bot 名下恰有一座可拆城」。 */
@@ -128,7 +128,9 @@ test.describe("出牌指示线(#281 P2-E)", () => {
   // (rAF 原子采样对引擎现算坐标)。手牌无公共通路需火烧牌形;挪城判词见
   // plantBotCity(无授城公共命令,需 bot 名下可拆城);清他座反应牌=防窗控制走
   // giveJinnang 终态组合(见下内联判词)。
-  test("火烧连营指定目标后,棋盘出现使用者→目标墨线,端点对准双方棋子", async ({ page }) => {
+  test("火烧连营指定目标后,棋盘出现使用者→受击城墨线,端点对准使用者与目标城格", async ({
+    page,
+  }) => {
     await startJunshi(page, 67);
     // 种植:人类持火烧连营 + bot 1 有一座可拆城(plantBotCity 挪 +1 晋阳@1,挪入 level 1)。
     await plantBotCity(page);
@@ -142,20 +144,16 @@ test.describe("出牌指示线(#281 P2-E)", () => {
       await plant(page, { kind: "giveJinnang", seat, cards: rest });
     }
     await expect(page.getByTestId(TESTIDS.jinnangCard("火烧连营"))).toBeEnabled();
-    // 点牌选中 → 出牌进目标段 → 席位点层点候选目标选中 → 动作条「出」确认打出(#417 两步)
+    // 点牌选中 → 出牌进目标段 → 棋盘候选城格点层点受击城选中 → 动作条「出」确认打出
+    // (#417 两步;城指向域 #1389:候选=城格令牌 data-city-target,目标段不再列席位槽)
     await page.getByTestId(TESTIDS.jinnangCard("火烧连营")).click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    // 目标段按 seats 全量装配(#417 口径:不可指定席也列槽)——#751 C 批起不可选槽
-    // 不再 disabled(死区点按=轻晃+弹层 reason 印条),改 aria-disabled 挂点:
-    // seat-target-0=自机槽恒不可选(不能指定自己),裸 `.first()` 命中它空转到
-    // 超时(W4 实锤);候选=可选槽,首个即可(种植保证 bot 1 有可拆城)。
-    const targetBtn = page
-      .locator('[data-testid^="seat-target-"]:not([aria-disabled="true"])')
-      .first();
+    // 候选城格=种植保证的 bot 1 可拆城;城格读 data-tile(tile 承载属性,testids 单源
+    // cityTarget 口径),首个即可。
+    const targetBtn = page.locator(TESTIDS.cityTargetAny).first();
     await expect(targetBtn).toBeVisible({ timeout: 15_000 });
-    const targetTestid = await targetBtn.getAttribute("data-testid");
-    const targetSeat = Number(targetTestid?.replace("seat-target-", ""));
-    expect(Number.isInteger(targetSeat)).toBe(true);
+    const cityTile = Number(await targetBtn.getAttribute("data-tile"));
+    expect(Number.isInteger(cityTile)).toBe(true);
 
     // 单次 evaluate 原子采样:rAF 轮询等指示线现身,现身即在同一样本里取端点并
     // 从引擎现算期望坐标(火烧连营不动人,出牌前后棋盘坐标一致)。15s 封顶防死等。
@@ -177,10 +175,10 @@ test.describe("出牌指示线(#281 P2-E)", () => {
         x2: Number(el.getAttribute("x2")),
         y2: Number(el.getAttribute("y2")),
         from: b.positionOf(e.players[0].position),
-        to: b.positionOf(e.players[${targetSeat}].position),
+        to: b.positionOf(${cityTile}),
       };
     })()`);
-    // #417 两步:点席位只选中,动作条「出」钮才打出(墨线在打出后现身,sample 轮询覆盖)
+    // #417 两步:点城格只选中,动作条「出」钮才打出(墨线在打出后现身,sample 轮询覆盖)
     await targetBtn.click();
     await page.getByTestId(TESTIDS.actionbarTarget).click();
     const sample = (await samplePromise) as {
@@ -193,7 +191,7 @@ test.describe("出牌指示线(#281 P2-E)", () => {
       to?: { x: number; y: number };
     };
     expect(sample.found).toBe(true);
-    // 端点对准:起点=使用者格,终点=被指定者格
+    // 端点对准:起点=使用者格,终点=受击城格(城指向域 #1389,线锚城格)
     expect(sample.x1).toBe(sample.from!.x);
     expect(sample.y1).toBe(sample.from!.y);
     expect(sample.x2).toBe(sample.to!.x);

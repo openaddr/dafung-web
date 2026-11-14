@@ -14,8 +14,10 @@
 //   第 N 回合),途中有人类购地 cmd 行(命令面留痕标记)。postRoll 新通路同谱:快进过
 //   首掷后到站=首个我方决策停靠,三元组 turn 3/round 1/AwaitingDecision(人类座次
 //   draftOrder 第 3 位,turnNumber ≡ 3 mod 4;首掷落咸阳停购地抉择)。
-// - 1485:快进途中 bot 城主(座 1)与访客(座 3)珍宝交涉成交(hubing-17/100 两)——
-//   决策方=城主(与访客身份无关)的停相被房间链代打,快进不卡死。
+// - 1485:快进途中 bot 城主与访客珍宝交涉成交——决策方=城主(与访客身份无关)的
+//   停相被房间链代打,快进不卡死。具体成交对/宝物随波次 bot 行为走向漂移(#1386 池
+//   换血+七面骰实证:hubing-17 城主交涉漂为 zhuojiu-15),断言只钉意图面=有成交+
+//   卖方恒非人类(#1392)。
 import type { Page } from "@playwright/test";
 import { expect, test } from "../fixtures";
 import {
@@ -108,6 +110,8 @@ test.describe("中盘构造器到站守卫(#1252)", () => {
     expect(s.turnPhase).toBe("AwaitingJinnang");
     // 交涉成交事件(引擎 gameEvents 全量,快照 events 只含当前批):卖方=bot 城主、
     // 买方=访客——决策方=城主的停相在构造器快进中被房间驱动链正常推进并结算。
+    // 断言面=意图(有成交+卖方恒非人类 bot):具体成交对/宝物 id 随波次 bot 行为
+    // 走向漂移(种子敏感面,#1386 波实证),不钉死(头注种子谱说明)。
     const trades = await page.evaluate(() =>
       (window as any).__dafung
         .getEngine()
@@ -118,11 +122,10 @@ test.describe("中盘构造器到站守卫(#1252)", () => {
           id: v.treasureId,
         })),
     );
-    expect(trades, "快进途中发生珍宝交涉成交").toContainEqual({
-      seller: 1,
-      buyer: 3,
-      id: "hubing-17",
-    });
+    expect(
+      trades.length,
+      "快进途中发生珍宝交涉成交(决策方=bot 城主的停相被房间链代打)",
+    ).toBeGreaterThan(0);
     expect(
       trades.every((t: { seller: number }) => t.seller !== 0),
       "成交卖方恒 bot 城主(人类城主走「不交易」)",

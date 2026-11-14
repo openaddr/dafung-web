@@ -496,13 +496,24 @@ export function extractBatchEvents(
           cardId: ev.cardId,
           targetSeats: [...ev.targetSeats],
         };
+        // 线端随根牌域(#1389):one-city=受击城 tileIndex(棋盘界校验,线锚城格,
+        // 同 jinnangVoided 城份先例);其余域=座位(座位契约校验单源 core/event-tiers)。
+        const announceDomain = jinnangCardOf(ev.cardId).targetDomain;
         const from = engine.board.positionOf(engine.players[seat].position);
-        const lines = ev.targetSeats
-          .filter((s) => s !== seat)
-          .map((s) => {
-            const to = engine.board.positionOf(engine.players[s].position);
-            return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
-          });
+        const lines =
+          announceDomain === "one-city"
+            ? ev.targetSeats.map((t) => {
+                if (!Number.isInteger(t) || t < 0 || t >= engine.board.count)
+                  throw new Error(`jinnangAnnounced:城份格越界(${t})——产出侧 bug`);
+                const to = engine.board.positionOf(t);
+                return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+              })
+            : ev.targetSeats
+                .filter((s) => s !== seat)
+                .map((s) => {
+                  const to = engine.board.positionOf(engine.players[s].position);
+                  return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+                });
         if (lines.length > 0) {
           events_.push({
             kind: "jinnangPlayed",
