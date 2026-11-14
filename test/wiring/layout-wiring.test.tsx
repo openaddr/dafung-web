@@ -69,6 +69,8 @@ import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { GHOST } from "@app/fx/timings";
+import { installControlledClock } from "./controlled-clock";
 
 /** 晚绑模块型(late binding,红线见头注第 0 步;type-of-import 类型面静态引用,
  *  求值面零触碰,不破晚绑)。 */
@@ -125,6 +127,7 @@ function seedPlayingEngine(): GameEngine {
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
+let clock: ReturnType<typeof installControlledClock>;
 
 /** act() 内挂 GameScreen;卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -195,24 +198,13 @@ function pressEscape(): void {
 /** 异步拍收口(模板同款):弹层壳底件挂载拍有 RO 测量态更新,回调在 act 外落会刷
  *  act 警告噪声——让一拍宏任务并包进 act(断言面不依赖该拍,纯噪声治理)。 */
 async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
+  await clock.settle();
 }
 
-/** 有界等待弹层卸载(overview-wiring 同款):退场协议(210ms「播完再移除」)走完
- *  即卸——happy-dom 真定时器自然走时,轮询到位即收,超死线响亮红。判词:卸载后的
- *  「null 断言」必须等协议走完;协议在途就把在场 happy-dom 节点递给 expect,断言
- *  失败路径的 diff 序列化会走节点循环引用(battle-wiring waitUnmounted 判词,
- *  wire3 实锤)。 */
-async function waitUnmounted(query: () => Element | null, label: string): Promise<void> {
-  const deadline = Date.now() + 2_000;
-  while (query() != null && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
-  expect(query(), label).toBeNull();
+/** 推进退场出口后断卸载;布尔断言避免失败时序列化 happy-dom 循环节点。 */
+async function finishExit(query: () => Element | null, label: string): Promise<void> {
+  await clock.advance(GHOST.frameMs);
+  expect(query() == null, label).toBe(true);
 }
 
 /** 弹层查询口:总览/藏品弹层经 Portal 渲染在 body,一律 document 级。 */
@@ -291,24 +283,28 @@ beforeEach(() => {
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock = installControlledClock();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await settle();
   if (root != null) {
     act(() => root!.unmount());
     root = null;
   }
+  if (container != null) container.remove();
   container = null;
   setController(null); // registry 换局销毁契约:控制器随例释放,不留活口
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock.restore();
 });
 
 afterAll(async () => {
   // 排干 React 调度器余拍(模板同款):release 后再触发会在无 window 环境抛
   // 「window is not defined」——window 还在时让完这一拍再拆 happy-dom。
-  await new Promise((r) => setTimeout(r, 0));
+  await Bun.sleep(0);
   await releaseHappyDom();
 });
 
@@ -334,7 +330,7 @@ describe("全浮层布局接线(自 react-layout 迁入,#1317 批T3)", () => {
     await settle();
     expect(modalQ(TESTIDS.warlordsOverview)).not.toBeNull();
     pressEscape();
-    await waitUnmounted(() => modalQ(TESTIDS.warlordsOverview), "总览弹窗应随 Esc 退场协议卸载");
+    await finishExit(() => modalQ(TESTIDS.warlordsOverview), "总览弹窗应随 Esc 退场协议卸载");
     expect(q(el, TESTIDS.settingsButton)).not.toBeNull(); // 设置钮可用(在场即通路)
   });
 
@@ -403,7 +399,7 @@ describe("全浮层布局接线(自 react-layout 迁入,#1317 批T3)", () => {
     );
     // 右上 X 关闭,卸载零残留(退场协议走完)
     click(modalQ(TESTIDS.modalClose)!);
-    await waitUnmounted(() => modalQ(TESTIDS.treasureModal), "珍宝弹层应随 X 卸载");
+    await finishExit(() => modalQ(TESTIDS.treasureModal), "珍宝弹层应随 X 卸载");
     // 点「名将」圆钮 → 名将弹层:HeroCardFace 详情档网格
     click(q(el, TESTIDS.pileHeroes)!);
     await settle();
@@ -415,6 +411,6 @@ describe("全浮层布局接线(自 react-layout 迁入,#1317 批T3)", () => {
     expect(names).toContain("华佗");
     // Esc 关闭(Base UI 底件行为),卸载零残留
     pressEscape();
-    await waitUnmounted(() => modalQ(TESTIDS.heroModal), "名将弹层应随 Esc 卸载");
+    await finishExit(() => modalQ(TESTIDS.heroModal), "名将弹层应随 Esc 卸载");
   });
 });

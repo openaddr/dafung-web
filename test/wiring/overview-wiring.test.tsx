@@ -69,6 +69,8 @@ import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { GHOST } from "@app/fx/timings";
+import { installControlledClock } from "./controlled-clock";
 
 /** 晚绑模块型(late binding,红线见头注第 0 步;type-of-import 类型面静态引用,
  *  求值面零触碰,不破晚绑)。 */
@@ -120,6 +122,7 @@ function seedPlayingEngine(seed = SEED): GameEngine {
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
+let clock: ReturnType<typeof installControlledClock>;
 
 /** act() 内挂 GameScreen;卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -194,21 +197,13 @@ function pressEscape(): void {
 /** 异步拍收口(模板同款):弹层壳底件挂载拍有 RO 测量态更新,回调在 act 外落会刷
  *  act 警告噪声——让一拍宏任务并包进 act(断言面不依赖该拍,纯噪声治理)。 */
 async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
+  await clock.settle();
 }
 
-/** 有界等待弹层卸载(manual-wiring 同款):退场协议(210ms「播完再移除」)走完
- *  即卸——happy-dom 真定时器自然走时,轮询到位即收,超死线响亮红。 */
-async function waitUnmounted(query: () => Element | null, label: string): Promise<void> {
-  const deadline = Date.now() + 2_000;
-  while (query() != null && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
-  expect(query(), label).toBeNull();
+/** 推进退场出口后断卸载;布尔断言避免失败时序列化 happy-dom 循环节点。 */
+async function finishExit(query: () => Element | null, label: string): Promise<void> {
+  await clock.advance(GHOST.frameMs);
+  expect(query() == null, label).toBe(true);
 }
 
 /** 弹层查询口:总览/钻入明细/设置弹层经 Portal 渲染在 body,一律 document 级。 */
@@ -339,23 +334,27 @@ beforeAll(async () => {
 beforeEach(() => {
   useGameStore.getState().reset();
   useNetStore.getState().reset();
+  clock = installControlledClock();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await settle();
   if (root != null) {
     act(() => root!.unmount());
     root = null;
   }
+  if (container != null) container.remove();
   container = null;
   setController(null); // registry 换局销毁契约:控制器随例释放,不留活口
   useGameStore.getState().reset();
   useNetStore.getState().reset();
+  clock.restore();
 });
 
 afterAll(async () => {
   // 排干 React 调度器余拍(模板同款):release 后再触发会在无 window 环境抛
   // 「window is not defined」——window 还在时让完这一拍再拆 happy-dom。
-  await new Promise((r) => setTimeout(r, 0));
+  await Bun.sleep(0);
   await releaseHappyDom();
 });
 
@@ -437,7 +436,7 @@ describe("席位格接线(自 react-seat-cells 迁入,#1316 批T2)", () => {
     };
     const closeSettings = async (): Promise<void> => {
       pressEscape();
-      await waitUnmounted(() => modalQ(TESTIDS.settingsDialog), "设置弹层应随 Esc 卸载");
+      await finishExit(() => modalQ(TESTIDS.settingsDialog), "设置弹层应随 Esc 卸载");
     };
     let dlg = await openSettings();
     const sw = q(dlg, TESTIDS.settingsAutopilot);
@@ -522,7 +521,7 @@ describe("诸侯详情接线(自 react-warlords-overview 迁入,#1316 批T2)", (
       const x = modalQ(TESTIDS.modalClose);
       if (x == null) throw new Error(`接线测试:${label}关闭钮缺席`);
       click(x);
-      await waitUnmounted(() => modalQ(tid), `${label}应随退场协议卸载`);
+      await finishExit(() => modalQ(tid), `${label}应随退场协议卸载`);
     };
     // 城池 chips → #622 清单(单层互斥:总览先关,清单开到对应诸侯)
     await openOverview();
@@ -626,6 +625,6 @@ describe("诸侯详情接线(自 react-warlords-overview 迁入,#1316 批T2)", (
     expect(modal.querySelector(".zl-round")!.textContent).toBe(`${s.round} 轮`);
     // Esc 关闭(挂载不夺焦,Esc 直关由底件白拿;退场协议走完即卸)
     pressEscape();
-    await waitUnmounted(() => modalQ(TESTIDS.warlordsOverview), "总览应随 Esc 退场协议卸载");
+    await finishExit(() => modalQ(TESTIDS.warlordsOverview), "总览应随 Esc 退场协议卸载");
   });
 });
