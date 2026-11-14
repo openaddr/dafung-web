@@ -38,7 +38,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
 import { staticPreviewPort } from "./dev-ports.ts";
-import { distFreshness, stampDistBuild } from "./dist-freshness.ts";
+import { distFreshness } from "./dist-freshness.ts";
 
 // ── 参数面 ──
 let SEED = 1101;
@@ -329,8 +329,10 @@ try {
   const fresh = distFreshness();
   if (!fresh.fresh) {
     console.log(`[probe] dist 陈旧(${fresh.reason}),build…`);
-    spawnSync("bun", ["run", "build"], { shell: win, stdio: "inherit" });
-    stampDistBuild();
+    const build = spawnSync("bun", ["run", "build"], { shell: win, stdio: "inherit" });
+    if (build.error) throw build.error;
+    if (build.status !== 0)
+      throw new Error(`build 失败(exit ${build.status},signal ${build.signal})`);
   }
   server = sh("bun", ["run", "--bun", "vite", "preview", "--port", String(PORT), "--strictPort"]);
   await waitServer(URL);
