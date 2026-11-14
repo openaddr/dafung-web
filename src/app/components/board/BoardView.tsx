@@ -67,8 +67,9 @@ export interface BoardPlayer {
   /** 都城主路索引(-1=未选都)。 */
   capitalIndex: number;
   isBankrupt: boolean;
-  /** 持有城(棋盘只用 propertyId/level 推导归属色与等级)。 */
-  properties: { propertyId: string; level: number }[];
+  /** 持有城(棋盘只用 propertyId/level/defense 推导归属色、等级珠与防御盾排)。
+   */
+  properties: { propertyId: string; level: number; defense: number }[];
 }
 
 interface BoardViewProps {
@@ -172,7 +173,8 @@ function holdingsEqual(a: Map<string, TileHolding>, b: Map<string, TileHolding>)
       ha === undefined ||
       ha.colorIndex !== hb.colorIndex ||
       ha.guohao !== hb.guohao ||
-      ha.level !== hb.level
+      ha.level !== hb.level ||
+      ha.defense !== hb.defense
     )
       return false;
   }
@@ -279,6 +281,8 @@ export function BoardView({
         capitalCandidateOrder: candidateOrder.get(tile.index) ?? null,
         isCityTarget: cityTargetTiles?.has(tile.index) ?? false,
         isCityPicked: cityPickedTileIndex === tile.index,
+        // 防御盾排直读(#1391 T5):有主=持有账面当前值,无主=null 整排不渲染
+        defense: holding ? holding.defense : null,
       };
       const stable = prev?.get(tile.index);
       if (stable !== undefined && tileStateEqual(stable, next)) {

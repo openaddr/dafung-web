@@ -68,6 +68,11 @@ export interface TileVisualState {
   /** 目标段选城·选中定靶(#1388 T2,#417 同族):实金双环停持(呼吸停、恒定不闪),
    *  挂 data-city-target-selected。 */
   isCityPicked: boolean;
+  /** 当前防御值(#1391 T5,满值表单源 core/defense.ts):有主城由上游显式下发
+   *  (holding.defense),盾排常显、盾数=当前值;null=无主城不渲染盾排(免疫,
+   *  无防御语义)。必填(#585 口径:漏传在类型层面不可表达——有主城漏传=静默不渲染,
+   *  是说谎不是缺省;上游 BoardView/TileThumb 恒显式写键)。 */
+  defense: number | null;
 }
 
 interface TileProps {
@@ -234,6 +239,50 @@ function LevelPips({
           stroke={rgba(Theme.bgDeep, 0.8)}
           strokeWidth={0.8}
         />
+      ))}
+    </g>
+  );
+}
+
+// ── 防御盾排(#1391 T5,规格 #1386):城池格常显防御值的唯一视觉通道 ──
+// 盾数=当前防御值(满值表单源 core/defense.ts:0级5/1级4/2级3/3级2),受损即缩短
+// 排列(不设暗槽:满值本就随等级反向、等级珠已示满值,暗槽是双通道复读,§4.6/§5.2
+// 一格一语言);打空都城 absorbed 态=整排耗尽(排标记在、盾件为零)。与等级珠同行
+// 同基线(格底行 y=31):防御与等级反向联动(珠少盾多、珠多盾少),右缘锚定向左生长
+// 恰好填珠让出的空,同行互不侵(最挤组合 Lv3:金框右缘 -13,盾行左缘 3)。盾形=
+// 小盾牌(用户点名盾牌,非圆点),盾色单源 Theme.defenseShield(#1391);无主城整排
+// 不渲染(免疫,无防御语义)。选择器契约:data-shield-row 排标记 + data-defense 当前值
+// + data-shield 盾件(testids 单源 cityShieldRow/cityShield,e2e 数盾断言通道)。
+/** 相邻盾心距;盾行锚在右、向左生长(translate 逐盾左移),改距不双改。 */
+const SHIELD_STEP = 8;
+
+/** 盾牌轮廓(局部坐标,以心为原点):直顶平肩、弧腹收尖的小盾牌,6.8×9.4。 */
+const SHIELD_PATH = "M -3.4 -4 H 3.4 V -0.5 C 3.4 2.2 2 3.9 0 4.6 C -2 3.9 -3.4 2.2 -3.4 -0.5 Z";
+
+function ShieldRow({ defense }: { defense: number }) {
+  return (
+    <g
+      className="bv-shield-row"
+      transform="translate(18 31)"
+      data-shield-row
+      data-defense={defense}
+    >
+      {Array.from({ length: defense }, (_, i) => (
+        <g key={i} className="bv-shield" data-shield transform={`translate(${-i * SHIELD_STEP} 0)`}>
+          <path
+            d={SHIELD_PATH}
+            fill={rgba(Theme.defenseShield)}
+            stroke={rgba(Theme.bgDeep, 0.8)}
+            strokeWidth={0.8}
+          />
+          {/* 内沿发丝线(纸色低透):小尺寸下勾出盾形空腔,与圆点区分 */}
+          <path
+            d="M -2.1 -2.6 H 2.1 V -0.4 C 2.1 1.3 1.3 2.5 0 3.2 C -1.3 2.5 -2.1 1.3 -2.1 -0.4 Z"
+            fill="none"
+            stroke={rgba(Theme.paper, 0.35)}
+            strokeWidth={0.7}
+          />
+        </g>
       ))}
     </g>
   );
@@ -439,6 +488,9 @@ export const Tile = memo(function Tile({
       {state.level > 0 ? (
         <LevelPips key={growNonce} level={state.level} maxLevel={maxLevel} replay={growNonce > 0} />
       ) : null}
+      {/* 防御盾排(#1391 T5):有主城常显,与等级珠同基线不同段(左珠右盾);无主城
+            state.defense 为 null 整排不渲染(免疫,无防御语义)。 */}
+      {state.defense != null ? <ShieldRow defense={state.defense} /> : null}
       {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):16×16 方章描金变体,
             Setup 期与等级珠时段互斥(候选期无主恒 Lv0 无珠);非决策席位同见
             (仪式感是全座的,可点只在本地)。 */}

@@ -30,6 +30,7 @@ const IDLE_STATE = {
   capitalCandidateOrder: null,
   isCityTarget: false,
   isCityPicked: false,
+  defense: null, // 无主锚定(必填联合,null=不渲染盾排)
 };
 
 describe("特殊城池两字徽标(#828)", () => {

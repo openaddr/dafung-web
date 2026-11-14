@@ -145,6 +145,8 @@ export function DecisionScrollLayer({
           cash={players[viewSeat].cash}
           ownerGuohao={ownerEntry?.guohao ?? null}
           ownerLevel={owned?.level ?? 0}
+          // 防御值行(#1391 T5):有主=持有账面当前值,无主=null 不渲染(免疫无防御语义)
+          ownerDefense={owned != null ? owned.defense : null}
           isCapital={ownerEntry?.capitalIndex === tileIndex}
           onClose={() => {
             // 详情卷轴经 Shell 的 closing 出口就地演收起:让位,不再补幽灵帧(防二连播)。

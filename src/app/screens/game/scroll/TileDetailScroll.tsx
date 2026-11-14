@@ -9,6 +9,7 @@
 //     与购地抉择同一行——详情里先看一眼买不买得起,再翻等级表),元信息退居次要行。
 import { memo } from "react";
 import { formatMoney } from "@core/money";
+import { fullDefenseOf } from "@core/defense";
 import type { TileDef } from "@core/board";
 import type { PropertyDef } from "@core/economy";
 import type { SnapshotPlayer } from "@app/store/gameStore";
@@ -39,6 +40,8 @@ interface TileDetailScrollProps {
   ownerGuohao: string | null;
   /** 持有者当前城等级(0 起);无主时忽略。 */
   ownerLevel: number;
+  /** 持有者当前防御值(#1391 T5);null=无主,不渲染防御值行(免疫,无防御语义)。 */
+  ownerDefense: number | null;
   /** 是否某家都城(都城展示 Lv 徽记)。 */
   isCapital: boolean;
   onClose: () => void;
@@ -63,6 +66,7 @@ function tileDetailScrollEqual(a: TileDetailScrollProps, b: TileDetailScrollProp
     a.cash === b.cash &&
     a.ownerGuohao === b.ownerGuohao &&
     a.ownerLevel === b.ownerLevel &&
+    a.ownerDefense === b.ownerDefense &&
     a.isCapital === b.isCapital &&
     (a.pickCapital == null) === (b.pickCapital == null)
   );
@@ -79,6 +83,7 @@ export const TileDetailScroll = memo(function TileDetailScroll({
   cash,
   ownerGuohao,
   ownerLevel,
+  ownerDefense,
   isCapital,
   onClose,
   pickCapital,
@@ -118,7 +123,20 @@ export const TileDetailScroll = memo(function TileDetailScroll({
         <p className="m-1 mb-2 text-center text-xs text-paper-dim">
           {groupLabel ? `${groupLabel} · ` : ""}
           {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
-          {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""} · 购入 {formatMoney(property.purchasePrice)}
+          {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""}
+          {/* 防御值行(#1391 T5):「防御 当前/满值」,满值表单源 core/defense.ts(等级
+              查表,不复制数值);无主城不渲染(免疫,无防御语义)。名词纪律 §4.8:
+              最短名词,无前缀无解释。 */}
+          {ownerGuohao != null && ownerDefense != null ? (
+            <>
+              {" · 防御 "}
+              <span data-testid={T.tileDetailDefense} className="text-paper">
+                {ownerDefense}/{fullDefenseOf(ownerLevel)}
+              </span>
+            </>
+          ) : null}
+          {" · 购入 "}
+          {formatMoney(property.purchasePrice)}
         </p>
         {/* 主数值行(#767 ①):屏前现金 vs 购入价,余绿/差红——详情里先答
             「买不买得起」,再看等级表 */}
