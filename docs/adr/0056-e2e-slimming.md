@@ -1,5 +1,7 @@
 # ADR-0056: 浏览器 e2e 瘦身收尾——UI 壳分类判据与验证分层定案
 
+> 历史决策:浏览器地板、脊柱、快慢池与强制放行条款已由 [ADR-0065](0065-test-economics-browser-retirement.md) 取代;当前只按需执行独有无浏览器覆盖,不得据本页恢复浏览器回归。
+
 日期:2026-11-07 · 状态:已采纳 · 票:[#1165](https://github.com/openaddr/dafung-web/issues/1165) · 地图:[#1160](https://github.com/openaddr/dafung-web/issues/1160)(无头确定性 e2e 测试体系,wayfinder;前置 [ADR-0052](./0052-headless-deterministic-testing.md)、[ADR-0055](./0055-protocol-fault-e2e.md))
 
 ## 背景
@@ -30,7 +32,7 @@
 - **浏览器层是 UI 壳冒烟**:只断言无头层替代不了的可见性/几何/交互形态;新逻辑断言进 `test/` 不进 `e2e/`。
 - **AI 浏览器自动化(dogfood / shot / 浏览器取证)是探索性工具**:找测试没想到的问题,不是回归主力。
 - **门槛清单扩一条(2026-11-07 拍板)**:改 `src/core/`(引擎行为面)加跑 `check:goldens`;影响局长/破产面的机制改动加跑 `check:sim-bench`。已落 AGENTS.md「门槛挂 PR 前——本地全绿」清单与 how-to 黄金台账/bot 基准两节。
-- 逐条分类与落点速查:[e2e/README.md](../../e2e/README.md)(目录天然分类导览,#1345;分类判据单源仍本 ADR)。
+- 逐条分类与落点速查:[浏览器回归退役决策](0065-test-economics-browser-retirement.md)(目录天然分类导览,#1345;分类判据单源仍本 ADR)。
 
 ## 承认的取舍
 

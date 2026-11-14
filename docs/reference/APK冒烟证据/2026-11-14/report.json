@@ -1,0 +1,426 @@
+{
+  "status": "passed",
+  "scope": "指定 APK 安装、版本核对、启动与取证;不代表物理真机人工验收完成",
+  "startedAt": "2026-11-14T10:54:55.134Z",
+  "finishedAt": "2026-11-14T10:55:06.198Z",
+  "invocation": [
+    "C:\\App\\nvm\\v26.7.0\\node_modules\\bun\\bin\\bun.exe",
+    "C:\\Data\\Pro\\dafung-web-ws-test-opt-1432\\scripts\\apk-smoke.ts",
+    "--apk",
+    "C:/Data/Pro/dafung-web-ws-test-opt-1432/tmp/apk-smoke/v2026.11.52-x86_64.apk",
+    "--device",
+    "emulator-5580",
+    "--package",
+    "com.dafung.web",
+    "--version",
+    "2026.11.52",
+    "--out",
+    "C:/Data/Pro/dafung-web-ws-test-opt-1432/tmp/apk-smoke/recovered-success"
+  ],
+  "expected": {
+    "apk": "C:/Data/Pro/dafung-web-ws-test-opt-1432/tmp/apk-smoke/v2026.11.52-x86_64.apk",
+    "device": "emulator-5580",
+    "package": "com.dafung.web",
+    "version": "2026.11.52",
+    "out": "C:\\Data\\Pro\\dafung-web-ws-test-opt-1432\\tmp\\apk-smoke\\recovered-success"
+  },
+  "apk": {
+    "path": "C:/Data/Pro/dafung-web-ws-test-opt-1432/tmp/apk-smoke/v2026.11.52-x86_64.apk",
+    "bytes": 29172053,
+    "sha256": "f192f7e2d72f662753c681182f0e579558a69ccc9ad8b9ec00b6c38684321971",
+    "packageName": "com.dafung.web",
+    "versionCode": "2026011052",
+    "versionName": "2026.11.52",
+    "nativeCode": "'x86_64'",
+    "activity": "com.dafung.web.MainActivity"
+  },
+  "environment": {
+    "sdk": "C:\\App\\env\\android-sdk",
+    "adb": "Android Debug Bridge version 1.0.41\r\nVersion 37.0.1-15733141\r\nInstalled as C:\\App\\env\\android-sdk\\platform-tools\\adb.exe\r\nRunning on Windows 10.0.26300",
+    "device": "emulator-5580",
+    "model": "Android SDK built for x86_64",
+    "android": "15",
+    "api": "35",
+    "abi": "x86_64",
+    "emulator": true,
+    "webview": "Current WebView Update Service state\r\n  Current WebView package (name, version): (com.android.webview, 124.0.6367.219)\r\n  Minimum targetSdkVersion: 33\r\n  Minimum WebView version code: 636771907\r\n  Number of relros started: 1\r\n  Number of relros finished: 1\r\n  WebView package dirty: false\r\n  Any WebView package installed: true\r\n  Preferred WebView package (name, version): (com.android.webview, 124.0.6367.219)\r\n  WebView packages:\r\n    Valid package com.android.webview (versionName: 124.0.6367.219, versionCode: 636771907, targetSdkVersion: 34) is  installed/enabled for all users",
+    "display": "Physical size: 1080x2400\r\nOverride size: 390x844",
+    "density": "Physical density: 420\r\nOverride density: 160",
+    "pid": "2720",
+    "foreground": [
+      "    topResumedActivity=ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13}"
+    ],
+    "logcatSince": "11-14 10:54:54.000",
+    "focusedWindow": "mCurrentFocus=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}"
+  },
+  "steps": [
+    {
+      "name": "SDK 前置",
+      "startedAt": "2026-11-14T10:54:55.135Z",
+      "finishedAt": "2026-11-14T10:54:55.233Z",
+      "status": "passed",
+      "commands": [
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "version"
+          ],
+          "exitCode": 0,
+          "stdout": "Android Debug Bridge version 1.0.41\r\nVersion 37.0.1-15733141\r\nInstalled as C:\\App\\env\\android-sdk\\platform-tools\\adb.exe\r\nRunning on Windows 10.0.26300\r\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "name": "APK 身份",
+      "startedAt": "2026-11-14T10:54:55.234Z",
+      "finishedAt": "2026-11-14T10:54:55.344Z",
+      "status": "passed",
+      "commands": [
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\build-tools\\35.0.0\\aapt.exe",
+            "dump",
+            "badging",
+            "C:/Data/Pro/dafung-web-ws-test-opt-1432/tmp/apk-smoke/v2026.11.52-x86_64.apk"
+          ],
+          "exitCode": 0,
+          "stdout": "package: name='com.dafung.web' versionCode='2026011052' versionName='2026.11.52' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'\r\nsdkVersion:'24'\r\ntargetSdkVersion:'36'\r\nuses-permission: name='android.permission.INTERNET'\r\nuses-permission: name='com.dafung.web.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'\r\napplication-label:'群雄逐鹿'\r\napplication-label-af:'群雄逐鹿'\r\napplication-label-am:'群雄逐鹿'\r\napplication-label-ar:'群雄逐鹿'\r\napplication-label-as:'群雄逐鹿'\r\napplication-label-az:'群雄逐鹿'\r\napplication-label-be:'群雄逐鹿'\r\napplication-label-bg:'群雄逐鹿'\r\napplication-label-bn:'群雄逐鹿'\r\napplication-label-bs:'群雄逐鹿'\r\napplication-label-ca:'群雄逐鹿'\r\napplication-label-cs:'群雄逐鹿'\r\napplication-label-da:'群雄逐鹿'\r\napplication-label-de:'群雄逐鹿'\r\napplication-label-el:'群雄逐鹿'\r\napplication-label-en-AU:'群雄逐鹿'\r\napplication-label-en-CA:'群雄逐鹿'\r\napplication-label-en-GB:'群雄逐鹿'\r\napplication-label-en-IN:'群雄逐鹿'\r\napplication-label-en-XC:'群雄逐鹿'\r\napplication-label-es:'群雄逐鹿'\r\napplication-label-es-419:'群雄逐鹿'\r\napplication-label-es-US:'群雄逐鹿'\r\napplication-label-et:'群雄逐鹿'\r\napplication-label-eu:'群雄逐鹿'\r\napplication-label-fa:'群雄逐鹿'\r\napplication-label-fi:'群雄逐鹿'\r\napplication-label-fr:'群雄逐鹿'\r\napplication-label-fr-CA:'群雄逐鹿'\r\napplication-label-gl:'群雄逐鹿'\r\napplication-label-gu:'群雄逐鹿'\r\napplication-label-hi:'群雄逐鹿'\r\napplication-label-hr:'群雄逐鹿'\r\napplication-label-hu:'群雄逐鹿'\r\napplication-label-hy:'群雄逐鹿'\r\napplication-label-in:'群雄逐鹿'\r\napplication-label-is:'群雄逐鹿'\r\napplication-label-it:'群雄逐鹿'\r\napplication-label-iw:'群雄逐鹿'\r\napplication-label-ja:'群雄逐鹿'\r\napplication-label-ka:'群雄逐鹿'\r\napplication-label-kk:'群雄逐鹿'\r\napplication-label-km:'群雄逐鹿'\r\napplication-label-kn:'群雄逐鹿'\r\napplication-label-ko:'群雄逐鹿'\r\napplication-label-ky:'群雄逐鹿'\r\napplication-label-lo:'群雄逐鹿'\r\napplication-label-lt:'群雄逐鹿'\r\napplication-label-lv:'群雄逐鹿'\r\napplication-label-mk:'群雄逐鹿'\r\napplication-label-ml:'群雄逐鹿'\r\napplication-label-mn:'群雄逐鹿'\r\napplication-label-mr:'群雄逐鹿'\r\napplication-label-ms:'群雄逐鹿'\r\napplication-label-my:'群雄逐鹿'\r\napplication-label-nb:'群雄逐鹿'\r\napplication-label-ne:'群雄逐鹿'\r\napplication-label-nl:'群雄逐鹿'\r\napplication-label-or:'群雄逐鹿'\r\napplication-label-pa:'群雄逐鹿'\r\napplication-label-pl:'群雄逐鹿'\r\napplication-label-pt:'群雄逐鹿'\r\napplication-label-pt-BR:'群雄逐鹿'\r\napplication-label-pt-PT:'群雄逐鹿'\r\napplication-label-ro:'群雄逐鹿'\r\napplication-label-ru:'群雄逐鹿'\r\napplication-label-si:'群雄逐鹿'\r\napplication-label-sk:'群雄逐鹿'\r\napplication-label-sl:'群雄逐鹿'\r\napplication-label-sq:'群雄逐鹿'\r\napplication-label-sr:'群雄逐鹿'\r\napplication-label-sr-Latn:'群雄逐鹿'\r\napplication-label-sv:'群雄逐鹿'\r\napplication-label-sw:'群雄逐鹿'\r\napplication-label-ta:'群雄逐鹿'\r\napplication-label-te:'群雄逐鹿'\r\napplication-label-th:'群雄逐鹿'\r\napplication-label-tl:'群雄逐鹿'\r\napplication-label-tr:'群雄逐鹿'\r\napplication-label-uk:'群雄逐鹿'\r\napplication-label-ur:'群雄逐鹿'\r\napplication-label-uz:'群雄逐鹿'\r\napplication-label-vi:'群雄逐鹿'\r\napplication-label-zh-CN:'群雄逐鹿'\r\napplication-label-zh-HK:'群雄逐鹿'\r\napplication-label-zh-TW:'群雄逐鹿'\r\napplication-label-zu:'群雄逐鹿'\r\napplication-icon-120:'res/9w.png'\r\napplication-icon-160:'res/9w.png'\r\napplication-icon-240:'res/yn.png'\r\napplication-icon-320:'res/FS.png'\r\napplication-icon-480:'res/RJ.png'\r\napplication-icon-640:'res/o-.png'\r\napplication-icon-65534:'res/9w.png'\r\napplication: label='群雄逐鹿' icon='res/9w.png'\r\nlaunchable-activity: name='com.dafung.web.MainActivity'  label='群雄逐鹿' icon=''\r\nleanback-launchable-activity: name='com.dafung.web.MainActivity'  label='群雄逐鹿' icon='' banner=''\r\nfeature-group: label=''\r\n  uses-feature-not-required: name='android.software.leanback'\r\n  uses-feature: name='android.hardware.faketouch'\r\n  uses-implied-feature: name='android.hardware.faketouch' reason='default feature for all apps'\r\n  uses-feature: name='android.hardware.screen.landscape'\r\n  uses-implied-feature: name='android.hardware.screen.landscape' reason='one or more activities have specified a landscape orientation'\r\nmain\r\nother-receivers\r\nsupports-screens: 'small' 'normal' 'large' 'xlarge'\r\nsupports-any-density: 'true'\r\nlocales: '--_--' 'af' 'am' 'ar' 'as' 'az' 'be' 'bg' 'bn' 'bs' 'ca' 'cs' 'da' 'de' 'el' 'en-AU' 'en-CA' 'en-GB' 'en-IN' 'en-XC' 'es' 'es-419' 'es-US' 'et' 'eu' 'fa' 'fi' 'fr' 'fr-CA' 'gl' 'gu' 'hi' 'hr' 'hu' 'hy' 'in' 'is' 'it' 'iw' 'ja' 'ka' 'kk' 'km' 'kn' 'ko' 'ky' 'lo' 'lt' 'lv' 'mk' 'ml' 'mn' 'mr' 'ms' 'my' 'nb' 'ne' 'nl' 'or' 'pa' 'pl' 'pt' 'pt-BR' 'pt-PT' 'ro' 'ru' 'si' 'sk' 'sl' 'sq' 'sr' 'sr-Latn' 'sv' 'sw' 'ta' 'te' 'th' 'tl' 'tr' 'uk' 'ur' 'uz' 'vi' 'zh-CN' 'zh-HK' 'zh-TW' 'zu'\r\ndensities: '120' '160' '240' '320' '480' '640' '65534'\r\nnative-code: 'x86_64'\r\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "name": "指定设备",
+      "startedAt": "2026-11-14T10:54:55.345Z",
+      "finishedAt": "2026-11-14T10:54:56.426Z",
+      "status": "passed",
+      "commands": [
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "devices",
+            "-l"
+          ],
+          "exitCode": 0,
+          "stdout": "List of devices attached\r\nemulator-5580          device product:sdk_phone64_x86_64 model:Android_SDK_built_for_x86_64 device:emu64x transport_id:2\r\n\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "getprop",
+            "ro.product.model"
+          ],
+          "exitCode": 0,
+          "stdout": "Android SDK built for x86_64\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "getprop",
+            "ro.build.version.release"
+          ],
+          "exitCode": 0,
+          "stdout": "15\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "getprop",
+            "ro.build.version.sdk"
+          ],
+          "exitCode": 0,
+          "stdout": "35\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "getprop",
+            "ro.product.cpu.abilist"
+          ],
+          "exitCode": 0,
+          "stdout": "x86_64\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "getprop",
+            "ro.kernel.qemu"
+          ],
+          "exitCode": 0,
+          "stdout": "1\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "dumpsys",
+            "webviewupdate"
+          ],
+          "exitCode": 0,
+          "stdout": "Current WebView Update Service state\r\n  Current WebView package (name, version): (com.android.webview, 124.0.6367.219)\r\n  Minimum targetSdkVersion: 33\r\n  Minimum WebView version code: 636771907\r\n  Number of relros started: 1\r\n  Number of relros finished: 1\r\n  WebView package dirty: false\r\n  Any WebView package installed: true\r\n  Preferred WebView package (name, version): (com.android.webview, 124.0.6367.219)\r\n  WebView packages:\r\n    Valid package com.android.webview (versionName: 124.0.6367.219, versionCode: 636771907, targetSdkVersion: 34) is  installed/enabled for all users\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "wm",
+            "size"
+          ],
+          "exitCode": 0,
+          "stdout": "Physical size: 1080x2400\r\nOverride size: 390x844\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "wm",
+            "density"
+          ],
+          "exitCode": 0,
+          "stdout": "Physical density: 420\r\nOverride density: 160\r\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "name": "记录设备起点",
+      "startedAt": "2026-11-14T10:54:56.427Z",
+      "finishedAt": "2026-11-14T10:54:56.550Z",
+      "status": "passed",
+      "commands": [
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "date",
+            "'+%m-%d %H:%M:%S.000'"
+          ],
+          "exitCode": 0,
+          "stdout": "11-14 10:54:54.000\r\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "name": "安装并核对版本",
+      "startedAt": "2026-11-14T10:54:56.551Z",
+      "finishedAt": "2026-11-14T10:54:59.690Z",
+      "status": "passed",
+      "commands": [
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "install",
+            "-r",
+            "C:/Data/Pro/dafung-web-ws-test-opt-1432/tmp/apk-smoke/v2026.11.52-x86_64.apk"
+          ],
+          "exitCode": 0,
+          "stdout": "Performing Incremental Install\r\nPerforming Streamed Install\r\nSuccess\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "dumpsys",
+            "package",
+            "com.dafung.web"
+          ],
+          "exitCode": 0,
+          "stdout": "Activity Resolver Table:\r\n  Non-Data Actions:\r\n      android.intent.action.MAIN:\r\n        d9b865b com.dafung.web/.MainActivity filter 38a1ef8\r\n          Action: \"android.intent.action.MAIN\"\r\n          Category: \"android.intent.category.LAUNCHER\"\r\n          Category: \"android.intent.category.LEANBACK_LAUNCHER\"\r\n\r\nReceiver Resolver Table:\r\n  Non-Data Actions:\r\n      androidx.profileinstaller.action.SAVE_PROFILE:\r\n        30eefd1 com.dafung.web/androidx.profileinstaller.ProfileInstallReceiver filter 1be32a4\r\n          Action: \"androidx.profileinstaller.action.SAVE_PROFILE\"\r\n      androidx.profileinstaller.action.INSTALL_PROFILE:\r\n        30eefd1 com.dafung.web/androidx.profileinstaller.ProfileInstallReceiver filter 713fa36\r\n          Action: \"androidx.profileinstaller.action.INSTALL_PROFILE\"\r\n      androidx.profileinstaller.action.SKIP_FILE:\r\n        30eefd1 com.dafung.web/androidx.profileinstaller.ProfileInstallReceiver filter 5822d37\r\n          Action: \"androidx.profileinstaller.action.SKIP_FILE\"\r\n      androidx.profileinstaller.action.BENCHMARK_OPERATION:\r\n        30eefd1 com.dafung.web/androidx.profileinstaller.ProfileInstallReceiver filter 41b80d\r\n          Action: \"androidx.profileinstaller.action.BENCHMARK_OPERATION\"\r\n\r\nDomain verification status:\r\n\r\nPermissions:\r\n  Permission [com.dafung.web.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION] (529fef2):\r\n    sourcePackage=com.dafung.web\r\n    uid=10149 gids=[] type=0 prot=signature\r\n    perm=PermissionInfo{fbb7943 com.dafung.web.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION}\r\n    flags=0x0\r\n\r\nRegistered ContentProviders:\r\n  com.dafung.web/androidx.core.content.FileProvider:\r\n    Provider{e973bc0 com.dafung.web/androidx.core.content.FileProvider}\r\n  com.dafung.web/androidx.startup.InitializationProvider:\r\n    Provider{11920f9 com.dafung.web/androidx.startup.InitializationProvider}\r\n\r\nContentProvider Authorities:\r\n  [com.dafung.web.androidx-startup]:\r\n    Provider{11920f9 com.dafung.web/androidx.startup.InitializationProvider}\r\n      applicationInfo=ApplicationInfo{955183e com.dafung.web}\r\n  [com.dafung.web.fileprovider]:\r\n    Provider{e973bc0 com.dafung.web/androidx.core.content.FileProvider}\r\n      applicationInfo=ApplicationInfo{492669f com.dafung.web}\r\n\r\nKey Set Manager:\r\n  [com.dafung.web]\r\n      Signing KeySets: 20\r\n\r\nPackages:\r\n  Package [com.dafung.web] (6dd1fda):\r\n    appId=10149\r\n    pkg=Package{b9453ec com.dafung.web}\r\n    codePath=/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==\r\n    resourcePath=/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==\r\n    legacyNativeLibraryDir=/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/lib\r\n    extractNativeLibs=false\r\n    primaryCpuAbi=x86_64\r\n    secondaryCpuAbi=null\r\n    cpuAbiOverride=null\r\n    versionCode=2026011052 minSdk=24 targetSdk=36\r\n    minExtensionVersions=[]\r\n    versionName=2026.11.52\r\n    hiddenApiEnforcementPolicy=2\r\n    usesNonSdkApi=false\r\n    splits=[base]\r\n    apkSigningVersion=3\r\n    flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]\r\n    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\r\n    forceQueryable=false\r\n    scannedAsStoppedSystemApp=false\r\n    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]\r\n    timeStamp=2026-11-14 10:54:55\r\n    lastUpdateTime=2026-11-14 10:54:55\r\n    installerPackageName=null\r\n    installerPackageUid=-1\r\n    initiatingPackageName=com.android.shell\r\n    originatingPackageName=null\r\n    packageSource=1\r\n    appMetadataFilePath=null\r\n    appMetadataSource=0\r\n    signatures=PackageSignatures{a117fb0 version:3, signatures:[43b34095], past signatures:[]}\r\n    installPermissionsFixed=false\r\n    pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]\r\n    privatePkgFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]\r\n    apexModuleName=null\r\n    declared permissions:\r\n      com.dafung.web.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: prot=signature\r\n    requested permissions:\r\n      android.permission.INTERNET\r\n      com.dafung.web.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\r\n    install permissions:\r\n      android.permission.INTERNET: granted=true\r\n      com.dafung.web.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: granted=true\r\n    User 0: ceDataInode=352426 deDataInode=90691 installed=true hidden=false suspended=false distractionFlags=0 stopped=false notLaunched=false enabled=0 instant=false virtual=false quarantined=false\r\n      installReason=0\r\n      dataDir=/data/user/0/com.dafung.web\r\n      firstInstallTime=2026-11-14 10:51:02\r\n      uninstallReason=0\r\n      overlay paths:\r\n        /data/resource-cache/com.android.systemui-neutral-ZFA9.frro\r\n        /data/resource-cache/com.android.systemui-accent-nSG9.frro\r\n        /data/resource-cache/com.android.systemui-dynamic-yHyV.frro\r\n      gids=[3003]\r\n      runtime permissions:\r\n\r\nQueries:\r\n  system apps queryable: false\r\n  queries via forceQueryable:\r\n  queries via package name:\r\n  queries via component:\r\n    com.android.settings.intelligence:\r\n      com.dafung.web\r\n  queryable via interaction:\r\n    User 0:\r\n  queryable via uses-library:\r\n\r\nDexopt state:\r\n  [com.dafung.web]\r\n    path: /data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk\r\n      x86_64: [status=verify] [reason=install] [primary-abi]\r\n        [location is /data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/oat/x86_64/base.odex]\r\n\r\nCompiler stats:\r\n  [com.dafung.web]\r\n     base.apk - 1564\r\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "name": "启动并核对前台",
+      "startedAt": "2026-11-14T10:54:59.691Z",
+      "finishedAt": "2026-11-14T10:55:01.806Z",
+      "status": "passed",
+      "commands": [
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "am",
+            "start",
+            "-W",
+            "-n",
+            "com.dafung.web/com.dafung.web.MainActivity"
+          ],
+          "exitCode": 0,
+          "stdout": "Starting: Intent { cmp=com.dafung.web/.MainActivity }\r\nStatus: ok\r\nLaunchState: COLD\r\nActivity: com.dafung.web/.MainActivity\r\nTotalTime: 1374\r\nWaitTime: 1378\r\nComplete\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "pidof",
+            "com.dafung.web"
+          ],
+          "exitCode": 0,
+          "stdout": "2720\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "dumpsys",
+            "activity",
+            "activities"
+          ],
+          "exitCode": 0,
+          "stdout": "ACTIVITY MANAGER ACTIVITIES (dumpsys activity activities)\r\nDisplay #0 (activities from top to bottom):\r\n  * Task{e49cb50 #13 type=standard A=10149:com.dafung.web U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}\r\n    mLastNonFullscreenBounds=Rect(27, 326 - 363, 495)\r\n    isSleeping=false\r\n    topResumedActivity=ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13}\r\n    * Hist  #0: ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13}\r\n      packageName=com.dafung.web processName=com.dafung.web\r\n      launchedFromUid=2000 launchedFromPackage=com.android.shell launchedFromFeature=null userId=0\r\n      app=ProcessRecord{4be0d5a 2720:com.dafung.web/u0a149}\r\n      Intent { flg=0x10000000 cmp=com.dafung.web/.MainActivity }\r\n      rootOfTask=true task=Task{e49cb50 #13 type=standard A=10149:com.dafung.web}\r\n      taskAffinity=10149:com.dafung.web\r\n      mActivityComponent=com.dafung.web/.MainActivity\r\n      baseDir=/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk\r\n      dataDir=/data/user/0/com.dafung.web\r\n      stateNotNeeded=false componentSpecified=true mActivityType=standard\r\n      compat={160dpi} theme=0x7f1002b8\r\n      mLastReportedConfigurations:\r\n        mGlobalConfig={1.0 310mcc260mnc [en_US] ldltr sw390dp w844dp h390dp 160dpi nrml long land finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 844, 390) mAppBounds=Rect(0, 0 - 844, 390) mMaxBounds=Rect(0, 0 - 844, 390) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_90} s.404 fontWeightAdjustment=0}\r\n        mOverrideConfig={1.0 310mcc260mnc [en_US] ldltr sw390dp w844dp h390dp 160dpi nrml long land finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 844, 390) mAppBounds=Rect(0, 0 - 844, 390) mMaxBounds=Rect(0, 0 - 844, 390) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_90} s.3 fontWeightAdjustment=0}\r\n      mLastReportedActivityWindowInfo=ActivityWindowInfo{isEmbedded=false, taskBounds=Rect(0, 0 - 844, 390), taskFragmentBounds=Rect(0, 0 - 844, 390)}\r\n      CurrentConfiguration={1.0 310mcc260mnc [en_US] ldltr sw390dp w844dp h390dp 160dpi nrml long land finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 844, 390) mAppBounds=Rect(0, 0 - 844, 390) mMaxBounds=Rect(0, 0 - 844, 390) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_90} s.4 fontWeightAdjustment=0}\r\n      RequestedOverrideConfiguration={0.0 ?mcc0mnc ?localeList ?layoutDir ?swdp ?wdp ?hdp ?density ?lsize ?long ?ldr ?wideColorGamut ?orien ?uimode ?night ?touch ?keyb/?/? ?nav/? winConfig={ mBounds=Rect(0, 0 - 0, 0) mAppBounds=null mMaxBounds=Rect(0, 0 - 0, 0) mDisplayRotation=undefined mWindowingMode=undefined mActivityType=standard mAlwaysOnTop=undefined mRotation=undefined} ?fontWeightAdjustment}\r\n      taskDescription: label=\"null\" icon=null iconResource=/0 iconFilename=null primaryColor=ff6200ee\r\n        backgroundColor=ffffffff statusBarColor=ff3700b3 navigationBarColor=808080\r\n       backgroundColorFloating=ffffffff\r\n      launchFailed=false launchCount=1 lastLaunchTime=-1s434ms\r\n      mHaveState=false mIcicle=null\r\n      state=RESUMED delayedResume=false finishing=false\r\n      keysPaused=false inHistory=true idle=false\r\n      occludesParent=true noDisplay=false immersive=false launchMode=2\r\n      mActivityType=standard\r\n      mImeInsetsFrozenUntilStartInput=false\r\n      windows=[Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}, Window{9084c7c u0 Splash Screen com.dafung.web}]\r\n      windowType=2\r\n      mOccludesParent=true\r\n      overrideOrientation=SCREEN_ORIENTATION_SENSOR_LANDSCAPE\r\n      requestedOrientation=SCREEN_ORIENTATION_SENSOR_LANDSCAPE\r\n      mVisibleRequested=true mVisible=true mClientVisible=true reportedDrawn=true reportedVisible=false\r\n      mNumInterestingWindows=1 mNumDrawnWindows=1 allDrawn=true lastAllDrawn=false)\r\n      startingData=null firstWindowDrawn=true mIsExiting=false\r\n      resizeMode=RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION\r\n      mLastReportedMultiWindowMode=false mLastReportedPictureInPictureMode=false\r\n      supportsSizeChanges=SIZE_CHANGES_UNSUPPORTED_METADATA\r\n      configChanges=0xfb7\r\n      neverSandboxDisplayApis=false\r\n      alwaysSandboxDisplayApis=false\r\n      areBoundsLetterboxed=false\r\n      mCameraCompatControlState=hidden\r\n      mCameraCompatControlEnabled=false\r\n\r\n  * Task{8f8a18f #1 type=home U=0 visible=false visibleRequested=false mode=fullscreen translucent=true sz=1}\r\n    * Task{23d4654 #9 type=home I=com.android.launcher3/.uioverrides.QuickstepLauncher U=0 rootTaskId=1 visible=false visibleRequested=false mode=fullscreen translucent=true sz=1}\r\n      mLastPausedActivity: ActivityRecord{7811a66 u0 com.android.launcher3/.uioverrides.QuickstepLauncher t9}\r\n      mLastNonFullscreenBounds=Rect(297, 660 - 783, 1740)\r\n      isSleeping=false\r\n      * Hist  #0: ActivityRecord{7811a66 u0 com.android.launcher3/.uioverrides.QuickstepLauncher t9}\r\n        packageName=com.android.launcher3 processName=com.android.launcher3\r\n        launchedFromUid=0 launchedFromPackage=null launchedFromFeature=null userId=0\r\n        app=ProcessRecord{6590cbc 1112:com.android.launcher3/u0a120}\r\n        Intent { act=android.intent.action.MAIN cat=[android.intent.category.HOME] flg=0x10000100 cmp=com.android.launcher3/.uioverrides.QuickstepLauncher (has extras) }\r\n        rootOfTask=true task=Task{23d4654 #9 type=home I=com.android.launcher3/.uioverrides.QuickstepLauncher}\r\n        taskAffinity=null\r\n        mActivityComponent=com.android.launcher3/.uioverrides.QuickstepLauncher\r\n        baseDir=/system_ext/priv-app/Launcher3QuickStep/Launcher3QuickStep.apk\r\n        dataDir=/data/user/0/com.android.launcher3\r\n        stateNotNeeded=true componentSpecified=true mActivityType=home\r\n        compat={160dpi} theme=0x7f120010\r\n        mLastReportedConfigurations:\r\n          mGlobalConfig={1.0 310mcc260mnc [en_US] ldltr sw390dp w390dp h844dp 160dpi nrml long port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 390, 844) mAppBounds=Rect(0, 0 - 390, 844) mMaxBounds=Rect(0, 0 - 390, 844) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.159 fontWeightAdjustment=0}\r\n          mOverrideConfig={1.0 310mcc260mnc [en_US] ldltr sw390dp w390dp h844dp 160dpi nrml long port finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 390, 844) mAppBounds=Rect(0, 0 - 390, 844) mMaxBounds=Rect(0, 0 - 390, 844) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=home mAlwaysOnTop=undefined mRotation=ROTATION_0} s.6 fontWeightAdjustment=0}\r\n        mLastReportedActivityWindowInfo=ActivityWindowInfo{isEmbedded=false, taskBounds=Rect(0, 0 - 390, 844), taskFragmentBounds=Rect(0, 0 - 390, 844)}\r\n        CurrentConfiguration={1.0 310mcc260mnc [en_US] ldltr sw390dp w844dp h390dp 160dpi nrml long land finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 844, 390) mAppBounds=Rect(0, 0 - 844, 390) mMaxBounds=Rect(0, 0 - 844, 390) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mActivityType=home mAlwaysOnTop=undefined mRotation=ROTATION_90} s.16 fontWeightAdjustment=0}\r\n        RequestedOverrideConfiguration={0.0 ?mcc0mnc ?localeList ?layoutDir ?swdp ?wdp ?hdp ?density ?lsize ?long ?ldr ?wideColorGamut ?orien ?uimode ?night ?touch ?keyb/?/? ?nav/? winConfig={ mBounds=Rect(0, 0 - 0, 0) mAppBounds=null mMaxBounds=Rect(0, 0 - 0, 0) mDisplayRotation=undefined mWindowingMode=undefined mActivityType=home mAlwaysOnTop=undefined mRotation=undefined} ?fontWeightAdjustment}\r\n        taskDescription: label=\"null\" icon=null iconResource=/0 iconFilename=null primaryColor=fff1f0f7\r\n          backgroundColor=fff1f0f7 statusBarColor=0 navigationBarColor=0\r\n         backgroundColorFloating=fff1f0f7\r\n        launchFailed=false launchCount=0 lastLaunchTime=-10m55s105ms\r\n        mHaveState=false mIcicle=null\r\n        state=PAUSED delayedResume=false finishing=false\r\n        keysPaused=false inHistory=true idle=true\r\n        occludesParent=true noDisplay=false immersive=false launchMode=2\r\n        mActivityType=home\r\n        mImeInsetsFrozenUntilStartInput=true\r\n        windows=[Window{52f3d40 u0 com.android.launcher3/com.android.launcher3.uioverrides.QuickstepLauncher}]\r\n        windowType=2\r\n        mOccludesParent=true\r\n        overrideOrientation=SCREEN_ORIENTATION_NOSENSOR\r\n        requestedOrientation=SCREEN_ORIENTATION_NOSENSOR\r\n        mVisibleRequested=false mVisible=false mClientVisible=false reportedDrawn=false reportedVisible=false\r\n        mNumInterestingWindows=1 mNumDrawnWindows=1 allDrawn=true lastAllDrawn=false)\r\n        startingData=null firstWindowDrawn=true mIsExiting=false\r\n        nowVisible=false lastVisibleTime=-3s892ms\r\n        connections={ConnectionRecord{a5cd7d u0 com.android.launcher3/com.android.quickstep.TouchInteractionService:@6d877d4 flags=0x0}}\r\n        resizeMode=RESIZE_MODE_RESIZEABLE\r\n        mLastReportedMultiWindowMode=false mLastReportedPictureInPictureMode=false\r\n        supportsSizeChanges=SIZE_CHANGES_UNSUPPORTED_METADATA\r\n        configChanges=0xdf3\r\n        neverSandboxDisplayApis=false\r\n        alwaysSandboxDisplayApis=false\r\n        areBoundsLetterboxed=false\r\n        mCameraCompatControlState=hidden\r\n        mCameraCompatControlEnabled=false\r\n\r\n  * Task{1e4d628 #2 type=undefined U=0 visible=false visibleRequested=false mode=fullscreen translucent=true sz=2}\r\n    mCreatedByOrganizer=true\r\n    * Task{d054cca #4 type=undefined U=0 rootTaskId=2 visible=false visibleRequested=false mode=multi-window translucent=true sz=0}\r\n      mBounds=Rect(0, 2400 - 1080, 3600)\r\n      mCreatedByOrganizer=true\r\n      isSleeping=false\r\n    * Task{c9cf227 #3 type=undefined U=0 rootTaskId=2 visible=false visibleRequested=false mode=multi-window translucent=true sz=0}\r\n      mCreatedByOrganizer=true\r\n      isSleeping=false\r\n\r\n  Resumed activities in task display areas (from top to bottom):\r\n    Resumed: ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13}\r\n\r\n  Activities waiting to stop:\r\n    Task{23d4654 #9 type=home I=com.android.launcher3/.uioverrides.QuickstepLauncher}\r\n      Stop #0: ActivityRecord{7811a66 u0 com.android.launcher3/.uioverrides.QuickstepLauncher t9}\r\n\r\n  ResumedActivity: ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13}\r\n\r\nActivityTaskSupervisor state:\r\n  topDisplayFocusedRootTask=Task{e49cb50 #13 type=standard A=10149:com.dafung.web}\r\n  Display: mDisplayId=0 (organized)\r\n    init=1080x2400 420dpi mMinSizeOfResizeableTaskDp=220 base=390x844 160dpi cur=844x390 app=844x390 rng=390x390-844x844\r\n    deferred=false mLayoutNeeded=false\r\n  mLastOrientationSource=WindowedMagnification:0:31@156157545\r\n  deepestLastOrientationSource=ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13}\r\n  overrideConfig={1.0 310mcc260mnc [en_US] ldltr sw390dp w844dp h390dp 160dpi nrml long land finger qwerty/v/v -nav/h winConfig={ mBounds=Rect(0, 0 - 844, 390) mAppBounds=Rect(0, 0 - 844, 390) mMaxBounds=Rect(0, 0 - 844, 390) mDisplayRotation=ROTATION_90 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_90} s.405 fontWeightAdjustment=0}\r\n  mLayoutSeq=249\r\n  mCurrentFocus=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}\r\n  mFocusedApp=ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13}\r\n\r\n  mHoldScreenWindow=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}\r\n  mObscuringWindow=null\r\n  mLastWakeLockHoldingWindow=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}\r\n  mLastWakeLockObscuringWindow=null\r\n\r\n  displayId=0\r\n  mWallpaperTarget=null\r\n  mLastWallpaperZoomOut=0.0\r\n  token WallpaperWindowToken{6f751d2 token=android.os.Binder@e8b45d}:\r\n    canShowWhenLocked=true\r\n    mWallpaperX=0.0\r\n    mWallpaperY=0.5\r\n    mWallpaperXStep=0.33333334\r\n    mWallpaperYStep=1.0\r\n    mWallpaperDisplayOffsetX=NA\r\n    mWallpaperDisplayOffsetY=NA\r\n\r\n  Display areas in top down Z order:\r\n    * Leaf:36:36\r\n    * HideDisplayCutout:32:35\r\n      * OneHanded:34:35\r\n        * FullscreenMagnification:34:35\r\n          * Leaf:34:35\r\n      * FullscreenMagnification:33:33\r\n        * Leaf:33:33\r\n      * OneHanded:32:32\r\n        * Leaf:32:32\r\n    * WindowedMagnification:0:31\r\n      * HideDisplayCutout:26:31\r\n        * OneHanded:26:31\r\n          * FullscreenMagnification:29:31\r\n            * Leaf:29:31\r\n          * Leaf:28:28\r\n          * FullscreenMagnification:26:27\r\n            * Leaf:26:27\r\n      * Leaf:24:25\r\n      * HideDisplayCutout:18:23\r\n        * OneHanded:18:23\r\n          * FullscreenMagnification:18:23\r\n            * Leaf:18:23\r\n      * OneHanded:17:17\r\n        * FullscreenMagnification:17:17\r\n          * Leaf:17:17\r\n      * HideDisplayCutout:16:16\r\n        * OneHanded:16:16\r\n          * FullscreenMagnification:16:16\r\n            * Leaf:16:16\r\n      * OneHanded:15:15\r\n        * FullscreenMagnification:15:15\r\n          * Leaf:15:15\r\n      * HideDisplayCutout:0:14\r\n        * OneHanded:0:14\r\n          * ImePlaceholder:13:14\r\n            * ImeContainer\r\n          * FullscreenMagnification:0:12\r\n            * Leaf:3:12\r\n            * DefaultTaskDisplayArea (organized)\r\n            * Leaf:0:1\r\n\r\n  Task display areas in top down Z order:\r\n    TaskDisplayArea DefaultTaskDisplayArea\r\n      overrideConfig={0.0 ?mcc0mnc ?localeList ?layoutDir ?swdp ?wdp ?hdp ?density ?lsize ?long ?ldr ?wideColorGamut ?orien ?uimode ?night ?touch ?keyb/?/? ?nav/? winConfig={ mBounds=Rect(0, 0 - 0, 0) mAppBounds=null mMaxBounds=Rect(0, 0 - 0, 0) mDisplayRotation=undefined mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=undefined} ?fontWeightAdjustment}\r\n      mPreferredTopFocusableRootTask=Task{e49cb50 #13 type=standard A=10149:com.dafung.web}\r\n      mLastFocusedRootTask=Task{e49cb50 #13 type=standard A=10149:com.dafung.web}\r\n      Application tokens in top down Z order:\r\n      * Task{e49cb50 #13 type=standard A=10149:com.dafung.web U=0 visible=true visibleRequested=true mode=fullscreen translucent=false sz=1}\r\n        bounds=[0,0][844,390]\r\n        * ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13}\r\n      * Task{8f8a18f #1 type=home U=0 visible=false visibleRequested=false mode=fullscreen translucent=true sz=1}\r\n        bounds=[0,0][844,390]\r\n        * Task{23d4654 #9 type=home I=com.android.launcher3/.uioverrides.QuickstepLauncher U=0 rootTaskId=1 visible=false visibleRequested=false mode=fullscreen translucent=true sz=1}\r\n          bounds=[0,0][844,390]\r\n          * ActivityRecord{7811a66 u0 com.android.launcher3/.uioverrides.QuickstepLauncher t9}\r\n      * Task{1e4d628 #2 type=undefined U=0 visible=false visibleRequested=false mode=fullscreen translucent=true sz=2}\r\n        bounds=[0,0][844,390]\r\n        * Task{d054cca #4 type=undefined U=0 rootTaskId=2 visible=false visibleRequested=false mode=multi-window translucent=true sz=0}\r\n          bounds=[0,2400][1080,3600]\r\n        * Task{c9cf227 #3 type=undefined U=0 rootTaskId=2 visible=false visibleRequested=false mode=multi-window translucent=true sz=0}\r\n          bounds=[0,0][844,390]\r\n\r\n  no ScreenRotationAnimation \r\n\r\n  rootHomeTask=Task=1\r\n\r\n  PinnedTaskController\r\n    mIsImeShowing=false\r\n    mImeHeight=0\r\n    mMinAspectRatio=0.41841003\r\n    mMaxAspectRatio=2.39\r\n\r\n  DisplayFrames w=844 h=390 r=1\r\n\r\n  DisplayPolicy\r\n    mCarDockEnablesAccelerometer=true mDeskDockEnablesAccelerometer=true\r\n    mDockMode=EXTRA_DOCK_STATE_UNDOCKED mLidState=LID_OPEN\r\n    mAwake=true mScreenOnEarly=true mScreenOnFully=true\r\n    mKeyguardDrawComplete=true mWindowManagerDrawComplete=true\r\n    mHdmiPlugged=false\r\n    mLastAppearance=LIGHT_STATUS_BARS LIGHT_NAVIGATION_BARS\r\n    mLastBehavior=DEFAULT\r\n    mShowingDream=false mDreamingLockscreen=false\r\n    mStatusBar=Window{9e5e4c6 u0 StatusBar}\r\n    mExpandedPanel=Window{42ab11c u0 NotificationShade}\r\n    isKeyguardShowing=false\r\n    mNavigationBar=Window{4bb28da u0 Taskbar}\r\n    mNavBarOpacityMode=0\r\n    mNavigationBarCanMove=true\r\n    mNavigationBarPosition=4\r\n    mTopGestureHost=Window{9e5e4c6 u0 StatusBar}\r\n    mRightGestureHost=Window{4bb28da u0 Taskbar}\r\n    mFocusedWindow=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}\r\n    mTopFullscreenOpaqueWindowState=Window{9084c7c u0 Splash Screen com.dafung.web}\r\n    mSystemBarColorApps={ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13}}\r\n    mNavBarColorWindowCandidate=Window{9084c7c u0 Splash Screen com.dafung.web}\r\n    mNavBarBackgroundWindowCandidate=Window{9084c7c u0 Splash Screen com.dafung.web}\r\n    mLastStatusBarAppearanceRegions=\r\n      AppearanceRegion{LIGHT_STATUS_BARS bounds=[0,0][844,390]}\r\n    mLastLetterboxDetails=\r\n    mStatusBarBackgroundWindows=\r\n      Window{9084c7c u0 Splash Screen com.dafung.web}\r\n    mTopIsFullscreen=false\r\n    mImeInsetsConsumed=false\r\n    mForceShowNavigationBarEnabled=false mAllowLockscreenWhenOn=false\r\n    mRemoteInsetsControllerControlsSystemBars=false\r\n    mDecorInsetsInfo:\r\n      ROTATION_0={nonDecorInsets=[0,0][0,0], overrideNonDecorInsets=[0,0][0,48], configInsets=[0,0][0,0], overrideConfigInsets=[0,24][0,48], nonDecorFrame=[0,0][390,844], overrideNonDecorFrame=[0,0][390,796], configFrame=[0,0][390,844], overrideConfigFrame=[0,24][390,796]}\r\n      ROTATION_90={nonDecorInsets=[0,0][0,0], overrideNonDecorInsets=[0,0][48,0], configInsets=[0,0][0,0], overrideConfigInsets=[0,24][48,0], nonDecorFrame=[0,0][844,390], overrideNonDecorFrame=[0,0][796,390], configFrame=[0,0][844,390], overrideConfigFrame=[0,24][796,390]}\r\n      ROTATION_180={nonDecorInsets=[0,0][0,0], overrideNonDecorInsets=[0,0][0,48], configInsets=[0,0][0,0], overrideConfigInsets=[0,24][0,48], nonDecorFrame=[0,0][390,844], overrideNonDecorFrame=[0,0][390,796], configFrame=[0,0][390,844], overrideConfigFrame=[0,24][390,796]}\r\n      ROTATION_270={nonDecorInsets=[0,0][0,0], overrideNonDecorInsets=[48,0][0,0], configInsets=[0,0][0,0], overrideConfigInsets=[48,24][0,0], nonDecorFrame=[0,0][844,390], overrideNonDecorFrame=[48,0][844,390], configFrame=[0,0][844,390], overrideConfigFrame=[48,24][844,390]}\r\n    SystemGestures:\r\n      mDisplayCutoutTouchableRegionSize=0\r\n      mSwipeStartThreshold=Rect(24, 24 - 24, 24)\r\n      mSwipeDistanceThreshold=24\r\n\r\n  DisplayRotation\r\n    mCurrentAppOrientation=SCREEN_ORIENTATION_SENSOR_LANDSCAPE\r\n    mLastOrientation=6\r\n    mRotation=1 mDeferredRotationPauseCount=0\r\n    mLandscapeRotation=ROTATION_90 mSeascapeRotation=ROTATION_270\r\n    mPortraitRotation=ROTATION_0 mUpsideDownRotation=ROTATION_180\r\n    mSupportAutoRotation=true\r\n    WindowOrientationListener\r\n      mEnabled=true\r\n      mCurrentRotation=ROTATION_90\r\n      mSensorType=null\r\n      mSensor={Sensor name=\"Goldfish 3-axis Accelerometer\", vendor=\"The Android Open Source Project\", version=1, type=1, maxRange=39.300102, resolution=2.480159E-4, power=3.0, minDelay=10000}\r\n      mRate=2\r\n      AccelSensorJudge\r\n        mProposedRotation=0\r\n        mPredictedRotation=0\r\n        mLastFilteredX=0.0\r\n        mLastFilteredY=9.776321\r\n        mLastFilteredZ=0.812345\r\n        mLastFilteredTimestampNanos=758360441300 (18.9179ms ago)\r\n        mTiltHistory={last: 5.0}\r\n        mFlat=false\r\n        mSwinging=false\r\n        mAccelerating=false\r\n        mOverhead=false\r\n        mTouched=false\r\n        mTiltToleranceConfig=[[-25, 70], [-25, 65], [-25, 60], [-25, 65]]\r\n\r\n    mCarDockRotation=-1 mDeskDockRotation=-1\r\n    mUserRotationMode=USER_ROTATION_LOCKED mUserRotation=ROTATION_90 mCameraRotationMode=0 mAllowAllRotations=false\r\n    mDemoHdmiRotation=ROTATION_90 mDemoHdmiRotationLock=false mUndockedHdmiRotation=-1\r\n    mLidOpenRotation=-1\r\n    mFixedToUserRotation=false\r\n  FoldController\r\n    mPauseAutorotationDuringUnfolding=false\r\n    mShouldDisableRotationSensor=false\r\n    mShouldIgnoreSensorRotation=false\r\n    mLastDisplaySwitchTime=0\r\n    mLastHingeAngleEventTime=0\r\n    mDeviceState=FOLDED\r\n\r\n    RotationHistory\r\n      11-14 10:44:03.872 ROTATION_90 to ROTATION_0\r\n        source=ActivityRecord{de5c76f u0 com.android.settings/.FallbackHome t5} SCREEN_ORIENTATION_UNSPECIFIED\r\n        mode=USER_ROTATION_FREE user=ROTATION_90 sensor=ROTATION_0\r\n       halfFoldSavedRotation=-1 mInHalfFoldTransition=false mFoldState=FOLDED\r\n       reversionSlots= NOSENSOR false, CAMERA false HALF_FOLD false\r\n      11-14 10:51:04.429 ROTATION_0 to ROTATION_90\r\n        source=ActivityRecord{f0f1728 u0 com.dafung.web/.MainActivity t10} SCREEN_ORIENTATION_SENSOR_LANDSCAPE\r\n        mode=USER_ROTATION_LOCKED user=ROTATION_0 sensor=ROTATION_0\r\n       halfFoldSavedRotation=-1 mInHalfFoldTransition=false mFoldState=FOLDED\r\n       reversionSlots= NOSENSOR false, CAMERA false HALF_FOLD false\r\n      11-14 10:52:33.311 ROTATION_90 to ROTATION_0\r\n        source=ActivityRecord{7811a66 u0 com.android.launcher3/.uioverrides.QuickstepLauncher t9} SCREEN_ORIENTATION_NOSENSOR\r\n        mode=USER_ROTATION_LOCKED user=ROTATION_0 sensor=ROTATION_0\r\n       halfFoldSavedRotation=-1 mInHalfFoldTransition=false mFoldState=FOLDED\r\n       reversionSlots= NOSENSOR true, CAMERA false HALF_FOLD false\r\n      11-14 10:52:35.791 ROTATION_0 to ROTATION_90\r\n        source=ActivityRecord{16db8d0 u0 com.dafung.web/.MainActivity t11} SCREEN_ORIENTATION_SENSOR_LANDSCAPE\r\n        mode=USER_ROTATION_LOCKED user=ROTATION_0 sensor=ROTATION_0\r\n       halfFoldSavedRotation=-1 mInHalfFoldTransition=false mFoldState=FOLDED\r\n       reversionSlots= NOSENSOR false, CAMERA false HALF_FOLD false\r\n      11-14 10:53:51.930 ROTATION_90 to ROTATION_0\r\n        source=ActivityRecord{7811a66 u0 com.android.launcher3/.uioverrides.QuickstepLauncher t9} SCREEN_ORIENTATION_NOSENSOR\r\n        mode=USER_ROTATION_LOCKED user=ROTATION_0 sensor=ROTATION_0\r\n       halfFoldSavedRotation=-1 mInHalfFoldTransition=false mFoldState=FOLDED\r\n       reversionSlots= NOSENSOR true, CAMERA false HALF_FOLD false\r\n      11-14 10:53:54.466 ROTATION_0 to ROTATION_90\r\n        source=ActivityRecord{f804280 u0 com.dafung.web/.MainActivity t12} SCREEN_ORIENTATION_SENSOR_LANDSCAPE\r\n        mode=USER_ROTATION_LOCKED user=ROTATION_0 sensor=ROTATION_0\r\n       halfFoldSavedRotation=-1 mInHalfFoldTransition=false mFoldState=FOLDED\r\n       reversionSlots= NOSENSOR false, CAMERA false HALF_FOLD false\r\n      11-14 10:54:55.978 ROTATION_90 to ROTATION_0\r\n        source=ActivityRecord{7811a66 u0 com.android.launcher3/.uioverrides.QuickstepLauncher t9} SCREEN_ORIENTATION_NOSENSOR\r\n        mode=USER_ROTATION_LOCKED user=ROTATION_90 sensor=ROTATION_0\r\n       halfFoldSavedRotation=-1 mInHalfFoldTransition=false mFoldState=FOLDED\r\n       reversionSlots= NOSENSOR true, CAMERA false HALF_FOLD false\r\n      11-14 10:54:58.154 ROTATION_0 to ROTATION_90\r\n        source=ActivityRecord{a074d13 u0 com.dafung.web/.MainActivity t13} SCREEN_ORIENTATION_SENSOR_LANDSCAPE\r\n        mode=USER_ROTATION_LOCKED user=ROTATION_90 sensor=ROTATION_0\r\n       halfFoldSavedRotation=-1 mInHalfFoldTransition=false mFoldState=FOLDED\r\n       reversionSlots= NOSENSOR false, CAMERA false HALF_FOLD false\r\n\r\n        RotationLockHistory\r\n          11-14 10:44:11.887: mode=USER_ROTATION_LOCKED, rotation=ROTATION_0, caller=DeviceStateRotationLockSettingController#readPersistedSetting\r\n          11-14 10:52:33.384: mode=USER_ROTATION_LOCKED, rotation=ROTATION_0, caller=RotationButtonController#onRotationWatcherChanged\r\n          11-14 10:52:35.347: mode=USER_ROTATION_LOCKED, rotation=ROTATION_0, caller=DisplayRotationReversionController#revertOverride\r\n          11-14 10:53:51.972: mode=USER_ROTATION_LOCKED, rotation=ROTATION_0, caller=RotationButtonController#onRotationWatcherChanged\r\n          11-14 10:53:53.968: mode=USER_ROTATION_LOCKED, rotation=ROTATION_0, caller=DisplayRotationReversionController#revertOverride\r\n          11-14 10:54:32.983: mode=USER_ROTATION_LOCKED, rotation=ROTATION_90, caller=UiAutomationConnection#restoreRotationStateLocked\r\n          11-14 10:54:56.115: mode=USER_ROTATION_LOCKED, rotation=ROTATION_0, caller=RotationButtonController#onRotationWatcherChanged\r\n          11-14 10:54:57.707: mode=USER_ROTATION_LOCKED, rotation=ROTATION_90, caller=DisplayRotationReversionController#revertOverride\r\n\r\n  InputConsumers:\r\n    name=recents_animation_input_consumer pid=1112 user=UserHandle{0}\r\n\r\n  WindowInsetsStateController\r\n    InsetsState\r\n      mDisplayFrame=Rect(0, 0 - 844, 390)\r\n      mDisplayCutout=DisplayCutout{insets=Rect(0, 0 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=0 displayHeight=0 physicalDisplayWidth=0 physicalDisplayHeight=0 density={0.0} cutoutSpec={} rotation={0} scale={0.0} physicalPixelDisplaySizeRatio={0.0}}} sideOverrides=null}\r\n      mRoundedCorners=RoundedCorners{[RoundedCorner{position=TopLeft, radius=0, center=Point(0, 0)}, RoundedCorner{position=TopRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomRight, radius=0, center=Point(0, 0)}, RoundedCorner{position=BottomLeft, radius=0, center=Point(0, 0)}]}\r\n      mRoundedCornerFrame=Rect(0, 0 - 0, 0)\r\n      mPrivacyIndicatorBounds=PrivacyIndicatorBounds {static bounds=Rect(748, 0 - 830, 24) rotation=1}\r\n      mDisplayShape=DisplayShape{ spec=-1893857183 displayWidth=1080 displayHeight=2400 physicalPixelDisplaySizeRatio=1.0 rotation=1 offsetX=0 offsetY=0 scale=1.0}\r\n        InsetsSource id=d6650000 type=statusBars frame=[0,0][844,24] visible=true flags= sideHint=TOP boundingRects=null\r\n        InsetsSource id=d6650005 type=mandatorySystemGestures frame=[0,0][844,32] visible=true flags= sideHint=TOP boundingRects=null\r\n        InsetsSource id=d6650006 type=tappableElement frame=[0,0][844,24] visible=true flags= sideHint=TOP boundingRects=null\r\n        InsetsSource id=3 type=ime frame=[0,0][0,0] visible=false flags= sideHint=NONE boundingRects=null\r\n        InsetsSource id=79ed0001 type=navigationBars frame=[796,0][844,390] visible=true flags=INSETS_ROUNDED_CORNER sideHint=RIGHT boundingRects=null\r\n        InsetsSource id=79ed0004 type=systemGestures frame=[0,0][0,0] visible=true flags= sideHint=NONE boundingRects=null\r\n        InsetsSource id=79ed0005 type=mandatorySystemGestures frame=[796,0][844,390] visible=true flags= sideHint=RIGHT boundingRects=null\r\n        InsetsSource id=79ed0006 type=tappableElement frame=[796,0][844,390] visible=true flags= sideHint=RIGHT boundingRects=null\r\n        InsetsSource id=79ed0024 type=systemGestures frame=[0,0][0,0] visible=true flags= sideHint=NONE boundingRects=null\r\n    Control map:\r\n      Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}:\r\n        InsetsSourceControl: {3 mType=ime mSurfacePosition=Point(1200, 1080) mInsetsHint=Insets{left=0, top=0, right=0, bottom=0}}\r\n        InsetsSourceControl: {d6650000 mType=statusBars initiallyVisible mSurfacePosition=Point(0, 0) mInsetsHint=Insets{left=0, top=24, right=0, bottom=0}}\r\n        InsetsSourceControl: {79ed0001 mType=navigationBars initiallyVisible mSurfacePosition=Point(796, 0) mInsetsHint=Insets{left=0, top=0, right=48, bottom=0}}\r\n    InsetsSourceProviders:\r\n      InsetsSourceProvider\r\n        mSource=InsetsSource id=79ed0024 type=systemGestures frame=[0,0][0,0] visible=true flags= sideHint=NONE boundingRects=null\r\n        mSourceFrame=Rect(0, 0 - 0, 0)\r\n        mIsLeashReadyForDispatching=true mHasPendingPosition=false\r\n        mWindowContainer=Window{4bb28da u0 Taskbar}\r\n      InsetsSourceProvider\r\n        mSource=InsetsSource id=79ed0006 type=tappableElement frame=[796,0][844,390] visible=true flags= sideHint=RIGHT boundingRects=null\r\n        mSourceFrame=Rect(796, 0 - 844, 390)\r\n        mOverrideFrames={2011=Rect(796, 0 - 844, 390), 2031=Rect(796, 0 - 844, 390)}\r\n        mIsLeashReadyForDispatching=true mHasPendingPosition=false\r\n        mWindowContainer=Window{4bb28da u0 Taskbar}\r\n      InsetsSourceProvider\r\n        mSource=InsetsSource id=79ed0005 type=mandatorySystemGestures frame=[796,0][844,390] visible=true flags= sideHint=RIGHT boundingRects=null\r\n        mSourceFrame=Rect(796, 0 - 844, 390)\r\n        mOverrideFrames={2011=Rect(796, 0 - 844, 390), 2031=Rect(796, 0 - 844, 390)}\r\n        mIsLeashReadyForDispatching=true mHasPendingPosition=false\r\n        mWindowContainer=Window{4bb28da u0 Taskbar}\r\n      InsetsSourceProvider\r\n        mSource=InsetsSource id=79ed0004 type=systemGestures frame=[0,0][0,0] visible=true flags= sideHint=NONE boundingRects=null\r\n        mSourceFrame=Rect(0, 0 - 0, 0)\r\n        mIsLeashReadyForDispatching=true mHasPendingPosition=false\r\n        mWindowContainer=Window{4bb28da u0 Taskbar}\r\n      InsetsSourceProvider\r\n        mSource=InsetsSource id=79ed0001 type=navigationBars frame=[796,0][844,390] visible=true flags=INSETS_ROUNDED_CORNER sideHint=RIGHT boundingRects=null\r\n        mSourceFrame=Rect(796, 0 - 844, 390)\r\n        mOverrideFrames={2011=Rect(796, 0 - 844, 390), 2031=Rect(796, 0 - 844, 390)}\r\n        mControl=InsetsSourceControl mId=79ed0001 mType=navigationBars mLeash=Surface(name=Surface(name=4bb28da Taskbar)/@0xfff5524 - animation-leash of insets_animation)/@0x3ab1cc9 mInitiallyVisible=true mSurfacePosition=Point(796, 0) mInsetsHint=Insets{left=0, top=0, right=48, bottom=0} mSkipAnimationOnce=false\r\n        mInsetsHint=Insets{left=0, top=0, right=48, bottom=0}\r\n        mIsLeashReadyForDispatching=true mHasPendingPosition=false\r\n        mWindowContainer=Window{4bb28da u0 Taskbar}\r\n        mAdapter=ControlAdapter mCapturedLeash=Surface(name=Surface(name=4bb28da Taskbar)/@0xfff5524 - animation-leash of insets_animation)/@0x3ab1cc9\r\n        mControlTarget=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}\r\n      ImeInsetsSourceProvider\r\n        mSource=InsetsSource id=3 type=ime frame=[0,0][0,0] visible=false flags= sideHint=NONE boundingRects=null\r\n        mSourceFrame=Rect(1200, 1080 - 1200, 1080)\r\n        mControl=InsetsSourceControl mId=3 mType=ime mLeash=Surface(name=Surface(name=4f8a462 InputMethod)/@0xac0a4ae - animation-leash of insets_animation)/@0xf16afce mInitiallyVisible=false mSurfacePosition=Point(1200, 1080) mInsetsHint=Insets{left=0, top=0, right=0, bottom=0} mSkipAnimationOnce=false\r\n        mInsetsHint=Insets{left=0, top=0, right=0, bottom=0} stale\r\n        mIsLeashReadyForDispatching=true mHasPendingPosition=false\r\n        mWindowContainer=Window{4f8a462 u0 InputMethod}\r\n        mAdapter=ControlAdapter mCapturedLeash=Surface(name=Surface(name=4f8a462 InputMethod)/@0xac0a4ae - animation-leash of insets_animation)/@0xf16afce\r\n        mControlTarget=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}\r\n        mImeShowing=false        showImePostLayout not scheduled, mImeRequester=null\r\n\r\n      InsetsSourceProvider\r\n        mSource=InsetsSource id=d6650006 type=tappableElement frame=[0,0][844,24] visible=true flags= sideHint=TOP boundingRects=null\r\n        mSourceFrame=Rect(0, 0 - 844, 24)\r\n        mIsLeashReadyForDispatching=true mHasPendingPosition=false\r\n        mWindowContainer=Window{9e5e4c6 u0 StatusBar}\r\n      InsetsSourceProvider\r\n        mSource=InsetsSource id=d6650005 type=mandatorySystemGestures frame=[0,0][844,32] visible=true flags= sideHint=TOP boundingRects=null\r\n        mSourceFrame=Rect(0, 0 - 844, 32)\r\n        mIsLeashReadyForDispatching=true mHasPendingPosition=false\r\n        mWindowContainer=Window{9e5e4c6 u0 StatusBar}\r\n      InsetsSourceProvider\r\n        mSource=InsetsSource id=d6650000 type=statusBars frame=[0,0][844,24] visible=true flags= sideHint=TOP boundingRects=null\r\n        mSourceFrame=Rect(0, 0 - 844, 24)\r\n        mControl=InsetsSourceControl mId=d6650000 mType=statusBars mLeash=Surface(name=Surface(name=9e5e4c6 StatusBar)/@0xbcb8752 - animation-leash of insets_animation)/@0xd8dceef mInitiallyVisible=true mSurfacePosition=Point(0, 0) mInsetsHint=Insets{left=0, top=24, right=0, bottom=0} mSkipAnimationOnce=false\r\n        mInsetsHint=Insets{left=0, top=24, right=0, bottom=0}\r\n        mIsLeashReadyForDispatching=true mHasPendingPosition=false\r\n        mWindowContainer=Window{9e5e4c6 u0 StatusBar}\r\n        mAdapter=ControlAdapter mCapturedLeash=Surface(name=Surface(name=9e5e4c6 StatusBar)/@0xbcb8752 - animation-leash of insets_animation)/@0xd8dceef\r\n        mControlTarget=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}\r\n  InsetsPolicy\r\n    status: WINDOW_STATE_SHOWING\r\n    nav: WINDOW_STATE_SHOWING\r\n\r\n  KeyguardController:\r\n    mKeyguardShowing=false\r\n    mAodShowing=false\r\n    mKeyguardGoingAway=false\r\n   KeyguardShowing=false AodShowing=false KeyguardGoingAway=false DismissalRequested=false  Occluded=false DismissingKeyguardActivity=null TurnScreenOnActivity=null at display=0\r\n    mDismissalRequested=false\r\n\r\n  LockTaskController:\r\n    mLockTaskModeState=NONE\r\n    mLockTaskModeTasks=\r\n    mLockTaskPackages (userId:packages)=\r\n\r\n  mCurTaskIdForUser={0=13}\r\n  mUserRootTaskInFront={}\r\n  mVisibilityTransactionDepth=0\r\n  isHomeRecentsComponent=true\r\n  mNoHistoryActivities=[]\r\n\r\n  TaskOrganizerController:\r\n      android.window.ITaskOrganizer$Stub$Proxy@528c94c uid=10121 (active):\r\n        (fullscreen) Task{8f8a18f #1 type=home}\r\n        (fullscreen) Task{1e4d628 #2 type=undefined}\r\n        (multi-window) Task{c9cf227 #3 type=undefined}\r\n        (multi-window) Task{d054cca #4 type=undefined}\r\n        (fullscreen) Task{e49cb50 #13 type=standard A=10149:com.dafung.web}\r\n\r\n  VisibleActivityProcess:[ ProcessRecord{4be0d5a 2720:com.dafung.web/u0a149}]\r\n  NumNonAppVisibleWindowUidMap:[ 10121:1 10120:1]\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "dumpsys window | grep mCurrentFocus"
+          ],
+          "exitCode": 0,
+          "stdout": "  mCurrentFocus=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}\r\n",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "name": "日志与截图",
+      "startedAt": "2026-11-14T10:55:01.807Z",
+      "finishedAt": "2026-11-14T10:55:06.197Z",
+      "status": "passed",
+      "commands": [
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "sleep",
+            "3"
+          ],
+          "exitCode": 0,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "logcat",
+            "-d",
+            "-T",
+            "11-14 10:54:54.000",
+            "--pid=2720",
+            "-v",
+            "threadtime"
+          ],
+          "exitCode": 0,
+          "stdout": "--------- beginning of main\r\n11-14 10:54:57.756  2720  2720 I com.dafung.web: Using CollectorTypeCMC GC.\r\n11-14 10:54:57.759  2720  2720 W com.dafung.web: Unexpected CPU variant for x86: x86_64.\r\n11-14 10:54:57.759  2720  2720 W com.dafung.web: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, default\r\n11-14 10:54:57.773  2720  2720 E com.dafung.web: Not starting debugger since process cannot load the jdwp agent.\r\n11-14 10:54:57.785  2720  2720 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok\r\n11-14 10:54:57.871  2720  2720 D nativeloader: Configuring clns-7 for other apk /data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/lib/x86_64:/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.dafung.web\r\n11-14 10:54:57.889  2720  2720 V GraphicsEnvironment: Currently set values for:\r\n11-14 10:54:57.890  2720  2720 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]\r\n11-14 10:54:57.891  2720  2720 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]\r\n11-14 10:54:57.891  2720  2720 V GraphicsEnvironment: Global.Settings values are invalid: number of packages: 0, number of values: 0\r\n11-14 10:54:57.891  2720  2720 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.\r\n11-14 10:54:58.023  2720  2720 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found\r\n11-14 10:54:58.135  2720  2720 D nativeloader: Load /data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk!/lib/x86_64/libapp_lib.so using ns clns-7 from class loader (caller=/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk): ok\r\n11-14 10:54:58.289  2720  2720 W HWUI    : Unknown dataspace 0\r\n11-14 10:54:58.326  2720  2720 W WindowOnBackDispatcher: OnBackInvokedCallback is not enabled for the application.\r\n11-14 10:54:58.326  2720  2720 W WindowOnBackDispatcher: Set 'android:enableOnBackInvokedCallback=\"true\"' in the application manifest.\r\n11-14 10:54:58.340  2720  2720 I WebViewFactory: Loading com.android.webview version 124.0.6367.219 (code 636771907)\r\n--------- beginning of system\r\n11-14 10:54:58.343  2720  2720 V ResourcesManager: The following library key has been added: ResourcesKey{ mHash=76f6fdc1 mResDir=null mSplitDirs=[] mOverlayDirs=[/data/resource-cache/com.android.systemui-neutral-ZFA9.frro,/data/resource-cache/com.android.systemui-accent-nSG9.frro,/data/resource-cache/com.android.systemui-dynamic-yHyV.frro] mLibDirs=[/product/app/webview/webview.apk,/system_ext/framework/androidx.window.extensions.jar] mDisplayId=0 mOverrideConfig=v35 mCompatInfo={420dpi always-compat} mLoaders=[]}\r\n11-14 10:54:58.349  2720  2720 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.extensions.jar\r\n11-14 10:54:58.351  2720  2720 D nativeloader: InitLlndkLibrariesProduct: libEGL.so:libGLESv1_CM.so:libGLESv2.so:libGLESv3.so:libRS.so:libandroid_net.so:libapexsupport.so:libbinder_ndk.so:libc.so:libcgrouprc.so:libclang_rt.asan-x86_64-android.so:libcom.android.tethering.connectivity_native.so:libdl.so:libft2.so:liblog.so:libm.so:libmediandk.so:libnativewindow.so:libneuralnetworks.so:libselinux.so:libsync.so:libvendorsupport.so:libvndksupport.so:libvulkan.so\r\n11-14 10:54:58.352  2720  2720 D nativeloader: Configuring product-clns-8 for unbundled product apk /product/app/webview/webview.apk. target_sdk_version=34, uses_libraries=, library_path=/product/app/webview/lib/x86_64:/product/app/webview/webview.apk!/lib/x86_64:/product/lib64:/system/product/lib64, permitted_path=/data:/mnt/expand:/product/lib64:/system/product/lib64\r\n11-14 10:54:58.353  2720  2720 D nativeloader: InitVndkspLibrariesProduct: VNDK is deprecated with product\r\n11-14 10:54:58.379  2720  2720 I cr_WVCFactoryProvider: Loaded version=124.0.6367.219 minSdkVersion=1 isBundle=false multiprocess=true packageId=2\r\n11-14 10:54:58.389  2720  2720 D nativeloader: Load /product/app/webview/webview.apk!/lib/x86_64/libwebviewchromium.so using ns product-clns-8 from class loader (caller=/product/app/webview/webview.apk): ok\r\n11-14 10:54:58.391  2720  2720 D nativeloader: Load /system/lib64/libwebviewchromium_plat_support.so using ns product-clns-8 from class loader (caller=/product/app/webview/webview.apk): ok\r\n11-14 10:54:58.404  2720  2744 E chromium: [1114/105458.404374:ERROR:variations_seed_loader.cc(37)] Seed missing signature.\r\n11-14 10:54:58.404  2720  2744 I cr_VariationsUtils: Failed reading seed file \"/data/user/0/com.dafung.web/app_webview/variations_seed_new\"\r\n11-14 10:54:58.405  2720  2744 I chromium: [1114/105458.405218:INFO:variations_seed_loader.cc(66)] Failed to open file for reading.: No such file or directory (2)\r\n11-14 10:54:58.405  2720  2744 I cr_VariationsUtils: Failed reading seed file \"/data/user/0/com.dafung.web/app_webview/variations_seed\"\r\n11-14 10:54:58.405  2720  2737 I RustStdoutStderr: [1114/105458.404374:ERROR:variations_seed_loader.cc(37)] Seed missing signature.\r\n11-14 10:54:58.406  2720  2737 I RustStdoutStderr: [1114/105458.405218:INFO:variations_seed_loader.cc(66)] Failed to open file for reading.: No such file or directory (2)\r\n11-14 10:54:58.412  2720  2720 I cr_LibraryLoader: Successfully loaded native library\r\n11-14 10:54:58.413  2720  2720 I cr_CachingUmaRecorder: Flushed 6 samples from 6 histograms, 0 samples were dropped.\r\n11-14 10:54:58.418  2720  2720 I cr_CombinedPProvider: #registerProvider() provider:WV.o7@5095f51 isPolicyCacheEnabled:false policyProvidersSize:0\r\n11-14 10:54:58.420  2720  2720 I cr_PolicyProvider: #setManagerAndSource() 0\r\n11-14 10:54:58.452  2720  2720 I cr_CombinedPProvider: #linkNativeInternal() 1\r\n11-14 10:54:58.454  2720  2720 I cr_AppResProvider: #getApplicationRestrictionsFromUserManager() Bundle[EMPTY_PARCEL]\r\n11-14 10:54:58.454  2720  2720 I cr_PolicyProvider: #notifySettingsAvailable() 0\r\n11-14 10:54:58.455  2720  2720 I cr_CombinedPProvider: #onSettingsAvailable() 0\r\n11-14 10:54:58.455  2720  2720 I cr_CombinedPProvider: #flushPolicies()\r\n11-14 10:54:58.490  2720  2749 W chromium: [WARNING:dns_config_service_android.cc(81)] Failed to read DnsConfig.\r\n11-14 10:54:58.491  2720  2737 I RustStdoutStderr: [WARNING:dns_config_service_android.cc(81)] Failed to read DnsConfig.\r\n11-14 10:54:58.741  2720  2734 I EGL_emulation: Opening libGLESv1_CM_emulation.so\r\n11-14 10:54:58.748  2720  2734 I EGL_emulation: Opening libGLESv2_emulation.so\r\n11-14 10:54:58.760  2720  2734 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS\r\n11-14 10:54:58.788  2720  2734 I Gralloc4: mapper 4.x is not supported\r\n11-14 10:54:58.810  2720  2720 E EGL_emulation: eglCreateContext: EGL_BAD_CONFIG: no ES 3.2 support\r\n11-14 10:54:58.811  2720  2720 E EGL_emulation: tid 2720: eglCreateContext(1830): error 0x3005 (EGL_BAD_CONFIG)\r\n11-14 10:54:58.811  2720  2720 E EGL_emulation: eglCreateContext: EGL_BAD_CONFIG: no ES 3.1 support\r\n11-14 10:54:58.811  2720  2720 E EGL_emulation: tid 2720: eglCreateContext(1824): error 0x3005 (EGL_BAD_CONFIG)\r\n11-14 10:54:58.880  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name position\r\n11-14 10:54:58.881  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name color\r\n11-14 10:54:59.037  2720  2730 I HWUI    : Davey! duration=717ms; Flags=1, FrameTimelineVsyncId=38978, IntendedVsync=757307502872, Vsync=757707502856, InputEventId=0, HandleInputStart=757720260500, AnimationStart=757720301800, PerformTraversalsStart=757720925600, DrawStart=757802657900, FrameDeadline=757324169538, FrameInterval=757719551400, FrameStartTime=16666666, SyncQueued=757863970900, SyncStart=757864969300, IssueDrawCommandsStart=757867202500, SwapBuffers=757882219100, FrameCompleted=758025971300, DequeueBufferDuration=54400, QueueBufferDuration=500500, GpuCompleted=758025971300, SwapBuffersCompleted=758015910300, DisplayPresentTime=16960825855817, CommandSubmissionCompleted=757882219100, \r\n11-14 10:54:59.069  2720  2764 W cr_media: BLUETOOTH_CONNECT permission is missing.\r\n11-14 10:54:59.072  2720  2764 W cr_media: registerBluetoothIntentsIfNeeded: Requires BLUETOOTH permission\r\n11-14 10:54:59.286  2720  2777 W chromium: [WARNING:display_webview.cc(32)] WebView overlays are enabled!\r\n11-14 10:54:59.286  2720  2737 I RustStdoutStderr: [WARNING:display_webview.cc(32)] WebView overlays are enabled!\r\n11-14 10:54:59.843  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:54:59.843  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:54:59.844  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:00.024  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:00.025  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:00.025  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:00.243  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:00.244  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:00.245  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:00.443  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:00.444  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:00.444  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:00.553  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:00.554  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:00.554  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:00.613  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:00.613  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:00.614  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:00.791  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:00.791  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:00.792  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:00.903  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:00.903  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ulocalCoord\r\n11-14 10:55:00.995  2720  2734 D EGL_emulation: app_time_stats: avg=494.81ms min=84.92ms max=1424.37ms count=4\r\n11-14 10:55:01.006  2720  2720 I Choreographer: Skipped 63 frames!  The application may be doing too much work on its main thread.\r\n11-14 10:55:01.022  2720  2786 I HWUI    : Davey! duration=1188ms; Flags=0, FrameTimelineVsyncId=40568, IntendedVsync=758807502812, Vsync=758807502812, InputEventId=0, HandleInputStart=758809194300, AnimationStart=758809245000, PerformTraversalsStart=758811688000, DrawStart=758811775400, FrameDeadline=758824169478, FrameInterval=758809094300, FrameStartTime=16666666, SyncQueued=758817412300, SyncStart=758817559400, IssueDrawCommandsStart=758817604600, SwapBuffers=759993550600, FrameCompleted=759995825200, DequeueBufferDuration=44000, QueueBufferDuration=951000, GpuCompleted=759995372200, SwapBuffersCompleted=759995825200, DisplayPresentTime=35734127911039, CommandSubmissionCompleted=759993550600, \r\n11-14 10:55:01.152  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:01.152  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:01.152  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:01.165  2720  2786 I HWUI    : Davey! duration=1146ms; Flags=0, FrameTimelineVsyncId=40680, IntendedVsync=758940836140, Vsync=759990836098, InputEventId=0, HandleInputStart=760007670000, AnimationStart=760007730600, PerformTraversalsStart=760013259600, DrawStart=760013362800, FrameDeadline=760090836094, FrameInterval=760006039500, FrameStartTime=16666666, SyncQueued=760013675100, SyncStart=760072296000, IssueDrawCommandsStart=760072351600, SwapBuffers=760143267600, FrameCompleted=760145954100, DequeueBufferDuration=43400, QueueBufferDuration=661200, GpuCompleted=760145757500, SwapBuffersCompleted=760145954100, DisplayPresentTime=182574764827904, CommandSubmissionCompleted=760143267600, \r\n11-14 10:55:01.417  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:01.417  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:01.417  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:01.670  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:01.671  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:01.671  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord\r\n11-14 10:55:01.733  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:01.733  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor\r\n11-14 10:55:01.851  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uinPosition\r\n11-14 10:55:01.851  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _uinColor\r\n11-14 10:55:01.852  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _uinTextureCoords\r\n11-14 10:55:02.149  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:02.150  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ulocalCoord\r\n11-14 10:55:02.151  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _utexSubset\r\n11-14 10:55:02.333  2720  2734 D EGL_emulation: app_time_stats: avg=334.27ms min=53.13ms max=1134.17ms count=4\r\n11-14 10:55:02.356  2720  2786 I HWUI    : Davey! duration=1205ms; Flags=0, FrameTimelineVsyncId=41194, IntendedVsync=760090836094, Vsync=760140836092, InputEventId=0, HandleInputStart=760155298100, AnimationStart=760155335700, PerformTraversalsStart=760161915700, DrawStart=760162021600, FrameDeadline=760224169422, FrameInterval=760155278900, FrameStartTime=16666666, SyncQueued=760162411700, SyncStart=760199640400, IssueDrawCommandsStart=760199841000, SwapBuffers=761331144500, FrameCompleted=761333757000, DequeueBufferDuration=41300, QueueBufferDuration=1238000, GpuCompleted=761333306400, SwapBuffersCompleted=761333757000, DisplayPresentTime=188407330417456, CommandSubmissionCompleted=761331144500, \r\n11-14 10:55:02.362  2720  2720 I Choreographer: Skipped 68 frames!  The application may be doing too much work on its main thread.\r\n11-14 10:55:02.535  2720  2786 I HWUI    : Davey! duration=1231ms; Flags=0, FrameTimelineVsyncId=41266, IntendedVsync=760224169422, Vsync=761357502710, InputEventId=0, HandleInputStart=761363913000, AnimationStart=761363965100, PerformTraversalsStart=761372940800, DrawStart=761373063400, FrameDeadline=761474169372, FrameInterval=761362750500, FrameStartTime=16666666, SyncQueued=761374307100, SyncStart=761445094600, IssueDrawCommandsStart=761445866100, SwapBuffers=761507577500, FrameCompleted=761526289400, DequeueBufferDuration=153600, QueueBufferDuration=450900, GpuCompleted=761526289400, SwapBuffersCompleted=761510901600, DisplayPresentTime=286783556355248, CommandSubmissionCompleted=761507577500, \r\n11-14 10:55:02.621  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uinPosition\r\n11-14 10:55:02.621  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _uinColor\r\n11-14 10:55:02.622  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _uinCircleEdge\r\n11-14 10:55:02.685  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition\r\n11-14 10:55:02.686  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ulocalCoord\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "exec-out",
+            "screencap",
+            "-p"
+          ],
+          "exitCode": 0,
+          "stdout": "[二进制:381441 bytes]",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "dumpsys window | grep mCurrentFocus"
+          ],
+          "exitCode": 0,
+          "stdout": "  mCurrentFocus=Window{79986c8 u0 com.dafung.web/com.dafung.web.MainActivity}\r\n",
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "C:\\App\\env\\android-sdk\\platform-tools\\adb.exe",
+            "-s",
+            "emulator-5580",
+            "shell",
+            "pidof",
+            "com.dafung.web"
+          ],
+          "exitCode": 0,
+          "stdout": "2720\r\n",
+          "stderr": ""
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "logcat": "logcat.txt",
+    "screenshot": "screenshot.png"
+  },
+  "manual": [
+    "标准横屏 844×390 实绘与真实手势:待验",
+    "系统返回:待验",
+    "后台恢复:待验",
+    "原生文件保存:待验",
+    "#215 软键盘与 viewport:待验",
+    "#215 Dialog 返回键与 input autoFocus:待验",
+    "#215 关闭后首 tap 与滚动起手:待验",
+    "#215 Select 层级与键盘:待验"
+  ],
+  "handoff": "https://github.com/openaddr/dafung-web/issues/215"
+}

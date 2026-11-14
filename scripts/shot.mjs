@@ -1,3 +1,4 @@
+// 仅在用户明确要求页面观察、截图对比或性能/浏览器复现时使用;不接入验证门槛。
 // 截图自证脚手架(单源,2026-09-25 定——耗时回顾发现 T1-T4 五个代理各手写一份
 // 起服/PID 杀/就绪轮询/swiftshader/路由 mock/enterGame/plant 样板,每份 20-40min)。
 //
@@ -27,10 +28,11 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { chromium } from "playwright";
 import { preview } from "vite";
+import { MOBILE_CONTEXT_OPTIONS } from "./mobile-context.ts";
 
 export async function openShotSession({
   port = 5300,
-  viewport = { width: 844, height: 390 },
+  viewport = MOBILE_CONTEXT_OPTIONS.viewport,
   deviceScaleFactor = 2,
   /** true = 落格机遇关零(确定性无机遇卷轴;默认不 mock,读真实 public/config/jiyu.json)。 */
   zeroEncounter = false,
@@ -45,12 +47,12 @@ export async function openShotSession({
   const url = `http://localhost:${port}/`;
 
   const browser = await chromium.launch({
-    // Windows 走系统 Edge 通道(免下载自带浏览器),与 playwright.config 同口径;
+    // Windows 走系统 Edge 通道(免下载自带浏览器),沿用系统 Edge 通道;
     // 其他平台回退 playwright 自带 chromium。
     ...(process.platform === "win32" && { channel: "msedge" }),
     args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
   });
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor });
+  const ctx = await browser.newContext({ ...MOBILE_CONTEXT_OPTIONS, viewport, deviceScaleFactor });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("[pageerror]", String(e).slice(0, 300)));
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.25")); // 演出加速,同 e2e

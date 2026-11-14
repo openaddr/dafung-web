@@ -389,7 +389,7 @@ if (!prNumber) {
       console.log(
         `[pr-merge] 慢池 canary:本票触及慢例 ${slowFiles.length} 个(${slowFiles.join(" ")}),DAFUNG_SLOW=1 定向跑…`,
       );
-      const canary = Bun.spawnSync(["bun", "test", ...slowFiles], {
+      const canary = Bun.spawnSync([process.execPath, "test", ...slowFiles], {
         stdout: "inherit",
         stderr: "inherit",
         env: { ...process.env, DAFUNG_SLOW: "1" },

@@ -1,3 +1,4 @@
+// 仅在用户明确要求页面观察、截图对比或性能/浏览器复现时使用;不接入验证门槛。
 // 物理成本取数器(#1222):自起 vite preview + headless chromium(playwright 直驱),
 // 实测「挂载链(goto→__dafung 桥可用)→ seedSolo 种局 → 首掷行军链(waitMyRollDone
 // +waitSettled)」三段耗时 + 资源按名聚合表,输出人读表 + JSON 表。
@@ -24,7 +25,7 @@
 // 不撞口(同处 4100-4159 段,异名撞同 offset 概率 1/60,撞了走 COST_PROBE_PORT 覆盖);
 // **不走 test-lock**,不碰 e2e 测试锁(取数与回归测试互不排队)。测量档:dist 生产
 // 构建(陈旧自动 build,dist-freshness 判新——先 build 后起服,vite preview 空 dist
-// 即退)+ 844×390 DPR3 真机档 + swiftshader 软渲染(playwright.config 同款,
+// 即退)+ 844×390 DPR3 真机档 + swiftshader 软渲染(单次辅助工具共用,
 // headless 渲染环境稳定可复现)+ **e2e fixtures 同款五键注入**(倍率 0.25/桥/反应窗
 // 5s/bot 配速 0/默认图钉关中,e2e/fixtures.ts 同值同形制)——waitMyRollDone/
 // waitSettled 就是 e2e 镜头下的形制,bot 配速不归零光 Setup 选都三 bot 就 ≥9s
@@ -35,10 +36,11 @@
 // 同逻辑,本地复刻不 import——e2e/ 面属测试域,工具不反向依赖)。
 import { basename } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
-import { chromium } from "@playwright/test";
-import type { BrowserContext, Page } from "@playwright/test";
+import { chromium } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import { staticPreviewPort } from "./dev-ports.ts";
-import { distFreshness, stampDistBuild } from "./dist-freshness.ts";
+import { distFreshness } from "./dist-freshness.ts";
+import { MOBILE_CONTEXT_OPTIONS } from "./mobile-context.ts";
 
 // ── 参数面 ──
 let SEED = 1101;
@@ -140,7 +142,7 @@ async function newColdContext(
   browser: Awaited<ReturnType<typeof chromium.launch>>,
 ): Promise<BrowserContext> {
   const ctx = await browser.newContext({
-    viewport: { width: 844, height: 390 },
+    ...MOBILE_CONTEXT_OPTIONS,
     deviceScaleFactor: 3,
   });
   // 五键注入 = e2e/fixtures.ts 同值同形制(键名是 timings.ts/App.tsx 单源字面,
@@ -329,8 +331,10 @@ try {
   const fresh = distFreshness();
   if (!fresh.fresh) {
     console.log(`[probe] dist 陈旧(${fresh.reason}),build…`);
-    spawnSync("bun", ["run", "build"], { shell: win, stdio: "inherit" });
-    stampDistBuild();
+    const build = spawnSync("bun", ["run", "build"], { shell: win, stdio: "inherit" });
+    if (build.error) throw build.error;
+    if (build.status !== 0)
+      throw new Error(`build 失败(exit ${build.status},signal ${build.signal})`);
   }
   server = sh("bun", ["run", "--bun", "vite", "preview", "--port", String(PORT), "--strictPort"]);
   await waitServer(URL);

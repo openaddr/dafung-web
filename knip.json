@@ -11,10 +11,7 @@
     "scripts/sim-batch.ts",
     "scripts/sim-jinnang.ts",
     "scripts/ws-run.ts",
-    "test/**/*.test.{ts,tsx}",
-    "e2e/**/*.spec.ts",
-    "e2e/fixtures.ts",
-    "e2e/react-helpers.ts"
+    "test/**/*.test.{ts,tsx}"
   ],
   "ignore": ["public/fonts/fonts.css", "src/app/components/ui/**", "extensions/**"]
 }
