@@ -18,7 +18,7 @@
 
 - **BoardHost(boardHost.tsx)**:世界坐标(逻辑单位=px)直铺的 HTML 宿主,矩阵同步自持(viewBox MutationObserver/RO/fonts.ready,每事件拍一次「读盒+写容器」)——即 ADR-0039 氛围层同步的共享化(`useBoardMatrixSync` 钩子,ambientMatrix.ts 退役)。氛围层与棋子/特效/流光四个宿主同一套换算,单源不复制。
 - **棋子层(TokenLayer,HTML 版)**:每棋子一个合成器提升的包装 div(`will-change:transform` + transform 过渡,尺寸=美术盒 TOKEN_ART_BOX 121×142、负 margin 回锚)+ 内嵌 mini-svg(旗面/双环**原绘原类**,viewBox 同盒)。行军接管机制零改动:useMarch 仍查 `#bv-tokens [data-token-player]` 写 style.transform——宿主从 `<g>` 换 div,选择器契约保号;HTML transform 过渡由合成器插值,主线程只在段边界参与。
-- **特效层(BoardFxLayer,HTML 版)+ 驿道流光**:每件特效/每条流光独立 mini-svg(`.bv-fx-svg`:0 尺寸 overflow visible,世界坐标原绘原类)——美术/CSS keyframes/DOM 契约(`data-fx-jinnang-line` 等)逐字不动,失效范围收敛到各件自身小盒。墨渍渐变 defs 走单例 mini-svg(同文档跨 svg url 引用,氛围层 capital-glow 同法先例)。
+- **特效层(BoardFxLayer,HTML 版)+ 驿道流光**:每件特效/每条流光独立 mini-svg(世界坐标原绘原类;点状与线状件现行边界见下方修订,原零尺寸载体已退役)——美术/动画节奏/DOM 契约(`data-fx-jinnang-line` 等)逐字不动,失效范围收敛到各件自身小盒。墨渍渐变 defs 走单例 mini-svg(同文档跨 svg url 引用,氛围层 capital-glow 同法先例)。
 - **顶板 SVG(`#board-tokens`)就此退役**,双板双写回单板:`usePanZoom` 收掉 tokensSvgRef 第三参;层序(DOM 序)棋子 → fx → 流光 → 氛围,与旧绘制序一致。
 
 ### 二、手势合成器化:手势期栈 transform,提交拍写回 viewBox
@@ -49,3 +49,15 @@
 ## 修订(2026-11-02,#1013 真机城池闪现根修;实施流水已删,git 史可考)
 
 失效盒收敛不等于宿主提升:`.bv-stack`、`#bv-fx`、`#bv-flow` 挂 `will-change:transform` 后,栈外失效(弹层/横幅/HUD 脏矩形)与棋盘彻底隔离,特效逐帧失效只落宿主自身小层,手势 transform 成纯合成器操作;tokens 宿主不提升(子件已逐个自提升),氛围层子件靠活跃 transform/opacity 动画自动提升。本修订不改绘制语义,只动栅格拓扑,契约由 computed-style e2e 守卫钉住。
+
+## 修订(2026-11-14,#1418 点状特效局部视口)
+
+点状件的实际绘制载体改为非零局部视口:effect-viewport 单源同时给出世界盒、CSS位置与viewBox,FxViewport按同盒布置。浮字/印章在实际字体就绪后只测静态字形;铜钱消费spawn烤定的散布,金圈与墨渍消费各自画笔共用的几何参数。包络覆盖描边、halo/光晕、旋转与全程轨迹,不逐帧读盒。纯defs仍独立使用零尺寸载体,不参与实际绘制。
+
+点状件的prefers-reduced-motion在局部视口内保留静态有效帧,仍由原store清理窗移除;全局M-4与卡面/拼点落章弧不变。
+
+## 修订(2026-11-14,#1419 线状特效局部视口)
+
+易主流光、锦囊指示线与命令式驿道流光也使用同一非零世界盒接口。边界覆盖整条路径的所有烤定点、描边与圆线帽;锦囊线额外并入起点圆锚、旋转后的箭羽及连接尖角,驿道折线保守包含miter最大伸出。画笔与包络共用effect-viewport的LINE_PAINT参数,不从当前动画帧反推视口。纯defs仍与实际绘制载体隔离。
+
+减少动态效果时,易主线显示中段扫光,指示线与箭羽显示完整静帧,驿道显示有效高亮;原TTL继续清理,事件类型、端点、归一化pathLength和棋子行军接管不变。几何回归复用真实播放器与生产sink,命令式流光经过生产anchorMarches锚定,并以整件像素差分、画笔包络和取景提交后的对位守住实绘边界。

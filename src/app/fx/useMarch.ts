@@ -25,6 +25,7 @@ import { useFxStore } from "./fxStore";
 import { getAudio } from "./audio";
 import { delay, FX, MARCH, nextFrame } from "./timings";
 import type { MarchSegmentFrames } from "./presentation";
+import { LINE_PAINT, pathEffectBox, placeEffectViewport } from "./effect-viewport";
 
 /** 行军接管中的棋子当前坐标(逻辑系)。只在 beginMarch/帧推进时写入,被 TokenLayer 读取。 */
 export const marchPos = new Map<string, { x: number; y: number }>();
@@ -127,7 +128,7 @@ export function beginMarch(moverId: string, keyframes: readonly MarchSegmentFram
 
 /** 驿道流光:行军每跨一格,沿该段烤好的折线(flow,恒直线)叠加一条金色流光
  *  (旧 highlightSegment;坐标提取拍已烤进事件,不再读棋盘)。
- *  ADR-0042:每条流光独立 mini-svg(.bv-fx-svg,0 尺寸 overflow visible)追加进
+ *  ADR-0045:每条流光独立非零世界盒 mini-svg(.bv-fx-svg)追加进
  *  #bv-fx 同款 HTML 宿主 #bv-flow——路径 d 仍写世界坐标原值,逐帧渐隐失效只重绘
  *  本条线自身小盒,不再波及整层(旧 g#bv-flow 直 append path 的整幅失效通路随之退役)。
  *  #1140:金辉烤进 halo 底描边(drop-shadow 曾随渐隐 path 每帧重跑滤镜),渐隐
@@ -138,8 +139,13 @@ function highlightSegment(flow: readonly BoardPos[]): void {
   const d = flow.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("class", "bv-fx-svg bv-flow-fade active");
-  svg.setAttribute("width", "0");
-  svg.setAttribute("height", "0");
+  placeEffectViewport(
+    svg,
+    pathEffectBox(flow, (LINE_PAINT.flow.haloStroke / 2) * LINE_PAINT.miterLimit),
+  );
+  svg.style.setProperty("--fx-flow-stroke", String(LINE_PAINT.flow.stroke));
+  svg.style.setProperty("--fx-flow-halo-stroke", String(LINE_PAINT.flow.haloStroke));
+  svg.style.setProperty("--fx-line-miter-limit", String(LINE_PAINT.miterLimit));
   const halo = document.createElementNS("http://www.w3.org/2000/svg", "path");
   halo.setAttribute("class", "road-flow-halo");
   halo.setAttribute("d", d);

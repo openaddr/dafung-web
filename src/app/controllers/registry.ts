@@ -55,6 +55,10 @@ import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
 import { catchupCounters, setSnapPin } from "@app/fx/catchup";
 import { latestWorkerClock } from "@app/net/worker-clock";
 import { collectFrameDiag } from "@app/frameDiag";
+import { present } from "@app/fx/orchestrator";
+import { anchorMarches } from "@app/fx/event-extract";
+import { createEngineSink } from "@app/fx/sinks";
+import type { PresentationEvent } from "@app/fx/presentation";
 import type { GameCommand, GameEngine } from "@core/authority";
 import { applyPlant, type PlantOp } from "@core/planter";
 import { HEROES } from "@core/heroes";
@@ -261,6 +265,12 @@ export function installDebugHooks(): void {
   };
   const w = window as typeof window & { __dafung?: unknown };
   w.__dafung = {
+    /** 表现态构造(#1418):原样走产品播放器与生产 sink;不改引擎或表现 store 字段。 */
+    playPresentation: (events: PresentationEvent[]) => {
+      const sink = createEngineSink();
+      anchorMarches(events, sink);
+      return present(events, sink);
+    },
     getEngine,
     setEngine,
     /** 当前 store 里的快照(god view;等价旧 __dafung.snapshot)。 */

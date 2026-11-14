@@ -25,7 +25,11 @@ import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 // #28:国号预设 key 与 SoloSetup 同源(起兵时写入,此处读出自动带入)
 import { GUOHAO_PREF_KEY } from "@app/screens/setup/SoloSetupScreen";
 import { HintBar } from "@app/screens/shared/HintBar";
-import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
+import {
+  ConnectionBanner,
+  CONN_BANNER_BODY_H,
+  useConnDown,
+} from "@app/screens/shared/ConnectionBanner";
 // X10(#29):建房诸侯数原生 select → stepper(screens/shared;e2e 点 -/+ 与读数值)
 import { Stepper } from "@app/screens/shared/Stepper";
 // #766:高级折叠箭头用 Sym(裸排 ▾ 会出 tofu,见 DESIGN §4.3;范式同 setup 机遇折叠)
@@ -75,6 +79,10 @@ function validateTarget(v: string): string | null {
 }
 
 export function LobbyScreen({ onExit }: LobbyScreenProps) {
+  const connDown = useConnDown();
+  const connectionSpace = connDown
+    ? { paddingTop: `calc(var(--safe-top) + ${CONN_BANNER_BODY_H + 8}px)` }
+    : undefined;
   const roomId = useNetStore((s) => s.roomId);
   const mySeat = useNetStore((s) => s.mySeat);
   const host = useNetStore((s) => s.host);
@@ -200,16 +208,21 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const finalGuohao = useMemo(() => resolveGuohaoClash(seats.map((s) => s.guohao)), [seats]);
 
   const controller = getController() as OnlineController | null;
+  const reconnect = () => {
+    if (controller === null) throw new Error("恢复横幅缺少联机控制器");
+    controller.reconnect();
+  };
 
   const guard = async (fn: () => Promise<unknown>) => {
     if (!controller || busy) return;
+    const owner = controller;
     setBusy(true);
     try {
       await fn();
     } catch (err) {
-      pushHint((err as Error).message);
+      if (getController() === owner) pushHint((err as Error).message);
     } finally {
-      setBusy(false);
+      if (getController() === owner) setBusy(false);
     }
   };
 
@@ -464,9 +477,10 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       <div
         data-testid={LID.screen}
         className="lobby-safe lobby-root relative flex h-full flex-col overflow-y-auto bg-bg p-6"
+        style={connectionSpace}
       >
         {/* F2 断线横幅:挂在卡片上方(未入座也可能在加入后断线;横幅绝对定位不挤布局) */}
-        <ConnectionBanner />
+        <ConnectionBanner onReconnect={reconnect} onExit={onExit} />
         {/* #766:未入座卡轻,不吃 lobby-wrap 满高——m-auto 居中即可(卡随内容贴合);
             满高 wrap 只服务已入座的 fill/sticky 形态 */}
         <div className="m-auto flex w-full flex-col items-center">
@@ -754,9 +768,10 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     <div
       data-testid={LID.screen}
       className="lobby-safe lobby-root relative flex h-full flex-col overflow-y-auto bg-bg p-6"
+      style={connectionSpace}
     >
       {/* F2 断线横幅:卡片上方常驻(重连成功自动消失) */}
-      <ConnectionBanner />
+      <ConnectionBanner onReconnect={reconnect} onExit={onExit} />
       <div
         className={`m-auto flex w-full flex-col items-center ${isShortLandscape ? "lobby-wrap" : ""}`}
       >

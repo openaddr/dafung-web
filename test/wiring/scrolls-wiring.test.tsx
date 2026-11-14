@@ -105,9 +105,8 @@ const SEATS: SeatConfig[] = [
   { name: "座 4", isBot: true },
 ];
 
-/** 种引擎到 Playing 停靠(公共命令链,模板 seedPlayingEngine 同款;非法态当场
- *  抛错不静默)。 */
-function seedPlayingEngine(): GameEngine {
+/** 公共命令链开局;默认选完都停 Playing,费用接线例留在选都前。非法态当场抛错。 */
+function seedEngine(pickCapitals = true): GameEngine {
   const e = new GameEngine(MAP.board, MAP.catalog, createDice(SEED), {
     seats: SEATS,
     targetNetWorth: MAP.targetNetWorth,
@@ -118,13 +117,14 @@ function seedPlayingEngine(): GameEngine {
     encounter: { enabled: false }, // 机遇硬关:与 e2e quickStart/单测既有口径同
   });
   e.doDraftRoll();
-  while (e.phase === "Setup") {
+  while (pickCapitals && e.phase === "Setup") {
     if (!e.aiSetupStep()) {
       const r = e.pickCapital(e.currentSetupPlayerIndex, Math.min(...e.offeredCapitals));
       if (!r.ok) throw new Error(`种局:选都被拒(${r.reason ?? "未知"})`);
     }
   }
-  if (e.phase !== "Playing") throw new Error(`种局:选都链后非 Playing(phase=${e.phase})`);
+  if (pickCapitals && e.phase !== "Playing")
+    throw new Error(`种局:选都链后非 Playing(phase=${e.phase})`);
   return e;
 }
 
@@ -145,14 +145,17 @@ function mount(): HTMLElement {
 /** 种局→种植→注册控制器→基类 sync 灌 store→挂屏(每例开头同款一条龙)。
  *  ops = 初始布场指令(PlantOp 单源逐条落种,判词见头注「种植单源形」);
  *  writeEngine = 进程内引擎公共方法直呼缝 + 重灌 store(e2e callEngine #1302 同语义)。 */
-function startGame(ops: PlantOp[] = []): {
+function startGame(
+  ops: PlantOp[] = [],
+  pickCapitals = true,
+): {
   el: HTMLElement;
   engine: GameEngine;
   plant: (op: PlantOp) => void;
   writeEngine: (write: (e: GameEngine) => void) => void;
   snap: () => GameSnapshot;
 } {
-  const e = seedPlayingEngine();
+  const e = seedEngine(pickCapitals);
   for (const op of ops) applyPlant(e, op);
   const c = newWiringController(e);
   setController(c, guanzhongData); // 生产同款:连地图一起注册(卷轴层挂载门卫)
@@ -268,7 +271,6 @@ beforeAll(async () => {
   // 零兜底设计)当场炸;document.fonts.ready 同缺席。给中性真值(844×390 标准档)
   // 让生产代码走通挂载,断言面不碰任何几何(断言宪法)。happy-dom 注册生命周期内
   // 生效,release 后随注册体整体丢弃,零跨文件泄漏(模板同款)。
-  (document as unknown as { fonts: unknown }).fonts = { ready: Promise.resolve() };
   Object.defineProperty(SVGSVGElement.prototype, "clientWidth", {
     get: () => 844,
     configurable: true,
@@ -306,6 +308,11 @@ beforeAll(async () => {
     override dispatchCommand(cmd: GameCommand): void {
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
       this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
+    }
+    override setupPickCapital(tileIndex: number): void {
+      const result = this.e.pickCapital(this.e.currentSetupPlayerIndex, tileIndex);
+      if (!result.ok) throw new Error(`接线测试:选都被拒(${result.reason})`);
+      this.sync();
     }
     // 测试侧重灌口(protected sync 的公开面;种植后调)。
     resync(): void {
@@ -533,6 +540,73 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
 });
 
 describe("城池详情卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
+  // #1417:接线守建城费/余额与真实选都扣款,首屏与钉底几何留真浏览器。
+  it("选都展示建城费与余额,确认后实际扣款一致(#1417)", async () => {
+    const { el, engine, writeEngine } = startGame([], false);
+    writeEngine((e) => {
+      while (e.currentSetupPlayerIndex !== 0) {
+        if (!e.aiSetupStep()) throw new Error("接线测试:真人前置选都未推进");
+      }
+    });
+    const idx = engine.offeredCapitals[0];
+    const def = engine.catalog.get(engine.board.at(idx).propertyId!)!;
+    const cash = engine.players[0].cash;
+    click(el.querySelector(`[data-tile="${idx}"]`)!);
+    const detail = docQ(T.tileDetailScroll)!;
+    expect(detail.textContent).toContain(`建城费 ${formatMoney(def.buildCost)}`);
+    expect(detail.textContent).toContain(`余额 ${formatMoney(cash - def.buildCost)}`);
+    expect(detail.textContent).toContain(`都城补给 ${formatMoney(def.resupply)}`);
+    click(docQ(TESTIDS.confirmCapitalOk)!);
+    expect(engine.players[0].cash).toBe(cash - def.buildCost);
+    expect(engine.players[0].capitalIndex).toBe(idx);
+    await settle();
+  });
+
+  it.each(["单机", "联机"])(
+    "%s查看自己与他人持有城:保留持有收益,不出现购买余差(#1417)",
+    async (mode) => {
+      const { el, engine } = startGame([
+        { kind: "armPhase", activeIndex: 0, turnPhase: "AwaitingDecision" },
+        { kind: "armLanding", landing: null },
+      ]);
+      if (mode === "联机") {
+        act(() => {
+          useNetStore.getState().setRoom({
+            roomId: "wiring-city-fees",
+            seats: engine.players.map((player, seat) => ({
+              seat,
+              kind: player.isBot ? "bot" : "human",
+              taken: true,
+              online: true,
+              autoPilot: false,
+              guohao: player.guohao,
+            })),
+          });
+          useNetStore.getState().setMySeat(0);
+        });
+      }
+      for (const seat of [0, 1]) {
+        const player = engine.players[seat];
+        const idx = player.capitalIndex;
+        const tile = engine.board.at(idx);
+        const def = engine.catalog.get(tile.propertyId!)!;
+        click(el.querySelector(`[data-tile="${idx}"]`)!);
+        const detail = docQ(T.tileDetailScroll)!;
+        expect(detail.textContent).toContain(`持有:${player.guohao}`);
+        expect(detail.textContent).toContain("都城 Lv.0");
+        expect(detail.textContent).toContain(`购入价 ${formatMoney(def.purchasePrice)}`);
+        expect(detail.textContent).toContain("交易加成");
+        expect(detail.textContent).toContain("都城补给");
+        expect(detail.textContent).not.toContain("需 ");
+        expect(detail.textContent).not.toContain("余 ");
+        expect(detail.textContent).not.toContain("差 ");
+        expect(docQ(TESTIDS.confirmCapitalOk)).toBeNull();
+        click(q(detail, T.scrollClose)!);
+        await waitUnmounted(() => docQ(T.tileDetailScroll), "只读城池详情应关闭");
+      }
+    },
+  );
+
   // ── ⑥点城详情(react-scrolls 城池详情例迁入)──
   // 断言面:对局中真点城池格(data-tile 点击层)→详情卷轴弹出→列语义(主列交易加成
   // 恒在;第二列按城型=都城补给|变卖价,#671 列语义钉)。选城与城型期望值读进程内引擎
@@ -590,6 +664,9 @@ describe("购地卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     // 差额行符号语义(#566):买得起记「余」不记「差」
     expect(scroll()!.textContent).toContain("余");
     expect(scroll()!.textContent).not.toContain("差");
+    expect(scroll()!.textContent).toContain(
+      `需 ${formatMoney(engine.catalog.get(tile.propertyId)!.purchasePrice)}`,
+    ); // #1417:购地继续读购入价,不跟随选都改成建城费
     // 点买 → 命令受理,卷轴收(决策收口的 UI 面;购地结算与链序归引擎单测)
     click(docQ(TESTIDS.actionButton("buy"))!);
     await waitUnmounted(scroll, "购地卷轴应随点买收卷(幽灵帧走完)");

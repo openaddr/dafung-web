@@ -45,6 +45,56 @@
   justify-content: center;
 }
 
+/* wrapper 始终挂载，常态不产布局盒、不重挂牌钮。全展才接管自身空白命中与原生
+   pan-x；宿主测量预算固定视口宽，max-content 内容不反撑整个页面。 */
+.hand-rack-viewport {
+  display: contents;
+}
+.hand-rack.spread-all .hand-rack-viewport {
+  display: block;
+  width: var(--rack-avail);
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gold-wash) transparent;
+}
+.hand-rack.spread-all .hand-rack-hand {
+  width: max-content;
+  gap: 3em;
+  justify-content: flex-start;
+  padding: 3em 2em 2em;
+}
+.hand-rack.spread-all .hand-rack-hand > button {
+  flex: 0 0 auto;
+  width: 15em;
+  display: flex;
+  justify-content: center;
+  margin-left: 0;
+}
+/* 扩的是选中牌的布局槽，卡面仍消费既有1.6倍状态。上缘承接放大高度与上移，
+   额外2em保护微旋/描边；边缘留白随牌序一起滚，首末牌不会被滚动井裁边。 */
+.hand-rack.spread-all.junshi .hand-rack-hand:has(> button.sel) {
+  padding-top: calc(20em * (var(--card-selected-scale) - 1) + 4em);
+  /* 末牌也能滚到阅读中线，避开既有右侧拍板钮；选中结束即还原紧凑尾缘。 */
+  padding-right: calc(var(--rack-avail) / 2);
+}
+.hand-rack.spread-all.junshi .hand-rack-hand > button.sel {
+  width: calc(15em * var(--card-selected-scale) + 2em);
+}
+/* 常态的压缩挥出只在收纳架生效；全展仅保留窗态本身的可用/选中位移。 */
+.hand-rack.spread-all .hand-rack-hand.many > button:hover,
+.hand-rack.spread-all .hand-rack-hand.many > button:hover ~ button,
+.hand-rack.spread-all
+  .hand-rack-hand.many:has(> button:hover)
+  > button:not(:hover):has(~ button:hover) {
+  transform: none;
+}
+
 /* 牌面吃容器 em 基(standard 档默认 8px 被覆盖,降档时随容器走) */
 .hand-rack .jinnang-card {
   font-size: inherit;
@@ -148,32 +198,6 @@
     0 0.35em 0.9em rgba(0, 0, 0, 0.4),
     0 0 0 1px color-mix(in srgb, var(--color-gold) 60%, transparent),
     0 0 1.4em color-mix(in srgb, var(--color-gold) 60%, transparent);
-}
-
-/* ── 全展回落进度线(#768):临时全展(SPREAD_ALL_MS=2500ms)期间架底缘 2px 金线
-   scaleX 收缩——剩余全展时长由线长表达(§4.6,零文字);时长经 --spread-dur 由
-   HandRack 内联注入(单源 SPREAD_ALL_MS,此处不写数),origin left=从右往左耗尽。
-   挂载即播、摘除即撤(中断:点外/长按开详情/选牌,组件侧 collapseSpread)。
-   left/right 2.5em 对齐架体呼吸位(padding 0 2.5em)。 ── */
-.rack-spread-line {
-  position: absolute;
-  left: 2.5em;
-  right: 2.5em;
-  bottom: 0;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--color-gold);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--color-gold) 45%, transparent);
-  transform-origin: left center;
-  animation: rack-spread-countdown var(--spread-dur) linear forwards;
-}
-@keyframes rack-spread-countdown {
-  from {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(0);
-  }
 }
 
 /* ── 叠加压缩(#254,手牌无上限 #250):≥4 张挂 .many,负 margin 叠牌——每张露
@@ -316,7 +340,7 @@
   margin: 0 auto 14px;
 }
 
-/* ── 架尾计数章(#751 C2,触屏全显通路):.many 压缩态常驻,点按=临时全展 2.5s
+/* ── 架尾计数章(#751 C2,触屏全显通路):.many 压缩态常驻,点按=全展检视
    (再点/点外即收,逻辑在 HandRack.tsx);hover 挥出仍是桌面全显通路,章只入
    pointer:coarse 档(#744 判词口径)。锚位:架右缘、抬出三圆钮区——pilebtns 在
    两档各探进手牌区右缘 ~48/72px,贴地绝对定位会被锦囊钮盖住点不到(实拍取证);

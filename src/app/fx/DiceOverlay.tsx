@@ -59,14 +59,22 @@ function rollSign(die: number): Promise<void> {
   const rect = anchor.getBoundingClientRect();
   const overlay = document.createElement("div");
   overlay.className = "dice-overlay";
-  overlay.style.left = `${rect.left + 10}px`; // 锚点右缘外 10px(水平),竖直对齐槽中线(CSS 半高上提)
-  overlay.style.top = `${rect.top + rect.height / 2}px`;
   overlay.style.animationDuration = `${DICE.readyMs}ms`; // 入场渐显(keyframe 只管形,时长消费点内联,#849 棒3)
   const sign = document.createElement("div");
   sign.className = "dice-sign"; // 单段式:真字签卡直接现身,无虚位/钤落两段
   sign.textContent = SIGN_FACES[die - 1];
   overlay.appendChild(sign);
   document.body.appendChild(overlay);
+  // 常驻锚点给出胶囊侧旁的首选落点;量真实签体一次,不另造卡宽/高常量。
+  // 顶边从锚点行起,整签限入现有 safe-area 并留与顶栏同款净距,不再半高上提。
+  const box = overlay.getBoundingClientRect();
+  const safe = getComputedStyle(document.documentElement);
+  const left = Number.parseFloat(safe.getPropertyValue("--safe-left")) + 8;
+  const top = Number.parseFloat(safe.getPropertyValue("--safe-top")) + 8;
+  const right = window.innerWidth - Number.parseFloat(safe.getPropertyValue("--safe-right")) - 8;
+  const bottom = window.innerHeight - Number.parseFloat(safe.getPropertyValue("--safe-bottom")) - 8;
+  overlay.style.left = `${Math.min(Math.max(rect.left + 10, left), right - box.width)}px`;
+  overlay.style.top = `${Math.min(Math.max(rect.top, top), bottom - box.height)}px`;
   activeOverlay = overlay;
   // 揭示拍=现身拍:骰落声与芯片揭示同签卡淡入同拍(音画同拍)。
   getAudio().play("diceLand");

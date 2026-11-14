@@ -197,7 +197,7 @@ export function BuyDecisionScroll({
       </p>
       {/* 主数值行(#767 弹窗详情族①):持有/需/余差从摘要行升格的独立主行,
           买不买得起 0.5 秒可读(余绿/差红);#566 符号语义照旧(付得起记「余」) */}
-      <AffordRow cash={cash} need={property.purchasePrice} />
+      <AffordRow cash={cash} need={property.purchasePrice} purpose="purchase" />
       {/* 复用城池详情的等级表:买地的权衡核心是这座城往后怎么生钱——交易加成(未来
           坐地卖珍宝的定价参数)与逐级变卖价(破产跑道)。#92:买入即落 Lv.0,高亮购入档 */}
       {showValues ? (

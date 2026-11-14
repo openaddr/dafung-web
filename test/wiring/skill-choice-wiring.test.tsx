@@ -151,7 +151,6 @@ beforeAll(async () => {
   ensureHappyDom();
   // 环境缝(matchMedia stub 同族,模板同款):SVG clientWidth/Height 中性真值让
   // 生产挂载走通;断言面零几何。
-  (document as unknown as { fonts: unknown }).fonts = { ready: Promise.resolve() };
   Object.defineProperty(SVGSVGElement.prototype, "clientWidth", {
     get: () => 844,
     configurable: true,

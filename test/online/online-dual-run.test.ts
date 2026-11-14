@@ -55,6 +55,8 @@
 // 慢池」判据(docs/how-to/开发与测试.md「把测试跑起来」),常驻默认池;重连例(#1287)
 // 单例 ≥3s(真退避 ~1s 起步墙钟=用例本体不可压缩,恢复类),按 local-room 骑局先例
 // itSlow 入 DAFUNG_SLOW(bun run test:slow / DAFUNG_SLOW=1 bun test 本文件)。
+// #1421/#1422 原座手动恢复例实测 269ms(2026-11-14),固定选都门+maxAttempts=0,
+// 无生产退避等待,留默认池;旧自动重连骑局仍按原慢池口径隔离。
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -63,9 +65,9 @@ import type { GameCommand, GameEngine } from "@core/authority";
 import type { MovePath } from "@core/board";
 import { loadMap } from "@core/board-loader";
 import { OnlineController } from "@app/controllers/online";
-import type { ReconnectProgress } from "@app/net/reconnecting-socket";
+import type { ReconnectProgress, WebSocketLike } from "@app/net/reconnecting-socket";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
-import { useNetStore } from "@app/store/netStore";
+import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import guanzhongData from "../../public/maps/guanzhong.json" with { type: "json" };
 import { cmdMsg } from "../../scripts/wire";
 
@@ -560,6 +562,182 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     expect(net.seats.every((seat) => seat.online)).toBe(true);
     expect(net.connection).toBe("open");
   }, 90_000);
+
+  // #1421/#1422 契约守卫:真 REST 入座+真 WS 升级,固定 seed、双真人、零 bot,
+  // guest 若先选都,经公共方法落一子后停在 host 门;guest 托管不推进真人门。恢复不清托管,
+  // 仅本人显式收回才关;这是已有托管契约,不作为 T6 生命周期修复的修前红证。
+  // 没有自动行军/反应窗/静置读数或弃试重来。
+  // maxAttempts=0 只在构造 DI 缝中确定性耗尽,生产退避不动;底层句柄来自公开
+  // socketFactory,不访问 controller 私有字段。摘要前锁由 online-recovery 守。
+  it("原座手动恢复Setup摘要", async () => {
+    await dismissCurrentRoom("进入手动恢复例");
+    hostCtrl?.destroy();
+    guestCtrl?.destroy();
+    useGameStore.getState().reset();
+    useNetStore.getState().reset();
+    const guestSockets: WebSocket[] = [];
+    const guestUrls: string[] = [];
+    const a = new OnlineController(MAP, "guanzhong");
+    const b = new OnlineController(MAP, "guanzhong", {
+      maxAttempts: 0,
+      socketFactory: (url) => {
+        const socket = new WebSocket(url);
+        guestSockets.push(socket);
+        guestUrls.push(url);
+        // 原生 WebSocket 与最小系统边界结构兼容,仅事件签名的 this 不同。
+        return socket as unknown as WebSocketLike;
+      },
+    });
+    hostCtrl = a;
+    guestCtrl = b;
+
+    // 服务端既有 seed 请求字段仅用于布场;真实生产 createRoom/adopt/REST 回包
+    // 路径照走,不另造入座通路。覆写只覆盖这一条建房请求并立即还原。
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input, init) => {
+      if (String(input) !== `${serverBase}/room/new`) return originalFetch(input, init);
+      if (typeof init?.body !== "string") throw new Error("建房请求体必须是 JSON 字符串");
+      return originalFetch(input, {
+        ...init,
+        body: JSON.stringify({ ...JSON.parse(init.body), seed: 1 }),
+      });
+    }) as typeof fetch;
+    try {
+      const created = await a.createRoom({ seats: 2 });
+      roomId = created.roomId;
+      hostToken = created.seatToken;
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    const joined = await b.joinRoom(roomId);
+    await until(
+      () => a.sessionReady && b.sessionReady && useNetStore.getState().seats.every((s) => s.online),
+      "双端大厅摘要校准",
+      2_000,
+      stackDump,
+    );
+    await a.pickMap("guanzhong");
+    await a.startGame();
+    await until(
+      () =>
+        a.sessionReady &&
+        b.sessionReady &&
+        a.engine.phase === "Setup" &&
+        b.engine.phase === "Setup" &&
+        a.engine.setupPhase === "PickCapital" &&
+        b.engine.setupPhase === "PickCapital",
+      "双端固定在选都门",
+      2_000,
+      stackDump,
+    );
+    expect(b.engine.currentSetupPlayerIndex).toBe(a.engine.currentSetupPlayerIndex);
+    if (b.engine.currentSetupPlayerIndex === b.seat) {
+      b.setupPickCapital(Math.min(...b.engine.offeredCapitals));
+      await until(
+        () =>
+          a.engine.currentSetupPlayerIndex === a.seat &&
+          b.engine.currentSetupPlayerIndex === a.seat,
+        "guest 合法选都后停在 host 真人门",
+        2_000,
+        stackDump,
+      );
+    }
+    expect(a.engine.currentSetupPlayerIndex).toBe(a.seat);
+    expect(b.engine.currentSetupPlayerIndex).toBe(a.seat);
+    expect(guestSockets[0]!.readyState).toBe(WebSocket.OPEN);
+    // 共享 netStore 的 mySeat/connection 最后写胜;按目标座位读广播,并经真实
+    // REST 核对服务端公开座位字段,不把任一 controller.autoPilotOn 当隔离真值。
+    const readServerGuest = async (): Promise<NetSeatMeta> => {
+      const response = await fetch(`${serverBase}/room/debug?room=${roomId}`);
+      expect(response.ok).toBe(true);
+      const debug = (await response.json()) as {
+        room: { roomId: string; seats: NetSeatMeta[] };
+      };
+      expect(debug.room.roomId).toBe(joined.roomId);
+      return debug.room.seats[b.seat]!;
+    };
+    expect((await readServerGuest()).autoPilot).toBe(false);
+    b.setAutoPilot(true);
+    await until(
+      () => useNetStore.getState().seats[b.seat]!.autoPilot,
+      "guest 自助托管广播",
+      2_000,
+      stackDump,
+    );
+    expect(await readServerGuest()).toMatchObject({
+      seat: joined.seat,
+      online: true,
+      autoPilot: true,
+    });
+    const before = engineProjection(a.engine);
+    const offered = [...a.engine.offeredCapitals];
+    const setupSeat = a.engine.currentSetupPlayerIndex;
+    expect(engineProjection(b.engine)).toEqual(before);
+    expect(b.engine.offeredCapitals).toEqual(offered);
+    expect(b.seat).toBe(joined.seat);
+    expect(guestUrls).toHaveLength(1);
+
+    guestSockets[0]!.close();
+    await until(
+      // 双栈共享 store 会被 host 的 Setup 校准帧覆盖 connection;本端就绪态
+      // 取实例事实,裸关取 factory 收集的真实句柄,离线由在线 host 的广播见证。
+      () =>
+        !b.sessionReady &&
+        guestSockets[0]!.readyState === WebSocket.CLOSED &&
+        !useNetStore.getState().seats[b.seat]!.online,
+      "guest 耗尽且 host 见证离线",
+      2_000,
+      stackDump,
+    );
+    expect(b.sessionReady).toBe(false);
+    expect(await readServerGuest()).toMatchObject({ online: false, autoPilot: true });
+    expect(engineProjection(b.engine)).toEqual(before); // 断线局面仍可读
+    b.reconnect();
+    b.reconnect(); // 同一公共行为重复触发不能多建恢复链
+    expect(guestUrls).toHaveLength(2);
+    expect(guestUrls[1]).toBe(guestUrls[0]);
+    const recoveredUrl = new URL(guestUrls[1]!);
+    expect(recoveredUrl.searchParams.get("room")).toBe(joined.roomId);
+    expect(recoveredUrl.searchParams.get("seat")).toBe(String(joined.seat));
+    expect(recoveredUrl.searchParams.get("token")).toBe(joined.seatToken);
+    await until(
+      () =>
+        b.sessionReady &&
+        guestSockets[1]!.readyState === WebSocket.OPEN &&
+        useNetStore.getState().seats[b.seat]!.online &&
+        useNetStore.getState().seats[b.seat]!.autoPilot,
+      "原座权威摘要恢复",
+      2_000,
+      stackDump,
+    );
+    expect(b.seat).toBe(joined.seat);
+    expect(useNetStore.getState().roomId).toBe(joined.roomId);
+    expect(engineProjection(a.engine)).toEqual(before);
+    expect(engineProjection(b.engine)).toEqual(before);
+    expect(snapshotProjection(useGameStore.getState().snapshot!)).toEqual(before);
+    expect(b.engine.currentSetupPlayerIndex).toBe(setupSeat);
+    expect(b.engine.offeredCapitals).toEqual(offered);
+    expect(b.engine.setupPhase).toBe("PickCapital");
+    expect(await readServerGuest()).toMatchObject({
+      seat: joined.seat,
+      online: true,
+      autoPilot: true,
+    });
+
+    b.setAutoPilot(false);
+    await until(
+      () => !useNetStore.getState().seats[b.seat]!.autoPilot,
+      "guest 显式收回广播",
+      2_000,
+      stackDump,
+    );
+    expect(await readServerGuest()).toMatchObject({ online: true, autoPilot: false });
+    expect(engineProjection(a.engine)).toEqual(before);
+    expect(engineProjection(b.engine)).toEqual(before);
+    expect(a.engine.currentSetupPlayerIndex).toBe(a.seat);
+    expect(b.engine.currentSetupPlayerIndex).toBe(a.seat);
+    expect(b.engine.offeredCapitals).toEqual(offered);
+  });
 
   // ─── 重连场景范例(#1287)────────────────────────────────────────────────
   // 场景:双端对跑到首个真人决策门(对局冻结读数点,parkedAtGate 判据)→ 裸关 guest

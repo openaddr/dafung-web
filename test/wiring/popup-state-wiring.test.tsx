@@ -278,7 +278,6 @@ beforeAll(async () => {
   // 让生产代码走通挂载,断言面不碰任何几何(断言宪法)——几何哨族(棋盘景深/
   // 合成层)永留浏览器,本 shim 不放大其绿。happy-dom 注册生命周期内生效,release
   // 后随注册体整体丢弃,零跨文件泄漏。
-  (document as unknown as { fonts: unknown }).fonts = { ready: Promise.resolve() };
   Object.defineProperty(SVGSVGElement.prototype, "clientWidth", {
     get: () => 844,
     configurable: true,

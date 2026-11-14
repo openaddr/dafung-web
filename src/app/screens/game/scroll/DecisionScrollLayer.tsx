@@ -142,7 +142,15 @@ export function DecisionScrollLayer({
           // 城表定义直传(TileThumb 缩略图与 ValueTable 同源消费,不再手工收窄成子集)
           property={def}
           players={players}
-          cash={players[viewSeat].cash}
+          context={
+            tileDetail.pickCapital
+              ? {
+                  kind: "capital",
+                  cash: players[viewSeat].cash,
+                  onConfirm: () => tileDetail.onConfirmCapital(tileIndex),
+                }
+              : { kind: "view" }
+          }
           ownerGuohao={ownerEntry?.guohao ?? null}
           ownerLevel={owned?.level ?? 0}
           // 防御值行(#1391 T5):有主=持有账面当前值,无主=null 不渲染(免疫无防御语义)
@@ -154,11 +162,6 @@ export function DecisionScrollLayer({
             ghostSlot.yield();
             tileDetail.onClose();
           }}
-          pickCapital={
-            tileDetail.pickCapital
-              ? { onConfirm: () => tileDetail.onConfirmCapital(tileIndex) }
-              : undefined
-          }
         />
       );
     }

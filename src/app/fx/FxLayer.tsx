@@ -2,25 +2,38 @@
 // 瞬时表现层:浮动金额(+/− 与铜钱雨)、朱砂印章、技能浮字两档(#850 施展升档/被动小签)。
 // D1/D4 改造沿革:浮字/印章/铜钱曾从 HTML 覆盖层 + getScreenCTM 换算迁入棋盘 SVG 的
 // #bv-fx 层;ADR-0045 起再迁 HTML 宿主(BoardFxLayer,BoardView 挂载,逐件 mini-svg)
-// ——坐标系与棋盘天然一致,pan/zoom 随宿主矩阵跟随,字号随视图缩放、按当前缩放设
+// ——坐标系与棋盘天然一致,布局/换图随宿主矩阵跟随,字号随视图比例、按当前比例设
 // 12px 等效下限。#1024:字号缩放读数并入 boardHost 单源缓存(失效拍共用同一套),
 // 渲染期不再 gBCR 强制同步布局;首挂由 commit 拍取真值修正,svg 缺席炸出不回退。
 // #732:屏幕级知会(回合横幅/都城停条带)迁顶中知会横幅槽(screens/game/NoticeBanner),
 // 本件只剩拼点签面演出桥(DuelSignsOverlay 渲染 null,仅在挂载期绑定 duelSignsApi
 // 模块桥——签面 overlay 自行 append 到 body,ADR-0030)。
 // #764:屏幕级再添两件(经 body portal 出 .board-area 的 overflow 裁切与几何让位,
-// 坐标换算只在起飞拍做一次——飞行全程 450ms 级,pan/zoom 中途脱锚不作对抗):
+// 坐标换算只在起飞拍做一次——飞行全程 450ms 级,中途布局变化不重定向):
 //   ① 出牌窗聚光(开关态 fxStore.spotlight,HandRack 窗态选中挂摘);
 //   ② 金钱飞行归账(fxStore.cashFlies,进账铜钱从来源棋子格飞向席位格,抵达 bump)。
 // 席位现金 count-up 订阅(seat-cash.ts)也随本件挂载/卸载。
-import { memo, useEffect, useLayoutEffect, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { playerColor, rgba, Theme } from "@core/theme";
 import { useGameStore } from "@app/store/gameStore";
 import { TESTIDS } from "@app/screens/game/testids";
 import { BoardHost, boardPxPerUnit, ensureBoardPxPerUnit } from "@app/components/board/boardHost";
 import { TILE_SCALE } from "@app/components/board/Tile";
-import { useFxStore, type CashFlyFx, type FloaterFx } from "./fxStore";
+import { useFxStore, type CashFlyFx, type FloaterFx, type SealFx } from "./fxStore";
+import { FxViewport } from "./FxViewport";
+import {
+  POINT_MOTION,
+  LINE_PAINT,
+  JINNANG_FEATHER_D,
+  expandEffectBox,
+  jinnangEffectBox,
+  pathEffectBox,
+  rotatingScaleBox,
+  translatedScaleBox,
+  unionEffectBoxes,
+  type EffectBox,
+} from "./effect-viewport";
 import { DuelSignsOverlay } from "./DuelSignsOverlay";
 import { formatFloater } from "./orchestrator";
 import { bumpSeatCash, startSeatCashCount } from "./seat-cash";
@@ -47,6 +60,14 @@ function floaterFontSize(): number {
   return Math.max(FLOATER_BASE_UNITS, FLOATER_MIN_PX / s);
 }
 
+/** 铜钱画笔与包络共用参数;飞行归账沿用同一素材。 */
+const COIN_STYLE = {
+  "--fx-coin-halo-stroke": POINT_MOTION.coin.haloStroke,
+  "--fx-coin-core-stroke": POINT_MOTION.coin.coreStroke,
+  "--fx-coin-font-size": POINT_MOTION.coin.fontSize,
+  "--fx-coin-spin": POINT_MOTION.coin.spin + "deg",
+} as CSSProperties;
+
 /** 铜钱一枚(泉字金币):补给雨与撒币共用同一视觉件(金圆底+墨字)。
  *  x/y=锚点(SVG 逻辑单位,transform attribute 定位),dx/dy=落点(spawn 拍烤死,
  *  #1140——渲染期随机现算会随 fx 层重渲重写在飞目标);delayMs=错拍入场(#885:
@@ -65,26 +86,78 @@ function Coin({
   delayMs?: number;
 }) {
   return (
-    <g
-      className="fx-svg-coin"
-      transform={`translate(${x} ${y})`}
-      style={{
-        ["--dx" as string]: `${dx}px`,
-        ["--dy" as string]: `${dy}px`,
-        animationDelay: `${delayMs}ms`,
-        animationDuration: `${FX.coinRainMs}ms`, // #885:keyframe 只管形,全长随通道缩放
-      }}
-    >
-      {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji。
+    <g transform={`translate(${x} ${y})`}>
+      <g
+        className="fx-svg-coin"
+        style={{
+          ...COIN_STYLE,
+          ["--dx" as string]: `${dx}px`,
+          ["--dy" as string]: `${dy}px`,
+          animationDelay: `${delayMs}ms`,
+          animationDuration: `${FX.coinRainMs}ms`, // #885:keyframe 只管形,全长随通道缩放
+        }}
+      >
+        {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji。
           金辉烤形(#1140):halo 底圈(宽低透明描边)烤死 drop-shadow——滤镜曾随
           逐帧平移的 g 每帧重跑,撒币档 N 枚 × 每帧 = 小滤镜栅格雨。 */}
-      <circle className="coin-halo" r={11} />
-      <circle className="coin-core" r={11} />
-      <text y={4} textAnchor="middle">
-        泉
-      </text>
+        <circle className="coin-halo" r={POINT_MOTION.coin.radius} />
+        <circle className="coin-core" r={POINT_MOTION.coin.radius} />
+        <text y={POINT_MOTION.coin.baseline} textAnchor="middle">
+          泉
+        </text>
+      </g>
     </g>
   );
+}
+
+/** 全程外包络只消费spawn烤定的scatter;halo方盒的旋转外接圆包住全程。 */
+function Coins({
+  x,
+  y,
+  scatter,
+  burst,
+}: {
+  x: number;
+  y: number;
+  scatter: ReadonlyArray<{ dx: number; dy: number }>;
+  burst: boolean;
+}) {
+  const haloRadius = POINT_MOTION.coin.radius + POINT_MOTION.coin.haloStroke / 2;
+  const radius = Math.hypot(haloRadius, haloRadius);
+  const boxes = scatter.map(({ dx, dy }) => ({
+    x: x + Math.min(0, dx) - radius,
+    y: y + Math.min(0, dy) - radius,
+    width: Math.abs(dx) + radius * 2,
+    height: Math.abs(dy) + radius * 2,
+  }));
+  const box = unionEffectBoxes(boxes[0], ...boxes.slice(1));
+  return (
+    <FxViewport box={box}>
+      <g className={burst ? "fx-burst-coins" : "fx-supply-coins"}>
+        {scatter.map((s, c) => (
+          <Coin
+            key={c}
+            x={x}
+            y={y}
+            dx={s.dx}
+            dy={s.dy}
+            delayMs={burst ? (c % 4) * FX.coinStaggerMs : 0}
+          />
+        ))}
+      </g>
+    </FxViewport>
+  );
+}
+
+/** 圆形点状件:描边/滤镜先栅格,再随本体scale,全程用最大尺度包络。
+ * drop-shadow的CSS模糊标准差为blur/2,取6σ覆盖可栅格辉光。 */
+function pointCircleBox(x: number, y: number, radius: number): EffectBox {
+  return {
+    x: x - radius,
+    y: y - radius,
+    width: radius * 2,
+    height: radius * 2,
+  };
 }
 
 /** 浮字渲染档(#850 技能演出补课):class/字号/玩家色变量三件随 skill 档分派——
@@ -96,20 +169,205 @@ function floaterLook(
   fontSize: number,
 ): { cls: string; size: number; playerColorVar: string | null } {
   if (f.skill?.kind === "cast")
-    return { cls: "skill", size: fontSize, playerColorVar: rgba(playerColor(f.skill.colorIndex)) };
+    return {
+      cls: "skill",
+      size: fontSize,
+      playerColorVar: rgba(playerColor(f.skill.colorIndex)),
+    };
   if (f.skill?.kind === "tag")
-    return { cls: "tag", size: Math.round(fontSize * 0.7), playerColorVar: null };
-  if (f.text) return { cls: "msg", size: Math.round(fontSize * 0.8), playerColorVar: null };
-  return { cls: f.amount >= 0 ? "pos" : "neg", size: fontSize, playerColorVar: null };
+    return {
+      cls: "tag",
+      size: Math.round(fontSize * 0.7),
+      playerColorVar: null,
+    };
+  if (f.text)
+    return {
+      cls: "msg",
+      size: Math.round(fontSize * 0.8),
+      playerColorVar: null,
+    };
+  return {
+    cls: f.amount >= 0 ? "pos" : "neg",
+    size: fontSize,
+    playerColorVar: null,
+  };
 }
 
-/** 棋盘特效层(ADR-0042 第三波 HTML 版,BoardView 挂载):浮字 + 铜钱雨 + 朱砂/漆金
+/** 静态真实字形只在挂载/内容/字号/字体就绪拍测量,不读取动画帧布局。 */
+function useGlyphBox(text: string, size: number, font: "brush" | "title") {
+  const ref = useRef<SVGTextElement>(null);
+  const [box, setBox] = useState<EffectBox | null>(null);
+  const [sealScale, setSealScale] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    let active = true;
+    const measure = () => {
+      if (!active) return;
+      const b = ref.current!.getBBox();
+      setBox({ x: b.x, y: b.y, width: b.width, height: b.height });
+      if (font === "title") {
+        const scale = Number(
+          getComputedStyle(ref.current!.parentElement!).getPropertyValue("--fx-seal-start-scale"),
+        );
+        if (!(scale > 0)) throw new Error("印章落章弧最大尺度缺失");
+        setSealScale(scale);
+      }
+    };
+    // 静态节点已入DOM,按真实内容请求对应字体切片,避免尚未触发布局时
+    // fonts.status仍为loaded却量到了后备字体。只有就绪字形才开启实际绘制。
+    const ready = async () => {
+      const family = getComputedStyle(ref.current!).fontFamily;
+      await document.fonts.load(`${size}px ${family}`, text);
+      await document.fonts.ready;
+      measure();
+    };
+    void ready();
+    document.fonts.addEventListener("loadingdone", measure);
+    return () => {
+      active = false;
+      document.fonts.removeEventListener("loadingdone", measure);
+    };
+  }, [text, size, font]);
+  return { ref, box, sealScale };
+}
+
+function Floater({ f, y, fontSize }: { f: FloaterFx; y: number; fontSize: number }) {
+  const look = floaterLook(f, fontSize);
+  const text = f.text ?? formatFloater(f.amount);
+  const glyph = useGlyphBox(text, look.size, "brush");
+  const motion = POINT_MOTION;
+  const tag = look.cls === "tag";
+  const style = {
+    "--fx-float-start-scale": motion.float.startScale,
+    "--fx-float-peak-scale": motion.float.peakScale,
+    "--fx-float-peak-y": `${motion.float.peakY}px`,
+    "--fx-float-end-y": `${motion.float.endY}px`,
+    "--fx-float-stroke": motion.float.stroke,
+    "--fx-float-miter-limit": motion.float.miterLimit,
+    "--fx-tag-start-y": `${motion.tag.startY}px`,
+    "--fx-tag-reveal-y": `${motion.tag.revealY}px`,
+    "--fx-tag-hold-y": `${motion.tag.holdY}px`,
+    "--fx-tag-end-y": `${motion.tag.endY}px`,
+    ...(look.playerColorVar != null && {
+      "--player-color": look.playerColorVar,
+    }),
+  } as CSSProperties;
+  const box =
+    glyph.box &&
+    translatedScaleBox(
+      expandEffectBox(
+        { ...glyph.box, x: glyph.box.x + f.x, y: glyph.box.y + y },
+        look.cls === "skill" ? (motion.float.stroke * motion.float.miterLimit) / 2 : 0,
+      ),
+      tag ? motion.tag.peakScale : motion.float.peakScale,
+      tag ? motion.tag.endY : motion.float.endY,
+      tag ? motion.tag.startY : 0,
+    );
+  return (
+    <>
+      {/* 测量载体无动画且不可绘,尺寸取真实字号;不承担特效显示或动画边界。 */}
+      <svg className="fx-glyph-measure" width={look.size} height={look.size} aria-hidden="true">
+        <text
+          ref={glyph.ref}
+          fontSize={look.size}
+          textAnchor="middle"
+          style={{ fontFamily: "var(--font-brush)" }}
+        >
+          {text}
+        </text>
+      </svg>
+      {box && (
+        <FxViewport box={box} style={style}>
+          <text
+            className={`fx-svg-floater ${look.cls}`}
+            x={f.x}
+            y={y}
+            fontSize={look.size}
+            textAnchor="middle"
+            style={{
+              animationDuration: `${tag ? FX.skillTagMs : FX.floaterMs}ms`,
+            }}
+          >
+            {text}
+          </text>
+        </FxViewport>
+      )}
+      {f.coins && <Coins x={f.x} y={y} scatter={f.coinScatter} burst={false} />}
+    </>
+  );
+}
+
+function Seal({ seal }: { seal: SealFx }) {
+  const shape = POINT_MOTION.seal;
+  const glyph = useGlyphBox(seal.char, shape.fontSize, "title");
+  const local =
+    glyph.box &&
+    unionEffectBoxes(
+      {
+        x: -shape.side / 2,
+        y: -shape.side / 2,
+        width: shape.side,
+        height: shape.side,
+      },
+      { ...glyph.box, y: glyph.box.y + shape.baseline },
+    );
+  const box =
+    local &&
+    glyph.sealScale != null &&
+    rotatingScaleBox(
+      expandEffectBox({ ...local, x: local.x + seal.x, y: local.y + seal.y }, shape.stroke / 2),
+      glyph.sealScale,
+    );
+  const style = { "--fx-seal-stroke": shape.stroke } as CSSProperties;
+  return (
+    <>
+      <svg
+        className="fx-glyph-measure fx-seal-measure"
+        width={shape.fontSize}
+        height={shape.fontSize}
+        aria-hidden="true"
+      >
+        <text
+          ref={glyph.ref}
+          fontSize={shape.fontSize}
+          textAnchor="middle"
+          style={{ fontFamily: "var(--font-title)" }}
+        >
+          {seal.char}
+        </text>
+      </svg>
+      {box && (
+        <FxViewport box={box} style={style}>
+          <g transform={`translate(${seal.x} ${seal.y})`}>
+            <g
+              className={`fx-svg-seal${seal.tone === "gold" ? " fx-svg-seal-gold" : ""}`}
+              style={{
+                animationDuration: `${FX.sealSlamMs}ms, ${FX.sealLingerMs}ms`,
+              }}
+            >
+              <rect
+                x={-shape.side / 2}
+                y={-shape.side / 2}
+                width={shape.side}
+                height={shape.side}
+                rx={shape.corner}
+              />
+              <text y={shape.baseline} textAnchor="middle" fontSize={shape.fontSize}>
+                {seal.char}
+              </text>
+            </g>
+          </g>
+        </FxViewport>
+      )}
+    </>
+  );
+}
+
+/** 棋盘特效层(ADR-0045 第三波 HTML 版,BoardView 挂载):浮字 + 铜钱雨 + 朱砂/漆金
  *  印章 + 出牌指示线 + 技能施展金圈(landPulse 通道)+ 破产墨渍/撒币(S7)。拼点演出
  *  归全屏签面(DuelSignsOverlay,ADR-0030 单通道)。
  *  前身直接渲染进顶板 SVG 的 g#bv-fx——SVG 子元素逐帧动画令整张顶板每帧失效重绘,
  *  是低端 WebView 掉帧主源;现迁 HTML 宿主(BoardHost,#bv-fx 保号),每件特效独立
- *  mini-svg(.bv-fx-svg:0 尺寸 overflow visible,世界坐标原绘原类,美术/CSS 动画/
- *  DOM 契约零改动),逐帧失效收敛到各件自身小盒。 */
+ *  mini-svg(世界坐标原绘原类;点状视口依全动画包络布置),逐帧失效收敛到自身小盒。 */
 export const BoardFxLayer = memo(function BoardFxLayer({
   svgRef,
   board,
@@ -126,6 +384,10 @@ export const BoardFxLayer = memo(function BoardFxLayer({
   const coinBursts = useFxStore((s) => s.coinBursts);
   const ownFlashes = useFxStore((s) => s.ownFlashes);
   const fontSize = floaterFontSize();
+  const pulse = POINT_MOTION.pulse;
+  const ink = POINT_MOTION.ink;
+  const own = LINE_PAINT.own;
+  const jline = LINE_PAINT.jinnang;
   // 首挂 commit 拍修正(#1024):首挂渲染期底板 svg 未入 DOM(正常时序),上面的
   // fontSize 是基准字号初始值;此处 useLayoutEffect 在 paint 前经缓存单源取真值并
   // 触发一次修正重渲,无闪烁。svg 缺席/几何不可用在此炸出(接线 bug,零兜底);
@@ -141,7 +403,7 @@ export const BoardFxLayer = memo(function BoardFxLayer({
     <BoardHost id="bv-fx" svgRef={svgRef}>
       {/* 墨渍径向渐变(破产仪式第二拍):单例 defs,实例经 fill=url(#) 跨 svg 同文档
           引用(氛围层 capital-glow 同法先例) */}
-      <svg className="bv-fx-svg" width={0} height={0} aria-hidden="true">
+      <svg className="bv-fx-defs" width={0} height={0} aria-hidden="true">
         <defs>
           <radialGradient id="fx-ink-grad">
             <stop offset="0%" stopColor="var(--color-paper)" stopOpacity="0.85" />
@@ -155,61 +417,41 @@ export const BoardFxLayer = memo(function BoardFxLayer({
       {floaters.map((f, i) => {
         const overlapIdx = floaters.slice(0, i).filter((g) => g.x === f.x && g.y === f.y).length;
         const y = f.y - overlapIdx * FLOATER_STAGGER_UNITS;
-        const look = floaterLook(f, fontSize);
-        return (
-          <svg key={f.id} className="bv-fx-svg" width={0} height={0}>
-            <text
-              className={`fx-svg-floater ${look.cls}`}
-              x={f.x}
-              y={y}
-              fontSize={look.size}
-              textAnchor="middle"
-              style={{
-                ...(look.playerColorVar != null && {
-                  ["--player-color" as string]: look.playerColorVar,
-                }),
-                // #885 时长收口:keyframe 只管形,全长随通道缩放——普通/施展/文案
-                // 浮字 FX.floaterMs(清理窗=同一 getter);被动小签(#850)换
-                // FX.skillTagMs 短全长,注入同在消费点
-                animationDuration: `${f.skill?.kind === "tag" ? FX.skillTagMs : FX.floaterMs}ms`,
-              }}
-            >
-              {f.text ?? formatFloater(f.amount)}
-            </text>
-            {f.coins &&
-              f.coinScatter.map((s, c) => <Coin key={c} x={f.x} y={y} dx={s.dx} dy={s.dy} />)}
-          </svg>
-        );
+        return <Floater key={f.id} f={f} y={y} fontSize={fontSize} />;
       })}
       {/* 技能施展金圈(#850,landPulse 通道唯一生产者;S7 落格定音原产者随 #826 退役)。
           #849 棒3:keyframe 只管形,
           全长 FX.pulseRingMs 内联注入(随 e2e/追帧通道缩放,清理窗 landPulseMs 同源) */}
       {pulses.map((p) => (
-        <svg key={p.id} className="bv-fx-svg" width={0} height={0}>
+        <FxViewport
+          key={p.id}
+          box={pointCircleBox(
+            p.x,
+            p.y,
+            (pulse.radius + pulse.stroke / 2 + pulse.shadowBlur * 3) * pulse.peakScale,
+          )}
+          style={
+            {
+              "--fx-pulse-stroke": pulse.stroke,
+              "--fx-pulse-shadow-blur": pulse.shadowBlur + "px",
+              "--fx-pulse-start-scale": pulse.startScale,
+              "--fx-pulse-peak-scale": pulse.peakScale,
+            } as CSSProperties
+          }
+        >
           <circle
             className="fx-svg-pulse"
             cx={p.x}
             cy={p.y}
-            r={26}
+            r={pulse.radius}
             style={{ animationDuration: `${FX.pulseRingMs}ms` }}
           />
-        </svg>
+        </FxViewport>
       ))}
       {/* 朱砂印章(漆金档见 .fx-svg-seal-gold):坐标即逻辑坐标。#849 棒3:双动画
           各自时长(FX.sealSlamMs/sealLingerMs)按列表序逗号内联注入 */}
       {seals.map((s) => (
-        <svg key={s.id} className="bv-fx-svg" width={0} height={0}>
-          <g
-            className={`fx-svg-seal${s.tone === "gold" ? " fx-svg-seal-gold" : ""}`}
-            transform={`translate(${s.x} ${s.y})`}
-            style={{ animationDuration: `${FX.sealSlamMs}ms, ${FX.sealLingerMs}ms` }}
-          >
-            <rect x={-29} y={-29} width={58} height={58} rx={9} />
-            <text y={11} textAnchor="middle" fontSize={32}>
-              {s.char}
-            </text>
-          </g>
-        </svg>
+        <Seal key={s.id} seal={s} />
       ))}
       {/* 易主流光(架构体检 B 批出底板):铭牌顶缘横穿流光一次——原 Tile 内 SVG 线的
           逐帧动画在底板栅格空间重绘城区,现 mini-svg 挂 fx 宿主(合成层隔离)。
@@ -218,53 +460,62 @@ export const BoardFxLayer = memo(function BoardFxLayer({
       {ownFlashes.map((f) => {
         // 严格 loadMap 下 tileIndex 必在册(#826 全城池制),查无=上游 bug,直接炸
         const t = board.tiles[f.tileIndex]!;
+        const start = {
+          x: t.position.x - own.halfLength * TILE_SCALE,
+          y: t.position.y + own.y * TILE_SCALE,
+        };
+        const end = { x: t.position.x + own.halfLength * TILE_SCALE, y: start.y };
         return (
-          <svg key={f.id} className="bv-fx-svg" width={0} height={0}>
+          <FxViewport key={f.id} box={pathEffectBox([start, end], (own.stroke * TILE_SCALE) / 2)}>
             <line
               className="fx-ownflash-line"
-              x1={t.position.x - 46 * TILE_SCALE}
-              y1={t.position.y - 39 * TILE_SCALE}
-              x2={t.position.x + 46 * TILE_SCALE}
-              y2={t.position.y - 39 * TILE_SCALE}
+              x1={start.x}
+              y1={start.y}
+              x2={end.x}
+              y2={end.y}
               stroke={f.colorIndex != null ? rgba(playerColor(f.colorIndex)) : rgba(Theme.gold)}
-              strokeWidth={8 * TILE_SCALE}
-              strokeDasharray={`${30 * TILE_SCALE} ${138 * TILE_SCALE}`}
+              strokeWidth={own.stroke * TILE_SCALE}
+              strokeDasharray={`${own.dash * TILE_SCALE} ${own.gap * TILE_SCALE}`}
               style={{
-                ["--of-from" as string]: `${30 * TILE_SCALE}`,
-                ["--of-to" as string]: `${-92 * TILE_SCALE}`,
+                ["--of-from" as string]: `${own.dash * TILE_SCALE}`,
+                ["--of-to" as string]: `${own.dashEnd * TILE_SCALE}`,
               }}
             />
-          </svg>
+          </FxViewport>
         );
       })}
       {/* 破产仪式(S7):铭牌墨渍晕开 + 铜钱撒落(8–12 枚一次性径向抛散)。
           #885 时长收口:墨渍全长 FX.inkBloomMs 内联注入(清理窗 inkBlotMs 同通道);
           撒币错拍步长 FX.coinStaggerMs(c%4 三步封顶,随通道缩放)。 */}
       {inkBlots.map((b) => (
-        <svg key={b.id} className="bv-fx-svg" width={0} height={0}>
+        <FxViewport
+          key={b.id}
+          box={pointCircleBox(b.x, b.y, ink.radius * ink.peakScale)}
+          style={
+            {
+              "--fx-ink-start-scale": ink.startScale,
+              "--fx-ink-peak-scale": ink.peakScale,
+            } as CSSProperties
+          }
+        >
           <circle
             className="fx-svg-inkblot"
             cx={b.x}
             cy={b.y}
-            r={34}
+            r={ink.radius}
             fill="url(#fx-ink-grad)"
             style={{ animationDuration: `${FX.inkBloomMs}ms` }}
           />
-        </svg>
+        </FxViewport>
       ))}
       {coinBursts.map((b) => (
-        <svg key={b.id} className="bv-fx-svg" width={0} height={0}>
-          {b.scatter.slice(0, COIN_BURST_MAX).map((s, c) => (
-            <Coin
-              key={`${b.id}-${c}`}
-              x={b.x}
-              y={b.y}
-              dx={s.dx}
-              dy={s.dy}
-              delayMs={(c % 4) * FX.coinStaggerMs}
-            />
-          ))}
-        </svg>
+        <Coins
+          key={b.id}
+          x={b.x}
+          y={b.y}
+          scatter={b.scatter.slice(0, COIN_BURST_MAX)}
+          burst={true}
+        />
       ))}
       {/* 出牌指示线(#281 P2-E;#849 棒2 提粗三件套):「使用者→目标」水墨墨线 +
           起点小圆锚点 + 终点箭羽(棋盘驿道人字羽同语,StaticLayers ROAD_ARROW_D 同形)。
@@ -279,12 +530,17 @@ export const BoardFxLayer = memo(function BoardFxLayer({
         /* #1140:生死淡出(fx-jline-life)上移 svg 根(HTML 盒,opacity 走合成器,
             停持后的纯淡出段零重绘);金晕 drop-shadow 烤成 halo 底线(宽·低透明,
             与主线同拍同 keyframes 生长),g 上不再挂滤镜逐帧重跑。 */
-        <svg
+        <FxViewport
           key={l.id}
-          className="bv-fx-svg fx-jline-fade"
-          width={0}
-          height={0}
-          style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
+          className="fx-jline-fade"
+          box={jinnangEffectBox(l)}
+          style={{
+            animationDuration: `${FX.jinnangLineMs}ms`,
+            ["--fx-jline-stroke" as string]: jline.stroke,
+            ["--fx-jline-halo-stroke" as string]: jline.haloStroke,
+            ["--fx-jline-feather-stroke" as string]: jline.featherStroke,
+            ["--fx-line-miter-limit" as string]: LINE_PAINT.miterLimit,
+          }}
         >
           <g className="fx-svg-jline">
             <line
@@ -306,10 +562,10 @@ export const BoardFxLayer = memo(function BoardFxLayer({
               pathLength={1}
               style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
             />
-            <circle className="fx-svg-jline-anchor" cx={l.x1} cy={l.y1} r={5} />
+            <circle className="fx-svg-jline-anchor" cx={l.x1} cy={l.y1} r={jline.anchorRadius} />
             <path
               className="fx-svg-jline-feather"
-              d="M -9,-7 L 5,0 L -9,7"
+              d={JINNANG_FEATHER_D}
               fill="none"
               transform={`translate(${l.x2} ${l.y2}) rotate(${
                 (Math.atan2(l.y2 - l.y1, l.x2 - l.x1) * 180) / Math.PI
@@ -317,7 +573,7 @@ export const BoardFxLayer = memo(function BoardFxLayer({
               style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
             />
           </g>
-        </svg>
+        </FxViewport>
       ))}
     </BoardHost>
   );
@@ -383,7 +639,11 @@ function FlyCoin({ fly }: { fly: CashFlyFx }) {
       width={28}
       height={28}
       aria-hidden="true"
-      style={{ offsetPath: geo.path, animationDuration: `${geo.ms}ms` }}
+      style={{
+        ...COIN_STYLE,
+        offsetPath: geo.path,
+        animationDuration: `${geo.ms}ms`,
+      }}
       onAnimationEnd={() => {
         bumpSeatCash(seat);
         useFxStore.getState().removeCashFly(fly.id);
@@ -391,9 +651,9 @@ function FlyCoin({ fly }: { fly: CashFlyFx }) {
     >
       {/* 铜钱雨同款素材语言:泉字金币(金圆底+墨字,#764 复用,色吃 token);
           金辉烤形同 Coin(#1140):halo 底圈替代 drop-shadow(飞行逐帧重跑滤镜)。 */}
-      <circle className="coin-halo" r={11} />
-      <circle className="coin-core" r={11} />
-      <text y={4} textAnchor="middle">
+      <circle className="coin-halo" r={POINT_MOTION.coin.radius} />
+      <circle className="coin-core" r={POINT_MOTION.coin.radius} />
+      <text y={POINT_MOTION.coin.baseline} textAnchor="middle">
         泉
       </text>
     </svg>

@@ -21,18 +21,29 @@ export type NetSeatMeta = WireRoomFields["seats"][number];
  *  WireRoomFields 的客户端别名(原手抄同形接口已退役)。 */
 export type NetRoomFields = WireRoomFields;
 
+/** 联机恢复有限态:open 仅在当前连接的权威摘要/未开局大厅校准后成立。 */
+export type NetConnection =
+  | "idle"
+  | "connecting"
+  | "calibrating"
+  | "open"
+  | "closed"
+  | "gaveUp"
+  | "failed";
+
 interface NetStoreState extends NetRoomFields {
   /** 本端座位(-1 = 未入座)。 */
   mySeat: number;
   /** WS 是否连着(连接屏态的展示位)。 */
   connected: boolean;
-  /** 连接全量状态(F2 断线横幅的数据源;idle = 尚未建连,不显示横幅)。
-   *  二值 connected 区分不了「还没连过」与「断了正在重连」,横幅只要后者,
-   *  且重连耗尽(gaveUp)要换文案「请刷新页面」——所以透出三值全量。 */
-  connection: "idle" | "open" | "closed" | "gaveUp";
+  /** 联机控制器连接状态的 UI 投影;connecting=建连中,calibrating=等待权威摘要,
+   *  open=校准完成。connected 仅表达底层 WS 连通,不能用它判断操作就绪。 */
+  connection: NetConnection;
+  /** 当前恢复尝试收到的明确错误;常驻至下一次尝试或离开会话。 */
+  connectionFailure: string | null;
   /** #494 重连进度(attempt = 正在进行的第 n 次尝试,max = 放弃上限;null = 非重连中)。
    *  写入端 online.ts(透传自 ReconnectingSocket.onProgress),读取端 ConnectionBanner;
-   *  连上(open)由 setConnection 一并归零,不劳消费方清理。 */
+   *  底层连上(calibrating)或启动新链时由 setConnection 归零。 */
   reconnect: ReconnectProgress | null;
   /** 房主已解散(大厅/对局都该退出)。 */
   dismissed: boolean;
@@ -55,8 +66,9 @@ interface NetStoreState extends NetRoomFields {
   setRoom: (v: Partial<NetRoomFields> & { roomId: string }) => void;
   setPending: (pending: boolean) => void;
   setMySeat: (seat: number) => void;
-  /** F2:写入 socket 全量状态(open/closed/gaveUp);connected 由其派生同步。 */
-  setConnection: (status: "open" | "closed" | "gaveUp") => void;
+  /** 写入控制器恢复状态;connected 在此单点派生同步。 */
+  setConnection: (status: NetConnection) => void;
+  setConnectionFailure: (reason: string) => void;
   /** #494:重连进度入 store(透传,不加工)。 */
   setReconnect: (p: ReconnectProgress | null) => void;
   setDismissed: () => void;
@@ -81,6 +93,7 @@ const EMPTY: Pick<
   | "mySeat"
   | "connected"
   | "connection"
+  | "connectionFailure"
   | "reconnect"
   | "dismissed"
   | "hint"
@@ -96,6 +109,7 @@ const EMPTY: Pick<
   mySeat: -1,
   connected: false,
   connection: "idle",
+  connectionFailure: null,
   reconnect: null,
   dismissed: false,
   hint: null,
@@ -135,10 +149,17 @@ export const useNetStore = create<NetStoreState>((set) => ({
   // 重连进度(横幅随 connection 回 open 消失,进度不残留)。
   setConnection: (status) =>
     set(
-      status === "open"
-        ? { connection: status, connected: true, reconnect: null }
-        : { connection: status, connected: false },
+      status === "open" || status === "calibrating"
+        ? { connection: status, connected: true, reconnect: null, connectionFailure: null }
+        : {
+            connection: status,
+            connected: false,
+            connectionFailure: null,
+            ...(status === "connecting" || status === "idle" ? { reconnect: null } : {}),
+          },
     ),
+  setConnectionFailure: (connectionFailure) =>
+    set({ connection: "failed", connected: false, reconnect: null, connectionFailure }),
   // #494:重连进度透传(写入端 online.ts 订阅 ReconnectingSocket.onProgress)。
   setReconnect: (p) => set({ reconnect: p }),
   setPending: (pending) => set({ pending }),

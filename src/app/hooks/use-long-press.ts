@@ -7,6 +7,17 @@
 import { useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
+const PRESS_MOVE_SLOP_PX = 10;
+
+/** 主指移动超过长按容差即为拖动；滚动视口复用同一判据抑制尾随点击。 */
+export function isPressDrag(
+  start: { x: number; y: number },
+  point: { x: number; y: number },
+  slopPx = PRESS_MOVE_SLOP_PX,
+) {
+  return Math.hypot(point.x - start.x, point.y - start.y) > slopPx;
+}
+
 export function useLongPress() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const start = useRef({ x: 0, y: 0 });
@@ -41,9 +52,9 @@ export function useLongPress() {
       }, ms);
     },
     /** 移动监听:超容差即取消(拖动/滚屏不是长按)。 */
-    move(e: ReactPointerEvent, slopPx = 10) {
+    move(e: ReactPointerEvent, slopPx = PRESS_MOVE_SLOP_PX) {
       if (timer.current === null) return;
-      if (Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > slopPx) cancel();
+      if (isPressDrag(start.current, { x: e.clientX, y: e.clientY }, slopPx)) cancel();
     },
   };
 }

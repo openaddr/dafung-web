@@ -309,7 +309,6 @@ beforeAll(async () => {
   // happy-dom 无排版引擎,底板 svg clientWidth/Height 恒 0——boardHost commit 拍
   // 真值断言(ensureBoardPxPerUnit,零兜底设计)当场炸;document.fonts.ready 同缺席。
   // 断言面不碰任何几何(断言宪法,[data-tile] 是节点计数非几何)。
-  (document as unknown as { fonts: unknown }).fonts = { ready: Promise.resolve() };
   Object.defineProperty(SVGSVGElement.prototype, "clientWidth", {
     get: () => 844,
     configurable: true,

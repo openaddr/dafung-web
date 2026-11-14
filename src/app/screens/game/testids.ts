@@ -183,13 +183,15 @@ export const TESTIDS = {
   /** 锦囊(#122):己方手牌容器 / 单张牌面(带牌名)。#238/T3:jinnangHand 挂手牌架的
    *  「手牌行」(有牌才存在);架本体挂 jinnangRack(常驻)。 */
   jinnangHand: "jinnang-hand",
+  /** 全展时承载原牌行的局部横向浏览视口。 */
+  jinnangViewport: "jinnang-viewport",
   jinnangCard: (cardId: string) => `jinnang-card-${cardId}` as const,
   /** #238/T3:底部常驻手牌架容器(架首章 + 手牌行/空态牌背)。 */
   jinnangRack: "jinnang-rack",
   /** #238/T3:点牌详情弹层容器(ui/dialog 底件,桌面底部面板/窄屏抽屉双皮)。 */
   jinnangDetail: "jinnang-detail",
-  /** 架尾计数章(#751 C2):.many 压缩态常驻(pointer:coarse 档显示),点按=临时
-   *  全展 2.5s;textContent = 手牌张数。 */
+  /** 架尾计数章(#751 C2):.many 压缩态常驻(pointer:coarse 档显示),点按切换
+   *  持续全展检视;textContent = 实际渲染项数(锦囊与技能混排)。 */
   jinnangSpreadBadge: "jinnang-spread-badge",
   diceFace: "dice-face",
   /** 决策按钮(交互重构后按钮本体住在各决策卷轴里,testid 命名不变,减少 e2e 震荡)。 */
@@ -301,4 +303,6 @@ export const TESTIDS = {
   // ── 联机连接横幅(#664 补登:挂点在 shared/ConnectionBanner,GameScreen/LobbyScreen
   //  顶部长出;断线重连状态条)──
   connectionBanner: "connection-banner",
+  connectionRetry: "connection-retry",
+  connectionExit: "connection-exit",
 } as const;
