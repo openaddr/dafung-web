@@ -5,6 +5,7 @@ import type {
   DualClientOperation,
   DualClientRequest,
   DualClientResponse,
+  DualClientRetryMode,
 } from "./dual-client-observation";
 
 interface PendingRead {
@@ -23,9 +24,10 @@ export class DualClientProcess {
   constructor(
     private readonly label: string,
     serverBase: string,
+    retryMode: DualClientRetryMode = "automatic",
   ) {
     this.child = Bun.spawn(
-      [process.execPath, join(import.meta.dir, "dual-client-runtime.ts"), serverBase],
+      [process.execPath, join(import.meta.dir, "dual-client-runtime.ts"), serverBase, retryMode],
       {
         cwd: join(import.meta.dir, "..", ".."),
         stdin: "ignore",
