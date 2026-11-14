@@ -1,0 +1,112 @@
+--------- beginning of main
+11-14 10:54:57.756  2720  2720 I com.dafung.web: Using CollectorTypeCMC GC.
+11-14 10:54:57.759  2720  2720 W com.dafung.web: Unexpected CPU variant for x86: x86_64.
+11-14 10:54:57.759  2720  2720 W com.dafung.web: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, default
+11-14 10:54:57.773  2720  2720 E com.dafung.web: Not starting debugger since process cannot load the jdwp agent.
+11-14 10:54:57.785  2720  2720 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+11-14 10:54:57.871  2720  2720 D nativeloader: Configuring clns-7 for other apk /data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/lib/x86_64:/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.dafung.web
+11-14 10:54:57.889  2720  2720 V GraphicsEnvironment: Currently set values for:
+11-14 10:54:57.890  2720  2720 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+11-14 10:54:57.891  2720  2720 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+11-14 10:54:57.891  2720  2720 V GraphicsEnvironment: Global.Settings values are invalid: number of packages: 0, number of values: 0
+11-14 10:54:57.891  2720  2720 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+11-14 10:54:58.023  2720  2720 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found
+11-14 10:54:58.135  2720  2720 D nativeloader: Load /data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk!/lib/x86_64/libapp_lib.so using ns clns-7 from class loader (caller=/data/app/~~kA9Gv19pMEQQhZJzHTK0Ow==/com.dafung.web-8KtbdxfWo7CwUvBAEPMxuA==/base.apk): ok
+11-14 10:54:58.289  2720  2720 W HWUI    : Unknown dataspace 0
+11-14 10:54:58.326  2720  2720 W WindowOnBackDispatcher: OnBackInvokedCallback is not enabled for the application.
+11-14 10:54:58.326  2720  2720 W WindowOnBackDispatcher: Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+11-14 10:54:58.340  2720  2720 I WebViewFactory: Loading com.android.webview version 124.0.6367.219 (code 636771907)
+--------- beginning of system
+11-14 10:54:58.343  2720  2720 V ResourcesManager: The following library key has been added: ResourcesKey{ mHash=76f6fdc1 mResDir=null mSplitDirs=[] mOverlayDirs=[/data/resource-cache/com.android.systemui-neutral-ZFA9.frro,/data/resource-cache/com.android.systemui-accent-nSG9.frro,/data/resource-cache/com.android.systemui-dynamic-yHyV.frro] mLibDirs=[/product/app/webview/webview.apk,/system_ext/framework/androidx.window.extensions.jar] mDisplayId=0 mOverrideConfig=v35 mCompatInfo={420dpi always-compat} mLoaders=[]}
+11-14 10:54:58.349  2720  2720 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.extensions.jar
+11-14 10:54:58.351  2720  2720 D nativeloader: InitLlndkLibrariesProduct: libEGL.so:libGLESv1_CM.so:libGLESv2.so:libGLESv3.so:libRS.so:libandroid_net.so:libapexsupport.so:libbinder_ndk.so:libc.so:libcgrouprc.so:libclang_rt.asan-x86_64-android.so:libcom.android.tethering.connectivity_native.so:libdl.so:libft2.so:liblog.so:libm.so:libmediandk.so:libnativewindow.so:libneuralnetworks.so:libselinux.so:libsync.so:libvendorsupport.so:libvndksupport.so:libvulkan.so
+11-14 10:54:58.352  2720  2720 D nativeloader: Configuring product-clns-8 for unbundled product apk /product/app/webview/webview.apk. target_sdk_version=34, uses_libraries=, library_path=/product/app/webview/lib/x86_64:/product/app/webview/webview.apk!/lib/x86_64:/product/lib64:/system/product/lib64, permitted_path=/data:/mnt/expand:/product/lib64:/system/product/lib64
+11-14 10:54:58.353  2720  2720 D nativeloader: InitVndkspLibrariesProduct: VNDK is deprecated with product
+11-14 10:54:58.379  2720  2720 I cr_WVCFactoryProvider: Loaded version=124.0.6367.219 minSdkVersion=1 isBundle=false multiprocess=true packageId=2
+11-14 10:54:58.389  2720  2720 D nativeloader: Load /product/app/webview/webview.apk!/lib/x86_64/libwebviewchromium.so using ns product-clns-8 from class loader (caller=/product/app/webview/webview.apk): ok
+11-14 10:54:58.391  2720  2720 D nativeloader: Load /system/lib64/libwebviewchromium_plat_support.so using ns product-clns-8 from class loader (caller=/product/app/webview/webview.apk): ok
+11-14 10:54:58.404  2720  2744 E chromium: [1114/105458.404374:ERROR:variations_seed_loader.cc(37)] Seed missing signature.
+11-14 10:54:58.404  2720  2744 I cr_VariationsUtils: Failed reading seed file "/data/user/0/com.dafung.web/app_webview/variations_seed_new"
+11-14 10:54:58.405  2720  2744 I chromium: [1114/105458.405218:INFO:variations_seed_loader.cc(66)] Failed to open file for reading.: No such file or directory (2)
+11-14 10:54:58.405  2720  2744 I cr_VariationsUtils: Failed reading seed file "/data/user/0/com.dafung.web/app_webview/variations_seed"
+11-14 10:54:58.405  2720  2737 I RustStdoutStderr: [1114/105458.404374:ERROR:variations_seed_loader.cc(37)] Seed missing signature.
+11-14 10:54:58.406  2720  2737 I RustStdoutStderr: [1114/105458.405218:INFO:variations_seed_loader.cc(66)] Failed to open file for reading.: No such file or directory (2)
+11-14 10:54:58.412  2720  2720 I cr_LibraryLoader: Successfully loaded native library
+11-14 10:54:58.413  2720  2720 I cr_CachingUmaRecorder: Flushed 6 samples from 6 histograms, 0 samples were dropped.
+11-14 10:54:58.418  2720  2720 I cr_CombinedPProvider: #registerProvider() provider:WV.o7@5095f51 isPolicyCacheEnabled:false policyProvidersSize:0
+11-14 10:54:58.420  2720  2720 I cr_PolicyProvider: #setManagerAndSource() 0
+11-14 10:54:58.452  2720  2720 I cr_CombinedPProvider: #linkNativeInternal() 1
+11-14 10:54:58.454  2720  2720 I cr_AppResProvider: #getApplicationRestrictionsFromUserManager() Bundle[EMPTY_PARCEL]
+11-14 10:54:58.454  2720  2720 I cr_PolicyProvider: #notifySettingsAvailable() 0
+11-14 10:54:58.455  2720  2720 I cr_CombinedPProvider: #onSettingsAvailable() 0
+11-14 10:54:58.455  2720  2720 I cr_CombinedPProvider: #flushPolicies()
+11-14 10:54:58.490  2720  2749 W chromium: [WARNING:dns_config_service_android.cc(81)] Failed to read DnsConfig.
+11-14 10:54:58.491  2720  2737 I RustStdoutStderr: [WARNING:dns_config_service_android.cc(81)] Failed to read DnsConfig.
+11-14 10:54:58.741  2720  2734 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+11-14 10:54:58.748  2720  2734 I EGL_emulation: Opening libGLESv2_emulation.so
+11-14 10:54:58.760  2720  2734 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+11-14 10:54:58.788  2720  2734 I Gralloc4: mapper 4.x is not supported
+11-14 10:54:58.810  2720  2720 E EGL_emulation: eglCreateContext: EGL_BAD_CONFIG: no ES 3.2 support
+11-14 10:54:58.811  2720  2720 E EGL_emulation: tid 2720: eglCreateContext(1830): error 0x3005 (EGL_BAD_CONFIG)
+11-14 10:54:58.811  2720  2720 E EGL_emulation: eglCreateContext: EGL_BAD_CONFIG: no ES 3.1 support
+11-14 10:54:58.811  2720  2720 E EGL_emulation: tid 2720: eglCreateContext(1824): error 0x3005 (EGL_BAD_CONFIG)
+11-14 10:54:58.880  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name position
+11-14 10:54:58.881  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name color
+11-14 10:54:59.037  2720  2730 I HWUI    : Davey! duration=717ms; Flags=1, FrameTimelineVsyncId=38978, IntendedVsync=757307502872, Vsync=757707502856, InputEventId=0, HandleInputStart=757720260500, AnimationStart=757720301800, PerformTraversalsStart=757720925600, DrawStart=757802657900, FrameDeadline=757324169538, FrameInterval=757719551400, FrameStartTime=16666666, SyncQueued=757863970900, SyncStart=757864969300, IssueDrawCommandsStart=757867202500, SwapBuffers=757882219100, FrameCompleted=758025971300, DequeueBufferDuration=54400, QueueBufferDuration=500500, GpuCompleted=758025971300, SwapBuffersCompleted=758015910300, DisplayPresentTime=16960825855817, CommandSubmissionCompleted=757882219100, 
+11-14 10:54:59.069  2720  2764 W cr_media: BLUETOOTH_CONNECT permission is missing.
+11-14 10:54:59.072  2720  2764 W cr_media: registerBluetoothIntentsIfNeeded: Requires BLUETOOTH permission
+11-14 10:54:59.286  2720  2777 W chromium: [WARNING:display_webview.cc(32)] WebView overlays are enabled!
+11-14 10:54:59.286  2720  2737 I RustStdoutStderr: [WARNING:display_webview.cc(32)] WebView overlays are enabled!
+11-14 10:54:59.843  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:54:59.843  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:54:59.844  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:00.024  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:00.025  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:00.025  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:00.243  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:00.244  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:00.245  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:00.443  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:00.444  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:00.444  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:00.553  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:00.554  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:00.554  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:00.613  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:00.613  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:00.614  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:00.791  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:00.791  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:00.792  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:00.903  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:00.903  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ulocalCoord
+11-14 10:55:00.995  2720  2734 D EGL_emulation: app_time_stats: avg=494.81ms min=84.92ms max=1424.37ms count=4
+11-14 10:55:01.006  2720  2720 I Choreographer: Skipped 63 frames!  The application may be doing too much work on its main thread.
+11-14 10:55:01.022  2720  2786 I HWUI    : Davey! duration=1188ms; Flags=0, FrameTimelineVsyncId=40568, IntendedVsync=758807502812, Vsync=758807502812, InputEventId=0, HandleInputStart=758809194300, AnimationStart=758809245000, PerformTraversalsStart=758811688000, DrawStart=758811775400, FrameDeadline=758824169478, FrameInterval=758809094300, FrameStartTime=16666666, SyncQueued=758817412300, SyncStart=758817559400, IssueDrawCommandsStart=758817604600, SwapBuffers=759993550600, FrameCompleted=759995825200, DequeueBufferDuration=44000, QueueBufferDuration=951000, GpuCompleted=759995372200, SwapBuffersCompleted=759995825200, DisplayPresentTime=35734127911039, CommandSubmissionCompleted=759993550600, 
+11-14 10:55:01.152  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:01.152  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:01.152  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:01.165  2720  2786 I HWUI    : Davey! duration=1146ms; Flags=0, FrameTimelineVsyncId=40680, IntendedVsync=758940836140, Vsync=759990836098, InputEventId=0, HandleInputStart=760007670000, AnimationStart=760007730600, PerformTraversalsStart=760013259600, DrawStart=760013362800, FrameDeadline=760090836094, FrameInterval=760006039500, FrameStartTime=16666666, SyncQueued=760013675100, SyncStart=760072296000, IssueDrawCommandsStart=760072351600, SwapBuffers=760143267600, FrameCompleted=760145954100, DequeueBufferDuration=43400, QueueBufferDuration=661200, GpuCompleted=760145757500, SwapBuffersCompleted=760145954100, DisplayPresentTime=182574764827904, CommandSubmissionCompleted=760143267600, 
+11-14 10:55:01.417  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:01.417  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:01.417  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:01.670  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:01.671  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:01.671  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _ulocalCoord
+11-14 10:55:01.733  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:01.733  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ucolor
+11-14 10:55:01.851  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uinPosition
+11-14 10:55:01.851  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _uinColor
+11-14 10:55:01.852  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _uinTextureCoords
+11-14 10:55:02.149  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:02.150  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ulocalCoord
+11-14 10:55:02.151  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _utexSubset
+11-14 10:55:02.333  2720  2734 D EGL_emulation: app_time_stats: avg=334.27ms min=53.13ms max=1134.17ms count=4
+11-14 10:55:02.356  2720  2786 I HWUI    : Davey! duration=1205ms; Flags=0, FrameTimelineVsyncId=41194, IntendedVsync=760090836094, Vsync=760140836092, InputEventId=0, HandleInputStart=760155298100, AnimationStart=760155335700, PerformTraversalsStart=760161915700, DrawStart=760162021600, FrameDeadline=760224169422, FrameInterval=760155278900, FrameStartTime=16666666, SyncQueued=760162411700, SyncStart=760199640400, IssueDrawCommandsStart=760199841000, SwapBuffers=761331144500, FrameCompleted=761333757000, DequeueBufferDuration=41300, QueueBufferDuration=1238000, GpuCompleted=761333306400, SwapBuffersCompleted=761333757000, DisplayPresentTime=188407330417456, CommandSubmissionCompleted=761331144500, 
+11-14 10:55:02.362  2720  2720 I Choreographer: Skipped 68 frames!  The application may be doing too much work on its main thread.
+11-14 10:55:02.535  2720  2786 I HWUI    : Davey! duration=1231ms; Flags=0, FrameTimelineVsyncId=41266, IntendedVsync=760224169422, Vsync=761357502710, InputEventId=0, HandleInputStart=761363913000, AnimationStart=761363965100, PerformTraversalsStart=761372940800, DrawStart=761373063400, FrameDeadline=761474169372, FrameInterval=761362750500, FrameStartTime=16666666, SyncQueued=761374307100, SyncStart=761445094600, IssueDrawCommandsStart=761445866100, SwapBuffers=761507577500, FrameCompleted=761526289400, DequeueBufferDuration=153600, QueueBufferDuration=450900, GpuCompleted=761526289400, SwapBuffersCompleted=761510901600, DisplayPresentTime=286783556355248, CommandSubmissionCompleted=761507577500, 
+11-14 10:55:02.621  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uinPosition
+11-14 10:55:02.621  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _uinColor
+11-14 10:55:02.622  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 2 name _uinCircleEdge
+11-14 10:55:02.685  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 0 name _uposition
+11-14 10:55:02.686  2720  2737 I RustStdoutStderr: s_glBindAttribLocation: bind attrib 1 name _ulocalCoord

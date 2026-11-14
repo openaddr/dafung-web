@@ -53,7 +53,8 @@ function smoke(opts: Options): void {
   mkdirSync(opts.out);
   const report = {
     status: "running" as "running" | "passed" | "failed",
-    scope: "指定 APK 安装、版本核对、启动与取证;不代表物理真机人工验收完成",
+    scope:
+      "指定 APK 安装、版本核对、原生进程与窗口就绪及取证;页面完成须另行实绘复核,不代表物理真机人工验收完成",
     startedAt: new Date().toISOString(),
     finishedAt: "",
     invocation: [process.execPath, ...process.argv.slice(1)],
@@ -63,7 +64,8 @@ function smoke(opts: Options): void {
     steps: [] as Step[],
     evidence: {} as Record<string, string>,
     manual: [
-      "标准横屏 844×390 实绘与真实手势:待验",
+      "标准横屏 844×390 完整游戏实绘:待验",
+      "真实手势:待验",
       "系统返回:待验",
       "后台恢复:待验",
       "原生文件保存:待验",
@@ -140,6 +142,12 @@ function smoke(opts: Options): void {
       command([adb, "-s", opts.device, ...args])
         .toString("utf8")
         .trim();
+    const assertAppFocus = () => {
+      const focus = shell("shell", "dumpsys window | grep mCurrentFocus");
+      report.environment.focusedWindow = focus;
+      if (!focus.includes(` ${opts.package}/`))
+        throw new Error(`目标包未持有窗口焦点,可能被系统弹层遮挡:${focus}`);
+    };
     const activity = step("APK 身份", () => {
       if (!statSync(opts.apk).isFile()) throw new Error(`APK 不是文件:${opts.apk}`);
       const bytes = readFileSync(opts.apk);
@@ -220,6 +228,7 @@ function smoke(opts: Options): void {
       report.environment.pid = pid;
       report.environment.foreground = foreground;
       report.environment.logcatSince = since;
+      assertAppFocus();
     });
     step("日志与截图", () => {
       // am start -W 只等 Activity 首帧;给 WebView 一段明确的取证观察期,不宣称页面已验收。
@@ -243,7 +252,9 @@ function smoke(opts: Options): void {
         throw new Error("screencap 未返回 PNG");
       writeFileSync(join(opts.out, "screenshot.png"), png);
       report.evidence.screenshot = "screenshot.png";
-      if (!shell("shell", "pidof", opts.package)) throw new Error("截图后 app 进程已退出");
+      assertAppFocus();
+      const finalPid = shell("shell", "pidof", opts.package);
+      if (finalPid !== pid) throw new Error(`截图后 app 进程退出或重启:${pid} → ${finalPid}`);
       if (/FATAL EXCEPTION|Fatal signal \d+/.test(log.toString("utf8")))
         throw new Error("本包日志出现原生崩溃,见 logcat.txt");
     });
