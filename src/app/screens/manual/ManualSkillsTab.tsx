@@ -1,13 +1,13 @@
 // 技能签(#1072 T3,spec #1069 决议⑤):SKILLS 全量行直读列表(运行时目录实数权威,计数不落数),无详情层——
-// 主动技在前、被动技在后(目录序);一行一技:技名+类型章(主动/被动)+冷却(轮)/
-// 目标域小注(主动技才有的两项)+时机小注(被动技)+desc 全文+所属将名 chips
-// (扫 HEROES[].skillPool 反查,多将同名技并列)。行形制参照 SkillGlossaryDialog 的
-// .skg-row(本票文件集无 CSS 文件位,以 tailwind utilities 等值复刻);颜色全走
-// token(禁硬编码 hex)。数据单源 core/skills.ts + core/heroes.ts,零复制。
+// 主动技在前、被动技次之、静态被动收尾(目录序);一行一技:技名+类型章(主动/被动)+
+// 冷却(轮)/目标域小注(主动技才有的两项)+时机小注(被动技)/恒常小注(静态被动)+
+// desc 全文+所属将名 chips(扫 HEROES[].skillPool 反查,多将同名技并列)。行形制参照
+// SkillGlossaryDialog 的 .skg-row(本票文件集无 CSS 文件位,以 tailwind utilities 等值复刻);
+// 颜色全走 token(禁硬编码 hex)。数据单源 core/skills.ts + core/heroes.ts,零复制。
 // 时机小注用中文短名:MOMENT_LABEL 对 GameMoment 全集的 Record(编译期强制穷尽,
 // 新时机漏名当场 typecheck 炸出,零兜底),条目措辞随 core/timing.ts 各时机注释。
 import type { ActiveSkillDef, SkillDef } from "@core/skills";
-import { SKILLS, isActiveSkill, isTriggerSkill } from "@core/skills";
+import { SKILLS, isActiveSkill, isStaticSkill, isTriggerSkill } from "@core/skills";
 import { HEROES } from "@core/heroes";
 import type { GameMoment } from "@core/timing";
 
@@ -91,7 +91,9 @@ function SkillRow({ skill }: { skill: SkillDef }) {
         <span className="ml-auto text-[12px] text-paper-dim">
           {active
             ? `冷却 ${skill.cooldown} 轮 · ${ACTIVE_TARGET_LABEL[skill.target]}`
-            : `时机 · ${MOMENT_LABEL[skill.when]}`}
+            : isTriggerSkill(skill)
+              ? `时机 · ${MOMENT_LABEL[skill.when]}`
+              : "恒常生效"}
         </span>
       </div>
       <div className="mt-1 text-[13px] leading-[1.7] text-paper">{skill.desc}</div>
@@ -108,10 +110,14 @@ function SkillRow({ skill }: { skill: SkillDef }) {
   );
 }
 
-/** 技能签:全量直读,无详情层(spec #1069 决议⑤)。主动在前、被动在后
+/** 技能签:全量直读,无详情层(spec #1069 决议⑤)。主动在前、被动次之、静态被动收尾
  *  (各自保持技表目录序)。 */
 export default function ManualSkillsTab() {
-  const rows = [...SKILLS.filter(isActiveSkill), ...SKILLS.filter(isTriggerSkill)];
+  const rows = [
+    ...SKILLS.filter(isActiveSkill),
+    ...SKILLS.filter(isTriggerSkill),
+    ...SKILLS.filter(isStaticSkill),
+  ];
   return (
     <div className="mx-auto flex w-[min(720px,94%)] flex-col gap-2.5 pb-2">
       {rows.map((s) => (

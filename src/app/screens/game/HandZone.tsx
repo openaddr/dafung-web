@@ -14,12 +14,10 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { onDiceSignReveal } from "@app/fx/DiceOverlay";
+import { SIGN_FACES } from "@core/constants";
 import { ATTR_TIPS, Tip } from "./Tip";
 import { TESTIDS } from "./testids";
 import "./layout.css";
-
-// 签面数字 → 汉字(原 dice-face 一~六 的展示口径,自 DashboardBar 平移)
-const DIE_FACE = ["一", "二", "三", "四", "五", "六"];
 
 interface HandZoneProps {
   snapshot: GameSnapshot;
@@ -65,7 +63,7 @@ export function HandZone({
           testId={TESTIDS.diceFace}
           className={"diceseal" + (awaitingMyRoll ? " await" : "")}
         >
-          {awaitingMyRoll ? "待" : revealedRoll ? DIE_FACE[revealedRoll.die - 1] : "签"}
+          {awaitingMyRoll ? "待" : revealedRoll ? SIGN_FACES[revealedRoll.die - 1] : "签"}
         </Tip>
       )}
       {children}

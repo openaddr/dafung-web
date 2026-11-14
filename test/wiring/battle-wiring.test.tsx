@@ -502,7 +502,10 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
   it("灰置印条/多标签双章/技能卡双卡:占额灰置、双卡可辨、发技转灰置", async () => {
     const { el, engine, plant, snap } = startGame([
       { kind: "giveJinnang", seat: 0, cards: ["缓兵之计", "求贤令"] },
-      { kind: "armHero", seat: 0, heroId: "zhouyu", skillIds: ["huogong", "leigu"] },
+      // #1390 周瑜池换血后无「同将双主动技」生产形(各将现役至多一主动):双卡布场改
+      // 双将各一主动(周瑜火攻+张星彩擂鼓),池序子集不变量不破(槽 ⊆ 池)
+      { kind: "armHero", seat: 0, heroId: "zhouyu", skillIds: ["huogong"] },
+      { kind: "armHero", seat: 0, heroId: "zhangxingcai", skillIds: ["leigu"] },
       { kind: "setJinnangUsedTags", tags: ["谋", "攻"] },
       { kind: "armPhase", turnPhase: "AwaitingJinnang" },
     ]);
@@ -525,15 +528,15 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     // 名将技能卡(#818 形制:技能为维度、名将为载体):同将双主动技=双卡,卡面=载体+
     // 主技名大字;testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817)
     const huo = q(el, TESTIDS.jinnangCard("skill:zhouyu:huogong"));
-    const lei = q(el, TESTIDS.jinnangCard("skill:zhouyu:leigu"));
+    const lei = q(el, TESTIDS.jinnangCard("skill:zhangxingcai:leigu"));
     if (huo == null || lei == null) throw new Error("接线测试:技能卡缺席(armHero→choices 装配断)");
     const huoFace = huo.querySelector(".hface")!;
     const leiFace = lei.querySelector(".hface")!;
     expect(huoFace.textContent).toContain("火攻");
     expect(huoFace.textContent).toContain("周瑜"); // 载体将名
     expect(huoFace.querySelector(".cd")!.textContent).toBe("冷却 5 轮"); // 冷却注(技表单源)
-    expect(huoFace.textContent).not.toContain("擂鼓"); // 兄弟技不上卡
-    expect(huoFace.textContent).not.toContain("疾行"); // 未授被动不上卡
+    expect(huoFace.textContent).not.toContain("擂鼓"); // 兄弟卡技不上卡
+    expect(huoFace.textContent).not.toContain("英姿"); // 未授静态被动不上卡
     expect(leiFace.textContent).toContain("擂鼓");
     expect(leiFace.textContent).not.toContain("火攻");
     // 技能全览(#605):点主技名=开全览弹框(不选中)——被点技高亮行、池内未授灰置行、
@@ -546,8 +549,8 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     if (glossary == null) throw new Error("接线测试:技能全览弹框未挂载(点主技名通路断)");
     expect(modalQ(TESTIDS.skillGlossaryPick)).toBeNull(); // 浏览语境:无拍板钮(缺席,断言吃到 null)
     expect(hasClass(modalQ(TESTIDS.skillGlossaryRow("huogong"))!, "is-hl")).toBe(true);
-    expect(hasClass(modalQ(TESTIDS.skillGlossaryRow("jixing"))!, "is-off")).toBe(true); // 池内未授
-    expect(glossary.textContent).toContain("擂鼓进军"); // 主动技描述全文(卡面上无描述)
+    expect(hasClass(modalQ(TESTIDS.skillGlossaryRow("yingzi"))!, "is-off")).toBe(true); // 池内未授
+    expect(glossary.textContent).toContain("此面值递增1"); // 池内技描述全文(卡面上无描述)
     // 关闭:X→退场协议(210ms「播完再移除」)走完即卸——有界等待(happy-dom 真定时器
     // 自然走时);协议在途时节点仍在场,「卸载后断言吃到 null」才安全(在场元素进
     // expect 会触发序列化循环引用爆炸,见 waitUnmounted 判词)。

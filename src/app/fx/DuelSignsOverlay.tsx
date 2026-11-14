@@ -82,7 +82,7 @@ function buildSign(side: DuelSide): SignHandle {
 
 /** 起摇:签面入虚影态,墨字虚影按 DUEL.shakeMs/10 周期轮换+微旋(字面不落定=悬念;
  *  全段恰 10 次换签,同 DiceOverlay 摇签口径)。逐签错相(#746 条目 1):字面序列按
- *  座位偏移((swaps + seat*2 + 1) mod 6),两签同拍轮换但序列错开,读作「各自掷签」
+ *  座位偏移((swaps + seat*2 + 1) mod 签面表长),两签同拍轮换但序列错开,读作「各自掷签」
  *  而非镜像同步;时长与周期不变(600ms 恰 10 换)。返回停摇句柄(落定拍调用)。 */
 function startShaking(sign: SignHandle): () => void {
   sign.root.classList.add("duel-sign-shaking");

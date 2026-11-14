@@ -8,6 +8,7 @@ import { isEventCity } from "./board";
 import { jinnangCardOf, type JinnangEffect } from "./jinnang";
 import { emitGameEvent } from "./game-events";
 import { REACTION_WINDOW_MS } from "./constants";
+import { heroDieFaces } from "./skills"; // 拼点骰面数单源(#1390):持英姿者七面
 
 // ── 反应窗类型(#281,ADR-0017;#326 types.ts 解散,ADR-0019 类型随域走)────────
 /** 锦囊宣布反应窗的公开载荷:挂起点公告(哪个结算点、牌、使用者、目标)+ 被询问集。
@@ -718,7 +719,8 @@ function resumeMarch(g: GameEngine, payload: Extract<ReactionPayload, { kind: "m
   g.settleMarchLanding(mover, payload.landIndex);
 }
 
-/** 拼点公共结算(#281 自连环计提出):双方各掷 1d6,点数高者胜,平局 winnerSeat=null。
+/** 拼点公共结算(#281 自连环计提出):双方各掷单骰(面数各随各人,#1390——持英姿者
+ *  七面,heroDieFaces 查询口单源),点数高者胜,平局 winnerSeat=null。
  *  连环计(二虎竞食)与半路杀出拦检共用;掷点战报与银两/拦停等后效由调用方落账。
  *  duelResolved 在此单点 emit(#636,ADR-0030):两调用点天然全覆盖,产出时点=结算
  *  完成紧邻、先于调用方的全部后效(拦停 marchArrived/银两 cashChanged);拼点骰不派
@@ -728,8 +730,8 @@ export function resolveDuel(
   aSeat: number,
   bSeat: number,
 ): { aRoll: number; bRoll: number; winnerSeat: number | null } {
-  const aRoll = g.dice.rollDie();
-  const bRoll = g.dice.rollDie();
+  const aRoll = g.dice.rollDie(heroDieFaces(g, aSeat));
+  const bRoll = g.dice.rollDie(heroDieFaces(g, bSeat));
   const winnerSeat = aRoll === bRoll ? null : aRoll > bRoll ? aSeat : bSeat;
   emitGameEvent(g, aSeat, {
     kind: "duelResolved",

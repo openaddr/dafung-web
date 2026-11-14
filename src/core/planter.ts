@@ -23,6 +23,7 @@
 // 种植件——种植只负责被测环之前的布置。再缺能力=补种植件(op 联合加 kind),force
 // 不复活(#1303 收口退役)。
 import type { EnginePhase, GameEngine, TurnPhase } from "./authority";
+import { DEFAULT_DIE_FACES } from "./dice";
 import { fullDefenseOf, resetToFull } from "./defense";
 import { heroById } from "./heroes";
 import { jinnangCardOf } from "./jinnang";
@@ -545,7 +546,7 @@ export function armReaction(e: GameEngine, view: ReactionView, payload: Reaction
   e.turnPhase = "AwaitingReaction";
 }
 
-/** 【判词(pinDice 一处,确定性族 #1302)】钉骰子=**测试替身**(非场景字段):
+/** 【判词(pinDice 一处,确定性族 #1302;#1390 契约扩七)】钉骰子=**测试替身**(非场景字段):
  *  骰值单源=种子 rng 全局流(Dice 构造注入,唯一旋钮 seed,局中无「钉骰」公共
  *  命令),「接下来 N 次掷依序取定值」只能替换骰口——测试替身是唯一通路(先例
  *  react-reaction marchQueue/diceQueue 局部形态,#303 立配方,本件收编归一)。语义
@@ -556,27 +557,40 @@ export function armReaction(e: GameEngine, view: ReactionView, payload: Reaction
  *  rollAndMove 消费;拼点骰=dice.rollDie,由拼点结算消费;探宝拼点走 nextFloat
  *  第三口,两队列都不吃)——钉 march 不改 duel 骰流,反之亦然。种的是运行时替身
  *  非引擎字段:快照/重灌不动它,对局继续即按值消费。空值队列(钉零骰=种了个寂寞)
- *  与非 1..6 整数(骰面契约,越界值会静默扭曲行军算术)当场炸。 */
+ *  与非 1..7 整数(骰面契约,越界值会静默扭曲行军算术)当场炸。**钉值>面数=消费点
+ *  响亮炸点名**(#1390):替身消费时按引擎传入的本次掷骰面数(单源 skills.heroDieFaces)
+ *  复核,7 仅持英姿(第七面)可达——无英姿者消费 7 即炸,凭空 7 不静默落账。 */
 export function pinDice(e: GameEngine, channel: PinDiceChannel, values: number[]): void {
   if (values.length === 0) throw new Error("pinDice:空值队列(至少钉一个骰值)");
   for (const v of values)
-    if (!Number.isInteger(v) || v < 1 || v > 6)
-      throw new Error(`pinDice:骰值 ${v} 出 1..6 契约(单骰 1–6,单源 dice.ts)`);
+    if (!Number.isInteger(v) || v < 1 || v > DEFAULT_DIE_FACES + 1)
+      throw new Error(
+        `pinDice:骰值 ${v} 出 1..${DEFAULT_DIE_FACES + 1} 契约(单骰 1–面数,面数单源 skills.heroDieFaces;7 仅持英姿可达)`,
+      );
+  const pinFace = (v: number, faces: number | undefined) => {
+    const f = faces ?? DEFAULT_DIE_FACES;
+    if (v > f)
+      throw new Error(
+        `pinDice:钉值 ${v} 超本次掷骰面数 ${f}(${channel} 通道;面数单源 skills.heroDieFaces——7 仅持英姿者可达,掷骰者面数 ${f} 即未持英姿)`,
+      );
+  };
   if (channel === "march") {
     const orig = e.dice.roll.bind(e.dice);
     const queue = [...values];
-    e.dice.roll = () => {
+    e.dice.roll = (faces?: number) => {
       const v = queue.shift()!;
       if (queue.length === 0) e.dice.roll = orig; // 耗尽自还原(局部确定性)
+      pinFace(v, faces); // 消费点复核(#1390):钉值 ≤ 引擎传入的本次掷骰面数
       return { die: v }; // 替身命中不触摸种子 rng
     };
     return;
   }
   const orig = e.dice.rollDie.bind(e.dice);
   const queue = [...values];
-  e.dice.rollDie = () => {
+  e.dice.rollDie = (faces?: number) => {
     const v = queue.shift()!;
     if (queue.length === 0) e.dice.rollDie = orig;
+    pinFace(v, faces); // 消费点复核(#1390):同 march 口径
     return v;
   };
 }

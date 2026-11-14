@@ -188,10 +188,10 @@ describe("回合与胜负", () => {
 describe("名将(英雄)", () => {
   const hero = (id: string) => HEROES.find((h) => h.id === id)!;
 
-  it("周瑜·moveBonus:移动步数 +1", () => {
+  it("张星彩·moveBonus:移动步数 +1(#1390 周瑜池换血后疾行随张星彩池,载体随池)", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    armHero(e, e.activePlayer, hero("zhouyu"));
+    armHero(e, e.activePlayer, hero("zhangxingcai"), ["jixing"]); // 窄授疾行(整池的掷金/擂鼓与本例无关)
     passJinnang(e).rollAndMove();
     const rollLog = e.log.filter((ev) => ev.category === "roll").pop()!;
     expect(rollLog.detail).toContain("bonus=1");

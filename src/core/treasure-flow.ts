@@ -9,6 +9,7 @@ import { findHolding } from "./player";
 import { formatMoney } from "./money";
 import { canUpgrade } from "./economy";
 import { resetToFull } from "./defense";
+import { heroDieFaces } from "./skills";
 import type { Player } from "./model";
 
 /** 抽珍宝并拼点判定(珍宝城落格固定事件位,#825 自 ADR-0024 链尾挂件迁来:探宝先于
@@ -29,9 +30,11 @@ export function drawTreasureAt(g: GameEngine, mover: Player, sourceName: string)
   const drawIdx = Math.floor(g.dice.nextFloat() * g.treasureDeck.length);
   const treasure = g.treasureDeck.splice(drawIdx, 1)[0];
   const guidePrice = guidePriceOf(treasure.level);
-  // 拼点:掷双骰(2–12),roll ≥ 等级 即得宝
-  const d1 = 1 + Math.floor(g.dice.nextFloat() * 6);
-  const d2 = 1 + Math.floor(g.dice.nextFloat() * 6);
+  // 拼点:掷双骰(面数随探索者,#1390——持英姿者各 7 面,heroDieFaces 查询口单源),
+  // roll ≥ 等级 即得宝
+  const faces = heroDieFaces(g, g.players.indexOf(mover));
+  const d1 = 1 + Math.floor(g.dice.nextFloat() * faces);
+  const d2 = 1 + Math.floor(g.dice.nextFloat() * faces);
   const roll = d1 + d2;
   if (roll >= treasure.level) {
     // 成功:获得珍宝(宣告走 treasureGained 事件:fx 面=金「得」印+treasure 音;得宝是

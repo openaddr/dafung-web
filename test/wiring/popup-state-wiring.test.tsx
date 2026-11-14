@@ -405,7 +405,8 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
   // 随批/窗口停留);学技结算算术单测在 skill-book.test(非本层断言面)。
   it("书可点态(1 名可学):点书研读——书消耗、池序入槽、skillLearned 随批", async () => {
     const { el, snap } = startGame((e) =>
-      plantBook(e, "leigu", [{ heroId: "zhouyu", skillIds: ["huogong"], lastFired: {} }]),
+      // #1390 周瑜池换血后擂鼓归张星彩池:载体随池(张星彩,槽内已有掷金)
+      plantBook(e, "leigu", [{ heroId: "zhangxingcai", skillIds: ["zhijin"], lastFired: {} }]),
     );
     click(q(el, TESTIDS.pileTreasures)!);
     await settle();
@@ -415,14 +416,15 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
     if (bookBtn == null) throw new Error("接线测试:书格可点态缺席(bookPlayReady 通路断)");
     click(bookBtn);
     await settle();
-    // 快照真值:书消耗 + 池序入槽(周瑜池 [疾行,火攻,擂鼓] → [火攻,擂鼓])+ 学技
+    // 快照真值:书消耗 + 池序入槽(张星彩池 [掷金,擂鼓,疾行] → [掷金,擂鼓])+ 学技
     // 事件随批;学得的擂鼓=主动技即刻就绪:窗口不误收(相位不动)。
     const s = snap();
     expect(s.players[0].treasures.filter((t) => t.kind === "book")).toHaveLength(0);
-    expect(s.players[0].heroes[0]?.skillIds).toEqual(["huogong", "leigu"]);
+    expect(s.players[0].heroes[0]?.skillIds).toEqual(["zhijin", "leigu"]);
     expect(
       eventsOf(s, "skillLearned").some(
-        (ev) => ev.kind === "skillLearned" && ev.skillId === "leigu" && ev.heroId === "zhouyu",
+        (ev) =>
+          ev.kind === "skillLearned" && ev.skillId === "leigu" && ev.heroId === "zhangxingcai",
       ),
     ).toBe(true);
     expect(s.turnPhase).toBe("AwaitingJinnang");
@@ -433,23 +435,24 @@ describe("弹层状态机接线(ADR-0062 层④,#1289 批二)", () => {
   // 指定将池序入槽/层随结算收口(setLearnPick 同步卸载,非退场协议)全真。
   it("多名可学弹窗:两名池含此技未习得 → 选人叠层点将拍板", async () => {
     const { el, snap } = startGame((e) =>
-      plantBook(e, "jixing", [
-        { heroId: "zhouyu", skillIds: ["huogong"], lastFired: {} }, // 周瑜池含疾行
-        { heroId: "zhangxingcai", skillIds: ["leigu"], lastFired: {} }, // 张星彩池含疾行
+      // #1390 周瑜池换血后共享技=火攻(周瑜↔诸葛亮):两名池含此技未习得用火攻书
+      plantBook(e, "huogong", [
+        { heroId: "zhouyu", skillIds: ["yingzi"], lastFired: {} }, // 周瑜池含火攻
+        { heroId: "zhugeliang", skillIds: [], lastFired: {} }, // 诸葛亮池含火攻
       ]),
     );
     click(q(el, TESTIDS.pileTreasures)!);
     await settle();
-    click(modalQ(TESTIDS.bookUse("skillbook-jixing"))!);
+    click(modalQ(TESTIDS.bookUse("skillbook-huogong"))!);
     await settle();
     const learn = modalQ(TESTIDS.bookLearnModal);
     if (learn == null) throw new Error("接线测试:选人叠层未挂载(多名可学分流断)");
-    click(modalQ(TESTIDS.bookLearnItem("zhangxingcai"))!);
-    // 快照真值:书消耗 + 指定将(张星彩)池序入槽 + 周瑜不动 + 叠层随结算收口。
+    click(modalQ(TESTIDS.bookLearnItem("zhugeliang"))!);
+    // 快照真值:书消耗 + 指定将(诸葛亮)池序入槽 + 周瑜不动 + 叠层随结算收口。
     const s = snap();
     expect(s.players[0].treasures.filter((t) => t.kind === "book")).toHaveLength(0);
-    expect(s.players[0].heroes[1]?.skillIds).toEqual(["leigu", "jixing"]);
-    expect(s.players[0].heroes[0]?.skillIds).toEqual(["huogong"]);
+    expect(s.players[0].heroes[1]?.skillIds).toEqual(["huogong"]);
+    expect(s.players[0].heroes[0]?.skillIds).toEqual(["yingzi"]);
     expect(modalQ(TESTIDS.bookLearnModal)).toBeNull();
   });
 

@@ -23,6 +23,7 @@ import {
 } from "@core/treasures";
 import type { TreasureDef } from "@core/treasures";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
+import { grantProperty } from "@core/planter";
 import { botAct } from "@core/bot";
 
 // ── fixture 图:20 城全城池(招贤城 + 填充城;同 city-event.test 制式)──
@@ -209,25 +210,25 @@ describe("用书学技(#1146 命令面)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const me = e.activePlayer;
-    armHero(e, me, HEROES[0]!, [HEROES[0]!.skillPool[0]!]); // 周瑜:槽内已有 疾行
+    armHero(e, me, HEROES[0]!, [HEROES[0]!.skillPool[0]!]); // 周瑜:槽内已有 英姿(#1390 换血后池[0])
     e.recruitedHeroIds.add(HEROES[0]!.id);
     const slot = me.heroes[0]!;
-    armBook(e, 0, "leigu"); // 擂鼓书:周瑜池含 leigu 且未习得(池序 疾行→火攻→擂鼓,插末)
+    armBook(e, 0, "huogong"); // 火攻书:周瑜池含 huogong 且未习得(池序 英姿→火攻,插末)
     e.turnPhase = "AwaitingJinnang";
-    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "leigu", slot.heroId);
+    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "huogong", slot.heroId);
     expect(slot.skillIds).toEqual(
-      HEROES[0]!.skillPool.filter((id) => id === "leigu" || slot.skillIds.includes(id)),
+      HEROES[0]!.skillPool.filter((id) => id === "huogong" || slot.skillIds.includes(id)),
     );
-    expect(slot.skillIds).toContain("leigu");
-    expect(slot.lastFired["leigu"]).toBeUndefined(); // 无冷却负债(照新授技同款)
-    expect(me.treasures.some((t) => t.id === SKILL_BOOK_ID_PREFIX + "leigu")).toBe(false); // 用后书消耗
+    expect(slot.skillIds).toContain("huogong");
+    expect(slot.lastFired["huogong"]).toBeUndefined(); // 无冷却负债(照新授技同款)
+    expect(me.treasures.some((t) => t.id === SKILL_BOOK_ID_PREFIX + "huogong")).toBe(false); // 用后书消耗
     const ev = e.snapshot().events.find((x) => x.kind === "skillLearned");
     expect(ev).toMatchObject({
       kind: "skillLearned",
       seat: 0,
       heroId: slot.heroId,
-      skillId: "leigu",
-      treasureId: SKILL_BOOK_ID_PREFIX + "leigu",
+      skillId: "huogong",
+      treasureId: SKILL_BOOK_ID_PREFIX + "huogong",
     });
     expect(testEngine(e).logText()).toMatch(/习得/); // 战报 category:"skill"
   });
@@ -236,14 +237,14 @@ describe("用书学技(#1146 命令面)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const me = e.activePlayer;
-    // 周瑜池 [疾行,火攻,擂鼓]:已有 火攻,习得 疾行 → 槽序 [疾行,火攻]
+    // 周瑜池 [英姿,火攻](#1390 换血):已有 火攻,习得 英姿 → 槽序 [英姿,火攻]
     armHero(e, me, HEROES[0]!, ["huogong"]);
     e.recruitedHeroIds.add(HEROES[0]!.id);
     const slot = me.heroes[0]!;
-    armBook(e, 0, "jixing");
+    armBook(e, 0, "yingzi");
     e.turnPhase = "AwaitingJinnang";
-    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "jixing", slot.heroId);
-    expect(slot.skillIds).toEqual(["jixing", "huogong"]);
+    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "yingzi", slot.heroId);
+    expect(slot.skillIds).toEqual(["yingzi", "huogong"]);
   });
 
   it("0 名可学(全池已习得):引擎拒绝、书保留=纯交易物", () => {
@@ -295,38 +296,50 @@ describe("用书学技(#1146 命令面)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const me = e.activePlayer;
-    armHero(e, me, HEROES[0]!, ["huogong"]); // 周瑜:只授火攻
-    e.recruitedHeroIds.add(HEROES[0]!.id);
-    armBook(e, 0, "jixing");
+    armHero(e, me, HEROES[2]!, ["leigu"]); // 张星彩:只授擂鼓(#1390 后周瑜池无时机技,载体随池)
+    e.recruitedHeroIds.add(HEROES[2]!.id);
+    armBook(e, 0, "zhijin");
     e.turnPhase = "AwaitingJinnang";
-    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "jixing", me.heroes[0]!.heroId);
-    expect(me.heroes[0]!.skillIds).toContain("jixing");
-    // 时机派发:BeforeMarch 击发学得的疾行(moveBonus +1),冷却账记本槽
-    e.dispatchMoment("BeforeMarch", { subject: 0 });
+    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "zhijin", me.heroes[0]!.heroId);
+    expect(me.heroes[0]!.skillIds).toContain("zhijin");
+    // 时机派发:DieRolled 击发学得的掷金(掷 6 +20),冷却账记本槽
+    e.dispatchMoment("DieRolled", { subject: 0, die: 6 });
     const ev = e.snapshot().events.find((x) => x.kind === "skillFired");
     expect(ev).toMatchObject({
       kind: "skillFired",
       heroId: me.heroes[0]!.heroId,
-      skillId: "jixing",
+      skillId: "zhijin",
     });
-    expect(me.heroes[0]!.lastFired["jixing"]).toBeDefined();
+    expect(me.heroes[0]!.lastFired["zhijin"]).toBeDefined();
   });
 
   it("出牌阶段可用:用书后窗口收口走 settleJinnangExit——学得的主动技即战力,窗不误收", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const me = e.activePlayer;
-    armHero(e, me, HEROES[0]!, [HEROES[0]!.skillPool[0]!]);
+    armHero(e, me, HEROES[0]!, []); // 周瑜:空槽起步(两书全可学,判据纯净)
     e.recruitedHeroIds.add(HEROES[0]!.id);
-    armBook(e, 0, "leigu");
     armBook(e, 0, "huogong");
+    armBook(e, 0, "yingzi");
     me.jinnangHand = []; // 清开局手牌:书=可用项唯一来源(判据纯净)
     me.jinnangHandCount = 0;
+    // 布一座射程内的他人 Lv>0 城:学得的火攻(城目标域)即刻就绪需有合法目标,
+    // 否则窗口按「无可烧之城」收卷、断言不达
+    const otherSeat = (e.players.indexOf(me) + 1) % e.players.length;
+    const spare = e.board.tiles.find(
+      (t) =>
+        t.event == null &&
+        t.propertyId != null &&
+        e.board.distance(me.position, t.index) <= 5 &&
+        e.findOwner(t.propertyId) == null,
+    );
+    if (spare == null) throw new Error("测试布场:射程内无空闲普通城");
+    grantProperty(e, otherSeat, spare.propertyId!, 1);
     e.turnPhase = "AwaitingJinnang";
-    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "leigu", me.heroes[0]!.heroId);
-    expect(e.turnPhase).toBe("AwaitingJinnang"); // 尚有火攻书可用,窗口停留
     e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "huogong", me.heroes[0]!.heroId);
-    // 书尽但学得的擂鼓/火攻都是主动技,照新授技同款即刻就绪——窗口停留是同构的正确结果
+    expect(e.turnPhase).toBe("AwaitingJinnang"); // 尚有英姿书可用,窗口停留
+    e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "yingzi", me.heroes[0]!.heroId);
+    // 书尽但学得的火攻是主动技,照新授技同款即刻就绪——窗口停留是同构的正确结果
     expect(e.turnPhase).toBe("AwaitingJinnang");
     e.resolveJinnang(null); // 今不用 → 收卷
     expect<TurnPhase>(e.turnPhase).toBe("Roll");
@@ -375,15 +388,15 @@ describe("bot 用书(#1146 可用即用、槽位序取首)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const me = e.activePlayer;
-    // 两名池含 jixing 的将(张星彩/周瑜),槽位序 0=周瑜先入麾下
-    armHero(e, me, HEROES[0]!, ["huogong"]);
-    armHero(e, me, HEROES[2]!, ["leigu"]);
-    for (const h of [HEROES[0]!, HEROES[2]!]) e.recruitedHeroIds.add(h.id);
-    armBook(e, 0, "jixing");
+    // 两名池含 huogong 的将(周瑜/诸葛亮,#1390 换血后共享主动技唯火攻),槽位序 0=周瑜先入麾下
+    armHero(e, me, HEROES[0]!, ["yingzi"]);
+    armHero(e, me, HEROES[4]!, []);
+    for (const h of [HEROES[0]!, HEROES[4]!]) e.recruitedHeroIds.add(h.id);
+    armBook(e, 0, "huogong");
     e.turnPhase = "AwaitingJinnang";
     botAct(e);
-    expect(me.heroes[0]!.skillIds).toContain("jixing"); // 槽位序 0(周瑜)习得
-    expect(me.heroes[1]!.skillIds).not.toContain("jixing");
+    expect(me.heroes[0]!.skillIds).toContain("huogong"); // 槽位序 0(周瑜)习得
+    expect(me.heroes[1]!.skillIds).not.toContain("huogong");
     expect(me.treasures.some(isSkillBook)).toBe(false); // 书已消耗
   });
 

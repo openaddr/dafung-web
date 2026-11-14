@@ -20,6 +20,7 @@ import { openReactionWindow, REACTION_EXPECT } from "./reaction-window";
 import { formatMoney } from "./money";
 import { emitGameEvent, requireMovePath } from "./game-events";
 import { SIGN_FACES } from "./constants";
+import { heroDieFaces } from "./skills";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
 import { isEventCity } from "./board";
@@ -68,7 +69,7 @@ export function rollAndMove(g: GameEngine): void {
   const mover = g.activePlayer;
   g.dispatchMoment("BeforeMarch", { subject: g.activeIndex }); // 时机·BeforeMarch:掷骰前(行军加成挂点,如周瑜 moveBonus)
   g.dispatchMoment("BeforeRoll", { subject: g.activeIndex }); // 时机·BeforeRoll:掷骰前、BeforeMarch 之后(骰子机制系技能挂点,与 BeforeMarch 的语义区分见 timing.ts)
-  const roll = g.dice.roll();
+  const roll = g.dice.roll(heroDieFaces(g, g.activeIndex)); // 面数查询口单源(#1390):持英姿者七面
   g.lastRoll = roll;
   g.dispatchMoment("DieRolled", { subject: g.activeIndex, die: roll.die }); // 时机·DieRolled:骰面已定(张星彩 gainIfFace 等)
   const moveBonus = g.takeMarchBonus(); // 取走 BeforeMarch 时机累计的行军加成
