@@ -1,13 +1,13 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues at `openaddr/dafung-web`. Use the `gh` CLI for all operations.
+Issues and specs for this repo live as GitHub issues at `openaddr/dafung-web`. Read tickets through `context-read` below; use the `gh` CLI for writes and lists.
 
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
 - **多行 body 一律 `--body-file -`(stdin 直灌)**:仓库 `tmp/` 下落盘的文件会凭空消失(2026-10-11 两次实锤,连 heredoc 同命令使用都被清理进程抢先),临时文件确需落盘时走系统临时目录,禁入仓库 tmp/。
-- **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
-- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
+- **Read an issue**: `bun scripts/context-read.ts issue <number> --repo openaddr/dafung-web` 默认只显示新鲜元信息;需要正文、评论或子票时分别加 `--body`、`--comments` 或 `--children`。
+- **List issues**: `gh issue list --repo openaddr/dafung-web --state open --json number,title,state,labels,assignees,updatedAt,url` with appropriate `--label` and `--state` filters. Open a selected ticket with `context-read` when its content is needed.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Sub-issues / blocking 边(gh 2.94+ 简写,本机 2.97)**:挂子票 `gh issue create --parent <parent> ...` 或事后 `gh issue edit <parent> --add-sub-issue <child>`;挂阻塞 `gh issue create --blocked-by <n>,<n> ...` 或 `gh issue edit <child> --add-blocked-by <blocker>`;**开 blocker 计数** `gh api repos/<owner>/<repo>/issues/<n> --jq .issue_dependencies_summary.blocked_by`(只计开着的;0 即可开工)。旧 gh 的 raw API 形制与 db-id 取法见下方 Wayfinding operations 节。
@@ -56,7 +56,7 @@ Create a GitHub issue.
 
 ## When a skill says "fetch the relevant ticket"
 
-Run `gh issue view <number> --comments`(或上节 curl 等效)。
+Run `bun scripts/context-read.ts issue <number> --repo openaddr/dafung-web`, then select `--body`, `--comments` or `--children` as needed. 会话标识、分页与显式重读见[开发与测试「上下文与长命令输出」](../how-to/开发与测试.md#上下文与长命令输出)。
 
 ## Wayfinding operations
 
