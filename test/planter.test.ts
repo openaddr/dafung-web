@@ -300,7 +300,7 @@ describe("armReaction(挂反应载荷,裸写形)", () => {
     expect(e.pendingReaction!.seq).toBe(2);
   });
 
-  it("view 公开面越界座位当场炸(使用者/目标/被询问)", () => {
+  it("view 公开面越界当场炸(使用者座位/城指向域城份格/被询问座位;#1389 城指向域 targetSeats 走棋盘界)", () => {
     const e = makeEngine();
     const badUser: ReactionView = {
       kind: "jinnang",
@@ -322,7 +322,7 @@ describe("armReaction(挂反应载荷,裸写形)", () => {
       kind: "jinnang",
       cardId: "火烧连营",
       userSeat: 1,
-      targetSeats: [9],
+      targetSeats: [28], // 城指向域(#1389):关中图 28 格,[28]=城份格越界,响亮炸
       queriedBySeat: [0],
       windowMs: 1000,
     };

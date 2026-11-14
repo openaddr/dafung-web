@@ -1170,7 +1170,7 @@ export class GameEngine {
 
   // ──────────────── 锦囊+主动技+效果执行(#122/#188 档 3,ADR-0019)────────────────
   // 域逻辑在 jinnang-execution.ts(ADR-0019 委托式拆分,#319):抽牌/出牌阶段用牌与出技
-  // 决策/出牌宣布与反应窗挂点/效果执行/主动技结算/demolish 与招贤共享单点均为自由函数,
+  // 决策/出牌宣布与反应窗挂点/效果执行/主动技结算/招贤共享单点均为自由函数,
   // 首参接引擎实例。壳内仅留同名公共方法薄委托(外部 importer 无感)与 enterJinnangPhase
   // 私有薄委托(回合壳 endTurn 调用;开局入局 finishSetup 随 #324 迁 setup-flow.ts 后
   // 改直调自由函数);reaction-window 续结算经壳上

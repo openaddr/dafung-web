@@ -12,6 +12,7 @@ import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { botAct, jinnangIntent } from "@core/bot";
 import { jinnangCardOf } from "@core/jinnang";
+import { grantProperty, setDefense } from "@core/planter";
 
 const MAP = loadMap(guanzhongData);
 
@@ -189,21 +190,60 @@ describe("锦囊 bot 策略(#148)", () => {
     expect(e.turnPhase).toBe("Roll");
   });
 
-  it("火烧连营:目标=城数最多者;唯一可升级城被降 1 级", () => {
+  it("火烧连营(#1389 溅射化):中心=有效命中最多→受击等级和最高→tileIndex 小;无主中心可当锚;无有效命中则不出", () => {
     const e = prepared(42, SEATS3);
+    e.activeIndex = 0; // 钉决策者=seat 0(bot 打分排除自城)
     const user = e.players[0];
-    const free = e.board.tiles.find(
-      (t) => t.propertyId != null && e.findOwner(t.propertyId) == null,
-    )!.propertyId!;
-    const cap2 = e.players[2].properties[0];
-    e.players[2].properties.push({ ...cap2, propertyId: free, level: 1, defense: 4 }); // 2 座城 > 他人 1 座
-    expect(jinnangIntent(e, "火烧连营").targets).toEqual([2, 1]);
+    // 三都城防御打空=火焰免疫(#1386):命中面只看种植的受击城,开局都城不掺打分
+    for (let seat = 0; seat < 3; seat++) {
+      const capId = e.board.at(e.players[seat].capitalIndex).propertyId!;
+      setDefense(e, seat, capId, 0);
+    }
+    const n = e.board.count;
+    const at = (i: number) => e.board.at(((i % n) + n) % n);
+    const freeSet = new Set(
+      e.board.tiles
+        .filter((t) => t.propertyId && e.findOwner(t.propertyId) == null)
+        .map((t) => t.index),
+    );
+    const isFree = (i: number) => freeSet.has(((i % n) + n) % n);
+    // 中心 A:连续三格无主,前方 1、2 格种 seat1 的 Lv2 城(2 命中,等级和 4;无主中心=锚)
+    const centerA = e.board.tiles
+      .map((t) => t.index)
+      .find((i) => isFree(i) && isFree(i + 1) && isFree(i + 2))!;
+    for (const off of [1, 2]) grantProperty(e, 1, at(centerA + off).propertyId!, 2); // 满防 3
+    // 中心 B/C:各前方 1 格一座城(1 命中)——C 的城等级更高(等级和序在 B 前)
+    const far = e.board.tiles
+      .map((t) => t.index)
+      .filter((i) => isFree(i) && isFree(i + 1) && Math.abs(i - centerA) > 4);
+    const centerC = far[0]!;
+    const centerB = far.find((i) => Math.abs(i - centerC) > 4)!;
+    grantProperty(e, 2, at(centerC + 1).propertyId!, 2);
+    grantProperty(e, 1, at(centerB + 1).propertyId!, 1);
+    const intent = jinnangIntent(e, "火烧连营");
+    expect(intent.use).toBe(true);
+    expect(intent.targets![0]).toBe(centerA); // 命中数最多(2 > 1)
+    // 同 1 命中的中心:受击等级和 2(C 族)全排在等级和 1(B 族)之前
+    expect(intent.targets!.indexOf(centerC)).toBeLessThan(intent.targets!.indexOf(centerB));
+    // 端到端:bot 择中心 A 出牌,两座受击城各扣防(等级不动),牌耗收卷
     armJinnang(e, ["火烧连营"]);
     botAct(e);
-    expect(e.players[2].properties.find((h) => h.propertyId === free)!.level).toBe(0); // 唯一 Lv>0 → 降级
-    expect(e.players[1].properties[0].level).toBe(0); // 非目标原样(开局都城 Lv.0)
+    expect(
+      e.players[1].properties.find((h) => h.propertyId === at(centerA + 1).propertyId),
+    ).toMatchObject({ level: 2, defense: 2 });
+    expect(
+      e.players[1].properties.find((h) => h.propertyId === at(centerA + 2).propertyId),
+    ).toMatchObject({ level: 2, defense: 2 });
     expect(user.jinnangHand).toEqual([]);
     expect(e.turnPhase).toBe("Roll");
+
+    // 无有效命中(溅射全为无主/免疫)则不出:全场有主城=三都城,防御全打空=免疫
+    const e2 = prepared(42, SEATS3);
+    for (let seat = 0; seat < 3; seat++) {
+      const capId = e2.board.at(e2.players[seat].capitalIndex).propertyId!;
+      setDefense(e2, seat, capId, 0); // 0 级都城打空=火焰免疫(#1386)
+    }
+    expect(jinnangIntent(e2, "火烧连营")).toEqual({ use: false, targets: [] });
   });
 
   it("连环计:次富者现金低于败者赔款或可用目标 <2 → 不用;达标则两挑现金最高两人", () => {

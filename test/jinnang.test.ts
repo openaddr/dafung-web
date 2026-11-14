@@ -58,9 +58,9 @@ describe("锦囊目录(数据校验)", () => {
     }
   });
 
-  it("标签只用 谋/攻/守/援/即时;目标域五域之一(#281:即时=反应锦囊,reaction=纯反应牌)", () => {
+  it("标签只用 谋/攻/守/援/即时;目标域六域之一(#281:即时=反应锦囊,reaction=纯反应牌;#1389:one-city=城指向)", () => {
     const tags = new Set(["谋", "攻", "守", "援", "即时"]);
-    const domains = new Set(["self", "one", "two-others", "all-others", "reaction"]);
+    const domains = new Set(["self", "one", "two-others", "all-others", "one-city", "reaction"]);
     for (const c of JINNANG_CARDS) {
       for (const t of c.tags) expect(tags.has(t)).toBe(true);
       expect(domains.has(c.targetDomain)).toBe(true);
@@ -428,6 +428,7 @@ describe("锦囊使用回路(T2)", () => {
 
 // ──────────────────────────── 渠道(T5)────────────────────────────
 import { testEngine } from "@core/testing";
+import { grantProperty, setDefense } from "@core/planter";
 import { ENCOUNTERS } from "@core/encounters";
 
 describe("锦囊渠道(T5)", () => {
@@ -526,89 +527,171 @@ describe("锦囊目标段(T3)", () => {
     expect(victim.treasures.length).toBe(1);
   });
 
-  it("火烧连营:有可升级城 → 降 1 级;全 0 级 → 失一座(回无主)", () => {
+  it("火烧连营目标段(#1389 城指向):候选=全图任意城(含无主城标注「作火源自身免伤」/含己城),出牌窗恒可达", () => {
     const e = makeEngine(42);
     finishSetup(e);
     e.resolveJinnang(null);
-    const victim = e.players[1];
-    const cap = victim.properties[0];
-    cap.level = 2;
-    victim.properties.forEach((h) => {
-      if (h !== cap) h.level = 2;
-    });
     armJinnang(e, ["火烧连营"]);
-    e.resolveJinnang("火烧连营");
-    expect(e.choicesFor().find((o) => o.targetSeat === 1)?.available).toBe(true);
-    e.resolveJinnang("火烧连营", [1]);
-    expect(victim.properties.length).toBe(1);
-    expect(victim.properties[0].level).toBe(1); // 2→1 降级(单城可升级)
-    // 全 0 级:再烧 → 失城(清攻名额:跨回合才可再出同标签,此处单测直接开账重置)。
-    // 失城池排除都城(#226「都城可降不可失」):给目标添一座 0 级非都城,烧失的必须是非都城。
-    victim.properties[0].level = 0;
-    const freeId = e.board.tiles.find(
-      (t) => t.event == null && t.propertyId && e.findOwner(t.propertyId) == null,
-    )!.propertyId!;
-    victim.properties.push({
-      propertyId: freeId,
-      group: "a",
-      level: 0,
-      maxLevel: 3,
-      defense: 5,
-    });
-    e.jinnangUsedTags = [];
-    armJinnang(e, ["火烧连营"]);
-    e.resolveJinnang("火烧连营");
-    e.resolveJinnang("火烧连营", [1]);
-    expect(victim.properties).toHaveLength(1); // 都城持仓恒在
-    expect(victim.properties[0].propertyId).toBe(cap.propertyId);
-    expect(e.findOwner(freeId)).toBeNull(); // 非都城失城,回无主
-    expect(e.findOwner(cap.propertyId)).toBe(victim); // 都城不可失
+    expect(e.choicesFor().find((o) => o.id === "火烧连营")?.available).toBe(true); // 目标段无候选=牌不可出;全城池制恒有候选
+    e.resolveJinnang("火烧连营"); // 入目标段
+    expect(e.pendingJinnang).toMatchObject({ cardId: "火烧连营", stage: "one" });
+    const opts = e.choicesFor().filter((o) => o.targetTileIndex != null);
+    expect(opts.length).toBe(e.board.count); // 全城池制(#826):每格都是城,无距离限制
+    expect(opts.every((o) => o.available)).toBe(true);
+    // 无主城候选带「作火源自身免伤」语义标注;有主城(含己城)照城名
+    const unowned = opts.find(
+      (o) => o.targetPropertyId != null && e.findOwner(o.targetPropertyId) == null,
+    );
+    expect(unowned?.label).toContain("(无主,作火源自身免伤)");
+    const owned = opts.find(
+      (o) => o.targetPropertyId != null && e.findOwner(o.targetPropertyId) != null,
+    );
+    expect(owned?.label).not.toContain("无主");
+    // 作罢:牌保留回卡牌段(既有目标段口径不因域而变)
+    e.resolveJinnang("火烧连营", undefined, true);
+    expect(e.pendingJinnang).toBeNull();
+    expect(e.activePlayer.jinnangHand).toContain("火烧连营");
   });
 
-  it("火烧连营不可毁都城(#226):目标仅剩 0 级都城 → 门槛拦截,钱已扣、都城持仓恒在", () => {
-    const e = makeEngine(42, [
-      { name: "A", isBot: false, guohao: "魏" },
-      { name: "B", isBot: false, guohao: "蜀" },
-      { name: "C", isBot: false, guohao: "吴" },
-    ]);
+  it("溅射矩阵(#1389):中心+前方 1、2 格有主城各挨 1 点火焰伤害;中心无主=免伤锚(不调单点)而邻居受击;战报逐城一行", () => {
+    const e = makeEngine(42);
     finishSetup(e);
     e.resolveJinnang(null);
-    const user = e.activePlayer; // seed 42 定序首动者
-    const victimSeat = e.players.indexOf(user) === 0 ? 1 : 0;
+    const victimSeat = e.players.indexOf(e.activePlayer) === 0 ? 1 : 0;
     const victim = e.players[victimSeat];
-    const capPropId = e.board.at(victim.capitalIndex).propertyId!;
-    const capTile = victim.capitalIndex;
-    // 开局面貌(#226 e2e 布场时序):目标仅有都城一座,且 Lv.0
-    expect(victim.properties).toHaveLength(1);
-    expect(victim.properties[0].propertyId).toBe(capPropId);
-    expect(victim.properties[0].level).toBe(0);
-    // 第三席挂一座 Lv1 城(卡级预检 #477:存在他法有效目标,牌可用,目标段灰置才可达)
-    const thirdSeat = [0, 1, 2].find((i) => i !== victimSeat && e.players[i] !== user)!;
-    const freeSeedId = e.board.tiles.find(
-      (t) => t.event == null && t.propertyId && e.findOwner(t.propertyId) == null,
-    )!.propertyId!;
-    e.players[thirdSeat].properties.push({
-      propertyId: freeSeedId,
-      group: "a",
-      level: 1,
-      maxLevel: 3,
-      defense: 4,
+    const centerTile = e.board.tiles.find(
+      (t) => t.propertyId && e.findOwner(t.propertyId) == null,
+    )!;
+    const at = (off: number) => e.board.at((centerTile.index + off) % e.board.count);
+    // 前方 1、2 格清走既有持仓(选都落点不确定),种 victim 的 Lv2 城(满防 3)
+    for (const off of [1, 2]) {
+      const pid = at(off).propertyId!;
+      for (const p of e.players) p.properties = p.properties.filter((h) => h.propertyId !== pid);
+      grantProperty(e, victimSeat, pid, 2);
+    }
+    const n1 = victim.properties.find((h) => h.propertyId === at(1).propertyId)!;
+    const n2 = victim.properties.find((h) => h.propertyId === at(2).propertyId)!;
+    armJinnang(e, ["火烧连营"]);
+    beginGameEventBatch(e);
+    e.resolveJinnang("火烧连营");
+    e.resolveJinnang("火烧连营", [centerTile.index]); // 城指向:提交目标城 tileIndex
+    // 中心无主:免伤(无持有产生),前两格各挨 1 点:防御 3→2
+    expect(e.findOwner(centerTile.propertyId!)).toBeNull();
+    expect(n1.defense).toBe(2);
+    expect(n2.defense).toBe(2);
+    // 战报逐城一行(来源段「使用锦囊【火烧连营】」):无主中心免于火焰行 + 两行受击果
+    const fireLines = e.log.filter((l) => l.detail.includes("jinnangFireWall"));
+    expect(fireLines.length).toBe(3);
+    expect(e.log.some((l) => l.brief.includes(`「${centerTile.name}」无主,免于火焰`))).toBe(true);
+    expect(e.log.filter((l) => l.brief.includes(`「${at(1).name}」防御值降至 2`)).length).toBe(1);
+    expect(e.log.filter((l) => l.brief.includes(`「${at(2).name}」防御值降至 2`)).length).toBe(1);
+  });
+
+  it("溅射果分(#1389):0 级非都城烧毁回无主(lost,PropertyLost 逐城派);都城打空即停(absorbed 不派);溅射面恒为城(前方 1、2 格全入)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    const victimSeat = e.players.indexOf(e.activePlayer) === 0 ? 1 : 0;
+    const victim = e.players[victimSeat];
+    const capId = e.board.at(victim.capitalIndex).propertyId!;
+    // 火源=受害者都城(打空前最后一点:防御 1);前方 1 格=0 级非都城(防御 1,烧毁失城);
+    // 前方 2 格清成无主(免于火焰,不扰时机断言)
+    setDefense(e, victimSeat, capId, 1);
+    const at = (off: number) => e.board.at((victim.capitalIndex + off) % e.board.count);
+    const loseTile = at(1);
+    for (const p of e.players)
+      p.properties = p.properties.filter(
+        (h) => h.propertyId !== loseTile.propertyId && h.propertyId !== at(2).propertyId,
+      );
+    grantProperty(e, victimSeat, loseTile.propertyId!, 0); // 0 级,满防 5
+    setDefense(e, victimSeat, loseTile.propertyId!, 1);
+    armJinnang(e, ["火烧连营"]);
+    const entries: { moment: string; ctx: unknown }[] = [];
+    const orig = e.dispatchMoment.bind(e);
+    (e as { dispatchMoment: (m: string, ctx: unknown) => void }).dispatchMoment = (
+      m: string,
+      ctx: unknown,
+    ) => {
+      entries.push({ moment: m, ctx });
+      return orig(m as never, ctx as never);
+    };
+    e.resolveJinnang("火烧连营");
+    e.resolveJinnang("火烧连营", [victim.capitalIndex]);
+    // 0 级非都城:失城回无主(留痕+持仓移除)
+    expect(e.findOwner(loseTile.propertyId!)).toBeNull();
+    expect(victim.properties.some((h) => h.propertyId === loseTile.propertyId)).toBe(false);
+    const trace = e.propertyChanges[e.propertyChanges.length - 1];
+    expect(trace).toEqual({
+      tileIndex: loseTile.index,
+      level: 0,
+      ownerColorIndex: null,
+      levelChanged: false,
+      ownerChanged: true,
     });
+    // 都城打空即停(absorbed):持仓恒在、防御 0
+    expect(e.findOwner(capId)).toBe(victim);
+    expect(victim.properties.find((h) => h.propertyId === capId)).toMatchObject({
+      level: 0,
+      defense: 0,
+    });
+    // 时机按果择一逐城派:恰一条 PropertyLost(0 级非都城),无 PropertyDemolished(absorbed 不派)
+    expect(entries.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat, propertyId: loseTile.propertyId, tileIndex: loseTile.index },
+    ]);
+    expect(entries.some((x) => x.moment === "PropertyDemolished")).toBe(false);
+    // 果分文案:失「城名」回无主 / 城防打空吸收;无主格免于火焰行
+    expect(e.log.some((l) => l.brief.includes(`失「${loseTile.name}」,城回无主`))).toBe(true);
+    expect(e.log.some((l) => l.brief.includes("城防打空,火焰伤害被吸收"))).toBe(true);
+  });
+
+  it("溅射果分(#1389):都城可降(demolished,PropertyDemolished 派,降级回满新等级);己城照烧", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    const user = e.activePlayer;
+    const userSeat = e.players.indexOf(user);
+    const victimSeat = userSeat === 0 ? 1 : 0;
+    const victim = e.players[victimSeat];
+    const capId = e.board.at(victim.capitalIndex).propertyId!;
+    grantProperty(e, victimSeat, capId, 2); // 都城 Lv2(满防 3)——都城可降不可失(#226)
+    setDefense(e, victimSeat, capId, 1); // 再挨 1 点即归零降级
+    // 己城照烧:火源旁种使用者一座 Lv1 城(前方 1 格),同样挨烧
+    const ownTile = e.board.at((victim.capitalIndex + 1) % e.board.count);
+    for (const p of e.players)
+      p.properties = p.properties.filter((h) => h.propertyId !== ownTile.propertyId);
+    grantProperty(e, userSeat, ownTile.propertyId!, 1); // 满防 4
+    const entries: { moment: string; ctx: unknown }[] = [];
+    const orig = e.dispatchMoment.bind(e);
+    (e as { dispatchMoment: (m: string, ctx: unknown) => void }).dispatchMoment = (
+      m: string,
+      ctx: unknown,
+    ) => {
+      entries.push({ moment: m, ctx });
+      return orig(m as never, ctx as never);
+    };
     armJinnang(e, ["火烧连营"]);
     e.resolveJinnang("火烧连营");
-    // 目标门槛(选项集单口,ADR-0013):都城可降不可失——仅剩 0 级都城 = 无可毁之城
-    const opt = e.choicesFor().find((o) => o.targetSeat === victimSeat);
-    expect(opt?.available).toBe(false);
-    expect(opt?.reason).toBe("无可毁之城");
-    // 引擎硬拒不可用目标 → 都城持仓原样(建城费已扣、持仓在,capitalIndex ↔ properties 一致)
-    e.resolveJinnang("火烧连营", [victimSeat]);
-    expect(victim.properties).toHaveLength(1);
-    expect(victim.properties[0].propertyId).toBe(capPropId);
-    expect(victim.properties[0].level).toBe(0);
-    expect(e.findOwner(capPropId)).toBe(victim);
-    expect(victim.capitalIndex).toBe(capTile); // 指向不变
-    // 牌未消耗:目标段被拒,牌留手(作罢才退回卡牌段)
-    expect(user.jinnangHand).toContain("火烧连营");
+    e.resolveJinnang("火烧连营", [victim.capitalIndex]);
+    // 都城降级:2→1 级,防御回满新等级满值 4(不带损前暗账)
+    expect(victim.properties.find((h) => h.propertyId === capId)).toMatchObject({
+      level: 1,
+      defense: 4,
+    });
+    // 己城照烧:防御 4→3(等级不动)
+    expect(user.properties.find((h) => h.propertyId === ownTile.propertyId)).toMatchObject({
+      level: 1,
+      defense: 3,
+    });
+    // 恰一条 PropertyDemolished(都城);己城纯扣防 absorbed 不派
+    expect(entries.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat, propertyId: capId, tileIndex: victim.capitalIndex },
+    ]);
+    expect(
+      e.log.some((l) =>
+        l.brief.includes(`「${e.board.at(victim.capitalIndex).name}」城防降为 1 级`),
+      ),
+    ).toBe(true);
+    expect(e.log.some((l) => l.brief.includes(`「${ownTile.name}」防御值降至 3`))).toBe(true);
   });
 
   it("横征暴敛:全体域无目标段直接执行;上限=现金", () => {
@@ -701,14 +784,14 @@ describe("连环计·二虎竞食(T4)", () => {
     expect(opt?.available).toBe(false);
   });
 
-  it("两人局火烧连营灰置「无可毁之城」(对手无可毁之城,#477)", () => {
+  it("两人局火烧连营目标段候选恒在(城指向域,#1389:全图任意城为火源,无席位域「无可毁之城」门)", () => {
     const e = makeEngine(42);
     finishSetup(e);
     e.resolveJinnang(null);
     armJinnang(e, ["火烧连营"]);
     const opt = e.choicesFor().find((o) => o.id === "火烧连营");
-    expect(opt?.available).toBe(false);
-    expect(opt?.reason).toBe("无可毁之城");
+    expect(opt?.available).toBe(true);
+    expect(opt?.reason).toBeUndefined();
   });
 
   it("两人局窃玉偷香灰置「无珍宝」(对手无珍宝,#477)", () => {

@@ -14,7 +14,7 @@ import { fullDefenseOf } from "@core/defense";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
-import { placePlayer } from "@core/planter";
+import { placePlayer, setDefense } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
@@ -1534,6 +1534,15 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     return { propertyId: def.id, tileIndex: tile.index };
   }
 
+  /** 把 tile 前方 1、2 格清成无主(#1389 溅射面收窄:免于火焰,不扰逐城派断言)。 */
+  function stripForwardOwners(e: GameEngine, tileIndex: number): void {
+    const n = e.board.count;
+    for (const off of [1, 2]) {
+      const pid = e.board.at((tileIndex + off) % n).propertyId;
+      for (const p of e.players) p.properties = p.properties.filter((h) => h.propertyId !== pid);
+    }
+  }
+
   it("TreasureLost:以宝换贤交出两件每件一派 + 窃玉偷香失主与窃方(#455 A4)同点成对(subject=失主)", () => {
     // ① 以宝换贤(grantHero 型选项:先扣 2 件珍宝再得将,splice 处每件一派)
     const e = makeEngine(1);
@@ -1611,16 +1620,18 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     expect(e.findOwner(gained!.propertyId)).toBe(mover); // 印章/涟漪表现通路可走到
   });
 
-  it("PropertyDemolished/Lost:火烧连营锦囊路调用侧与耗竭按其果各派(subject=城主,tileIndex 随行);火攻主动技路不派", () => {
-    // ① 火烧连营·降级(victim 有 Lv>0 城)→ PropertyDemolished,挂调用侧
+  it("PropertyDemolished/Lost:火烧连营锦囊路调用侧按果逐城派(subject=城主,tileIndex 随行;#1389 城指向),火攻主动技路不派", () => {
+    // ① 火烧连营·降级(火源=Lv2 城,防御摆到 1 再挨 1 点归零降级)→ PropertyDemolished,挂调用侧
     const e = makeEngine(1);
     finishSetup(e);
     const victimSeat = 1 - e.activeIndex;
     const city = giveCity(e, victimSeat, 2);
+    stripForwardOwners(e, city.tileIndex); // 前方 1、2 格清成无主(免于火焰,不扰「恰一条」断言)
+    setDefense(e, victimSeat, city.propertyId, 1);
     armJinnang(e, ["火烧连营"]);
     const entries = recordMomentCtx(e);
     e.resolveJinnang("火烧连营");
-    e.resolveJinnang("火烧连营", [victimSeat]);
+    e.resolveJinnang("火烧连营", [city.tileIndex]); // 城指向:提交火源城 tileIndex(#1389)
     expect(
       e.players[victimSeat].properties.find((h) => h.propertyId === city.propertyId)!.level,
     ).toBe(1);
@@ -1629,15 +1640,17 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     ]);
     expect(entries.filter((x) => x.moment === "PropertyLost")).toHaveLength(0);
 
-    // ② 火烧连营·失城(victim 城防全 0)→ PropertyLost,挂调用侧
+    // ② 火烧连营·失城(0 级非都城,防御摆到 1 再挨 1 点烧毁失城)→ PropertyLost,挂调用侧
     const e2 = makeEngine(1);
     finishSetup(e2);
     const victimSeat2 = 1 - e2.activeIndex;
     const city2 = giveCity(e2, victimSeat2, 0);
+    stripForwardOwners(e2, city2.tileIndex);
+    setDefense(e2, victimSeat2, city2.propertyId, 1);
     armJinnang(e2, ["火烧连营"]);
     const entries2 = recordMomentCtx(e2);
     e2.resolveJinnang("火烧连营");
-    e2.resolveJinnang("火烧连营", [victimSeat2]);
+    e2.resolveJinnang("火烧连营", [city2.tileIndex]);
     expect(e2.players[victimSeat2].properties.some((h) => h.propertyId === city2.propertyId)).toBe(
       false,
     );

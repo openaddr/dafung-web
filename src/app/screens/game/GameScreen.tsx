@@ -30,6 +30,7 @@ import {
 } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerContext, setController } from "@app/controllers/registry";
+import type { Board } from "@core/board";
 import type { GameCommand } from "@core/authority";
 import { isSkillOption } from "@core/choices";
 import { jinnangCardOf } from "@core/jinnang";
@@ -74,17 +75,21 @@ import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { TESTIDS } from "./testids";
 
 /** 反应窗横幅目标括注(#921):目标域单源=core/jinnang 目录——单/双目标列名「(对 蜀、吴)」,
- *  全体域「(全场)」、自身域「(自身)」。被询问者凭目标判「要不要识破」:目标是自己才拆,
- *  别人的份可以省。反识破链环的争夺份括注「(保 X)」在装配点另列(份≠目标名单)。 */
+ *  全体域「(全场)」、自身域「(自身)」、城指向域(#1389)列城名「(对 长安)」(targetSeats
+ *  语义随域:座位份=座位号,城指向域=受击城 tileIndex,故城域走 cityNameOf 查表)。
+ *  被询问者凭目标判「要不要识破」:目标是自己才拆,别人的份可以省。反识破链环的争夺份
+ *  括注「(保 X)」在装配点另列(份≠目标名单)。 */
 function jinnangTargetNote(
   cardId: string,
   targetSeats: number[],
   nameOf: (seat: number) => string,
+  cityNameOf: (tileIndex: number) => string,
 ): string {
   const domain = jinnangCardOf(cardId).targetDomain;
   if (domain === "all-others") return "(全场)";
   if (domain === "self") return "(自身)";
-  return `(对 ${targetSeats.map(nameOf).join("、")})`;
+  const labelOf = domain === "one-city" ? cityNameOf : nameOf;
+  return `(对 ${targetSeats.map(labelOf).join("、")})`;
 }
 
 export function GameScreen() {
@@ -114,7 +119,7 @@ export function GameScreen() {
       </div>
     );
   }
-  return <GameScreenLive snapshot={snapshot} />;
+  return <GameScreenLive snapshot={snapshot} board={context.board} />;
 }
 
 /** 竖屏手机「请横屏」提示层(#276 纠偏定案:移动端只做横屏形态,竖屏不做游戏布局)。
@@ -166,8 +171,9 @@ function RotateHintOverlay() {
 }
 
 /** 已开局主体:棋盘全幅 + 全浮层(顶部条/席位格列/手牌区/三圆钮);hooks 全在此,
- *  snapshot 由 GameScreen 门卫(board/catalog 经 registry 上下文自取,#1273)。 */
-function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
+ *  snapshot/board 由 GameScreen 门卫注入(board 经 registry 上下文自取,#1273;反应窗
+ *  城指向域选份令牌的城名呈现也查它,#1389)。 */
+function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Board }) {
   // 模块级取控制器(不在 React 状态里:实例含方法/WS,非渲染数据,见 registry.ts 注释)
   const controller = getController();
   const interactive = useGameStore((s) => s.interactive);
@@ -456,7 +462,8 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
       dispatchCommand({ type: "respondReaction", seat: selfSeat, use: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dispatchCommand 闭包随渲染更新,依赖窗态/静默/窗实例号三个语义键
   }, [reactionUp, reactMuted, reactionSeq]);
-  // 卡牌段选中与 AOE 选份(G-19 一期手感:点牌选中,再点同牌取消;进/出窗态清空重选)
+  // 卡牌段选中与按份族选份(G-19 一期手感:点牌选中,再点同牌取消;进/出窗态清空重选;
+  // share 语义随域=座位号或受击城 tileIndex,#1389)
   const [reactCardId, setReactCardId] = useState<string | null>(null);
   const [reactShare, setReactShare] = useState<number | null>(null);
   useEffect(() => {
@@ -464,13 +471,20 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
     setReactShare(null);
   }, [reactionUp]);
   const reaction = snapshot.reaction;
-  // AOE 全体域必选份(横征暴敛等):识破只免其中一份,须指定被保护座位(含自己);
-  // 其余域 shareSeat 不参与语义,免选(单目标/半路杀出)。
+  // 本窗公告牌的目标域(单源 core/jinnang 目录;反识破链环窗公告的是识破自身,域=
+  // reaction 族,天然落「免选」分支——链环应答不带份,与引擎 respondReaction 校验同形)。
+  const reactDomain =
+    reactionUp && reaction?.kind === "jinnang" ? jinnangCardOf(reaction.cardId).targetDomain : null;
+  // 按份族必选份:识破只免其中一份,须指定被保护份——all-others=座位份(横征暴敛等,
+  // 含自己);one-city=城份(火烧连营,#1389,份=受击城 tileIndex 清单)。选中反应牌才出
+  // 份候选(与既有 all-others 同形);其余域(单目标/半路杀出/链环窗)shareSeat 不参与
+  // 语义,免选。
   const reactShareSeats =
-    reactionUp && reaction?.kind === "jinnang" && reactCardId != null
-      ? jinnangCardOf(reaction.cardId).targetDomain === "all-others"
-        ? reaction.targetSeats
-        : []
+    reactionUp &&
+    reaction?.kind === "jinnang" &&
+    reactCardId != null &&
+    (reactDomain === "all-others" || reactDomain === "one-city")
+      ? reaction.targetSeats
       : [];
   // 此刻可打的反应锦囊(手牌 ∩ 本窗牌种;目录单源 core/jinnang,UI 不自判合法性)。
   // 在座却无 selfPlayer=引擎/快照 bug,未判空直取让它当场崩出(零兜底,#284 评审)
@@ -488,6 +502,8 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
   // 未选牌点按「出牌」计数(#751 B1):动作条自门控回执 → HandRack 可用牌金圈脉冲一拍。
   const [playNudge, setPlayNudge] = useState(0);
   const seatLabelOf = (seat: number) => snapshot.players[seat].guohao;
+  // 城指向域选份令牌/目标括注的城名查表(#1389;board 越界当场炸=零兜底)。
+  const cityNameOf = (tileIndex: number) => board.at(tileIndex).name;
   const reactBanner =
     reactionUp && reaction != null && !reactMuted ? (
       <ReactionBanner
@@ -497,19 +513,26 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
         text={
           reaction.kind === "jinnang"
             ? snapshot.pendingReaction?.payload.kind === "counter"
-              ? // 反识破链环(#571):公告的是一张识破,文案带链根与争夺份;整计链
-                // (连环计被识破)无份可保,改列根计目标(#921,目标域读目录)
+              ? // 反识破链环(#571):公告的是一张识破,文案带链根与争夺份(争夺份标签随
+                // 根域:城指向域=城名,#1389;其余=国号);整计链(连环计被识破)无份
+                // 可保,改列根计目标(#921,目标域读目录)
                 `${snapshot.players[reaction.userSeat].guohao} 识破【${snapshot.pendingReaction.payload.root.cardId}】${
                   snapshot.pendingReaction.payload.shareSeat != null
-                    ? `(保 ${snapshot.players[snapshot.pendingReaction.payload.shareSeat].guohao})`
+                    ? `(保 ${
+                        jinnangCardOf(snapshot.pendingReaction.payload.root.cardId).targetDomain ===
+                        "one-city"
+                          ? cityNameOf(snapshot.pendingReaction.payload.shareSeat)
+                          : snapshot.players[snapshot.pendingReaction.payload.shareSeat].guohao
+                      })`
                     : jinnangTargetNote(
                         snapshot.pendingReaction.payload.root.cardId,
                         snapshot.pendingReaction.payload.root.targets,
                         seatLabelOf,
+                        cityNameOf,
                       )
                 },可反识破`
               : // 根窗(#921):目标括注随目录目标域——被询问者凭此判「要不要识破」
-                `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】${jinnangTargetNote(reaction.cardId, reaction.targetSeats, seatLabelOf)}`
+                `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】${jinnangTargetNote(reaction.cardId, reaction.targetSeats, seatLabelOf, cityNameOf)}`
             : `${snapshot.players[reaction.userSeat].guohao} 行军将过你的城池`
         }
         // 来者锦囊 mini 签面(#751 A6):jinnang 窗带本窗牌面锚点;march 窗无牌不挂。
@@ -519,8 +542,9 @@ function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
         durationMs={scaleReactionMs(reaction.windowMs)}
         shareSeats={reactShareSeats}
         shareSeat={reactShare}
-        onPickShare={(seat) => setReactShare((cur) => (cur === seat ? null : seat))} // #417 首点选中/再点取消
-        seatLabel={seatLabelOf}
+        onPickShare={(share) => setReactShare((cur) => (cur === share ? null : share))} // #417 首点选中/再点取消
+        // 份令牌标签随域:城指向域=城名(#1389),其余=国号(候选集语义随 reactShareSeats)。
+        seatLabel={reactDomain === "one-city" ? cityNameOf : seatLabelOf}
         confirmEnabled={reactCardId != null && (reactShareSeats.length === 0 || reactShare != null)}
         onConfirm={() => {
           if (reactCardId == null) return;

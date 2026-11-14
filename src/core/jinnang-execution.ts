@@ -1,6 +1,6 @@
 // 锦囊+主动技+效果执行域(#122/#188 档 3,ADR-0019 委托式拆分 #319):出牌阶段
 // (AwaitingJinnang)抽牌/用牌决策、出牌宣布与反应窗挂点、锦囊效果执行、名将主动技
-// 结算,以及 demolish/招贤两个共享结算单点。域逻辑=自由函数,首参接 GameEngine 直接
+// 结算,以及招贤共享结算单点。域逻辑=自由函数,首参接 GameEngine 直接
 // 读写引擎状态;与数据表 jinnang.ts/heroes.ts 分层(执行≠数据)。GameEngine 侧保留同名
 // 公共方法薄委托(authority.ts);反应窗域(reaction-window.ts)续结算经 g.executeJinnang/
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
@@ -9,10 +9,10 @@ import {
   activeSkillOf,
   cityTargetOptionId,
   computeChoices,
+  fireWallSplashCities,
   hasUsableJinnang,
   skillOptionId,
 } from "./choices";
-import { tileIndexOfProperty } from "./board";
 import { diceShuffle, jinnangCardOf, TARGET_DOMAIN_STAGES } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
@@ -36,7 +36,7 @@ import {
   type ReactionViewSeed,
 } from "./reaction-window";
 import { emitGameEvent } from "./game-events";
-import { applyFireDamage, resetToFull } from "./defense";
+import { applyFireDamage } from "./defense";
 import { findHolding } from "./player";
 import type { Player } from "./model";
 
@@ -191,8 +191,11 @@ export function resolveJinnang(
       return;
     }
     const [target] = targets;
-    if (!computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
-      g.warn(`目标不可用:座位 ${target}`);
+    // 目标段复验单源=选项集(#1389 目标域分派:席位域 id=t<座位>;城指向域 id=c<tileIndex>,
+    // 拼接单源 choices.cityTargetOptionId——与技能城目标段同形制)
+    const wantId = def.targetDomain === "one-city" ? cityTargetOptionId(target) : `t${target}`;
+    if (!computeChoices(g, "AwaitingJinnang").some((o) => o.id === wantId && o.available)) {
+      g.warn(`目标不可用:${def.targetDomain === "one-city" ? "城格" : "座位"} ${target}`);
       return;
     }
     if (pending.stage === "one") {
@@ -239,6 +242,15 @@ export function resolveJinnang(
   settleJinnangPlay(g, p, userSeat, def, []);
 }
 
+/** 城指向域宣布/结算共用的中心城格读取(#1389):targets 缺格=目标段载荷缺失,
+ *  状态机 bug(零兜底)。 */
+function requireCenter(def: ReturnType<typeof jinnangCardOf>, targets: number[]): number {
+  const center = targets[0];
+  if (center === undefined)
+    throw new Error(`锦囊【${def.id}】缺中心城格(目标段载荷缺失,状态机 bug)`);
+  return center;
+}
+
 /** 手牌段扣账(#122/T3):出牌=离手入弃堆+占标签名额(执行时点;作罢不占)。 */
 function consumeJinnangCard(
   g: GameEngine,
@@ -265,7 +277,10 @@ function settleJinnangPlay(
   targets: number[],
 ): void {
   consumeJinnangCard(g, user, def.id, def); // 出牌即扣账:被识破也不回手(识破只护份)
-  // 份清单(view.targetSeats):self=使用者自身一份;全体域=受影响全员;指向域=被指定者
+  // 份清单(view.targetSeats):self=使用者自身一份;全体域=受影响全员;指向域=被指定者;
+  // 城指向域(#1389)=受击城 tileIndex 清单(一份=一座受击城:有主且非打空都城免疫)。
+  const splash =
+    def.targetDomain === "one-city" ? fireWallSplashCities(g, requireCenter(def, targets)) : null;
   const shareSeats =
     def.targetDomain === "self"
       ? [userSeat]
@@ -274,12 +289,22 @@ function settleJinnangPlay(
             .alivePlayers()
             .map((p) => g.players.indexOf(p))
             .filter((seat) => seat !== userSeat)
-        : [...targets];
+        : def.targetDomain === "one-city"
+          ? splash!.filter((c) => c.ownerSeat != null && !c.immune).map((c) => c.tileIndex)
+          : [...targets];
+  // 时机 ctx 的 targetSeats 语义=受影响座位(处变不惊消费面):城指向域=受击城主座位
+  // 去重(座位序;一份=城,时机面按「谁的城被烧」归座位,与席位域「人」语义对齐)
+  const announcedSeats =
+    def.targetDomain === "one-city"
+      ? [...new Set(splash!.filter((c) => c.ownerSeat != null).map((c) => c.ownerSeat!))].sort(
+          (a, b) => a - b,
+        )
+      : shareSeats;
   // 出牌宣告走 JinnangAnnounced 时机产事件:fx 面=出牌指示线+文案浮字(#719 死写删除)
   g.dispatchMoment("JinnangAnnounced", {
     subject: userSeat,
     cardId: def.id,
-    targetSeats: shareSeats,
+    targetSeats: announcedSeats,
   }); // 时机·JinnangAnnounced:锦囊宣布、结算前(识破诡计反应窗挂点)
   const queried = g
     .alivePlayers()
@@ -534,7 +559,7 @@ function fireHeroSkill(
  *  战报=「主动技【火攻】」来源段风格,果分文案:demolished=城防降为 N 级 /
  *  absorbed=防御值降至 N(0 级都城打空=打空吸收)/ lost=失城「X」——lost 在火攻
  *  不可达(目标门要求等级>0,等级>0 城在单点内只会降级不归失城分支),到得了即目标门
- *  被绕过,当场炸(同 demolishOnVictim 空池口径)。
+ *  被绕过,当场炸(零兜底)。
  *  #457 现状拍板:城损时机(PropertyDemolished/Lost)只挂锦囊路调用侧,火攻技路
  *  不派,本票不翻转;降级/失城留痕(propertyChanges)由单点内照 ADR-0015 写。 */
 function fireBlastOnCity(
@@ -628,8 +653,9 @@ export function resolveBookSkill(g: GameEngine, treasureId: string, heroId: stri
 }
 
 /** 锦囊效果执行(#122):牌已在手牌段扣账(消耗/弃堆/名额);此处只做结算。
- *  targets:one/two-others=被指定座位;all-others=空(自行遍历)。
- *  exempt(#281):识破按份豁免的座位集(横征暴敛 AOE 用;其余计忽略)。
+ *  targets:one/two-others=被指定座位;one-city(#1389)=[中心城 tileIndex];all-others=空(自行遍历)。
+ *  exempt(#281):识破按份豁免集——横征暴敛 AOE 用=座位集、火烧连营城指向域用=受击城
+ *  tileIndex 集(一份=一座城);其余计忽略。
  *  出牌公开事件(浮字/指示线,fx 面按 jinnangAnnounced 事件派生)已在宣布点(settleJinnangPlay)落账。 */
 export function executeJinnang(
   g: GameEngine,
@@ -725,22 +751,9 @@ export function executeJinnang(
       );
       break;
     }
-    case "demolish": {
-      const victim = g.players[targets[0]];
-      const outcome = demolishOnVictim(
-        g,
-        user,
-        victim,
-        `使用锦囊【${def.id}】`,
-        `jinnangUse player=${user.id} card=${def.id}`,
-      );
-      g.dispatchMoment(outcome.kind === "demolished" ? "PropertyDemolished" : "PropertyLost", {
-        subject: g.players.indexOf(victim),
-        propertyId: outcome.propertyId,
-        tileIndex: outcome.tileIndex,
-      }); // 时机·PropertyDemolished/Lost:火烧连营城损(#457 拍定挂调用侧按果择一——单点内不派,火攻主动技路不派)
+    case "fireWall":
+      fireWallStrike(g, user, def, targets, exempt);
       break;
-    }
     case "skipTurn": {
       const victim = g.players[targets[0]];
       victim.skipTurns += 1;
@@ -867,71 +880,76 @@ export function executeJinnang(
   }
 }
 
-/** demolish 结果(#457):供锦囊路调用侧择一派发 PropertyDemolished/Lost——
- *  派发不进单点(调用侧按果择一,#457 拍定)。 */
-interface DemolishOutcome {
-  kind: "demolished" | "lost";
-  propertyId: string;
-  tileIndex: number;
-}
-
-/** demolish 结算单点(#122 火烧连营锦囊专用;#1388 T2 起火攻主动技已切城目标域走
- *  defense.applyFireDamage,不再共用):随机降目标一座
- *  Lv>0 城 1 级(都城可降);城防全 0 级则失一座非都城(都城不可失,#226 根因修复:
- *  失城只从非都城中取,与耗竭「都城可降不可失」、破产「都城不可变卖」同口径)。
- *  「仅剩 0 级都城」的目标已被选项集门槛(demolishTargetOk)拦下,空池 = 门槛被绕过,
- *  当场抛出(零兜底:让状态机 bug 在出生地暴露)。
- *  返回 DemolishOutcome(#457):城损时机的派发归锦囊路调用侧(火烧连营按果派发),
- *  本单点只结算不派发。
- *  sourceLabel=战报来源段(「使用锦囊【火烧连营】」);auditPrefix=机读 detail 前缀。 */
-function demolishOnVictim(
+/** 火烧连营溅射结算(#1389,规格 #1386):以中心城格为火源,对「中心 + 前方距离 1、2 格
+ *  上的城」(受击清单单源 choices.fireWallSplashCities)各造成技表 damage 点火焰伤害,
+ *  逐城结算单点=defense.applyFireDamage(T1 交付,本域只消费不复制)。
+ *  目标域门(任一座城可为火源,无距离限制;无主城=几何中心而自身免伤)单源目标段候选集
+ *  (choices.fireWallCenterTargets 装配 + resolveJinnang 提交复验),本函数只结算。
+ *  无主城不调单点(「无主城不受火焰伤害」由清单 ownerSeat=null 表达,中心无主时溅射锚
+ *  照成立、前两格照溅);识破免单城(exempt=受击城 tileIndex 集)整城跳过——含溅射账,
+ *  免城宣告归识破窗(jinnangVoided),此处不留痕。
+ *  果分战报逐城一行(来源段「使用锦囊【火烧连营】」):demolished=城防降为 N 级 /
+ *  lost=失「城名」回无主 / absorbed=防御值降至 N(0 级都城打空=打空吸收)——lost 与
+ *  打空 absorbed 两果经火烧连营门可达(0 级非都城可烧毁、都城可降打空即停),与火攻
+ *  技路(fireBlastOnCity,lost 不可达)不同。
+ *  #457 口径延续:城损时机(PropertyDemolished/Lost)按果择一逐城派,absorbed 不派;
+ *  降级/失城留痕(propertyChanges)由单点内照 ADR-0015 写。 */
+function fireWallStrike(
   g: GameEngine,
   user: Player,
-  victim: Player,
-  sourceLabel: string,
-  auditPrefix: string,
-): DemolishOutcome {
-  const upgradable = victim.properties.filter((h) => h.level > 0);
-  const tileIndexOf = (pid: string) => tileIndexOfProperty(g.board, pid);
-  if (upgradable.length > 0) {
-    const h = upgradable[Math.floor(g.dice.nextFloat() * upgradable.length)];
-    h.level -= 1;
-    resetToFull(h); // 降级=等级变动,防御重置新等级满值(#1386;旧火烧连营/旧火攻仍工作,防御值跟等级走)
-    g.propertyChanges.push({
-      tileIndex: tileIndexOf(h.propertyId),
-      level: h.level,
-      ownerColorIndex: victim.colorIndex,
-      levelChanged: true,
-      ownerChanged: false,
-    }); // 宣告留痕(ADR-0015)
+  def: ReturnType<typeof jinnangCardOf>,
+  targets: number[],
+  exempt?: ReadonlySet<number>,
+): void {
+  if (def.effect.kind !== "fireWall")
+    throw new Error(`fireWallStrike:锦囊【${def.id}】非 fireWall 效果(分派 bug)`); // 零兜底
+  const center = requireCenter(def, targets);
+  const centerTile = g.board.at(center);
+  if (centerTile.propertyId == null)
+    throw new Error(`火烧连营火源格 ${center} 无城(候选清单只出城格,状态机 bug)`); // 零兜底
+  const exemptCities = exempt ?? new Set<number>();
+  const splash = fireWallSplashCities(g, center);
+  for (const city of splash) {
+    if (city.ownerSeat == null) {
+      // 无主城不受火焰伤害(#1386):不调单点;溅射锚/占位照记一行(战报逐城一行)
+      g.logEvent(
+        "system",
+        user.guohao,
+        `${user.guohao} 使用锦囊【火烧连营】:「${city.name}」无主,免于火焰`,
+        `jinnangFireWall card=${def.id} center=${center} tile=${city.tileIndex} prop=${city.propertyId} victim=- outcome=unowned`,
+      );
+      continue;
+    }
+    if (exemptCities.has(city.tileIndex)) continue; // 识破免单城(#1389):完全不受此次伤害
+    const victim = g.players[city.ownerSeat];
+    const outcome = applyFireDamage(g, victim, city.propertyId, def.effect.damage);
+    const holding = outcome.kind === "lost" ? null : findHolding(victim, city.propertyId);
+    if (outcome.kind !== "lost" && holding == null)
+      throw new Error(`火烧连营结算后城 ${city.propertyId} 不在 ${victim.guohao} 名下(状态机 bug)`); // 零兜底
+    const resultTxt =
+      outcome.kind === "demolished"
+        ? `${victim.guohao} 的「${city.name}」城防降为 ${holding!.level} 级`
+        : outcome.kind === "lost"
+          ? `${victim.guohao} 失「${city.name}」,城回无主`
+          : holding!.defense === 0
+            ? `${victim.guohao} 的「${city.name}」城防打空,火焰伤害被吸收`
+            : `${victim.guohao} 的「${city.name}」防御值降至 ${holding!.defense}`;
     g.logEvent(
       "system",
       user.guohao,
-      `${user.guohao} ${sourceLabel}:${victim.guohao} 的城防降为 ${h.level} 级`,
-      `${auditPrefix} victim=${victim.id} prop=${h.propertyId} level=${h.level}`,
+      `${user.guohao} 使用锦囊【火烧连营】:${resultTxt}`,
+      `jinnangFireWall card=${def.id} center=${center} tile=${city.tileIndex} prop=${city.propertyId} victim=${victim.id} outcome=${outcome.kind} level=${holding?.level ?? 0} defense=${holding?.defense ?? 0}`,
     );
-    return { kind: "demolished", propertyId: h.propertyId, tileIndex: tileIndexOf(h.propertyId) };
+    if (outcome.kind !== "absorbed") {
+      // 时机·PropertyDemolished/Lost:火烧连营城损按果择一逐城派(#457 拍定挂调用侧——
+      // 单点内不派,火攻主动技路不派;absorbed=纯扣防/打空吸收,不派)
+      g.dispatchMoment(outcome.kind === "demolished" ? "PropertyDemolished" : "PropertyLost", {
+        subject: city.ownerSeat,
+        propertyId: city.propertyId,
+        tileIndex: city.tileIndex,
+      });
+    }
   }
-  const capPropId = g.board.at(victim.capitalIndex)?.propertyId;
-  const losable = victim.properties.filter((h) => h.propertyId !== capPropId);
-  if (losable.length === 0) throw new Error("demolish:目标无可失之城(目标门槛应已拦截,状态机 bug)");
-  const h = losable[Math.floor(g.dice.nextFloat() * losable.length)];
-  victim.properties.splice(victim.properties.indexOf(h), 1);
-  g.propertyChanges.push({
-    tileIndex: tileIndexOf(h.propertyId),
-    level: 0,
-    ownerColorIndex: null,
-    levelChanged: false,
-    ownerChanged: true,
-  }); // 失城=回无主(ADR-0015)
-  const lostName = g.board.at(tileIndexOf(h.propertyId)).name; // 地图一致性由 map-economy 守卫(缺城=反查单源响亮炸)
-  g.logEvent(
-    "system",
-    user.guohao,
-    `${user.guohao} ${sourceLabel}:${victim.guohao} 城防尽毁,失「${lostName}」`,
-    `${auditPrefix} victim=${victim.id} lost=${h.propertyId}`,
-  );
-  return { kind: "lost", propertyId: h.propertyId, tileIndex: tileIndexOf(h.propertyId) };
 }
 
 /** 招贤入队共享(#122/T2 自机遇 grantHero 抽取):名将已尽折现;位满改印书(#1146 单喉);

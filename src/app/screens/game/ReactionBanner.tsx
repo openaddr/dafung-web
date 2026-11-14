@@ -5,9 +5,10 @@
 // 每秒滴答音)+
 // 来者锦囊 mini 签面(#751 A6,复用 JinnangCardFace 器物语言)+ 事件文案;落印确认
 // 墨钮 / 不用 / 降噪口「本回合不再询问」(mute 移按钮行末位并与拍板钮拉开间距,
-// #751 A4 防误触)。AOE 全体域(横征暴敛等)追加选份候选笺行:点笺=定被保护份
-//(含自己),再落印确认;单目标/半路杀出免选。交互语义自持(真按钮,不自写 role);
-// 样式在 reaction-banner.css。
+// #751 A4 防误触)。按份族追加选份候选笺行:点笺=定被保护份,再落印确认——AOE 全体域
+//(横征暴敛等)份=座位(含自己);城指向域(#1389 火烧连营)份=受击城 tileIndex,笺文
+// 城名(GameScreen 装配侧解读域语义,本件只认数字+标签函数);单目标/半路杀出/反识破
+// 链环免选。交互语义自持(真按钮,不自写 role);样式在 reaction-banner.css。
 //
 // 倒计时弧与权威侧定时器同源(#284 单源收口):时长=GameScreen 传入的 view.windowMs
 //  (引擎查 core/constants 表写入、随快照走)经 fx/timings.ts scaleReactionMs 缩放,
@@ -26,13 +27,15 @@ interface ReactionBannerProps {
   cardId?: string;
   /** 倒计时总时长(ms):与权威侧定时器同源同长(view.windowMs 经 scaleReactionMs,#284)。 */
   durationMs: number;
-  /** AOE 选份候选座位集(空=免选)。 */
+  /** 按份族选份候选集(空=免选)。语义随窗公告牌的目标域:all-others=座位号
+   *  (横征暴敛等,含自己);one-city=受击城 tileIndex(火烧连营,#1389)——本件只认
+   *  数字与标签函数,域语义由 GameScreen 装配侧解读。 */
   shareSeats: number[];
   /** 已选被保护份(null=未选;shareSeats 非空时未选则落印禁用)。 */
   shareSeat: number | null;
-  onPickShare: (seat: number) => void;
-  /** 候选笺文案(座位 → 国号,GameScreen 从快照取)。 */
-  seatLabel: (seat: number) => string;
+  onPickShare: (share: number) => void;
+  /** 候选笺文案(份 → 标签,GameScreen 装配:座位份=国号,城份=城名)。 */
+  seatLabel: (share: number) => string;
   /** 落印确认可用性(选中反应锦囊且份已定)。 */
   confirmEnabled: boolean;
   onConfirm: () => void;
@@ -141,16 +144,16 @@ export function ReactionBanner({
       </span>
       {shareSeats.length > 0 && (
         <span className="reaction-shares">
-          {shareSeats.map((seat) => (
+          {shareSeats.map((share) => (
             <button
-              key={seat}
+              key={share}
               type="button"
-              data-testid={TESTIDS.reactionSeat(seat)}
-              className={"reaction-seat-chip" + (shareSeat === seat ? " picked" : "")}
-              aria-pressed={shareSeat === seat}
-              onClick={() => onPickShare(seat)}
+              data-testid={TESTIDS.reactionSeat(share)}
+              className={"reaction-seat-chip" + (shareSeat === share ? " picked" : "")}
+              aria-pressed={shareSeat === share}
+              onClick={() => onPickShare(share)}
             >
-              {seatLabel(seat)}
+              {seatLabel(share)}
             </button>
           ))}
         </span>

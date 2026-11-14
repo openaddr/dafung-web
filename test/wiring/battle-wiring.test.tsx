@@ -209,9 +209,10 @@ async function waitUnmounted(query: () => Element | null, label: string): Promis
 /** 弹层查询口:技能全览弹框经 Portal 渲染在 body,一律 document 级。 */
 const modalQ = (id: string): Element | null => q(document, id);
 
-/** 火烧连营窗种植(识破应答/不用路径/降噪口三例共用的反应窗形):userSeat=1 bot
- *  真打出形,目标=自机(0),被询问=仅自机(窗应答即本例人工链,bot 零牵涉)。 */
-function huoshaoWindow(userSeat: number): PlantOp[] {
+/** 火烧连营窗种植(识破应答/不用路径/降噪口三例共用的反应窗形):userSeat=bot 真打出
+ *  形,目标=受击城 tileIndex(城指向域,#1389——view.targetSeats 与 payload.targets 均
+ *  为城格清单),被询问=仅自机(窗应答即本例人工链,bot 零牵涉)。 */
+function huoshaoWindow(userSeat: number, cityTile: number): PlantOp[] {
   return [
     {
       kind: "armReaction",
@@ -219,13 +220,31 @@ function huoshaoWindow(userSeat: number): PlantOp[] {
         kind: "jinnang",
         cardId: "火烧连营",
         userSeat,
-        targetSeats: [0],
+        targetSeats: [cityTile],
         queriedBySeat: [0],
         windowMs: 30000,
       },
-      payload: { kind: "jinnang", userSeat, cardId: "火烧连营", targets: [0] },
+      payload: { kind: "jinnang", userSeat, cardId: "火烧连营", targets: [cityTile] },
     },
   ];
+}
+
+/** 受击城选址(接线种植地形约束):取「无主且 tileIndex<4」的首座城。上界来由:planter
+ *  armReaction 的公开面校验仍把 view.targetSeats 当座位断言(判词未随 #1389 城指向域
+ *  更新,残缺口已上报主线),城格号须 < 席位数才过得去;seed 67 落点下 tile 0=自机都城、
+ *  tile 3=座 3 都城,tile 1/2 无主,两窗有解。exclude=已入用的城(多窗不重城)。 */
+function plantableCityTile(
+  engine: GameEngine,
+  exclude: ReadonlySet<string> = new Set(),
+): { tileIndex: number; propertyId: string } {
+  const owned = new Set(engine.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
+  const tileIndex = engine.board.tiles.findIndex(
+    (t) => t.propertyId != null && !owned.has(t.propertyId) && !exclude.has(t.propertyId),
+  );
+  if (tileIndex < 0 || tileIndex >= 4)
+    throw new Error("接线测试:可种植城格缺席(择址判词=无主且 tileIndex<4,前提失真)");
+  const propertyId = engine.board.tiles[tileIndex]!.propertyId!;
+  return { tileIndex, propertyId };
 }
 
 beforeAll(async () => {
@@ -306,49 +325,75 @@ afterAll(async () => {
 });
 
 describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
-  // ── ①识破诡计反应窗应答(react-jinnang-use 例 1 迁入)──
-  // 断言面:架上金边(.reactive)→点牌选中(.sel,落印点亮)→再点取消(选中可逆)
-  // →重选落印确认→窗收+牌离手(识破消耗)+留痕(reactionRespond use=1 /
-  // reactionCounter)。识破结算(站住作废火烧,零城池牵涉)是引擎同拍真结算;窗载荷
-  // 经 armReaction 种植(判词单源 planter:反应窗由持牌+时机判定产生,凭空开窗无
-  // 公共命令);bot 手牌清形防识破链环(被询问集=持 counter 牌者,seed 67 起手随机
-  // 可能含识破诡计——giveJinnang 终态组合表达「去指定牌」,判词同 e2e #1301)。
-  it("识破诡计:架上金边→点选/再点取消→落印→窗收牌耗+留痕", () => {
-    const { el, snap } = startGame([
+  // ── ①识破诡计反应窗应答(react-jinnang-use 例 1 迁入;#1389 城指向域改走选份流程)──
+  // 断言面:架上金边(.reactive)→点牌选中(.sel)→未选份=落印禁用(城指向域确认钮
+  // 自门控,与 all-others 同形,#1389 新拍)→点城份令牌选中(aria-pressed,令牌=城名)
+  // →落印点亮→再点令牌取消(选中可逆)→重选牌+份落印确认→窗收+牌离手(识破消耗)
+  // +留痕(reactionRespond use=1 share=<城格> / reactionCounter)。识破结算(受击城免烧)
+  // 是引擎同拍真结算;窗载荷经 armReaction 种植(判词单源 planter:反应窗由持牌+时机
+  // 判定产生,凭空开窗无公共命令);bot 手牌清形防识破链环(被询问集=持 counter 牌者,
+  // seed 67 起手随机可能含识破诡计——giveJinnang 终态组合表达「去指定牌」,判词同
+  // e2e #1301)。
+  it("识破诡计:架上金边→点选/未选份禁用/选城份→落印→窗收牌耗+留痕", async () => {
+    const { el, engine, plant, snap } = startGame([
       { kind: "giveJinnang", seat: 0, cards: ["识破诡计"] },
       { kind: "giveJinnang", seat: 1, cards: [] },
       { kind: "giveJinnang", seat: 2, cards: [] },
       { kind: "giveJinnang", seat: 3, cards: [] },
-      { kind: "armPhase", activeIndex: 1 }, // bot 行动方回合内打出的窗(e2e 同形)
-      ...huoshaoWindow(1),
     ]);
+    // 受击城与窗体拍间种植(择址/窗形判词见 plantableCityTile·huoshaoWindow 头注;
+    // 城名断言查板,不落数值第二源)。识破候选=有主受击城(引擎开窗侧已滤无主/免疫,
+    // jinnang-execution shareSeats 判词)——受击城须先入自机名下,凭空无主城进窗会踩
+    // settle「受击城恒有主」断言(测试前提失真,非引擎缺口)。
+    const { tileIndex, propertyId } = plantableCityTile(engine);
+    plant({ kind: "grantProperty", seat: 0, propertyId, level: 1 });
+    plant({ kind: "armPhase", activeIndex: 1 }); // bot 行动方回合内打出的窗(e2e 同形)
+    for (const op of huoshaoWindow(1, tileIndex)) plant(op);
+    const cityName = engine.board.at(tileIndex).name;
     const banner = () => q(document, TESTIDS.reactionBanner);
     expect(banner()).not.toBeNull(); // 窗已升起(停车坪自证)
-    expect(banner()!.textContent).toContain("使用【火烧连营】");
+    expect(banner()!.textContent).toContain(`使用【火烧连营】(对 ${cityName})`); // 目标括注=城名(#1389)
     const card = () => q(el, TESTIDS.jinnangCard("识破诡计"))!;
     // 反应窗槽的呼吸金边/选中实金挂按钮本体(.reactive/.sel,HandRack 反应槽形;
     // 出牌窗槽的 .off 才在 .jinnang-card 画心,两槽形制不同勿混)
     expect(hasClass(card(), "reactive")).toBe(true);
     const confirm = () => q(document, TESTIDS.reactionConfirm)!;
     expect(confirm().hasAttribute("disabled")).toBe(true); // 未选牌落印禁用
-    // 点牌=选中(.sel)→落印点亮;再点同牌=取消→回禁用(#417 选中可逆同口径)
+    // 点牌=选中(.sel);城指向域还须选份,未选份落印仍禁用(自门控,#1389 新拍)
     click(card());
     expect(hasClass(card(), "sel")).toBe(true);
+    expect(confirm().hasAttribute("disabled")).toBe(true);
+    // 城份令牌(testid=reaction-seat-<城格>):点令牌=选中(aria-pressed)→落印点亮;
+    // 再点同令牌=取消→回禁用(#417 选中可逆同口径)
+    const chip = () => q(document, TESTIDS.reactionSeat(tileIndex))!;
+    expect(chip().textContent).toContain(cityName); // 份令牌以城名呈现
+    click(chip());
+    expect(chip().getAttribute("aria-pressed")).toBe("true");
     expect(confirm().hasAttribute("disabled")).toBe(false);
+    click(chip());
+    expect(chip().getAttribute("aria-pressed")).toBe("false");
+    expect(confirm().hasAttribute("disabled")).toBe(true);
+    // 牌取消可逆(原拍保留):再点同牌=取消→回禁用;重选后份已清,仍须重选份
     click(card());
     expect(hasClass(card(), "sel")).toBe(false);
-    expect(confirm().hasAttribute("disabled")).toBe(true);
-    // 重选 → 落印确认:窗收、牌离手、留痕双行(应答 use=1 + 识破拆招 reactionCounter)
     click(card());
+    expect(hasClass(card(), "sel")).toBe(true);
+    click(chip());
     click(confirm());
-    expect(banner()).toBeNull();
+    await waitUnmounted(banner, "落印后窗应随结算收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
     expect(snap().players[0].jinnangHand).not.toContain("识破诡计"); // 牌耗(离手)
     const log = snap()
       .log.map((l) => l.detail)
       .join("\n");
     expect(log).toContain("reactionRespond");
     expect(log).toContain("use=1");
+    expect(log).toContain(`share=${tileIndex}`); // 城份随确认链过帐(tileIndex 语义,#1389)
     expect(log).toContain("reactionCounter"); // 识破留痕(bot 零 counter 牌=链即站住)
+    // 受击城免烧:防御满值不动(Lv1 满防 4,#1386 防御值口径)
+    const holding = engine
+      .findOwner(propertyId)!
+      .properties.find((h) => h.propertyId === propertyId)!;
+    expect(holding.defense).toBe(4);
   });
 
   // ── ②不出直发(react-jinnang-use 例 2 迁入)──
@@ -521,32 +566,35 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
 });
 
 describe("反应窗应答接线(自 react-reaction 迁入,#1317 批T3)", () => {
-  // ── ⑦不用路径(react-reaction 例 3 迁入)──
-  // 断言面:点「不用」单发命令应答→窗收+use=0 留痕+火烧真结算随行(降级可失之城,
-  // 引擎同拍;城失结算细则归 test/reaction-window.test.ts)。种植:可失之城=grantProperty
-  // (火烧结算随机降 Lv>0 城,恰种一座=确定性),判词单源 planter。
-  it("不用路径:点「不用」立即应答→窗收留痕(use=0),火烧结算随行", () => {
+  // ── ⑦不用路径(react-reaction 例 3 迁入;#1389 结算改防御值制)──
+  // 断言面:点「不用」单发命令应答→窗收+use=0 留痕+火烧真结算随行(受击城=溅射中心,
+  // 恰受 1 点火焰伤害,引擎同拍;城损细则归 test/reaction-window.test.ts)。种植:受击城
+  // =grantProperty(自机名下 Lv1,择址判词见 plantableCityTile),判词单源 planter。
+  it("不用路径:点「不用」立即应答→窗收留痕(use=0),火烧结算随行", async () => {
     const { engine, plant, snap } = startGame([{ kind: "armPhase", activeIndex: 1 }]);
-    // 可失之城:自机名下恰一座 Lv1 非都城(火烧降级候选唯一=确定性)
-    const owned = new Set(engine.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
-    const tile = engine.board.tiles.find((t) => t.propertyId != null && !owned.has(t.propertyId));
-    if (tile?.propertyId == null) throw new Error("接线测试:无主城缺席(种植前提失真)");
-    plant({ kind: "grantProperty", seat: 0, propertyId: tile.propertyId, level: 1 });
-    for (const op of huoshaoWindow(1)) plant(op);
+    // 受击城:自机名下恰一座 Lv1 城(中心恰受 1 点=确定性;旧「随机降级」结算已退役)
+    const { tileIndex, propertyId } = plantableCityTile(engine);
+    plant({ kind: "grantProperty", seat: 0, propertyId, level: 1 });
+    for (const op of huoshaoWindow(1, tileIndex)) plant(op);
     expect(q(document, TESTIDS.reactionBanner)).not.toBeNull(); // 窗已升起
     click(q(document, TESTIDS.reactionDecline)!);
-    // 窗收+留痕:权威侧 use=0 应答(reactionRespond);结算随行=城降级(Lv1→0)
-    expect(q(document, TESTIDS.reactionBanner)).toBeNull();
+    // 窗收+留痕:权威侧 use=0 应答(reactionRespond);结算随行=中心受 1 点火焰伤害
+    //(Lv1 满防 4→3,等级不动)
+    await waitUnmounted(
+      () => q(document, TESTIDS.reactionBanner),
+      "不用后窗应随结算收横幅", // 窗收断言吃已卸载 null(wire3 判词)
+    );
     expect(snap().turnPhase).not.toBe("AwaitingReaction");
     const log = snap()
       .log.map((l) => l.detail)
       .join("\n");
     expect(log).toContain("reactionRespond");
     expect(log).toContain("use=0");
-    expect(
-      engine.findOwner(tile.propertyId)!.properties.find((h) => h.propertyId === tile.propertyId)!
-        .level,
-    ).toBe(0);
+    const holding = engine
+      .findOwner(propertyId)!
+      .properties.find((h) => h.propertyId === propertyId)!;
+    expect(holding.defense).toBe(3);
+    expect(holding.level).toBe(1);
   });
 
   // ── ⑧唯反应灰置(react-reaction 例 5 迁入)──
@@ -577,48 +625,57 @@ describe("反应窗应答接线(自 react-reaction 迁入,#1317 批T3)", () => {
     expect(snap().turnPhase).not.toBe("AwaitingJinnang");
   });
 
-  // ── ⑨降噪口(react-reaction 例 6 迁入)──
+  // ── ⑨降噪口(react-reaction 例 6 迁入;#1389 结算改防御值制)──
   // 断言面:第一道窗点「本回合不再询问」→当窗立即代发不用+横幅即收;同一行动者的第二
   // 道窗零人工点击被静默自动代发(应答计数 2=第二份必出自静默代发;静默状态机判词已
   // 下沉 test/reaction-mute.test.ts 纯函数);行动者变更(armPhase 换座)静默解除,第三
-  // 道窗横幅恢复弹出→点「不用」收尾。种植:每窗恰一座可失之城(火烧结算确定性)、
-  // 窗载荷 armReaction、行动者切换 armPhase(判词单源 planter)。
-  it("降噪口:当窗代发+同行动者后续窗静默代发(零点击)+换行动者复显", () => {
+  // 道窗横幅恢复弹出→点「不用」收尾。种植:每窗恰一座受击城(溅射中心恰受 1 点=确定性,
+  // 各窗即时断言本窗中心的防御落账)、窗载荷 armReaction、行动者切换 armPhase(判词
+  // 单源 planter)。
+  it("降噪口:当窗代发+同行动者后续窗静默代发(零点击)+换行动者复显", async () => {
     const { engine, plant, snap } = startGame([{ kind: "armPhase", activeIndex: 1 }]);
-    // 可失之城种植器:自机名下再添一座 Lv1 非都城(火烧每窗结算降级候选唯一)
-    const plantCity = (): string => {
-      const owned = new Set(engine.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
-      const tile = engine.board.tiles.find((t) => t.propertyId != null && !owned.has(t.propertyId));
-      if (tile?.propertyId == null) throw new Error("接线测试:无主城耗尽(三窗前提失真)");
-      plant({ kind: "grantProperty", seat: 0, propertyId: tile.propertyId, level: 1 });
-      return tile.propertyId;
+    // 受击城种植器:自机名下再添一座 Lv1 城(择址判词见 plantableCityTile;exclude=已
+    // 入用的城,多窗不重城)
+    const used = new Set<string>();
+    const plantCity = (): { tileIndex: number; propertyId: string } => {
+      const spot = plantableCityTile(engine, used);
+      used.add(spot.propertyId);
+      plant({ kind: "grantProperty", seat: 0, propertyId: spot.propertyId, level: 1 });
+      return spot;
     };
     const banner = () => q(document, TESTIDS.reactionBanner);
     const respondCount = () =>
       snap().log.filter((l) => l.detail.includes("reactionRespond")).length;
-    // 第一道窗:点降噪口=当前窗立即「不用」+本回合静默
+    const defenseOf = (pid: string): number =>
+      engine.findOwner(pid)!.properties.find((h) => h.propertyId === pid)!.defense;
+    // 第一道窗:点降噪口=当前窗立即「不用」+本回合静默(中心受 1 点:满防 4→3)
     const city1 = plantCity();
-    for (const op of huoshaoWindow(1)) plant(op);
+    for (const op of huoshaoWindow(1, city1.tileIndex)) plant(op);
     expect(banner()).not.toBeNull();
     click(q(document, TESTIDS.reactionMute)!);
-    expect(banner()).toBeNull(); // 当窗即收(立即代发+窗结算)
+    await waitUnmounted(banner, "降噪后代发应即收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
     expect(respondCount()).toBe(1);
+    expect(defenseOf(city1.propertyId)).toBe(3); // 结算随代发落地(本窗即时拍)
     // 第二道窗(同一行动者途经):零人工点击——静默期自动代发「不用」(接线=消费侧
     // useEffect 依窗实例号代发;状态机判词单源 reaction-mute.test)
     const city2 = plantCity();
-    for (const op of huoshaoWindow(1)) plant(op);
-    expect(banner()).toBeNull(); // 静默:横幅不弹
+    for (const op of huoshaoWindow(1, city2.tileIndex)) plant(op);
+    await waitUnmounted(banner, "静默期横幅不应弹出"); // 静默:横幅不弹(判词同上)
     expect(snap().turnPhase).not.toBe("AwaitingReaction"); // 自动代发后窗已收
     expect(respondCount()).toBe(2); // 两份应答、一次点击=第二份必出自静默代发
-    expect(engine.findOwner(city2)!.properties.find((h) => h.propertyId === city2)!.level).toBe(0); // 第二窗结算亦随代发落地
-    // 行动者变更:静默解除(边沿清空)——第三行动者的窗横幅恢复弹出
+    expect(defenseOf(city2.propertyId)).toBe(3); // 第二窗结算亦随代发落地(本窗即时拍)
+    // 行动者变更:静默解除(边沿清空)——第三行动者的窗横幅恢复弹出;无主 <4 城格已
+    // 耗尽(两座已入用)→ 第三城取自机都城(grantProperty upsert 只升等级,易主不发生)
     plant({ kind: "armPhase", activeIndex: 2 });
-    plantCity();
-    for (const op of huoshaoWindow(2)) plant(op);
+    const capTile = engine.players[0].capitalIndex;
+    const capPid = engine.board.tiles[capTile]!.propertyId!;
+    plant({ kind: "grantProperty", seat: 0, propertyId: capPid, level: 1 });
+    for (const op of huoshaoWindow(2, capTile)) plant(op);
     expect(banner()).not.toBeNull();
     click(q(document, TESTIDS.reactionDecline)!); // 收尾放行,不留悬窗
-    expect(banner()).toBeNull();
+    await waitUnmounted(banner, "收尾放行后窗应收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
     expect(respondCount()).toBe(3);
-    expect(city1).not.toEqual(city2); // 三窗三城自证(种植器选址无重复)
+    expect(defenseOf(capPid)).toBe(3); // 第三窗结算落地(本窗即时拍)
+    expect(city1.propertyId).not.toEqual(city2.propertyId); // 三窗不重城自证(选址器 exclude)
   });
 });

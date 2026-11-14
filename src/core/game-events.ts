@@ -235,8 +235,7 @@ export interface SkillFiredBody {
   skillId: string;
   moment: GameMoment;
 }
-/** 名将主动技发动(#384,#188 档 3 三类;#1388 T2 火攻定向化后 kind=fireBlast/relief/warDrum,
- *  旧 demolish 随机降级形退役);
+/** 名将主动技发动(#384,#188 档 3 三类;#1388 T2 火攻定向化定形 kind=fireBlast/relief/warDrum);
  *  seat=发动者,heroId=属主槽定位(#785 槽位化:冷却账内嵌槽,折叠按 heroId 定槽记账,
  *  同名技多槽不串账);费用/加成等技参数由技表 skills.ts 按 skillId 现查。
  *  判别联合(#1388 T2,零兜底:漏传目标在类型层面不可表达,#585 口径)——
@@ -371,7 +370,8 @@ export interface DuelResolvedBody {
   bRoll: number;
   winnerSeat: number | null;
 }
-/** 识破生效(锦囊被拆:shareSeat=被保住的份(AOE 按份拆),缺省=整计作废/落空)。 */
+/** 识破生效(锦囊被拆:shareSeat=被保住的份——AOE=座位、火烧连营城指向域(#1389)=
+ *  受击城 tileIndex,缺省=整计作废/落空)。 */
 export interface JinnangVoidedBody {
   kind: "jinnangVoided";
   cardId: string;

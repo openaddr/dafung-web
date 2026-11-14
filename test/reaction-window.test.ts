@@ -11,7 +11,7 @@ import { HEROES } from "@core/heroes";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import { botReactionDecision } from "@core/bot";
 import { armHero } from "@core/testing";
-import { placePlayer } from "@core/planter";
+import { grantProperty, placePlayer } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
@@ -148,33 +148,46 @@ describe("反应窗配置表(#281/constants)", () => {
 });
 
 describe("识破诡计(JinnangAnnounced 反应窗)", () => {
-  it("识破自保生效:火烧连营指定→识破→计对这份失效(目标城防原样,双牌皆耗)", () => {
-    const e = prepared();
+  /** 火烧连营打向 victim 都城的布场(#1389 城指向):都城 Lv2(满防 3),前方 1、2 格
+   *  清成无主(份清单=受击城=[都城格],断言面单一份不掺邻城)。 */
+  function burnCapitalUp(seed = 42) {
+    const e = prepared(seed);
     const user = e.activePlayer;
     const userSeat = e.players.indexOf(user);
     const victimSeat = userSeat === 0 ? 1 : 0;
     const victim = e.players[victimSeat];
-    armUser(e, userSeat, ["火烧连营"]);
-    setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
+    for (const off of [1, 2]) {
+      const t = e.board.at((victim.capitalIndex + off) % e.board.count);
+      for (const p of e.players)
+        p.properties = p.properties.filter((h) => h.propertyId !== t.propertyId);
+    }
+    return { e, user, userSeat, victimSeat, victim, capTile: victim.capitalIndex };
+  }
+
+  it("识破自保生效:火烧连营指定城→识破免单城→该城完全不受此次伤害(城防原样,双牌皆耗)", () => {
+    const { e, user, userSeat, victimSeat, victim, capTile } = burnCapitalUp();
+    armUser(e, userSeat, ["火烧连营"]);
+    setHand(e, victimSeat, ["识破诡计"]);
     e.resolveJinnang("火烧连营"); // 入目标段
-    e.resolveJinnang("火烧连营", [victimSeat]); // 宣布 → 反应窗挂起
+    e.resolveJinnang("火烧连营", [capTile]); // 城指向:提交目标城 tileIndex(#1389)
     expect(e.turnPhase).toBe("AwaitingReaction");
     expect(e.pendingReaction?.view).toEqual({
       kind: "jinnang",
       cardId: "火烧连营",
       userSeat,
-      targetSeats: [victimSeat],
+      targetSeats: [capTile], // 份清单=受击城 tileIndex(一份=一座受击城,#1389)
       queriedBySeat: [victimSeat],
       windowMs: REACTION_WINDOW_MS.JinnangAnnounced, // #284:开窗时长随 view 走
     });
     expect(e.pendingReaction!.seq).toBeGreaterThan(0); // #284:窗实例号单调分配
     expect(victim.properties[0].level).toBe(2); // 挂起中未结算
-    e.respondReaction(victimSeat, true, "识破诡计", victimSeat);
-    // 结算:识破生效,这份失效
+    e.respondReaction(victimSeat, true, "识破诡计", capTile); // 免单城:被保护份=城格
+    // 结算:识破生效,这一城免烧(完全不受此次伤害,含溅射账)
     expect(e.pendingReaction).toBeNull();
     expect(victim.properties[0].level).toBe(2); // 城防原样
+    expect(victim.properties[0].defense).toBe(3);
     expect(user.jinnangHand).toEqual([]); // 火烧连营已耗(识破只护份,不退牌)
     expect(victim.jinnangHand).toEqual([]); // 识破诡计已耗
     expect(e.jinnangDiscard).toContain("火烧连营");
@@ -183,22 +196,53 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     expect(e.log.some((l) => l.detail.includes("reactionCounter"))).toBe(true);
   });
 
-  it("不用/无人识破:锦囊照常结算(城防被降)", () => {
-    const e = prepared();
-    const user = e.activePlayer;
-    const userSeat = e.players.indexOf(user);
-    const victimSeat = userSeat === 0 ? 1 : 0;
-    const victim = e.players[victimSeat];
-    armUser(e, userSeat, ["火烧连营"]);
+  it("不用/无人识破:锦囊照常结算(火焰伤害扣防,等级不动)", () => {
+    const { e, victimSeat, victim, capTile } = burnCapitalUp();
+    armUser(e, e.players.indexOf(e.activePlayer), ["火烧连营"]);
     setHand(e, victimSeat, ["识破诡计"]);
-    const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
     e.resolveJinnang("火烧连营");
-    e.resolveJinnang("火烧连营", [victimSeat]);
+    e.resolveJinnang("火烧连营", [capTile]);
     e.respondReaction(victimSeat, false); // 不用(超时代发的同款命令)
-    expect(victim.properties[0].level).toBe(1); // 照常结算
+    expect(victim.properties[0].defense).toBe(2); // 照常结算:1 点火焰伤害扣防
+    expect(victim.properties[0].level).toBe(2); // 防御未归零,等级不动
     expect(victim.jinnangHand).toEqual(["识破诡计"]); // 没用牌,仍在手
     expect(e.turnPhase).toBe("Roll");
+  });
+
+  it("识破拆份(#1389):免一城、余两城照烧;识破份错(非受击城)被拒", () => {
+    const e = prepared(42, SEATS3);
+    const user = e.activePlayer;
+    const userSeat = e.players.indexOf(user);
+    const others = [0, 1, 2].filter((i) => i !== userSeat);
+    const [victimSeat, holderSeat] = others;
+    const victim = e.players[victimSeat];
+    const capId = e.board.at(victim.capitalIndex)?.propertyId;
+    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
+    // 中心=受害者都城;前方 1 格=holder 的城(第二份受击城);前方 2 格清成无主
+    const at = (off: number) => e.board.at((victim.capitalIndex + off) % e.board.count);
+    const sideTile = at(1);
+    const farTile = at(2);
+    for (const p of e.players)
+      p.properties = p.properties.filter(
+        (h) => h.propertyId !== sideTile.propertyId && h.propertyId !== farTile.propertyId,
+      );
+    grantProperty(e, holderSeat, sideTile.propertyId!, 2); // 满防 3
+    setHand(e, holderSeat, ["识破诡计"]);
+    armUser(e, userSeat, ["火烧连营"]);
+    e.resolveJinnang("火烧连营");
+    e.resolveJinnang("火烧连营", [victim.capitalIndex]);
+    expect(jinnangView(e).targetSeats.sort()).toEqual([victim.capitalIndex, sideTile.index].sort());
+    // 份错:非受击城的 tileIndex 拒绝(不占应答名额)
+    e.respondReaction(holderSeat, true, "识破诡计", farTile.index);
+    expect(e.pendingReaction!.answers).toEqual([]);
+    // 免一城(side 城),余一城(都城)照烧
+    e.respondReaction(holderSeat, true, "识破诡计", sideTile.index);
+    expect(e.pendingReaction).toBeNull();
+    expect(
+      e.players[holderSeat].properties.find((h) => h.propertyId === sideTile.propertyId)!.defense,
+    ).toBe(3); // 免烧
+    expect(victim.properties[0].defense).toBe(2); // 照烧:扣防
+    expect(e.log.some((l) => l.detail.includes(`share=tile#${sideTile.index}`))).toBe(true);
   });
 
   it("AOE 按份拆(多持牌者各拆各份):横征暴敛各持牌者各保一份,征不到银", () => {
@@ -280,7 +324,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     expect(e.turnPhase).toBe("Roll");
   });
 
-  it("respondReaction 越权/重复/错牌拒绝,不占应答名额;挂起态随快照往返并续答收窗", () => {
+  it("respondReaction 越权/重复/错牌/份错拒绝,不占应答名额;挂起态随快照往返并续答收窗", () => {
     const e = prepared(42, SEATS3);
     const user = e.activePlayer;
     const userSeat = e.players.indexOf(user);
@@ -293,15 +337,18 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     e.players[x].properties = [
       { propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
     ];
+    const capTile = e.players[x].capitalIndex;
     e.resolveJinnang("火烧连营");
-    e.resolveJinnang("火烧连营", [x]); // 双持牌者同窗:queried=[x,y]
+    e.resolveJinnang("火烧连营", [capTile]); // 城指向:中心=x 都城(#1389);双持牌者同窗:queried=[x,y]
     expect(e.turnPhase).toBe("AwaitingReaction");
     expect(e.pendingReaction!.answers).toEqual([]);
-    e.respondReaction(userSeat, true, "识破诡计", x); // 越权:使用者非被询问者
+    e.respondReaction(userSeat, true, "识破诡计", capTile); // 越权:使用者非被询问者
     expect(e.pendingReaction!.answers).toEqual([]);
     e.respondReaction(x, true, "火烧连营"); // 错牌:非反应牌
     expect(e.pendingReaction!.answers).toEqual([]);
-    e.respondReaction(x, true, "识破诡计", x); // x 生效应答
+    e.respondReaction(x, true, "识破诡计", userSeat); // 份错:座位号非受击城格(城指向域份=城)
+    expect(e.pendingReaction!.answers).toEqual([]);
+    e.respondReaction(x, true, "识破诡计", capTile); // x 生效应答(免 x 都城这一城)
     expect(e.pendingReaction!.answers.length).toBe(1);
     e.respondReaction(x, false); // 重复应答:拒绝
     expect(e.pendingReaction!.answers.length).toBe(1);
@@ -313,9 +360,10 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     expect(e2.turnPhase).toBe("AwaitingReaction");
     expect(e2.pendingReaction).toEqual(e.pendingReaction);
     expect(e2.snapshot().reaction).toEqual(snap.reaction);
-    // 恢复端续答收窗:x 的识破进反识破链环(#571),y 持被顶替收回的第二张被询问;
-    // y 先用(W2 生效=救计,x 的识破作废)再反悔路径不测——此处走不用:x 站住,城防原样
-    e2.respondReaction(y, true, "识破诡计", x);
+    // 恢复端续答收窗:y 也拆同一城份(被 x 座位序占住→原样退回),x 的识破进反识破链环
+    // (#571),y 持收回的第二张被询问;y 先用(W2 生效=救计,x 的识破作废)再反悔路径
+    // 不测——此处走不用:x 站住,城防原样
+    e2.respondReaction(y, true, "识破诡计", capTile);
     expect(e2.turnPhase).toBe("AwaitingReaction"); // #571:链环窗挂起(询问 y)
     expect(e2.pendingReaction?.view.kind === "jinnang" && e2.pendingReaction.view.cardId).toBe(
       "识破诡计",
@@ -323,6 +371,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     e2.respondReaction(y, false);
     expect(e2.pendingReaction).toBeNull();
     expect(e2.players[x].properties[0].level).toBe(2);
+    expect(e2.players[x].properties[0].defense).toBe(3); // 识破站住:这一城免烧
   });
 });
 
@@ -477,7 +526,7 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
     expect(e.jinnangDiscard).toContain("识破诡计");
   });
 
-  it("bot 不替他人拆招:锦囊指定别人,bot 持识破也不用(照常结算)", () => {
+  it("bot 不替他人拆招:火烧指定的城在别人头上,bot 持识破也不用(照常结算)", () => {
     const e = prepared(42, [
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: false, guohao: "蜀" },
@@ -489,15 +538,19 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
     const [victimSeat, botSeat] = others; // 人类受害者 + bot 持牌者
     armUser(e, userSeat, ["火烧连营"]);
     setHand(e, botSeat, ["识破诡计"]);
-    const capId = e.board.at(e.players[victimSeat].capitalIndex)?.propertyId;
-    e.players[victimSeat].properties = [
-      { propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
-    ];
+    const victim = e.players[victimSeat];
+    const capId = e.board.at(victim.capitalIndex)?.propertyId;
+    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
+    for (const off of [1, 2]) {
+      const t = e.board.at((victim.capitalIndex + off) % e.board.count);
+      for (const p of e.players)
+        p.properties = p.properties.filter((h) => h.propertyId !== t.propertyId);
+    }
     e.resolveJinnang("火烧连营");
-    e.resolveJinnang("火烧连营", [victimSeat]);
-    // bot 即席「不用」:窗收掉,火烧照常结算
+    e.resolveJinnang("火烧连营", [victim.capitalIndex]); // 城指向:中心=受害者都城(#1389)
+    // bot 即席「不用」:窗收掉,火烧照常结算(份=受害者都城,与 bot 无涉)
     expect(e.pendingReaction).toBeNull();
-    expect(e.players[victimSeat].properties[0].level).toBe(1);
+    expect(victim.properties[0].defense).toBe(2); // 1 点火焰伤害扣防
     expect(e.players[botSeat].jinnangHand).toEqual(["识破诡计"]); // bot 不替他人拆招
   });
 
@@ -602,10 +655,31 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     setHand(e, 1, ["识破诡计"]);
     e.players[1].cash = 500;
     expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "识破诡计", shareSeat: 1 });
-    // 不落自己头上的份:不拆
+    // 城指向域(#1389):份=受击城——份城不在我名下不拆;我名下受击城择估损最高一城护
     const e2 = armCounterWindow(SEATS3, { cardId: "火烧连营", userSeat: 0, targetSeats: [2] });
+    const tile2 = e2.board.at(2).propertyId!;
+    for (const p of e2.players) p.properties = p.properties.filter((h) => h.propertyId !== tile2);
+    grantProperty(e2, 2, tile2, 1); // 份城归 seat2:seat1 无涉 → 不拆
     setHand(e2, 1, ["识破诡计"]);
     expect(botReactionDecision(e2, 1)).toEqual({ use: false });
+    const freeTile = e2.board.tiles.find(
+      (t) => t.propertyId && t.index !== 2 && e2.findOwner(t.propertyId) == null,
+    )!;
+    for (const p of e2.players)
+      p.properties = p.properties.filter((h) => h.propertyId !== freeTile.propertyId);
+    grantProperty(e2, 1, freeTile.propertyId!, 2); // 我名下 Lv2 城(降级价差 > 底价 100)
+    const e3 = armCounterWindow(SEATS3, {
+      cardId: "火烧连营",
+      userSeat: 0,
+      targetSeats: [freeTile.index],
+    });
+    grantProperty(e3, 1, freeTile.propertyId!, 2);
+    setHand(e3, 1, ["识破诡计"]);
+    expect(botReactionDecision(e3, 1)).toEqual({
+      use: true,
+      cardId: "识破诡计",
+      shareSeat: freeTile.index,
+    });
   });
 
   it("净值贪心:无损失/低损失不拆(军情密探情报无用)", () => {
@@ -651,7 +725,7 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
 
 // ── 反识破链(识破可被识破,#571/ADR-0060)───────────────────────────────────
 describe("反识破链(#571/ADR-0060)", () => {
-  /** 火烧连营打向 victim、victim 识破自保进链环的双窗布场,返回引擎与座位。 */
+  /** 火烧连营打向 victim 都城、victim 识破免此城进链环的双窗布场,返回引擎与座位。 */
   function burnWithCounter(seed = 42) {
     const e = prepared(seed);
     const user = e.activePlayer;
@@ -662,10 +736,15 @@ describe("反识破链(#571/ADR-0060)", () => {
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
+    for (const off of [1, 2]) {
+      const t = e.board.at((victim.capitalIndex + off) % e.board.count);
+      for (const p of e.players)
+        p.properties = p.properties.filter((h) => h.propertyId !== t.propertyId);
+    }
     e.resolveJinnang("火烧连营");
-    e.resolveJinnang("火烧连营", [victimSeat]); // 根窗挂起
-    e.respondReaction(victimSeat, true, "识破诡计", victimSeat); // victim 拆 → 链环窗挂起
-    return { e, userSeat, victimSeat, victim };
+    e.resolveJinnang("火烧连营", [victim.capitalIndex]); // 城指向:中心=都城(#1389),根窗挂起
+    e.respondReaction(victimSeat, true, "识破诡计", victim.capitalIndex); // victim 拆 → 链环窗挂起
+    return { e, userSeat, victimSeat, victim, capTile: victim.capitalIndex };
   }
 
   it("救计:原使用者反识破→计恢复照常结算,三牌皆耗、被反识破不回手", () => {
@@ -676,7 +755,7 @@ describe("反识破链(#571/ADR-0060)", () => {
     expect(e.players[victimSeat].jinnangHand).toEqual([]); // 宣布环已扣账
     e.respondReaction(userSeat, true, "识破诡计"); // 救计(链环应答不带份)
     expect(e.pendingReaction).toBeNull(); // victim 空手无人可反:站住(protects=false)→ 计恢复
-    expect(victim.properties[0].level).toBe(1); // 火烧照常结算
+    expect(victim.properties[0].defense).toBe(2); // 火烧照常结算:1 点火焰伤害扣防
     expect(e.players[userSeat].jinnangHand).toEqual([]); // 火烧+救计识破皆耗
     expect(e.players[victimSeat].jinnangHand).toEqual([]); // 被反识破也不回手
     expect(e.jinnangDiscard.filter((c) => c === "识破诡计").length).toBe(2);
@@ -691,7 +770,7 @@ describe("反识破链(#571/ADR-0060)", () => {
     expect(e2.pendingReaction).toEqual(e.pendingReaction); // counter 载荷随挂起态往返
     e2.respondReaction(userSeat, true, "识破诡计");
     expect(e2.pendingReaction).toBeNull();
-    expect(e2.players[victimSeat].properties[0].level).toBe(1); // 恢复端结算落到恢复引擎的对象上
+    expect(e2.players[victimSeat].properties[0].defense).toBe(2); // 恢复端结算落到恢复引擎的对象上
   });
 
   it("AOE 护招被拆:第三者反识破拆掉保护→该份恢复受击,两牌皆耗", () => {

@@ -355,7 +355,7 @@ export function grantProperty(
 }
 
 /** 【判词(setDefense 一处,#1387)】种防御值=裸写形:生产防御值只经等级变动重置满值
- *  (resetToFull 挂点:购入/建都/赐城/扩军/公道买卖升级/破产转移/旧 demolish 降级)
+ *  (resetToFull 挂点:购入/建都/赐城/扩军/公道买卖升级/破产转移/火焰伤害降级)
  *  与火焰伤害结算(applyFireDamage)变动,平时不回复——「直接摆到指定受损/满溢态」
  *  无生产流程,走真通路需耗点数伤害且过目标门,断言面前置不可控,直写是唯一通路。
  *  未持有城当场炸(无主城不存在防御值);数值不校验(负值/超满值是测试作者的场景
@@ -525,7 +525,16 @@ export function armReaction(e: GameEngine, view: ReactionView, payload: Reaction
   const seats = (s: number[]) => s.forEach((x) => assertSeat("armReaction", e, x));
   if (view.kind === "jinnang") {
     assertSeat("armReaction", e, view.userSeat);
-    seats(view.targetSeats);
+    if (jinnangCardOf(view.cardId).targetDomain === "one-city") {
+      // 城指向域(#1389):targetSeats=可拆份的受击城 tileIndex 清单,走棋盘界校验;
+      // 份归属(受击城恒有主)归被测环真命令链自有断言,此处不代查。
+      view.targetSeats.forEach((x) => {
+        if (!Number.isInteger(x) || x < 0 || x >= e.board.count)
+          throw new Error(`armReaction:城份格越界(${x})`);
+      });
+    } else {
+      seats(view.targetSeats);
+    }
     seats(view.queriedBySeat);
   } else {
     assertSeat("armReaction", e, view.userSeat);
