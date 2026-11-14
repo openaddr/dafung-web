@@ -17,6 +17,7 @@ import { SelectableFaceButton } from "@app/components/card/SelectableFaceButton"
 import { PileShell } from "@app/screens/game/PileModal";
 import { CARD_WALL_BASE_PX } from "./card-wall";
 import { MANUAL_TID } from "./testids";
+import { isTreasureWallPrototype, TreasureWallPrototype } from "./TreasureWallPrototype";
 
 /** 陈列序:level 升序(同级保持目录序;sort 稳定,模块级只排一次)。 */
 const TREASURE_ROWS = [...TREASURES].sort((a, b) => a.level - b.level);
@@ -65,28 +66,32 @@ export default function ManualTreasuresTab() {
   const detail = detailId != null ? TREASURE_ROWS.find((t) => t.id === detailId) : null;
   return (
     <>
-      <div className="flex flex-wrap justify-center gap-3.5">
-        {TREASURE_ROWS.map((t) => {
-          const image = treasureImagePath(t.id);
-          return (
-            <SelectableFaceButton
-              key={t.id}
-              data-testid={MANUAL_TID.card(t.id)}
-              title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}`}
-              onClick={() => setDetailId(t.id)}
-              style={{ fontSize: `${CARD_WALL_BASE_PX}px` }}
-              className="text-left"
-            >
-              <TreasureCardFace
-                name={t.name}
-                level={t.level}
-                desc={t.desc}
-                art={image != null ? <img src={image} alt="" /> : undefined}
-              />
-            </SelectableFaceButton>
-          );
-        })}
-      </div>
+      {isTreasureWallPrototype() ? (
+        <TreasureWallPrototype rows={TREASURE_ROWS} onInspect={setDetailId} />
+      ) : (
+        <div className="flex flex-wrap justify-center gap-3.5">
+          {TREASURE_ROWS.map((t) => {
+            const image = treasureImagePath(t.id);
+            return (
+              <SelectableFaceButton
+                key={t.id}
+                data-testid={MANUAL_TID.card(t.id)}
+                title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}`}
+                onClick={() => setDetailId(t.id)}
+                style={{ fontSize: `${CARD_WALL_BASE_PX}px` }}
+                className="text-left"
+              >
+                <TreasureCardFace
+                  name={t.name}
+                  level={t.level}
+                  desc={t.desc}
+                  art={image != null ? <img src={image} alt="" /> : undefined}
+                />
+              </SelectableFaceButton>
+            );
+          })}
+        </div>
+      )}
       {detail != null && (
         <PileShell
           title={detail.name}

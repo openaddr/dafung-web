@@ -1,0 +1,256 @@
+/* 原型 #1399，仅供三案比较，颜色与字体全部消费现役单源。 */
+.treasure-wall-prototype {
+  color: var(--color-paper);
+  font-family: var(--font-wenkai);
+}
+.treasure-wall-prototype button {
+  cursor: pointer;
+}
+.twp-wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 14px 12px;
+  padding: 2px 12px 12px 0;
+}
+.twp-card-button {
+  justify-self: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+}
+.twp-card-button:hover {
+  box-shadow: 0 0 0 2px var(--color-gold);
+}
+.twp-cabinet {
+  display: grid;
+  grid-template-columns: 202px minmax(0, 1fr);
+  height: 194px;
+  gap: 24px;
+}
+.twp-index {
+  min-height: 0;
+  padding-right: 12px;
+  border-right: 1px solid color-mix(in srgb, var(--color-gold) 25%, transparent);
+}
+.twp-index-row {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-bottom-color: color-mix(in srgb, var(--color-paper) 12%, transparent);
+  background: transparent;
+  color: var(--color-paper-dim);
+  font-family: var(--font-brush);
+  font-size: 16px;
+  text-align: left;
+}
+.twp-index-row.chosen {
+  border-color: var(--color-gold);
+  background: color-mix(in srgb, var(--color-gold) 10%, transparent);
+  color: var(--color-paper);
+}
+.twp-index-row small {
+  font-family: var(--font-wenkai);
+  font-size: 13px;
+  color: var(--color-gold);
+}
+.twp-reading {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 144px minmax(0, 1fr);
+  gap: 22px;
+  padding: 3px 16px 4px 0;
+}
+.twp-reading-art,
+.twp-ledger-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--color-gold-deep);
+  background: var(--color-bg-deep);
+}
+.twp-reading-art {
+  height: 182px;
+  padding: 6px;
+  box-shadow: inset 0 0 0 3px var(--color-panel);
+}
+.twp-reading-art img,
+.twp-ledger-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.twp-reading-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.twp-grade {
+  color: var(--color-gold);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+.twp-reading h3 {
+  margin: 4px 0 12px;
+  font-family: var(--font-brush);
+  font-size: 27px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+}
+.twp-reading p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-paper-dim);
+}
+.twp-reading-price {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 12px;
+  color: var(--color-paper-dim);
+}
+.twp-reading-price strong,
+.twp-ledger-value strong {
+  color: var(--color-money);
+  font-size: 20px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.twp-inspect {
+  align-self: flex-end;
+  min-height: 40px;
+  margin-top: -35px;
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 45%, transparent);
+  border-radius: 3px;
+  background: var(--color-lacquer);
+  color: var(--color-lacquer-gold);
+  font-family: var(--font-brush);
+  font-size: 16px;
+}
+.twp-art-empty {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--color-paper-dim);
+}
+.twp-art-empty span {
+  padding: 10px;
+  border: 2px solid var(--color-danger);
+  font-family: var(--font-title);
+  font-size: 25px;
+  transform: rotate(-8deg);
+}
+.twp-ledger {
+  padding: 0 16px 10px 0;
+}
+.twp-ledger-row {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) 116px;
+  width: 100%;
+  gap: 20px;
+  align-items: center;
+  padding: 10px 8px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-gold) 26%, transparent);
+  background: transparent;
+  color: var(--color-paper);
+  text-align: left;
+}
+.twp-ledger-row:hover {
+  background: color-mix(in srgb, var(--color-gold) 7%, transparent);
+}
+.twp-ledger-art {
+  width: 68px;
+  height: 68px;
+  padding: 3px;
+}
+.twp-ledger-copy {
+  min-width: 0;
+}
+.twp-ledger-copy h3 {
+  margin: 0 0 5px;
+  font-family: var(--font-brush);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+.twp-ledger-copy p {
+  margin: 0;
+  color: var(--color-paper-dim);
+  font-family: var(--font-wenkai);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.twp-ledger-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  color: var(--color-paper-dim);
+}
+.treasure-prototype-switcher {
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  transform: translateX(-50%);
+  border: 1px solid var(--color-seal-qing);
+  border-radius: 5px;
+  background: var(--color-bg-deep);
+  color: var(--color-paper);
+  box-shadow: var(--ink-shadow-sm);
+}
+.treasure-prototype-switcher button {
+  position: relative;
+  display: grid;
+  min-width: 44px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-seal-qing);
+}
+.treasure-prototype-switcher button::after {
+  position: absolute;
+  inset: -4px 0;
+  content: "";
+}
+.treasure-prototype-switcher > div {
+  display: flex;
+  min-width: 285px;
+  align-items: baseline;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 6px;
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.treasure-prototype-switcher small {
+  font-size: 10px;
+  color: var(--color-paper-dim);
+}
+.treasure-wall-prototype button:focus-visible,
+.treasure-prototype-switcher button:focus-visible {
+  outline: 2px solid var(--color-gold-bright);
+  outline-offset: 2px;
+}
