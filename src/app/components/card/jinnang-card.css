@@ -443,9 +443,12 @@
    off=不可用下沉置灰,原因印条由消费方以 .reason 子元素提供(出现时笺脚让位)。
    名将卡面 .hface(#360)同挂此套状态语言——牌面层交互态单源仍在本文件,
    卡面形制(纸面/章/技能区)各归各的组件样式 ── */
+:root {
+  --card-selected-scale: 1.6;
+}
 .jinnang-card.sel,
 .hface.sel {
-  transform: translateY(-1.2em) scale(1.6);
+  transform: translateY(-1.2em) scale(var(--card-selected-scale));
   transform-origin: center bottom;
   outline: 0.3em solid var(--color-gold);
   outline-offset: 0.12em;

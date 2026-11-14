@@ -19,7 +19,13 @@ import { E2E_DEBUG_BRIDGE_KEY } from "../../src/app/fx/timings";
 // op 联合 type-import(#1298):种植指令字段编译期校验单源=core/planter(桥内转发到
 // 同一份实现,三层共用);只引类型,零运行时依赖。
 import type { PlantOp } from "../../src/core/planter";
+import type { PresentationEvent } from "../../src/app/fx/presentation";
 import { waitFxIdle } from "./settle";
+
+/** 表现态入口(#1418):仅转发既有播放器;帧与定时器控制由几何 spec 自持。 */
+export function playPresentation(page: Page, events: PresentationEvent[]): Promise<void> {
+  return page.evaluate((batch) => window.__dafung!.playPresentation(batch), events);
+}
 
 /** 联机 spec 的裸 browser context 需自带调试桥键:双门禁(2026-09-25)下生产构建
  *  无键不注册 window.__dafung,而 fixtures 的注入只覆盖 fixture page——raw context

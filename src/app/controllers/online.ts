@@ -14,9 +14,14 @@ import type { GameCommand } from "@core/authority";
 import { loadMapById } from "@core/map-source";
 import { FetchMapSource } from "@app/map-sources";
 import { setEngine, useGameStore, type GameSnapshotCore } from "@app/store/gameStore";
-import { myAutoPilotOn, useNetStore, type NetRoomFields } from "@app/store/netStore";
+import {
+  myAutoPilotOn,
+  useNetStore,
+  type NetConnection,
+  type NetRoomFields,
+} from "@app/store/netStore";
 import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
-import { ReconnectingSocket } from "@app/net/reconnecting-socket";
+import { ReconnectingSocket, type ReconnectingSocketOptions } from "@app/net/reconnecting-socket";
 import { stashEventBatch } from "@app/net/event-feed";
 // wire 协议编解码单源(#429):下行消息类型(ServerMsg)与上行编码从这里 import——
 // 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
@@ -32,6 +37,10 @@ export class OnlineController extends GameController {
   private _engine: GameEngine; // 只读:每次 snapshot 用 restoreFromSnapshot 重 hydrate
   private readonly api: LobbyApi;
   private sock: ReconnectingSocket | null = null;
+  /** 实例权威状态,netStore.connection 只是供 UI 订阅的投影。 */
+  private connectionStatus: NetConnection = "idle";
+  /** destroy 是实例生命终点;异步回包不能把已离开的会话重新入座。 */
+  private ended = false;
   private roomId: string | null = null;
   private seatToken: string | null = null;
   /** 当前占位引擎对应的地图 id(换图守卫:同图不重建)。 */
@@ -55,7 +64,11 @@ export class OnlineController extends GameController {
   /** 托管能力:联机支持(服务器 bot 代打;单机不支持)。 */
   override readonly autopilotSupported = true;
 
-  constructor(map: LoadedMap, mapId?: string | null) {
+  constructor(
+    map: LoadedMap,
+    mapId?: string | null,
+    private readonly socketOptions: Omit<ReconnectingSocketOptions, "url"> = {},
+  ) {
     super();
     // LobbyApi 自取 server-base 单源(#279):地址在调用时读取,大厅改址即时生效
     this.api = new LobbyApi();
@@ -72,6 +85,19 @@ export class OnlineController extends GameController {
   }
   get viewSeat(): number {
     return this.seat;
+  }
+  /** 当前连接已用权威摘要(未开局时为 lobby)完成校准。 */
+  get sessionReady(): boolean {
+    return this.connectionStatus === "open";
+  }
+
+  protected override canAct(): boolean {
+    return this.sessionReady && super.canAct();
+  }
+
+  private setConnectionStatus(status: NetConnection): void {
+    this.connectionStatus = status;
+    useNetStore.getState().setConnection(status);
   }
   /** 我的座位托管中(netStore seats 广播回读,公式单源 myAutoPilotOn)。 */
   get autoPilotOn(): boolean {
@@ -109,7 +135,7 @@ export class OnlineController extends GameController {
 
   /** 自助托管(spec: autopilot):发 WS 消息,生效状态从 seats 广播回读(无乐观更新)。 */
   override setAutoPilot(on: boolean): void {
-    if (!this.sock?.isOpen) {
+    if (!this.sessionReady || !this.sock?.isOpen) {
       useGameStore.getState().pushHint("连接未就绪");
       return;
     }
@@ -120,6 +146,7 @@ export class OnlineController extends GameController {
    *  在服务器(room.pickCapital),生效靠广播快照(候选滚换/推进/进 Playing)。
    *  与 dispatchCommand 同用 pending 防连点;托管中不发(服务器 bot 代选)。 */
   override setupPickCapital(tileIndex: number): void {
+    if (!this.sessionReady) return;
     const e = this._engine;
     if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") return;
     if (e.currentSetupPlayerIndex !== this.seat) return;
@@ -141,15 +168,19 @@ export class OnlineController extends GameController {
     target?: number;
     guohao?: string;
   }): Promise<RoomJoinReply> {
+    this.requireLiveSession();
     const reply = await this.api.createRoom(opts);
-    await this.adoptRoom(reply);
+    this.requireLiveSession();
+    this.adoptRoom(reply);
     return reply;
   }
 
   /** 按房间码加入并连接。guohao=预设国号(重名时开局由服务器加方位前缀)。 */
   async joinRoom(roomId: string, guohao?: string): Promise<RoomJoinReply> {
+    this.requireLiveSession();
     const reply = await this.api.joinRoom(roomId, guohao);
-    await this.adoptRoom(reply);
+    this.requireLiveSession();
+    this.adoptRoom(reply);
     return reply;
   }
 
@@ -166,7 +197,7 @@ export class OnlineController extends GameController {
   }
 
   /** 从已收窄的入座回包取凭证并建立 WS;房间字段灌 netStore(大厅屏初渲染)。 */
-  private async adoptRoom(reply: RoomJoinReply): Promise<void> {
+  private adoptRoom(reply: RoomJoinReply): void {
     this.roomId = reply.roomId;
     this.seat = reply.seat;
     this.seatToken = reply.seatToken;
@@ -174,6 +205,10 @@ export class OnlineController extends GameController {
     useNetStore.getState().setMySeat(this.seat);
     useGameStore.getState().setViewSeat(this.seat);
     this.connect();
+  }
+
+  private requireLiveSession(): void {
+    if (this.ended) throw new Error("联机会话已结束");
   }
 
   /** REST 回包 / 广播里的房间字段 → netStore(lobby 与 snapshot 消息字段同构)。 */
@@ -191,31 +226,64 @@ export class OnlineController extends GameController {
   /** 建立带自动重连的 WS(重连沿用原 seatToken 重升级——ADR-0002:token 夺回座位,
    *  重连成功后首帧 snapshot 照常 hydrate,与正常入座同路径)。 */
   private connect(): void {
+    this.requireLiveSession();
     if (!this.roomId || this.seat < 0 || !this.seatToken) return;
+    this.rebuildSeq++;
+    // 先断开身份,再终止旧 socket/退避链:已捕获的旧订阅也无法再写当前状态。
+    const previous = this.sock;
+    this.sock = null;
+    previous?.close();
+    this.fx.dropStalledBatch();
+    this.setConnectionStatus("connecting");
+    this.sync();
     const sock = new ReconnectingSocket({
+      ...this.socketOptions,
       url: this.api.wsUrl({ roomId: this.roomId, seatToken: this.seatToken }, this.seat),
     });
     this.sock = sock;
     sock.onStatus((s) => {
-      // F2:全量状态入 netStore(断线横幅读 connection 三值),connected 由 setConnection
-      // 派生写入。断线边界(s!=="open")废弃在途事件批(#385):断线前收到但未随快照
+      if (this.sock !== sock) return;
+      // 底层状态映射为控制器恢复状态后投影到 netStore,connected 由 store 派生。
+      // 断线边界(s!=="open")废弃在途事件批(#385):断线前收到但未随快照
       // 消费的暂存批不在重连后补播;重连成功(#388 重连语义=整房摘要+清批)则把事件面
       // 整体归零(暂存批+到达计数+演出消费游标)——重连前的旧批不被当新批消费,状态
       // 唯一来源 = 紧随其后的整房摘要(ADR-0020 决策 4;服务器重启旧批重发的归口在
       // server.ts 恢复登记,见 seenBatches 恢复基线)。
-      if (s === "open") this.fx.resetEventFace();
-      else this.fx.dropStalledBatch();
-      useNetStore.getState().setConnection(s);
+      if (s === "open") {
+        // 自动spawn也开启新连接纪元;前连接的换图await不能覆盖本次权威摘要。
+        this.rebuildSeq++;
+        this.fx.resetEventFace();
+      } else this.fx.dropStalledBatch();
+      this.setConnectionStatus(s === "open" ? "calibrating" : s);
+      this.sync();
     });
     // #494:重连进度透传 netStore(ConnectionBanner 显示「第 n/N 次」;open 清零归
     // setConnection 单点,见 netStore)。
-    sock.onProgress((p) => useNetStore.getState().setReconnect(p));
+    sock.onProgress((p) => {
+      if (this.sock !== sock) return;
+      useNetStore.getState().setReconnect(p);
+    });
     sock.onError(() => {
+      if (this.sock !== sock) return;
       // 重连尝试期间的 error 不打扰(onclose 马上接管);仅正常在线时闪提示
       if (useNetStore.getState().connected) useNetStore.getState().pushHint("连接异常");
     });
-    sock.onMessage((data) => this.onMessage(JSON.parse(data) as ServerMsg));
+    sock.onMessage((data) => {
+      if (this.sock !== sock) return;
+      this.onMessage(JSON.parse(data) as ServerMsg);
+    });
     sock.connect();
+  }
+
+  /** 原座恢复:仅重启失败/断线链;忙碌中的重复操作不创建第二条链。 */
+  reconnect(): void {
+    if (
+      this.connectionStatus !== "closed" &&
+      this.connectionStatus !== "gaveUp" &&
+      this.connectionStatus !== "failed"
+    )
+      return;
+    this.connect();
   }
 
   private onMessage(msg: ServerMsg): void {
@@ -224,6 +292,11 @@ export class OnlineController extends GameController {
       this.applyRoomFields(msg);
       // 换图单路径:lobby 广播的 mapId 驱动本地重建(占位引擎 + registry 的 MapData)。
       if (msg.mapId && msg.mapId !== this.mapId) void this.rebuildForMap(msg.mapId);
+      // started 元数据不是对局摘要;未开局 lobby 本身就是完整房间校准。
+      if (!msg.started && this.connectionStatus === "calibrating") {
+        this.setConnectionStatus("open");
+        this.sync();
+      }
       return;
     }
     if (msg.type === "snapshot") {
@@ -247,6 +320,7 @@ export class OnlineController extends GameController {
         setEngine(this._engine);
       }
       this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
+      this.setConnectionStatus("open");
       this.pending = false;
       useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
       // 演出(#385):netStore 暂存的事件批(events 消息先于同 tick 快照到达)经
@@ -262,6 +336,8 @@ export class OnlineController extends GameController {
       return;
     }
     if (msg.type === "events") {
+      // 恢复边界不折叠/暂存摘要前的旧批,也不能由 events 清 pending 提前解锁。
+      if (!this.sessionReady) return;
       // 折叠最小闭环(#386,ADR-0020 决策 1):事件批投影进本地引擎副本(现金/位置
       // 两族,折叠器见 net/event-fold.ts),经既有 syncFromEngine 通路重渲(界面读口
       // 不变,不另起平行 store 切片;一次事件批一次重渲)。#388 切换后本通路是唯一
@@ -301,7 +377,21 @@ export class OnlineController extends GameController {
       useGameStore.getState().setScreen("lobby");
       return;
     }
-    // error:闪提示(如非法命令);pending 解锁等下一帧 events/校准快照校正。
+    // 恢复时收到明确拒绝即终止本次尝试;普通局内命令错误仍沿提示通路。
+    if (!this.sessionReady) {
+      const sock = this.sock;
+      this.sock = null;
+      sock?.close();
+      this.rebuildSeq++;
+      this.fx.dropStalledBatch();
+      this.pending = false;
+      useNetStore.getState().setPending(false);
+      this.connectionStatus = "failed";
+      useNetStore.getState().setConnectionFailure(msg.error);
+      this.sync();
+      return;
+    }
+    // 普通命令错误仍闪提示;pending 解锁等下一帧 events/校准快照校正。
     useGameStore.getState().pushHint(msg.error);
   }
 
@@ -314,6 +404,7 @@ export class OnlineController extends GameController {
     try {
       ({ map, data } = await this.loadMapBundle(mapId));
     } catch (err) {
+      if (seq !== this.rebuildSeq) return;
       useNetStore.getState().pushHint(`加载地图失败:${(err as Error).message}`);
       return;
     }
@@ -362,11 +453,17 @@ export class OnlineController extends GameController {
   }
 
   destroy(): void {
+    if (this.ended) return;
+    this.ended = true;
+    this.rebuildSeq++;
     super.destroy(); // 基类退订行军会话订阅(#611)
     // socket.close 内部先置 closedByUs 再关:onclose 不触发重连,退避定时器一并清
-    this.sock?.close();
+    const sock = this.sock;
     this.sock = null;
+    sock?.close();
     this.pending = false;
     useNetStore.getState().setPending(false); // UI F3:销毁时清 pending,防残留
+    this.setConnectionStatus("idle");
+    this.sync();
   }
 }

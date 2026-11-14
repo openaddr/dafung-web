@@ -8,10 +8,13 @@ import type { PlantOp } from "@core/planter";
 import type { GameSnapshot } from "@app/store/gameStore";
 import type { GameController } from "@app/controllers/controller";
 import type { FrameDiagDump } from "@app/frameDiag";
+import type { PresentationEvent } from "@app/fx/presentation";
 
 declare global {
   interface Window {
     __dafung?: {
+      /** 表现态构造(#1418):双门禁内原样转发产品 present + createEngineSink。 */
+      playPresentation: (events: PresentationEvent[]) => Promise<void>;
       /** 帧诊读取口(ADR-0047 消费面;scripts/frame-probe.ts 消费,只读不启停)。 */
       frameDiag: () => FrameDiagDump | null;
       /** 当前引擎实例(null = 未开局)。 */

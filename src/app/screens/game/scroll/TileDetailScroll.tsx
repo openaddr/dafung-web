@@ -5,8 +5,7 @@
 //     hideClose 只留给必须决策的卷轴(详情卷轴均放弃性,不占用)。
 //   - #35:选都模式下详情内嵌「定都于此 / 再想想」,确认才落子(整合旧 pendingCapital 确认框)。
 //   - #767 弹窗详情族①②:城名下补真实格缩略图(TileThumb,与名下清单/CityLedgerModal
-//     同源同件,置摘要上方、纯展示不抢焦点);「持有/需/余差」主数值行升格(AffordRow,
-//     与购地抉择同一行——详情里先看一眼买不买得起,再翻等级表),元信息退居次要行。
+//     同源同件,纯展示不抢焦点)。#1417:选都先读建城费、余额与补给,再翻等级表。
 import { memo } from "react";
 import { formatMoney } from "@core/money";
 import { fullDefenseOf } from "@core/defense";
@@ -34,8 +33,8 @@ interface TileDetailScrollProps {
   property: PropertyDef;
   /** 全体玩家快照(TileThumb 归属/都城推导源,与名下清单同口径)。 */
   players: SnapshotPlayer[];
-  /** 屏前玩家现金(主数值行「持有」,#453 视角契约:viewSeat 即屏前真人)。 */
-  cash: number;
+  /** #1417:明确区分选都动作与只读资料,费用不可用购入价猜测。 */
+  context: { kind: "capital"; cash: number; onConfirm: () => void } | { kind: "view" };
   /** 持有者国号;null = 无主。 */
   ownerGuohao: string | null;
   /** 持有者当前城等级(0 起);无主时忽略。 */
@@ -45,13 +44,11 @@ interface TileDetailScrollProps {
   /** 是否某家都城(都城展示 Lv 徽记)。 */
   isCapital: boolean;
   onClose: () => void;
-  /** #35 选都模式:传了才渲染「定都于此 / 再想想」按钮。 */
-  pickCapital?: { onConfirm: () => void };
 }
 
 /** 值等(#1140 渲染税):数据面全标量/registry 稳定引用/players(值等复用引用);
- *  onClose 与 pickCapital.onConfirm 不入比较——setState/控制器驱动的关闭与定都
- *  (行为恒定,身份每渲染抖动);pickCapital 只比「在不在场」(有无 footer 之别)。
+ *  onClose 与 context.onConfirm 不入比较——setState/控制器驱动的关闭与定都
+ *  (行为恒定,身份每渲染抖动);语境与屏前现金决定费用行与 footer。
  *  详情是「边看边掂量」件(ADR-0031 诉求本体),bot 定都/演出期间开着时内容没变
  *  的拍在此 bail out。 */
 function tileDetailScrollEqual(a: TileDetailScrollProps, b: TileDetailScrollProps): boolean {
@@ -63,12 +60,13 @@ function tileDetailScrollEqual(a: TileDetailScrollProps, b: TileDetailScrollProp
     a.tierLabel === b.tierLabel &&
     a.property === b.property &&
     a.players === b.players &&
-    a.cash === b.cash &&
+    (a.context.kind === "capital" && b.context.kind === "capital"
+      ? a.context.cash === b.context.cash
+      : a.context.kind === b.context.kind) &&
     a.ownerGuohao === b.ownerGuohao &&
     a.ownerLevel === b.ownerLevel &&
     a.ownerDefense === b.ownerDefense &&
-    a.isCapital === b.isCapital &&
-    (a.pickCapital == null) === (b.pickCapital == null)
+    a.isCapital === b.isCapital
   );
 }
 
@@ -80,14 +78,14 @@ export const TileDetailScroll = memo(function TileDetailScroll({
   tierLabel,
   property,
   players,
-  cash,
+  context,
   ownerGuohao,
   ownerLevel,
   ownerDefense,
   isCapital,
   onClose,
-  pickCapital,
 }: TileDetailScrollProps) {
+  const pickCapital = context.kind === "capital";
   // #729:选都态「定都于此/再想想」钉底(壳 footer 槽);只读查看态不传 footer,
   // 槽不渲染零余白(详情内容矮,无需钉底段)。
   return (
@@ -98,7 +96,7 @@ export const TileDetailScroll = memo(function TileDetailScroll({
       footer={
         pickCapital ? (
           <div className="flex justify-center gap-3">
-            <BannerButton primary testid={TESTIDS.confirmCapitalOk} onClick={pickCapital.onConfirm}>
+            <BannerButton primary testid={TESTIDS.confirmCapitalOk} onClick={context.onConfirm}>
               定都于此
             </BannerButton>
             <BannerButton testid={TESTIDS.confirmCapitalCancel} onClick={onClose}>
@@ -113,34 +111,41 @@ export const TileDetailScroll = memo(function TileDetailScroll({
         {/* 城池档位两字名(ADR-0042 决策 6 + DESIGN §4.8 名词纪律):题名下小字弱化
             直缀档位名,不加前缀/定位语/解释。壳题名是 string 单源(BannerShell 的
             aria-label/题印取字/内容身份/拖拽 resetKey 四职),档位名不入题名串
-            (否则吃题名 26px 金字制式,违背小字弱化),落正文首行紧贴城名。 */}
-        <p className="m-0 mb-1 text-center text-xs text-paper-dim">{tierLabel}</p>
+            (否则吃题名 26px 金字制式,违背小字弱化),与缩略图并排省出费用与补给空间。 */}
         {/* 真实格缩略图(#767 ②):与棋盘/名下清单逐像素同源,置摘要上方纯展示;
             尺寸档(96px/矮横屏 48px)单源 banner.css 的横幅域 city-ledger-thumb 规则 */}
-        <div className="mb-1 flex justify-center">
+        <div className="mb-1 flex items-center justify-center gap-3">
           <TileThumb tile={tile} def={property} tileIndex={tileIndex} players={players} />
+          <div className="text-center text-xs text-paper-dim">
+            <p className="m-0 mb-1">{tierLabel}</p>
+            <p className="m-0">
+              {groupLabel ? `${groupLabel} · ` : ""}
+              {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
+              {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""}
+              {/* 防御值沿用core/defense单源;无主城无防御语义。 */}
+              {ownerGuohao != null && ownerDefense != null ? (
+                <>
+                  {" · 防御 "}
+                  <span data-testid={T.tileDetailDefense} className="text-paper">
+                    {ownerDefense}/{fullDefenseOf(ownerLevel)}
+                  </span>
+                </>
+              ) : null}
+            </p>
+          </div>
         </div>
-        <p className="m-1 mb-2 text-center text-xs text-paper-dim">
-          {groupLabel ? `${groupLabel} · ` : ""}
-          {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
-          {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""}
-          {/* 防御值行(#1391 T5):「防御 当前/满值」,满值表单源 core/defense.ts(等级
-              查表,不复制数值);无主城不渲染(免疫,无防御语义)。名词纪律 §4.8:
-              最短名词,无前缀无解释。 */}
-          {ownerGuohao != null && ownerDefense != null ? (
-            <>
-              {" · 防御 "}
-              <span data-testid={T.tileDetailDefense} className="text-paper">
-                {ownerDefense}/{fullDefenseOf(ownerLevel)}
-              </span>
-            </>
-          ) : null}
-          {" · 购入 "}
-          {formatMoney(property.purchasePrice)}
-        </p>
-        {/* 主数值行(#767 ①):屏前现金 vs 购入价,余绿/差红——详情里先答
-            「买不买得起」,再看等级表 */}
-        <AffordRow cash={cash} need={property.purchasePrice} />
+        {pickCapital ? (
+          <>
+            <AffordRow cash={context.cash} need={property.buildCost} purpose="capital" />
+            <p className="m-0 mb-2 text-center text-sm text-paper">
+              都城补给 {formatMoney(property.resupply)}
+            </p>
+          </>
+        ) : (
+          <p className="m-1 mb-2 text-center text-xs text-paper-dim">
+            购入价 {formatMoney(property.purchasePrice)}
+          </p>
+        )}
         {/* 等级表:抽成共用 ValueTable(购地/扩军卷轴复用同一张表,避免三处漂移)。
             #671:主列=交易加成;第二列按城型——都城与选都候选显示补给(变卖价对都城
             是死信息:都城永不可变卖),普通城显示变卖价。

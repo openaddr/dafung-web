@@ -30,7 +30,7 @@ import { test, expect } from "../fixtures";
 import { engineState, parkMyTurn, pollReactionSettled, quickStart, snap } from "../react-helpers";
 import { plant } from "../helpers/drivers";
 import { TESTIDS } from "../../src/app/screens/game/testids";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 /** 盒模型序列化(getBoundingClientRect 的 plain object,便于跨 evaluate 搬运断言)。 */
 interface Box {
@@ -336,6 +336,233 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
       expect(Math.abs(c.x - before[i].x)).toBeLessThanOrEqual(2);
       expect(Math.abs(c.y - before[i].y)).toBeLessThanOrEqual(2);
     });
+  });
+});
+
+// 全展的实绘几何与原生触控(ADR-0062 层⑤)：不在假 DOM 重测 A 的选中/生命周期。
+test.describe("手牌全展横向浏览(#1423)", () => {
+  test.describe.configure({ retries: 0 });
+  test.use({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+
+  const cards = [
+    "求贤令",
+    "军情密探",
+    "缓兵之计",
+    "横征暴敛",
+    "窃玉偷香",
+    "火烧连营",
+    "识破诡计",
+    "求贤令",
+  ];
+
+  // preRoll 构造器同拍种局并冻结；board 挂载是 React 消费桥快照的明确边界。
+  // 手牌/授将/钉相位均走 planter(判词单源 src/core/planter.ts)，只构造浏览前提。
+  async function prepare(page: Page, seed: number, playing: boolean) {
+    await quickStart(page, seed, { advance: "preRoll" });
+    await expect(page.locator("#board")).toBeAttached();
+    await plant(page, { kind: "giveJinnang", seat: 0, cards });
+    await plant(page, {
+      kind: "armHero",
+      seat: 0,
+      heroId: "zhouyu",
+      skillIds: ["huogong", "leigu"],
+    });
+    await plant(page, {
+      kind: "armPhase",
+      turnPhase: playing ? "AwaitingJinnang" : "AwaitingDecision",
+    });
+    await plant(page, { kind: "armLanding", landing: null });
+    await settledRackGeometry(page);
+    await page.getByTestId(TESTIDS.jinnangSpreadBadge).tap();
+  }
+
+  async function spreadGeometry(page: Page) {
+    return page.getByTestId(TESTIDS.jinnangViewport).evaluate((viewport) => {
+      const rect = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width };
+      };
+      return {
+        viewport: rect(viewport),
+        faces: [...viewport.querySelectorAll(".jinnang-card,.hface")].map(rect),
+        selected: [...viewport.querySelectorAll(".jinnang-card.sel,.hface.sel")].map(rect),
+        scrollWidth: viewport.scrollWidth,
+        clientWidth: viewport.clientWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        pageWidth: document.documentElement.clientWidth,
+      };
+    });
+  }
+
+  function expectClearEdges(g: Awaited<ReturnType<typeof spreadGeometry>>) {
+    expect(g.documentWidth).toBe(g.pageWidth);
+    g.faces.slice(1).forEach((face, i) => expect(face.left - g.faces[i].right).toBeGreaterThan(0));
+  }
+
+  async function swipe(page: Page, target: Locator, dx: number, topPadding = false) {
+    await target.scrollIntoViewIfNeeded();
+    const box = await target.boundingBox();
+    if (!box) throw new Error("横滑起点缺少实际几何");
+    const x = box.x + box.width / 2;
+    const y = box.y + (topPadding ? 2 : box.height / 2);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y, id: 1 }],
+    });
+    for (let step = 1; step <= 8; step++) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: x + (dx * step) / 8, y, id: 1 }],
+      });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+  }
+
+  test("混排全展正间隙、首末完整可达，选中仍1.6倍且不裁切", async ({ page }) => {
+    await prepare(page, 1486, true);
+    const viewport = page.getByTestId(TESTIDS.jinnangViewport);
+    await expect(viewport).toBeVisible();
+    const row = page.getByTestId(TESTIDS.jinnangHand);
+    const buttons = row.locator(":scope > button");
+    const initial = await spreadGeometry(page);
+    expect(initial.faces.length).toBeGreaterThan(cards.length); // 真正包含技能混排
+    expect(initial.scrollWidth).toBeGreaterThan(initial.clientWidth);
+    expectClearEdges(initial);
+    const baseWidth = initial.faces[0].width;
+    expect(initial.faces[0].left).toBeGreaterThanOrEqual(initial.viewport.left);
+    for (const edge of [buttons.first(), buttons.last()]) {
+      await edge.scrollIntoViewIfNeeded();
+      // 点卡体下部，技能主技名保留独立详情通路。
+      const box = await edge.boundingBox();
+      if (!box) throw new Error("首末牌无几何盒");
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height - 12);
+      await expect(edge).toHaveAttribute("aria-pressed", "true");
+      await expect
+        .poll(async () => {
+          const g = await spreadGeometry(page);
+          const sel = g.selected[0];
+          return (
+            sel != null &&
+            sel.width / baseWidth > 1.55 &&
+            sel.width / baseWidth < 1.68 &&
+            sel.left >= g.viewport.left &&
+            sel.right <= g.viewport.right &&
+            sel.top >= g.viewport.top &&
+            sel.bottom <= g.viewport.bottom
+          );
+        })
+        .toBe(true);
+      const selected = await spreadGeometry(page);
+      expectClearEdges(selected);
+      const actionbar = await page.getByTestId(TESTIDS.actionbar).boundingBox();
+      if (!actionbar) throw new Error("选中时拍板动作条缺少几何盒");
+      const face = selected.selected[0];
+      expect(
+        face.right <= actionbar.x ||
+          face.left >= actionbar.x + actionbar.width ||
+          face.bottom <= actionbar.y ||
+          face.top >= actionbar.y + actionbar.height,
+      ).toBe(true);
+      expect(selected.selected[0].width / baseWidth).toBeGreaterThan(1.55);
+      expect(selected.selected[0].width / baseWidth).toBeLessThan(1.68); // ±1.5°微旋的包围盒余量
+      // 技能名保留全览入口；取消选中仍点实际牌体下部。
+      await page.touchscreen.tap((face.left + face.right) / 2, face.bottom - 12);
+      await expect(edge).toHaveAttribute("aria-pressed", "false");
+      await settledRackGeometry(page);
+    }
+    await viewport.evaluate((el) => {
+      el.scrollLeft = el.scrollWidth;
+    });
+    const end = await spreadGeometry(page);
+    expect(end.faces.at(-1)!.right).toBeLessThanOrEqual(end.viewport.right);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await viewport.evaluate((el) => {
+      el.scrollLeft = 0;
+    });
+    expectClearEdges(await spreadGeometry(page));
+    // 同一视口缩到短牌形：牌序变化不留下越界偏移，常态仍可读。
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["求贤令"] });
+    await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
+    await expect(buttons).toHaveCount(1);
+    await expect(page.getByTestId(TESTIDS.jinnangRack)).not.toHaveClass(/spread-all/);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(844);
+  });
+
+  test("真实触摸横滑滚牌不误点，跨旧回落阈值保持全展并保留真点与长按", async ({ page }) => {
+    await prepare(page, 1487, false);
+    const viewport = page.getByTestId(TESTIDS.jinnangViewport);
+    await expect(viewport).toBeVisible();
+    const row = page.getByTestId(TESTIDS.jinnangHand);
+    const boardBefore = await page.locator("#board").evaluate((el) => ({
+      viewBox: el.getAttribute("viewBox"),
+      transform: getComputedStyle(el).transform,
+    }));
+    const before = JSON.stringify(await snap(page));
+    await swipe(page, row.locator(":scope > button").nth(2), -120);
+    await expect.poll(() => viewport.evaluate((el) => el.scrollLeft)).toBeGreaterThan(30);
+    await expect(page.getByTestId(TESTIDS.jinnangDetail)).toHaveCount(0);
+    expect(JSON.stringify(await snap(page))).toBe(before);
+    await swipe(page, viewport, -80, true);
+    await expect(page.getByTestId(TESTIDS.jinnangSpreadBadge)).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // 全展 padding 也是检视内；在牌行上方的留白开始手势不应先收架。
+    await plant(page, { kind: "armPhase", turnPhase: "AwaitingJinnang" });
+    await page.getByTestId(TESTIDS.jinnangSpreadBadge).tap();
+    const playingBefore = JSON.stringify(await snap(page));
+    await swipe(page, row.locator(":scope > button").nth(2), -120);
+    await expect(row.locator(":scope > button.sel")).toHaveCount(0);
+    await expect(page.getByTestId(TESTIDS.jinnangDetail)).toHaveCount(0);
+    const skillName = page
+      .getByTestId(TESTIDS.jinnangCard("skill:zhouyu:leigu"))
+      .locator("[data-skill]");
+    const skillScroll = await viewport.evaluate((el) => {
+      el.scrollLeft = el.scrollWidth;
+      return el.scrollLeft;
+    });
+    await swipe(page, skillName, 120);
+    await expect
+      .poll(() => viewport.evaluate((el) => el.scrollLeft))
+      .toBeLessThan(skillScroll - 30);
+    await expect(page.getByTestId(TESTIDS.skillGlossary)).toHaveCount(0);
+    await expect(row.locator(":scope > button.sel")).toHaveCount(0);
+    const boardAfter = await page.locator("#board").evaluate((el) => ({
+      viewBox: el.getAttribute("viewBox"),
+      transform: getComputedStyle(el).transform,
+    }));
+    expect(boardAfter).toEqual(boardBefore);
+    // phase 种植是唯一快照差异；手势不进入引擎命令通路。
+    await page.clock.install();
+    await page.clock.fastForward(3000);
+    await expect(page.getByTestId(TESTIDS.jinnangSpreadBadge)).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(JSON.stringify(await snap(page))).toBe(playingBefore);
+    const usable = page.getByTestId(TESTIDS.jinnangCard("求贤令")).first();
+    await usable.scrollIntoViewIfNeeded();
+    await usable.tap();
+    await expect(usable).toHaveAttribute("aria-pressed", "true");
+    const box = await usable.boundingBox();
+    if (!box) throw new Error("长按取消缺少几何盒");
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height - 12, id: 1 }],
+    });
+    await page.clock.runFor(550);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+    await expect(usable).toHaveAttribute("aria-pressed", "false");
+    const locked = page.getByTestId(TESTIDS.jinnangCard("识破诡计"));
+    await locked.scrollIntoViewIfNeeded();
+    const grey = await locked.boundingBox();
+    if (!grey) throw new Error("灰牌详情缺少几何盒");
+    await page.touchscreen.tap(grey.x + grey.width / 2, grey.y + grey.height / 2);
+    await expect(page.getByTestId(TESTIDS.jinnangDetail)).toBeVisible();
   });
 });
 

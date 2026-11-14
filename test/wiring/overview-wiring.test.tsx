@@ -280,7 +280,6 @@ beforeAll(async () => {
   // 零兜底设计)当场炸;document.fonts.ready 同缺席。给中性真值(844×390 标准档)
   // 让生产代码走通挂载,断言面不碰任何几何(断言宪法)。happy-dom 注册生命周期内
   // 生效,release 后随注册体整体丢弃,零跨文件泄漏(模板同款)。
-  (document as unknown as { fonts: unknown }).fonts = { ready: Promise.resolve() };
   Object.defineProperty(SVGSVGElement.prototype, "clientWidth", {
     get: () => 844,
     configurable: true,

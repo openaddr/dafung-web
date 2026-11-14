@@ -10,12 +10,26 @@
 // 以 GlobalRegistrator.isRegistered 运行时态为准——多个接线测试文件先后
 // ensure/release 各自成对,不依赖文件执行序;成对调用是纪律,不成对即污染邻座。
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
+import { readFileSync } from "node:fs";
+
+const fxStyles = readFileSync(new URL("../../src/app/fx/fx.css", import.meta.url), "utf8");
 
 /** 本文件运行时装上 happy-dom 全局(document/window/navigator/…,幂等):
  *  在 beforeAll 调;IS_REACT_ACT_ENVIRONMENT 供 react act() 驱动渲染。 */
 export function ensureHappyDom(): void {
   if (!GlobalRegistrator.isRegistered) {
     GlobalRegistrator.register();
+    // Happy DOM无字体资源加载器;接线层提供事件/Promise接口形状,不证明字形几何。
+    // 真实字体、局部视口及像素输出由浏览器特效回归守住。
+    (document as unknown as { fonts: unknown }).fonts = Object.assign(new EventTarget(), {
+      ready: Promise.resolve(),
+      load: () => Promise.resolve([]),
+    });
+    // Bun不装载CSS副作用;表现挂载会读取落章弧变量,用生产样式提供同源值。
+    // 接线层仍不据此断言几何或像素,release时随document一并销毁。
+    const style = document.createElement("style");
+    style.textContent = fxStyles;
+    document.head.append(style);
   }
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 }

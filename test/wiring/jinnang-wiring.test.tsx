@@ -226,7 +226,6 @@ beforeAll(async () => {
   // 零兜底设计)当场炸;document.fonts.ready 同缺席。给中性真值(844×390 标准档)
   // 让生产代码走通挂载,断言面不碰任何几何(断言宪法)。happy-dom 注册生命周期内
   // 生效,release 后随注册体整体丢弃,零跨文件泄漏(模板同款)。
-  (document as unknown as { fonts: unknown }).fonts = { ready: Promise.resolve() };
   Object.defineProperty(SVGSVGElement.prototype, "clientWidth", {
     get: () => 844,
     configurable: true,
@@ -304,6 +303,109 @@ afterAll(async () => {
 });
 
 describe("手牌架点牌详情与灰置印条(自 react-jinnang-rack 迁入,#1315 批T1)", () => {
+  // #1423:检视与选择只属于当前屏前玩家的当前渲染项。命令与状态经生产装配，
+  // 仅断 DOM/aria/store；横滚几何、拖动抑制与跨旧时限留真浏览器，不在假 DOM 等时钟。
+  it("全展检视:重复牌独立续选，详情/目标段结束，牌序与身份变更不残留", () => {
+    const cards = ["求贤令", "求贤令", "军情密探", "识破诡计"];
+    const { el, writeEngine, snap } = startGame((e) => {
+      giveJinnang(e, 0, cards);
+      giveJinnang(e, 1, cards);
+      armHero(e, 0, "huatuo", ["qingnang", "zhenji"]);
+      setCash(e, 0, 2000);
+      setStamina(e, 0, 50);
+    });
+    const badge = () => q(el, TESTIDS.jinnangSpreadBadge)!;
+    const duplicates = () => [
+      ...el.querySelectorAll(`[data-testid="${TESTIDS.jinnangCard("求贤令")}"]`),
+    ];
+    const selected = () =>
+      el.querySelectorAll(`[data-testid="${TESTIDS.jinnangHand}"] > button[aria-pressed="true"]`);
+    click(badge());
+    click(duplicates()[1]);
+    expect(duplicates().map((card) => card.getAttribute("aria-pressed"))).toEqual([
+      "false",
+      "true",
+    ]);
+    expect(badge().getAttribute("aria-pressed")).toBe("true");
+    // 数字键与点牌同一实例账本：换选第一张、再换第二张，再点即取消；检视仍在。
+    for (const [key, expected] of [
+      ["1", ["true", "false"]],
+      ["2", ["false", "true"]],
+    ] as const) {
+      act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })));
+      expect(duplicates().map((card) => card.getAttribute("aria-pressed"))).toEqual([...expected]);
+    }
+    click(duplicates()[1]);
+    expect(selected()).toHaveLength(0);
+    expect(badge().getAttribute("aria-pressed")).toBe("true");
+    // 同窗态快照重灌不结束检视；单机视角轮转也不替换屏前玩家。
+    click(duplicates()[1]);
+    writeEngine(() => {});
+    act(() => useGameStore.getState().setViewSeat(1));
+    expect(duplicates()[1].getAttribute("aria-pressed")).toBe("true");
+    expect(badge().getAttribute("aria-pressed")).toBe("true");
+    act(() => useGameStore.getState().setViewSeat(0));
+    const skill = q(el, TESTIDS.jinnangCard("skill:huatuo:zhenji"))!;
+    click(skill);
+    expect(selected()).toHaveLength(1);
+    expect(skill.getAttribute("aria-pressed")).toBe("true");
+    expect(badge().getAttribute("aria-pressed")).toBe("true");
+    click(skill.querySelector(TESTIDS.skillChip("zhenji"))!);
+    expect(q(document, TESTIDS.skillGlossary)).not.toBeNull();
+    expect(badge().getAttribute("aria-pressed")).toBe("false");
+    pressEscape();
+    click(badge());
+    click(q(el, TESTIDS.jinnangCard("识破诡计"))!);
+    expect(modalQ(TESTIDS.jinnangDetail)).not.toBeNull();
+    expect(badge().getAttribute("aria-pressed")).toBe("false");
+    pressEscape();
+    click(badge());
+    click(duplicates()[1]);
+    writeEngine((e) => giveJinnang(e, 0, ["求贤令", "军情密探", "识破诡计", "缓兵之计"]));
+    expect(selected()).toHaveLength(0); // 同名序缩短不能迁选另一张。
+    expect(q(document, TESTIDS.actionbarPlay)!.getAttribute("aria-disabled")).toBe("true");
+    // 遣散走公共方法，移除技能项后两席拥有相同牌序，专门证伪只按语义 id 留选中。
+    writeEngine((e) => {
+      e.dismissHero("huatuo");
+      giveJinnang(e, 0, cards);
+    });
+    click(duplicates()[1]);
+    act(() => {
+      useNetStore.getState().setRoom({
+        roomId: "wiring-hand-owner",
+        seats: snap().players.map((player, seat) => ({
+          seat,
+          kind: player.isBot ? ("bot" as const) : ("human" as const),
+          taken: true,
+          online: true,
+          autoPilot: false,
+          guohao: player.guohao,
+        })),
+      });
+      useGameStore.getState().setViewSeat(1);
+    });
+    expect(selected()).toHaveLength(0);
+    expect(badge().getAttribute("aria-pressed")).toBe("false");
+    act(() => useGameStore.getState().setViewSeat(0));
+    click(badge());
+    click(q(el, TESTIDS.jinnangCard("军情密探"))!);
+    click(q(document, TESTIDS.actionbarPlay)!);
+    expect(snap().pendingJinnang?.cardId).toBe("军情密探"); // 仍发原语义命令。
+    expect(q(document, TESTIDS.actionbarTarget)).not.toBeNull();
+    expect(badge().getAttribute("aria-pressed")).toBe("false");
+    click(q(document, TESTIDS.actionbarCancel)!);
+    click(badge());
+    act(() => document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })));
+    expect(badge().getAttribute("aria-pressed")).toBe("false");
+    click(badge());
+    click(q(el, TESTIDS.jinnangToggle)!);
+    click(q(el, TESTIDS.jinnangToggle)!);
+    expect(badge().getAttribute("aria-pressed")).toBe("false");
+    click(badge());
+    click(q(document, TESTIDS.actionbarPass)!);
+    expect(badge().getAttribute("aria-pressed")).toBe("false");
+  });
+
   // ── ①点牌详情(react-jinnang-rack 例 1 迁入)──
   // 断言面:架/手牌行挂载、恰 1 张、点击→详情弹层含牌名与牌面全文、Esc 关闭即卸载。
   // 空闲态钉相位走 armPhase 种植件(判词单源 planter:引擎自转无「钉相位」公共命令,

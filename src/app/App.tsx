@@ -9,6 +9,7 @@ import { getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";
 import { setController } from "@app/controllers/registry";
+import { returnHome } from "@app/screens/shared/return-home";
 import { useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
@@ -130,11 +131,7 @@ export function App() {
   }, [handleOnline]);
 
   // 退出联机回设置屏:销毁 controller(关 WS)+ 清房间态,避免残留泄漏到单机局
-  const handleExitLobby = useCallback(() => {
-    setController(null);
-    useNetStore.getState().reset();
-    setScreen("setup");
-  }, [setScreen]);
+  const handleExitLobby = returnHome;
 
   const handleMapChange = useCallback((mapId: string) => {
     localStorage.setItem(MAP_PREF_KEY, mapId);

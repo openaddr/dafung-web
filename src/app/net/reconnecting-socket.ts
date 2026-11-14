@@ -34,7 +34,7 @@ interface TimerLike {
   clearTimeout(handle: unknown): void;
 }
 
-interface ReconnectingSocketOptions {
+export interface ReconnectingSocketOptions {
   /** 完整 WS URL(含 query:room/seat/token)——升级换协议与拼参归调用方(lobby-api)。 */
   url: string;
   /** socket 工厂(默认 new WebSocket;测试注入假实现断言建连次数)。 */
@@ -63,6 +63,8 @@ export class ReconnectingSocket {
   private reconnectTimer: unknown = null;
   private reconnectAttempts = 0;
   private closedByUs = false;
+  /** 每个底层连接/退避链的生命周期令牌;已排队的旧回调也必须核对。 */
+  private generation = 0;
 
   private readonly messageCbs = new Set<(data: string) => void>();
   private readonly statusCbs = new Set<(status: SocketStatus) => void>();
@@ -90,28 +92,36 @@ export class ReconnectingSocket {
 
   /** 主动建连(入座成功后由协议桥调用);重复调用与 close 后调用均为 no-op。 */
   connect(): void {
-    if (this.closedByUs || this.ws) return;
+    if (this.closedByUs || this.ws || this.reconnectTimer != null) return;
     this.spawn();
   }
 
   private spawn(): void {
+    const generation = ++this.generation;
     const ws = this.socketFactory(this.url);
     this.ws = ws;
+    const current = () => !this.closedByUs && this.generation === generation && this.ws === ws;
     ws.onopen = () => {
+      if (!current()) return;
       this.reconnectAttempts = 0; // 连上即清零,下次断线从 base 重新起退避
       this.statusCbs.forEach((cb) => cb("open"));
     };
     ws.onmessage = (ev) => {
+      if (!current()) return;
       const data = String(ev.data);
       this.messageCbs.forEach((cb) => cb(data));
     };
     ws.onclose = () => {
-      if (this.closedByUs) return; // 主动关闭:不广播状态、不重连
+      if (!current()) return;
       this.ws = null;
+      this.generation++;
       this.statusCbs.forEach((cb) => cb("closed"));
       this.scheduleReconnect();
     };
-    ws.onerror = () => this.errorCbs.forEach((cb) => cb());
+    ws.onerror = () => {
+      if (!current()) return;
+      this.errorCbs.forEach((cb) => cb());
+    };
   }
 
   /** 当前是否可发送(对应原 `ws && ws.readyState === WebSocket.OPEN` 守卫)。 */
@@ -149,7 +159,7 @@ export class ReconnectingSocket {
 
   /** 指数退避重连调度(参数语义照搬:base×2^n 封顶 max,×(0.7+rand×0.6) 抖动)。 */
   private scheduleReconnect(): void {
-    if (this.closedByUs || this.reconnectTimer) return;
+    if (this.closedByUs || this.ws || this.reconnectTimer != null) return;
     if (this.reconnectAttempts >= this.maxAttempts) {
       this.statusCbs.forEach((cb) => cb("gaveUp"));
       return;
@@ -160,7 +170,9 @@ export class ReconnectingSocket {
     this.progressCbs.forEach((cb) =>
       cb({ attempt: this.reconnectAttempts, max: this.maxAttempts }),
     );
+    const generation = this.generation;
     this.reconnectTimer = this.timer.setTimeout(() => {
+      if (this.closedByUs || generation !== this.generation) return;
       this.reconnectTimer = null;
       this.spawn();
     }, delayMs);
@@ -169,11 +181,13 @@ export class ReconnectingSocket {
   /** 主动关闭:先置位再 close(onclose 看到 closedByUs 直接返回,不触发重连),并清退避定时器。 */
   close(): void {
     this.closedByUs = true;
+    this.generation++;
     if (this.reconnectTimer != null) {
       this.timer.clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.ws?.close();
+    const ws = this.ws;
     this.ws = null;
+    ws?.close();
   }
 }

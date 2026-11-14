@@ -53,6 +53,11 @@ class FakeTimer {
   get pending(): number {
     return this.queue.length;
   }
+  captureNext(): () => void {
+    const next = this.queue[0];
+    if (!next) throw new Error("no timer pending");
+    return next.fn;
+  }
   runNext(): number {
     const t = this.queue.shift();
     if (!t) throw new Error("no timer pending");
@@ -75,6 +80,66 @@ function makeSocket(url = "ws://x/ws?room=R&seat=0&token=T") {
 }
 
 describe("ReconnectingSocket", () => {
+  it("替换或关闭后已捕获的底层回调与退避回调失效,活动链始终唯一", () => {
+    const { sock, timer } = makeSocket();
+    const statuses: string[] = [];
+    const messages: string[] = [];
+    let errors = 0;
+    sock.onStatus((status) => statuses.push(status));
+    sock.onMessage((message) => messages.push(message));
+    sock.onError(() => errors++);
+    sock.connect();
+    const first = FakeWebSocket.instances[0]!;
+    const old = {
+      open: first.onopen!,
+      message: first.onmessage!,
+      close: first.onclose!,
+      error: first.onerror!,
+    };
+    first.emitClose();
+    sock.connect();
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(timer.pending).toBe(1);
+    const retry = timer.captureNext();
+    timer.runNext();
+    const second = FakeWebSocket.instances[1]!;
+    second.emitOpen();
+    old.open();
+    old.message({ data: "stale" });
+    old.error();
+    old.close();
+    retry();
+    expect(statuses).toEqual(["closed", "open"]);
+    expect(messages).toEqual([]);
+    expect(errors).toBe(0);
+    expect(sock.isOpen).toBe(true);
+    expect(timer.pending).toBe(0);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+
+    const closed = {
+      open: second.onopen!,
+      message: second.onmessage!,
+      close: second.onclose!,
+      error: second.onerror!,
+    };
+    second.emitClose();
+    const cancelled = timer.captureNext();
+    sock.close();
+    const before = [...statuses];
+    closed.open();
+    closed.message({ data: "after close" });
+    closed.error();
+    closed.close();
+    cancelled();
+    sock.connect();
+    expect(statuses).toEqual(before);
+    expect(messages).toEqual([]);
+    expect(errors).toBe(0);
+    expect(timer.pending).toBe(0);
+    expect(sock.isOpen).toBe(false);
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
   it("正常收发:open 前不可发,open 后 send 透传、onmessage 回调收到原始字符串", () => {
     const { sock } = makeSocket();
     const got: string[] = [];

@@ -25,7 +25,7 @@
   position: fixed;
   z-index: 45;
   pointer-events: none;
-  transform: translateY(-50%); /* top=胶囊竖直中线,签卡半高上提对齐 */
+  /* DiceOverlay 注入安全区内的整签左上角,不再以半高上提截掉签体。 */
   animation: fx-fade-in var(--dur-med) var(--ease-out); /* 时长=DICE.readyMs 入场渐显,DiceOverlay 内联注入 */
 }
 
@@ -162,21 +162,21 @@
   fill: var(--color-danger);
 }
 /* 文案浮字(ADR-0013 唯一选项自动执行轻提示):墨色小字,字号由 FxLayer 缩至 0.8×,
-   复用同一上浮动画(reduced-motion 由 app.css 全局兜层瞬时完成) */
+   复用同一上浮动画(reduced-motion保留本文件局部静态有效帧) */
 .fx-svg-floater.msg {
   fill: var(--color-paper-dim);
 }
 @keyframes fx-svg-float-up {
   0% {
-    transform: translateY(0) scale(0.6);
+    transform: translateY(0) scale(var(--fx-float-start-scale));
     opacity: 0;
   }
   20% {
-    transform: translateY(-10) scale(1.15);
+    transform: translateY(var(--fx-float-peak-y)) scale(var(--fx-float-peak-scale));
     opacity: 1;
   }
   100% {
-    transform: translateY(-60) scale(1);
+    transform: translateY(var(--fx-float-end-y)) scale(1);
     opacity: 0;
   }
 }
@@ -201,17 +201,17 @@
 .coin-halo {
   fill: none;
   stroke: var(--color-gold-bright);
-  stroke-width: 6;
+  stroke-width: var(--fx-coin-halo-stroke);
   opacity: 0.35;
 }
 .coin-core {
   fill: var(--color-gold-bright);
   stroke: rgba(40, 28, 10, 0.7);
-  stroke-width: 1.5;
+  stroke-width: var(--fx-coin-core-stroke);
 }
 .fx-svg-coin text {
   font-family: var(--font-brush);
-  font-size: 13;
+  font-size: calc(var(--fx-coin-font-size) * 1px);
   fill: var(--color-paper);
 }
 @keyframes fx-svg-coin-rain {
@@ -224,8 +224,8 @@
     opacity: 1;
   }
   100% {
-    translate: var(--dx, 0px) var(--dy, 90px);
-    rotate: 540deg;
+    translate: var(--dx) var(--dy);
+    rotate: var(--fx-coin-spin);
     opacity: 0;
   }
 }
@@ -235,15 +235,25 @@
    盖章归一(ADR-0015):「落章弧」(抬印 -12°/2.2 倍/透明 → 钤定 -8°/1 倍/实)收敛为
    共享 keyframes fx-seal-slam(下),时长/缓动由消费类名参数化。旧第二消费者(棋盘
    等级印重钤)已随 2026-10-17 档位珠批退役——棋盘扩军演出改「珠落位」(board.css
-   .bv-pip-grow,生长不入章),本 keyframes 现仅剩 SVG 浮层印一个消费者。 */
+   .bv-pip-grow,生长不入章);拼点中缝印与招贤金印也共用本落章弧。 */
+.fx-svg-seal,
+.duel-seal,
+.pick-seal-gold,
+.fx-seal-measure {
+  /* 共享落章弧参数单源:棋盘局部包络只在字形挂载测量拍读取最大尺度。 */
+  --fx-seal-start-scale: 2.2;
+  --fx-seal-end-scale: 1.15;
+  --fx-seal-start-angle: -12deg;
+  --fx-seal-rest-angle: -8deg;
+}
 @keyframes fx-seal-slam {
   from {
-    rotate: -12deg;
-    scale: 2.2;
+    rotate: var(--fx-seal-start-angle);
+    scale: var(--fx-seal-start-scale);
     opacity: 0;
   }
   to {
-    rotate: -8deg;
+    rotate: var(--fx-seal-rest-angle);
     scale: 1;
     opacity: 1;
   }
@@ -268,7 +278,7 @@
      --color-paper 已随 #509 token 换血消失,借机收口 --color-paper) */
   fill: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
   stroke: var(--color-paper);
-  stroke-width: 3;
+  stroke-width: var(--fx-seal-stroke);
 }
 .fx-svg-seal text {
   font-family: var(--font-title);
@@ -277,7 +287,7 @@
 @keyframes fx-svg-seal-linger {
   0% {
     opacity: 0;
-    scale: 2.2;
+    scale: var(--fx-seal-start-scale);
   }
   18% {
     opacity: 1;
@@ -289,16 +299,27 @@
   }
   100% {
     opacity: 0;
-    scale: 1.15;
+    scale: var(--fx-seal-end-scale);
   }
 }
 
-/* 特效 mini-svg 载体(ADR-0042):每件特效/流光独立 svg,0 尺寸 + overflow visible,
-   世界坐标原绘——子内容逐帧动画只失效本件小盒,不再波及整层
+/* 特效 mini-svg 载体(ADR-0045):每件独立世界坐标视口,位置/尺寸/viewBox共用
+   effect-viewport参数;子内容逐帧动画只失效本件小盒,不再波及整层
    (React 件见 FxLayer,命令式件见 useMarch.highlightSegment,宿主=boardHost)。 */
 .bv-fx-svg {
+  position: absolute;
+  overflow: visible;
+}
+.bv-fx-defs {
+  position: absolute;
   width: 0;
   height: 0;
+}
+/* 不带动画的测量节点只供挂载拍getBBox,不会加入实际绘制或逐帧布局。 */
+.fx-glyph-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
   overflow: visible;
 }
 
@@ -318,14 +339,16 @@
 .road-flow {
   fill: none;
   stroke: var(--color-gold-bright);
-  stroke-width: 5;
+  stroke-width: var(--fx-flow-stroke);
   stroke-linecap: round;
+  stroke-miterlimit: var(--fx-line-miter-limit);
 }
 .road-flow-halo {
   fill: none;
   stroke: var(--color-gold-bright);
-  stroke-width: 11;
+  stroke-width: var(--fx-flow-halo-stroke);
   stroke-linecap: round;
+  stroke-miterlimit: var(--fx-line-miter-limit);
   opacity: 0.3;
 }
 @keyframes fx-flow-fade {
@@ -340,7 +363,7 @@
 /* 易主流光(架构体检 B 批出底板,原 board.css bv-own-flash 原样迁层):铭牌顶缘
    横穿一道玩家色流光一次(回无主转金)。几何/虚线在 FxLayer 按 TILE_SCALE 世界化
    内联,扫掠偏移走 --of-from/--of-to 变量(同一换算单源);时长取半 --dur-fx 拍
-   缓动 --ease-out,基态 opacity 0:reduced-motion 停用后不残留实线条。 */
+   缓动 --ease-out;减少动态效果保留中段扫光,原TTL负责清理。 */
 .fx-ownflash-line {
   opacity: 0;
   stroke-linecap: butt;
@@ -369,8 +392,7 @@
    pathLength=1 归一化,生长段 dashoffset 1→0「笔锋引出」。
    #849 棒2(P1-B4 发丝线翻案):stroke 4→10(总览缩放 ≈0.4px/unit 下屏显 ≈4px);
    生死在线、生长在线,锚点/箭羽随组同寿,箭羽于生长段末张羽(fx-jline-feather-in:
-   线到,羽才张)。墨色取正文焦墨 token,reduced-motion 由 app.css 全局兜层压成
-   0.01ms(线瞬息全隐,不做静态常驻——指示线本就是一次性演出)。
+   线到,羽才张)。墨色取正文焦墨 token;减少动态效果保留完整线/羽静帧至原TTL。
    #1140:组级 drop-shadow 金晕烤成 halo 底线(宽·低透明,与主线同拍同 keyframes
    生长)——滤镜曾随 dashoffset 逐帧生长每帧重跑;生死淡出(fx-jline-life)上移
    svg 根(HTML 盒,opacity 走合成器,纯淡出段零重绘)。 */
@@ -396,7 +418,7 @@
 }
 .fx-svg-jline-stroke {
   stroke: var(--color-paper);
-  stroke-width: 10;
+  stroke-width: var(--fx-jline-stroke);
   stroke-linecap: round;
   stroke-dasharray: 1;
   animation: fx-jline-grow var(--ease-out) forwards;
@@ -417,7 +439,7 @@
    主线 10 + 两侧各 3 出晕 ≈ 6px 原滤镜外扩)。 */
 .fx-svg-jline-halo {
   stroke: var(--color-gold-bright);
-  stroke-width: 16;
+  stroke-width: var(--fx-jline-halo-stroke);
   stroke-linecap: round;
   stroke-dasharray: 1;
   opacity: 0.3;
@@ -431,8 +453,9 @@
    行进向(旋转矩阵在 FxLayer 渲染拍算好);生长段末张羽,随组淡出。 */
 .fx-svg-jline-feather {
   stroke: var(--color-paper);
-  stroke-width: 5;
+  stroke-width: var(--fx-jline-feather-stroke);
   stroke-linecap: round;
+  stroke-miterlimit: var(--fx-line-miter-limit);
   opacity: 0;
   animation: fx-jline-feather-in var(--ease-out) forwards;
 }
@@ -456,19 +479,19 @@
   pointer-events: none;
   fill: none;
   stroke: var(--color-gold-bright);
-  stroke-width: 3;
+  stroke-width: var(--fx-pulse-stroke);
   transform-box: fill-box;
   transform-origin: center;
-  filter: drop-shadow(0 0 5px var(--color-gold-bright));
+  filter: drop-shadow(0 0 var(--fx-pulse-shadow-blur) var(--color-gold-bright));
   animation: fx-pulse-ring var(--ease-out) forwards;
 }
 @keyframes fx-pulse-ring {
   0% {
-    transform: scale(0.35);
+    transform: scale(var(--fx-pulse-start-scale));
     opacity: 0.95;
   }
   100% {
-    transform: scale(1.5);
+    transform: scale(var(--fx-pulse-peak-scale));
     opacity: 0;
   }
 }
@@ -909,7 +932,7 @@
 }
 @keyframes fx-inkblot-bloom {
   0% {
-    transform: scale(0.2);
+    transform: scale(var(--fx-ink-start-scale));
     opacity: 0.9;
   }
   55% {
@@ -917,7 +940,7 @@
     opacity: 0.75;
   }
   100% {
-    transform: scale(1.3);
+    transform: scale(var(--fx-ink-peak-scale));
     opacity: 0;
   }
 }
@@ -1052,7 +1075,7 @@
 }
 .fx-cash-fly text {
   font-family: var(--font-brush);
-  font-size: 13px;
+  font-size: calc(var(--fx-coin-font-size) * 1px);
   fill: var(--color-paper);
 }
 @keyframes fx-cash-fly-arc {
@@ -1098,7 +1121,8 @@
 .fx-svg-floater.skill {
   fill: var(--color-paper);
   stroke: var(--player-color);
-  stroke-width: 1;
+  stroke-width: var(--fx-float-stroke);
+  stroke-miterlimit: var(--fx-float-miter-limit);
   stroke-opacity: 0.85;
   paint-order: stroke fill;
 }
@@ -1112,19 +1136,19 @@
 }
 @keyframes fx-svg-float-tag {
   0% {
-    transform: translateY(8) scale(0.6);
+    transform: translateY(var(--fx-tag-start-y)) scale(var(--fx-float-start-scale));
     opacity: 0;
   }
   18% {
-    transform: translateY(-6) scale(1);
+    transform: translateY(var(--fx-tag-reveal-y)) scale(1);
     opacity: 1;
   }
   68% {
-    transform: translateY(-14) scale(1);
+    transform: translateY(var(--fx-tag-hold-y)) scale(1);
     opacity: 1;
   }
   100% {
-    transform: translateY(-36) scale(1);
+    transform: translateY(var(--fx-tag-end-y)) scale(1);
     opacity: 0;
   }
 }
@@ -1192,4 +1216,58 @@
   animation:
     fx-seal-slam var(--ease-out) both,
     fx-svg-seal-linger var(--ease-out) forwards;
+}
+
+/* 点状件的减少动态效果:保留语义有效帧,寿命仍由原store清理窗掌管。
+   限定棋盘局部视口,不改全局M-4及卡面/拼点共享落章弧。 */
+@media (prefers-reduced-motion: reduce) {
+  .bv-fx-svg .fx-svg-floater,
+  .bv-fx-svg .fx-svg-seal,
+  .bv-fx-svg .fx-svg-coin,
+  .bv-fx-svg .fx-svg-pulse,
+  .bv-fx-svg .fx-svg-inkblot {
+    animation-name: none;
+    opacity: 1;
+  }
+  .bv-fx-svg .fx-svg-floater {
+    transform: none;
+  }
+  .bv-fx-svg .fx-svg-seal {
+    rotate: var(--fx-seal-rest-angle);
+    scale: 1;
+  }
+  .bv-fx-svg .fx-svg-coin {
+    translate: calc(var(--dx) / 2) calc(var(--dy) / 2);
+    rotate: 0deg;
+  }
+  .bv-fx-svg .fx-svg-pulse,
+  .bv-fx-svg .fx-svg-inkblot {
+    transform: scale(1);
+  }
+  /* 线状件同样保留有效静帧;只停绘制动画,不改事件、行军接管与清理计时。 */
+  .bv-fx-svg.fx-jline-fade,
+  .bv-fx-svg.bv-flow-fade.active,
+  .bv-fx-svg .fx-ownflash-line,
+  .bv-fx-svg .fx-svg-jline-stroke,
+  .bv-fx-svg .fx-svg-jline-halo,
+  .bv-fx-svg .fx-svg-jline-feather {
+    animation-name: none;
+  }
+  .bv-fx-svg.fx-jline-fade {
+    opacity: 0.9;
+  }
+  .bv-fx-svg.bv-flow-fade.active,
+  .bv-fx-svg .fx-ownflash-line {
+    opacity: 0.95;
+  }
+  .bv-fx-svg .fx-ownflash-line {
+    stroke-dashoffset: calc((var(--of-from) + var(--of-to)) / 2);
+  }
+  .bv-fx-svg .fx-svg-jline-stroke,
+  .bv-fx-svg .fx-svg-jline-halo {
+    stroke-dashoffset: 0;
+  }
+  .bv-fx-svg .fx-svg-jline-feather {
+    opacity: 1;
+  }
 }

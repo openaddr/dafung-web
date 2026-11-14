@@ -29,7 +29,9 @@ import {
   type GameSnapshot,
 } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
-import { getController, getControllerContext, setController } from "@app/controllers/registry";
+import { getController, getControllerContext } from "@app/controllers/registry";
+import { returnHome } from "@app/screens/shared/return-home";
+import { OnlineController } from "@app/controllers/online";
 import type { Board } from "@core/board";
 import type { GameCommand } from "@core/authority";
 import { isSkillOption } from "@core/choices";
@@ -44,7 +46,7 @@ import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
 import { startFrameDiag, stopFrameDiag } from "@app/frameDiag";
-import { HandRack } from "./HandRack";
+import { HandRack, type RackCardSelection } from "./HandRack";
 import { HandZone } from "./HandZone";
 import { ReactionBanner } from "./ReactionBanner";
 import { SkillChoiceBanner } from "./SkillChoiceBanner";
@@ -204,6 +206,7 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   // 已随 #690 退役)——座位缺位 = 快照与座位表不一致(接线 bug),undefined 直通
   // 下游崩出来,不做 `?? null` 静默兜底。
   const selfPlayer = players[selfSeat];
+  const selfHandOrder = JSON.stringify(selfPlayer.jinnangHand);
   // 入手音(#239 T4 语义平移):跟着「手牌集变化」走,不跟架挂载走——显隐改
   // 回合联动后架每回合重挂,逐卡 mount 音会变成每回合的连响噪音;改为 diff 出
   // 真入手的牌才逐张轻叩(jinnangDraw)。同名多牌按 multiset 对账(消费一张记
@@ -275,7 +278,9 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   const junshiTargeting = junshiPendingCard != null || junshiPendingSkill != null;
   // 卡牌段选中(选中可逆:点它牌换选/再点同牌/右键/长按取消在 HandRack);进目标段
   // 与退窗态即清空重选(与一期弹窗口径一致)。
-  const [junshiSelectedId, setJunshiSelectedId] = useState<string | null>(null);
+  const [junshiSelection, setJunshiSelection] = useState<
+    (RackCardSelection & { scope: string }) | null
+  >(null);
   // 目标段选中席(#417 统一口径:首点选中/再点同席取消——不再点席位即出;席位点击层
   // 与数字键共用此选中态,执行走动作条「出」确认钮)。进/出目标段即清空重选。
   const [junshiTargetSeat, setJunshiTargetSeat] = useState<number | null>(null);
@@ -283,10 +288,9 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   // 点击层共用此选中态,执行走动作条「出」确认钮)。进/出目标段即清空重选。
   const [junshiTargetTile, setJunshiTargetTile] = useState<number | null>(null);
   useEffect(() => {
-    setJunshiSelectedId(null);
     setJunshiTargetSeat(null);
     setJunshiTargetTile(null);
-  }, [junshiTargeting, junshiUp]);
+  }, [junshiTargeting, junshiUp, selfSeat, selfPlayer.id]);
   // 帧诊采样器(ADR-0047):采样生命周期=对局屏生命周期——挂载开采/卸载停采,
   // 设置「性能诊断」行随时导诊断包(真机卡顿取证;桌面探针测不到真机体感)。
   useEffect(() => {
@@ -297,9 +301,17 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
     junshiUp && !junshiTargeting
       ? snapshot.choices.filter((o) => o.id !== "pass" && o.id !== "cancel")
       : [];
+  // 渲染序与可用性按值记账；快照的新数组不构成新选择上下文。同名序缩短或重排
+  // 无法映射回真实纸牌实例，整次选择作废，禁止将旧 key 迁到另一张同名牌。
+  const junshiScope = JSON.stringify([
+    selfSeat,
+    selfPlayer.id,
+    junshiOptions.map((o) => [o.id, o.available]),
+  ]);
+  useEffect(() => setJunshiSelection(null), [junshiScope, junshiTargeting, junshiUp]);
   const junshiSelected =
-    junshiSelectedId != null
-      ? junshiOptions.find((o) => o.id === junshiSelectedId && o.available)
+    junshiSelection != null && junshiSelection.scope === junshiScope
+      ? junshiOptions.find((o) => o.id === junshiSelection.optionId && o.available)
       : undefined;
   // 目标段候选(available 过滤后供席位呼吸/棋盘呼吸与数字键同序)。
   const junshiSeatOptions = junshiTargeting
@@ -326,10 +338,11 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   // 回到主页(#700 设置弹层):弃局离屏——销毁控制器(LocalController 释放时钟/
   // 行军会话,OnlineController 断 WS),本屏随 screen 切换卸载;新开局由各屏流程
   // 重新 setController(registry 换局销毁契约不变)。
-  const goHome = useCallback(() => {
-    setController(null);
-    useGameStore.getState().setScreen("setup");
-  }, []);
+  const goHome = returnHome;
+  const reconnect = () => {
+    if (!(controller instanceof OnlineController)) throw new Error("恢复横幅缺少联机控制器");
+    controller.reconnect();
+  };
   // 设置弹层开合两入口(#700):引用稳定化同上(SettingsDialog memo 前提)。
   const openSettings = useCallback(() => setSettingsOpen(true), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
@@ -462,12 +475,17 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   }, [reactionUp, reactMuted, reactionSeq]);
   // 卡牌段选中与按份族选份(G-19 一期手感:点牌选中,再点同牌取消;进/出窗态清空重选;
   // share 语义随域=座位号或受击城 tileIndex,#1389)
-  const [reactCardId, setReactCardId] = useState<string | null>(null);
+  const reactScope = JSON.stringify([selfSeat, selfPlayer.id, selfHandOrder, reactionSeq]);
+  const [reactSelection, setReactSelection] = useState<
+    (RackCardSelection & { scope: string }) | null
+  >(null);
+  const reactCardId =
+    reactSelection != null && reactSelection.scope === reactScope ? reactSelection.optionId : null;
   const [reactShare, setReactShare] = useState<number | null>(null);
   useEffect(() => {
-    setReactCardId(null);
+    setReactSelection(null);
     setReactShare(null);
-  }, [reactionUp]);
+  }, [reactionUp, reactScope]);
   const reaction = snapshot.reaction;
   // 本窗公告牌的目标域(单源 core/jinnang 目录;反识破链环窗公告的是识破自身,域=
   // reaction 族,天然落「免选」分支——链环应答不带份,与引擎 respondReaction 校验同形)。
@@ -679,7 +697,7 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
           无 pan/zoom 补偿通路)+ preserveAspectRatio meet——容器变矮整盘等比缩小。 */}
         <div id="board-wrap" className="board-area">
           {/* F2 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
-          <ConnectionBanner />
+          <ConnectionBanner onReconnect={reconnect} onExit={goHome} />
           <BoardView
             players={players}
             /* L47:视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
@@ -818,6 +836,7 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
               迁右下三圆钮,架体只承载牌面与窗态;#1006:收起而反应窗在场时
               banner-only——只渲横幅,不渲牌行与签面)。 */
               <HandRack
+                key={`${selfSeat}:${selfPlayer.id}`}
                 player={selfPlayer}
                 nudgePulse={playNudge}
                 bannerOnly={rackBannerOnly}
@@ -827,8 +846,11 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
                         options: junshiOptions,
                         pendingCardId: junshiPendingCard?.cardId ?? null,
                         pendingSkillId: junshiPendingSkill?.skillId ?? null,
-                        selectedId: junshiSelectedId,
-                        onSelect: setJunshiSelectedId,
+                        selectedKey: junshiSelected != null ? junshiSelection!.key : null,
+                        onSelect: (selection) =>
+                          setJunshiSelection(
+                            selection != null ? { ...selection, scope: junshiScope } : null,
+                          ),
                         onConfirm: junshiConfirm,
                       }
                     : undefined
@@ -838,11 +860,16 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
                     ? {
                         banner: reactBanner,
                         reactiveIds: reactPlayable,
-                        selectedId: reactCardId,
-                        onSelect: (id) => {
+                        seq: snapshot.pendingReaction!.seq,
+                        selectedKey: reactCardId != null ? reactSelection!.key : null,
+                        onSelect: (selection) => {
                           getAudio().play("jinnangSelect"); // 选中音(选中可逆,取消不出声)
                           setReactShare(null); // 换选即清份(份随牌走)
-                          setReactCardId((cur) => (cur === id ? null : id));
+                          setReactSelection((cur) =>
+                            cur?.scope === reactScope && cur.key === selection.key
+                              ? null
+                              : { ...selection, scope: reactScope },
+                          );
                         },
                       }
                     : undefined

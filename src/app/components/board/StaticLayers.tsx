@@ -114,9 +114,9 @@ export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
       <mask id="bv-edge-mask" maskUnits="userSpaceOnUse" x={O.x} y={O.y} width={O.w} height={O.h}>
         <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="#fff" />
         <rect x={O.x} y={O.y} width={EDGE_PAD} height={O.h} fill="url(#bv-edge-fade-l)" />
-        <rect x={fit.x} y={O.y} width={EDGE_PAD} height={O.h} fill="url(#bv-edge-fade-r)" />
+        <rect x={fit.x + fit.w} y={O.y} width={EDGE_PAD} height={O.h} fill="url(#bv-edge-fade-r)" />
         <rect x={O.x} y={O.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-t)" />
-        <rect x={O.x} y={fit.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-b)" />
+        <rect x={O.x} y={fit.y + fit.h} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-b)" />
       </mask>
       {/* F2 都城光晕(#512 克制档):金色中心 → 边缘渐 0;峰值压到 0.4(旧 0.55)——
           深底上金晕天然显眼,「美观且不炫目」验收词下收一档;脉动仍走 CSS opacity。 */}
