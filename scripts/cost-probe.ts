@@ -38,7 +38,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
 import { staticPreviewPort } from "./dev-ports.ts";
-import { distFreshness, stampDistBuild } from "./dist-freshness.ts";
+import { distFreshness } from "./dist-freshness.ts";
+import { MOBILE_CONTEXT_OPTIONS } from "./mobile-context.ts";
 
 // ── 参数面 ──
 let SEED = 1101;
@@ -140,7 +141,7 @@ async function newColdContext(
   browser: Awaited<ReturnType<typeof chromium.launch>>,
 ): Promise<BrowserContext> {
   const ctx = await browser.newContext({
-    viewport: { width: 844, height: 390 },
+    ...MOBILE_CONTEXT_OPTIONS,
     deviceScaleFactor: 3,
   });
   // 五键注入 = e2e/fixtures.ts 同值同形制(键名是 timings.ts/App.tsx 单源字面,
@@ -329,8 +330,10 @@ try {
   const fresh = distFreshness();
   if (!fresh.fresh) {
     console.log(`[probe] dist 陈旧(${fresh.reason}),build…`);
-    spawnSync("bun", ["run", "build"], { shell: win, stdio: "inherit" });
-    stampDistBuild();
+    const build = spawnSync("bun", ["run", "build"], { shell: win, stdio: "inherit" });
+    if (build.error) throw build.error;
+    if (build.status !== 0)
+      throw new Error(`build 失败(exit ${build.status},signal ${build.signal})`);
   }
   server = sh("bun", ["run", "--bun", "vite", "preview", "--port", String(PORT), "--strictPort"]);
   await waitServer(URL);

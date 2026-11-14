@@ -67,6 +67,8 @@ import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { GHOST } from "@app/fx/timings";
+import { installControlledClock } from "./controlled-clock";
 
 /** 晚绑模块型(late binding,红线见头注第 0 步;type-of-import 类型面静态引用,
  *  求值面零触碰,不破晚绑)。 */
@@ -117,6 +119,7 @@ function seedPlayingEngine(): GameEngine {
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
+let clock: ReturnType<typeof installControlledClock>;
 
 /** act() 内挂 GameScreen;卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -169,19 +172,10 @@ function click(el: Element): void {
   });
 }
 
-/** 有界等待卸载(battle-wiring 配方原样):退场协议(幽灵帧 210ms「播完再移除」)
- *  走完即卸——happy-dom 真定时器自然走时,轮询到位即收,超死线响亮红。判词:卸载
- *  后的「null 断言」必须等协议走完;协议在途就把在场 happy-dom 节点递给 expect,
- *  断言失败路径的 diff 序列化会走节点循环引用(wire3 实锤:bun 序列化爆炸 17GB
- *  死循环),waitUnmounted 保证断言吃到的是已卸载后的 null。 */
-async function waitUnmounted(query: () => Element | null, label: string): Promise<void> {
-  const deadline = Date.now() + 2_000;
-  while (query() != null && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
-  expect(query(), label).toBeNull();
+/** 推进退场出口后断卸载;布尔断言避免失败时序列化 happy-dom 循环节点。 */
+async function finishExit(query: () => Element | null, label: string): Promise<void> {
+  await clock.advance(GHOST.frameMs);
+  expect(query() == null, label).toBe(true);
 }
 
 beforeAll(async () => {
@@ -239,24 +233,28 @@ beforeEach(() => {
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock = installControlledClock();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await clock.settle();
   if (root != null) {
     act(() => root!.unmount());
     root = null;
   }
+  if (container != null) container.remove();
   container = null;
   setController(null); // registry 换局销毁契约:控制器随例释放,不留活口
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock.restore();
 });
 
 afterAll(async () => {
   // 排干 React 调度器余拍(模板同款):release 后再触发会在无 window 环境抛
   // 「window is not defined」——window 还在时让完这一拍再拆 happy-dom。
-  await new Promise((r) => setTimeout(r, 0));
+  await Bun.sleep(0);
   await releaseHappyDom();
 });
 
@@ -297,11 +295,8 @@ describe("单机决策接线(自 react-solo 迁入,#1318 批T4)", () => {
     expect(line.detail).toContain(`prop=${pid}`);
     expect(line.detail).toContain(`cash=${before - price}`); // 留痕现金=结算瞬间值
     expect(s.turnPhase).not.toBe("AwaitingDecision"); // 相位已被真命令推进(收尾交棒)
-    // 卷轴收:卸载断言走 waitUnmounted(battle-wiring 配方,禁裸 toBeNull)——决策
-    // 卷轴离场走幽灵帧退场协议(210ms「播完再移除」),协议在途时节点仍在场,裸
-    // toBeNull 会把在场 happy-dom 节点递给 expect,断言失败路径的 diff 序列化走
-    // 节点循环引用(爆炸实锤见 battle-wiring waitUnmounted 判词)。
-    await waitUnmounted(() => q(el, SCROLL_TESTIDS.buyScroll), "购地卷轴应随决策清退场");
+    // 卷轴收:控时推进幽灵帧退场出口后断卸载,布尔断言避免序列化在途节点。
+    await finishExit(() => q(el, SCROLL_TESTIDS.buyScroll), "购地卷轴应随决策清退场");
   });
 
   // ── ②扩军决策(react-solo 例 3 迁入)──
@@ -341,8 +336,8 @@ describe("单机决策接线(自 react-solo 迁入,#1318 批T4)", () => {
     expect(line.detail).toContain("level=1");
     expect(line.detail).toContain(`cash=${before}`);
     expect(s.turnPhase).not.toBe("AwaitingDecision"); // 相位已被真命令推进
-    // 卷轴收:卸载断言走 waitUnmounted(幽灵帧退场协议 210ms,判词同「购地决策」例)
-    await waitUnmounted(() => q(el, SCROLL_TESTIDS.upgradeScroll), "扩军卷轴应随决策清退场");
+    // 卷轴收:卸载断言走 finishExit(幽灵帧退场协议 210ms,判词同「购地决策」例)
+    await finishExit(() => q(el, SCROLL_TESTIDS.upgradeScroll), "扩军卷轴应随决策清退场");
   });
 
   // ── ③bot 托管思考态(react-solo 例 4 迁入)──

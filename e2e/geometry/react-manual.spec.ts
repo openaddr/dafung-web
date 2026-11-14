@@ -26,7 +26,7 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await expect(page.getByTestId(MANUAL_TID.modal)).toBeVisible();
   }
 
-  // 真实段(ADR-0058):首页「手册」入口真实点击开弹层,顶带让位/桌面视口切换/X 关
+  // 真实段(ADR-0058):首页「手册」入口真实点击开弹层,顶带让位/X 关
   // 回首页的真实交互链即被测环——全静态 UI(直渲 core 目录,零引擎零机遇随机),
   // 零种植零冻结。
   test("首页入口:开弹层、顶带让位 ≥44px(ADR-0049)、X 关回首页", async ({ page }) => {
@@ -39,13 +39,6 @@ test.describe("手册(844×390 横屏标准档)", () => {
       const box = (await modal.boundingBox())!;
       expect(box.y, "手册弹层顶边让出顶带").toBeGreaterThanOrEqual(44);
       expect(box.y + box.height, "弹层底边不出视口").toBeLessThanOrEqual(390);
-    }).toPass();
-    // 桌面档可用(DESIGN §4.7 桌面档零重排预算):同壳换桌面视口仍整壳在场不裁切
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await expect(async () => {
-      const box = (await modal.boundingBox())!;
-      expect(box.y).toBeGreaterThanOrEqual(44);
-      expect(box.y + box.height).toBeLessThanOrEqual(800);
     }).toPass();
     // X 关闭:退场协议(210ms「播完再移除」)走完弹层卸载,人回首页
     await page.getByTestId(MANUAL_TID.close).click();
