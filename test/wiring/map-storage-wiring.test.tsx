@@ -62,6 +62,8 @@ import { MANUAL_TID } from "@app/screens/manual/testids";
 import { useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { GHOST } from "@app/fx/timings";
+import { installControlledClock } from "./controlled-clock";
 
 /** 晚绑模块型(late binding,红线见头注第 0 步;type-of-import 类型面静态引用,
  *  求值面零触碰,不破晚绑)。 */
@@ -210,6 +212,7 @@ function WiringHost(props: { mapSource: MapSource; seed?: number }) {
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
+let clock: ReturnType<typeof installControlledClock>;
 
 /** act() 内挂 WiringHost;卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -243,37 +246,19 @@ function click(el: Element): void {
 /** 异步拍收口(模板同款):弹层壳底件挂载拍有 RO 测量态更新,让一拍宏任务并包进
  *  act(断言面不依赖该拍,纯噪声治理)。 */
 async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 0));
-  });
+  await clock.settle();
 }
 
-/** 有界等待出现(异步链:清单/预览加载/起兵开局):happy-dom 真定时器下自然走时,
- *  轮询到位即收,超死线响亮红(显式超时禁裸等)。 */
-async function waitUntil(cond: () => boolean, label: string, timeout = 3_000): Promise<void> {
-  const deadline = Date.now() + timeout;
-  while (!cond() && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
+/** 内存地图源的 Promise 链只需宏任务让步;不推进业务时间。 */
+async function settleAndAssert(cond: () => boolean, label: string): Promise<void> {
+  await clock.settle();
   expect(cond(), label).toBe(true);
 }
 
-/** 有界等待卸载(manual-wiring waitUnmounted 同款):退场协议(210ms「播完再移除」)
- *  走完即卸——轮询到位即收,超死线响亮红。 */
-async function waitUnmounted(
-  query: () => Element | null,
-  label: string,
-  timeout = 3_000,
-): Promise<void> {
-  const deadline = Date.now() + timeout;
-  while (query() != null && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
-  expect(query(), label).toBeNull();
+/** 推进退场出口后断卸载;布尔断言避免失败时序列化 happy-dom 循环节点。 */
+async function finishExit(query: () => Element | null, label: string): Promise<void> {
+  await clock.advance(GHOST.frameMs);
+  expect(query() == null, label).toBe(true);
 }
 
 /** 弹层查询口:选图面板/手册弹层经 Portal 渲染在 body,一律 document 级。 */
@@ -281,10 +266,10 @@ const modalQ = (id: string): Element | null => q(document, id);
 
 /** 首页就绪等待:无记忆时地图 id 走清单首项异步解析(App getDefaultMapId 镜像),
  *  home-screen 真挂才可点入口。先让一拍(清单 Promise 微任务在 act 内落定,免
- *  act 外更新噪声)再轮询。 */
+ *  act 外更新噪声)再断言渲染已提交。 */
 async function waitHomeReady(el: HTMLElement): Promise<void> {
   await settle();
-  await waitUntil(() => q(el, HOME_TID.screen) != null, "首页应真挂(地图 id 解析链断)");
+  await settleAndAssert(() => q(el, HOME_TID.screen) != null, "首页应真挂(地图 id 解析链断)");
 }
 
 /** 首页选图链(①②③公用前置):点「选择地图」→ 面板真挂 → 点条目展开预览。 */
@@ -295,7 +280,7 @@ async function openMapPanelAndPick(el: HTMLElement, mapId: string): Promise<void
   if (modalQ(SETUP_TID.mapPanel) == null)
     throw new Error("接线测试:选图面板未挂载(选图入口接线断)");
   click(must(document, SETUP_TID.mapItem(mapId), `地图条目 ${mapId}(清单装配)`));
-  await waitUntil(() => modalQ(SETUP_TID.mapPreview) != null, "点选应展开 SVG 预览");
+  await settleAndAssert(() => modalQ(SETUP_TID.mapPreview) != null, "点选应展开 SVG 预览");
 }
 
 beforeAll(async () => {
@@ -359,13 +344,16 @@ beforeAll(async () => {
 beforeEach(() => {
   useGameStore.getState().reset();
   useNetStore.getState().reset();
+  clock = installControlledClock();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await clock.settle();
   if (root != null) {
     act(() => root!.unmount());
     root = null;
   }
+  if (container != null) container.remove();
   container = null;
   setController(null); // registry 换局销毁契约:控制器随例释放,不留活口
   useGameStore.getState().reset();
@@ -373,11 +361,12 @@ afterEach(() => {
   // localStorage 卫生(头注):本族触及键成对清除,防跨例泄漏
   localStorage.removeItem(MAP_PREF_KEY);
   localStorage.removeItem("dafung.guohao");
+  clock.restore();
 });
 
 afterAll(async () => {
   // 排干 React 调度器余拍(模板同款)再拆 happy-dom。
-  await new Promise((r) => setTimeout(r, 0));
+  await Bun.sleep(0);
   await releaseHappyDom();
 });
 
@@ -400,7 +389,7 @@ describe("选图面板接线(自 react-map-selection 迁入,#1316 批T2)", () =>
     );
     // 点 zhongyuan → 异步加载 + 简版预览 SVG
     click(must(document, SETUP_TID.mapItem("zhongyuan"), "中原条目"));
-    await waitUntil(() => modalQ(SETUP_TID.mapPreview) != null, "点选应展开 SVG 预览");
+    await settleAndAssert(() => modalQ(SETUP_TID.mapPreview) != null, "点选应展开 SVG 预览");
   });
 
   // ── ②确认记忆(react-map-selection 例 2 迁入)──
@@ -427,8 +416,11 @@ describe("选图面板接线(自 react-map-selection 迁入,#1316 批T2)", () =>
     click(must(el, HOME_TID.solo, "「单机模式」入口")); // 首页 → 次级配置页
     await settle();
     click(must(el, SETUP_TID.startGame, "起兵钮"));
-    // 起兵是异步链(loadMapById→构造→sync→切屏):有界等 Game 屏快照直灌
-    await waitUntil(() => useGameStore.getState().snapshot != null, "起兵后快照应直灌(开局链断)");
+    // 起兵是内存源 Promise 链(loadMapById→构造→sync→切屏):让拍后断快照直灌
+    await settleAndAssert(
+      () => useGameStore.getState().snapshot != null,
+      "起兵后快照应直灌(开局链断)",
+    );
     // 棋盘为 8 城小环(节点计数非几何)+ 快照健康(e2e 同款三断言)
     expect(el.querySelectorAll("[data-tile]")).toHaveLength(8);
     const s = useGameStore.getState().snapshot!;
@@ -441,7 +433,7 @@ describe("记忆健壮性接线(自 react-resilience 迁入,#1316 批T2)", () =>
   // ── ④垃圾串回显(react-resilience 例 1 迁入)──
   // 断言面:零兜底原则的 UI 面——垃圾记忆原样回显可见、启动不卡死、记忆不被静默
   // 改写(损坏可见,不静默清空)。真 localStorage 预置 + 首页真渲染。
-  it("记忆地图 id 为垃圾串:首页原样回显不卡死,记忆不被静默清空", () => {
+  it("记忆地图 id 为垃圾串:首页原样回显不卡死,记忆不被静默清空", async () => {
     localStorage.setItem(MAP_PREF_KEY, "not-json{{{");
     const el = mount();
     // 垃圾串也是合法记忆值:不走「清单加载中」闸,首页直接渲染,id 原样回显(待数据非兜底)
@@ -449,6 +441,7 @@ describe("记忆健壮性接线(自 react-resilience 迁入,#1316 批T2)", () =>
     expect(must(el, SETUP_TID.currentMapName, "地图名回显").textContent).toBe("not-json{{{");
     // 不静默清空:垃圾记忆原样保留(损坏对后续开局可见,见下例「失效 id」)
     expect(localStorage.getItem(MAP_PREF_KEY)).toBe("not-json{{{");
+    await settle(); // 地图名异步解析仍会收口,在本例 act 内落定后再交回测试调度器。
   });
 
   // ── ⑤失效 id 拦截(react-resilience 例 2 迁入)──
@@ -462,8 +455,8 @@ describe("记忆健壮性接线(自 react-resilience 迁入,#1316 批T2)", () =>
     click(must(el, HOME_TID.solo, "「单机模式」入口"));
     await settle();
     click(must(el, SETUP_TID.startGame, "起兵钮"));
-    // 起兵是异步链:有界等显式报错落账(真抛错→pushHint,生产同一 catch 通路)
-    await waitUntil(
+    // 起兵是内存源 Promise 链:让拍后断显式报错落账(生产同一 catch 通路)
+    await settleAndAssert(
       () => useGameStore.getState().hint != null,
       "起兵失败应显式报错(静默=兜底,违零兜底原则)",
     );
@@ -495,13 +488,12 @@ describe("手册收口净空(自 react-manual 迁入,#1316 批T2)", () => {
     // 壳的题名行+X 露在叠层上方,真机可点(裸弹层复的触发钮):点壳 X 而非叠层 X
     click(must(document, MANUAL_TID.close, "壳关闭钮"));
     // 净空语义:叠层先于壳退场消失(closing 起手即卸载,壳 210ms 协议随后收场);
-    // 两体有界轮询各到终态即收(断言面=先后卸载的终态,非时序数值)
-    await waitUnmounted(
-      () => modalQ(MANUAL_TID.detail("义士来投")),
+    // closing 起手先净空叠层,随后推进壳退场出口;不合并两段断言。
+    expect(
+      modalQ(MANUAL_TID.detail("义士来投")) == null,
       "叠层应先于壳卸载(closing 起手即净空)",
-      2_000,
-    );
-    await waitUnmounted(() => modalQ(MANUAL_TID.modal), "壳应随退场协议卸载", 2_000);
+    ).toBe(true);
+    await finishExit(() => modalQ(MANUAL_TID.modal), "壳应随退场协议卸载");
     // 不留孤儿:body 上无任何活弹层,人回首页
     expect(document.querySelectorAll('[data-slot="dialog-content"]').length).toBe(0);
     expect(q(el, HOME_TID.screen)).not.toBeNull();
