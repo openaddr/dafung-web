@@ -57,11 +57,12 @@ describe("状态摘要器", () => {
   });
 });
 
-// ── 确定性两跑门(语料全量;同一 (图,seed) 两跑,逐回合摘要逐位一致)──
+// 每图首个固定种子常驻默认池;完整语料仅 DAFUNG_SLOW=1 定向执行。
 describe("确定性两跑门", () => {
   for (const m of MAPS) {
     for (const seed of SEEDS) {
-      it(`${m.id} seed ${seed}:两跑逐位一致且终局可达`, () => {
+      const runCase = seed === SEEDS[0] ? it : it.skipIf(!process.env.DAFUNG_SLOW);
+      runCase(`${m.id} seed ${seed}:两跑逐位一致且终局可达`, () => {
         const map = loadMap(m.data);
         const opts: WholeGameOptions = { map, mapId: m.id, seed, seats: botSeats(4) };
         const a = runWholeGame(opts);

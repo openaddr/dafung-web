@@ -123,7 +123,7 @@ describeSlow("server cmd 分支错误回报(#428)", () => {
           `处置:netstat -ano | grep :${PORT} 查 PID → tasklist 验名为 bun.exe → taskkill //PID <pid> //F`,
       );
     }
-    proc = Bun.spawn(["bun", "scripts/server.ts"], {
+    proc = Bun.spawn([process.execPath, "scripts/server.ts"], {
       cwd: join(import.meta.dir, "..", ".."), // 仓库根:地图清单 ./public/maps 相对 cwd 解析(缺失即抛)
       env: {
         ...process.env,

@@ -2,7 +2,7 @@
 node_modules/
 dist/
 
-# ===== 测试与截图自证产物(可再生;e2e 输出 tmp/test-results/(playwright.config outputDir),截图脚手架 shot.mjs 工作区也在 tmp/)=====
+# ===== 测试诊断与单次辅助产物(可再生,统一在 tmp/)=====
 tmp/
 *.log
 # dogfood QA 证据截图只留本地不入库,报告 docs/dogfood/report.md 照常入库

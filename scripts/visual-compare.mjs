@@ -1,8 +1,9 @@
+// 仅在用户明确要求页面观察、截图对比或性能/浏览器复现时使用;不接入验证门槛。
 // 发版前视觉对照工具:上一 tag 构建 vs 当前工作树,四场景并排图(#1258;ADR-0059 决策 2)。
 //
 // 用法: bun run visual:compare [--tag vX.Y.Z]      (缺省 tag = git tag 最新 v*,CalVer)
 // 跑法与起服通道同 scripts/shot.mjs:本脚本用 node 跑(bun 直接跑 playwright 会超时,
-// 见 package.json "playwright" 条目注记),起服走 vite preview JS API(进程内收放,
+// 运行时沿用 Node),起服走 vite preview JS API(进程内收放,
 // 端口 strictPort 占用即响亮失败)。真值侧 = git worktree(逃生舱通道)checkout 该
 // tag → bun install → bun run build → 静态服 :4330;当前侧 = 本检出 build → :4331。
 //
@@ -40,14 +41,15 @@ import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { chromium } from "playwright";
 import { preview } from "vite";
+import { MOBILE_CONTEXT_OPTIONS } from "./mobile-context.ts";
 
 const PORT_TRUTH = 4330;
 const PORT_CURRENT = 4331;
 const SEED = 1486;
-const VIEWPORT = { width: 844, height: 390 };
-const HALF_PX = 1688; // 844 × deviceScaleFactor 2,单侧截图天然像素宽
+const VIEWPORT = MOBILE_CONTEXT_OPTIONS.viewport;
+const HALF_PX = VIEWPORT.width * 2; // deviceScaleFactor 2,单侧截图天然像素宽
 
-// testid 字面量(.mjs 无法 import TS 单源,随各 testids.ts 注记同步;两侧 tag 对拍一致):
+// testid 字面量(随各 testids.ts 注记同步;两侧 tag 使用同一驱动):
 // home/setup: src/app/screens/home/testids.ts、src/app/screens/setup/testids.ts;
 // 对局/终局: src/app/screens/game/testids.ts、src/app/screens/game/scroll/testids.ts。
 const TID = {
@@ -207,12 +209,12 @@ async function parkMyTurn(page, timeoutMs = 90_000) {
 async function captureSide(port, sideDir) {
   mkdirSync(sideDir, { recursive: true });
   const ctx = await browser.newContext({
-    viewport: VIEWPORT,
+    ...MOBILE_CONTEXT_OPTIONS,
     deviceScaleFactor: 2,
     reducedMotion: "reduce", // M-9 静态口径,常驻氛围动画钉死(见头注确定性段)
   });
   const page = await ctx.newPage();
-  // 演出加速 + 调试桥门禁键(单源 src/app/fx/timings.ts;.mjs 无法 import TS,字面量
+  // 演出加速 + 调试桥门禁键(单源 src/app/fx/timings.ts;字面量
   // 随 shot.mjs 注记同步)。机遇 route 归零 = e2e disableEncounters 同口径(确定性)。
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.25"));
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-debug-bridge", "1"));

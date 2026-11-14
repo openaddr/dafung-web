@@ -30,6 +30,8 @@ function jj(...jjArgs: string[]): string {
 }
 
 const RETIRED: { phrase: string; note: string }[] = [
+  { phrase: "全量 `bun test`", note: "#1438 完整放行走 bun run test,裸命令只供诊断" },
+  { phrase: "build + bun test", note: "#1438 同上,完整放行增加聚焦与零执行拒绝" },
   { phrase: "@ 即提交", note: "S2 收窄:主树 @ 只做停靠位(#581)" },
   { phrase: "主树就地直改", note: "S2:任何改动先开工作区(#581)" },
   { phrase: "主树直改", note: "S2:任何改动先开工作区(#581)" },

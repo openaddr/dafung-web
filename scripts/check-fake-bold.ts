@@ -7,7 +7,7 @@
 // 豁免口径:同一行带清理叙事标记(退役/拔除/清尾/规约/实锤/翻面)= 历史叙事或
 // 清理记录本身,合法保留——与 check-retired-phrases 的翻面标记同款约定。
 //
-// 范围:jj 跟踪集 src/ 下 .ts/.tsx/.css(UI 真相源;test/e2e/scripts 不渲染字体)。
+// 范围:jj 跟踪集 src/ 下 .ts/.tsx/.css(UI 真相源;test/scripts 不渲染字体)。
 // 用法:bun scripts/check-fake-bold.ts
 // 退出码:0=全绿;1=有残留;2=自身运行出错
 

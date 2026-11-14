@@ -69,7 +69,7 @@ const startedAt = Date.now();
 // ──────────────────────────── 机遇配置(#135:单机联机同规则)────────────────────────────
 // 服务器启动时读一次 jiyu.json 作为联机房间引擎的机遇配置(单机设置屏 fetch 同一文件);
 // 缺文件/坏结构回退产品默认(core ENCOUNTER_PRODUCT_DEFAULTS,与单机内置回退同值)。
-// 路径可 env 覆盖:联机 e2e 用它注入归零配置(playwright.config.ts → e2e/jiyu-off.json),
+// 路径可 env 覆盖:无头协议测试用它注入归零配置(test/fixtures/jiyu-off.json),
 // 先隔离后开启,机遇节奏不进联机用例(#118 教训:节奏类变更必须可隔离)。
 const JIYU_CONFIG = resolve(process.env.JIYU_CONFIG ?? "./public/config/jiyu.json");
 function loadEncounterConfig() {

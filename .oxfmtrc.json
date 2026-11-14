@@ -1,4 +1,5 @@
 {
   // public/ 是静态资源与生成物(fonts.css 来自字体分片工具,与官方 style.css 对齐),不归 formatter 管
-  "ignorePatterns": ["public/**"]
+  // 原始冒烟报告按采集字节归档,SHA 用于证据核对,不经 formatter 重排。
+  "ignorePatterns": ["public/**", "docs/reference/APK冒烟证据/**/report.json"]
 }

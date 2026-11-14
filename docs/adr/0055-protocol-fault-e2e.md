@@ -1,5 +1,7 @@
 # ADR-0055: 协议级联机 e2e——故障注入代理 + react-online 逻辑断言下沉
 
+> 历史决策:浏览器地板、脊柱、快慢池与强制放行条款已由 [ADR-0065](0065-test-economics-browser-retirement.md) 取代;当前只按需执行独有无浏览器覆盖,不得据本页恢复浏览器回归。
+
 日期:2026-11-07 · 状态:已采纳 · 票:[#1164](https://github.com/openaddr/dafung-web/issues/1164)(棒一 99cd9e92 地基 + 棒二收口) · 地图:[#1160](https://github.com/openaddr/dafung-web/issues/1160)(无头确定性 e2e 测试体系,wayfinder;前置 [ADR-0052](./0052-headless-deterministic-testing.md))
 
 ## 背景
