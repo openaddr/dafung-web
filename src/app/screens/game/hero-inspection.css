@@ -1,0 +1,231 @@
+/* 人物卷 A(#1446):窄画像签 / 大幅人物 / 右侧文稿;全部入口共用同一形制。
+   仅消费现役主题、字族、壳与滚动底件;操作区是正文滚动井之外的固定兄弟节点。 */
+.pile-modal.hero-inspection {
+  height: calc(100dvh - 64px);
+  padding: 12px 20px 14px;
+}
+.hero-inspection .pile-head {
+  padding-bottom: 9px;
+  border-bottom-color: var(--hairline);
+}
+.hero-inspection .pile-body {
+  margin-top: 10px;
+  overflow: hidden;
+}
+.hero-inspection .pile-body > [data-slot="scroll-area-viewport"] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.hero-inspection .pile-body::before,
+.hero-inspection .pile-body::after {
+  display: none;
+}
+.hero-inspection-volume {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: 68px 172px minmax(0, 1fr);
+  gap: 18px;
+}
+.hero-inspection button {
+  font-family: var(--font-brush);
+  cursor: pointer;
+}
+.hero-inspection button:focus-visible {
+  outline: 2px solid var(--color-gold-bright);
+  outline-offset: -2px;
+}
+.hero-inspection-tabs {
+  min-height: 0;
+  border-right: 1px solid var(--hairline);
+}
+.hero-inspection-tabs nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 10px;
+}
+.hero-inspection-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  min-width: 40px;
+  min-height: 48px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--color-paper-dim);
+}
+.hero-inspection-tab[aria-pressed="true"] {
+  border-color: var(--color-gold);
+  background: var(--color-panel-hi);
+  color: var(--color-gold-bright);
+}
+.hero-inspection-tab > span {
+  font-size: 14px;
+  line-height: 20px;
+}
+.hero-inspection-portrait {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-gold-deep);
+  background: var(--color-paper);
+}
+.hero-inspection-portrait .lihui,
+.hero-inspection-portrait .lihui img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hero-inspection-portrait .lihui img {
+  object-fit: cover;
+  object-position: center 20%;
+}
+.hero-inspection-portrait .is-ph {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--color-danger);
+  font-family: var(--font-wenkai);
+}
+.hero-inspection-portrait .ph-xiang {
+  font-family: var(--font-brush);
+  font-size: 40px;
+}
+.hero-inspection-portrait .ph-hint {
+  font-size: 13px;
+}
+.hero-inspection-tab .hero-inspection-portrait {
+  width: 31px;
+  height: 33px;
+}
+.hero-inspection-tab .ph-xiang {
+  font-size: 22px;
+}
+.hero-inspection-tab .ph-hint {
+  display: none;
+}
+.hero-inspection-person {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.hero-inspection-person > .hero-inspection-portrait {
+  flex: 1;
+}
+.hero-inspection-person h2 {
+  position: absolute;
+  bottom: 12px;
+  left: 10px;
+  margin: 0;
+  padding: 6px 8px;
+  font-family: var(--font-brush);
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: 3px;
+  writing-mode: vertical-rl;
+  color: var(--color-lacquer-gold);
+  background: var(--color-lacquer);
+}
+.hero-inspection-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.hero-inspection-reading {
+  flex: 1;
+  min-height: 0;
+}
+.hero-inspection-reading [data-slot="scroll-area-viewport"] {
+  padding-right: 12px;
+}
+.hero-inspection-skill {
+  padding: 10px 0 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+.hero-inspection-skill:first-child {
+  padding-top: 2px;
+}
+.hero-inspection-skill:last-child {
+  border-bottom: 0;
+}
+.hero-inspection-skill-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 6px;
+}
+.hero-inspection-skill-head i {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-gold);
+}
+.hero-inspection-skill-head i.is-active {
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+.hero-inspection-skill-head h3 {
+  margin: 0;
+  font-family: var(--font-brush);
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  color: var(--color-gold-bright);
+}
+.hero-inspection-skill-head > span {
+  margin-left: auto;
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  color: var(--color-paper-dim);
+}
+.hero-inspection-skill p {
+  margin: 0;
+  font-family: var(--font-wenkai);
+  font-size: 15px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  color: var(--color-paper);
+}
+.hero-inspection-actions {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 6px;
+  border-top: 1px solid var(--hairline);
+}
+.hero-inspection-dismiss {
+  height: 40px;
+  min-width: 86px;
+  padding: 0 15px;
+  font-size: 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  color: var(--color-paper-dim);
+  background: var(--color-panel);
+}
+.hero-inspection-dismiss.armed {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+.hero-inspection-dismiss:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.hero-inspection-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}

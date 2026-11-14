@@ -1,8 +1,8 @@
 // 名将签(#1071,spec #1069 决议⑤ T2 装配;#1183 形制改版;#1188 收编壳与卡基单源):
 // HEROES 全量 HeroCardFace compact 缩略卡墙——技名 chips 只显名不带 desc(#1183 用户口径:
 // 详细技能效果点开才看),换行居中 + 体部内滚与四签统一(旧一行 detail 档等宽墙
-// 随名将扩容密不透风,退役)。卡基=CARD_WALL_BASE_PX(card-wall.ts 单源,珍宝签同拍):
-// 6 张一行恰收进 844×390 体部宽,行数随目录实数换行续滚,不落数;点卡开 SkillGlossaryDialog
+// 随名将扩容密不透风,退役)。卡基=CARD_WALL_BASE_PX(card-wall.ts 单源):
+// 行数随目录实数自然换行续滚;点卡开 SkillGlossaryDialog
 // 只读模式——不传 onPick=无拍板钮浏览语境;target.skillIds=poolSkillIds=池全亮不灰置;
 // skillId=被点技,skillIdFromClick 单源判定(compact chips 自带 data-skill,点技名
 // 直落该技高亮,点卡面其余处=纯浏览不高亮)。

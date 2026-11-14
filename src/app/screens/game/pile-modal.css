@@ -278,44 +278,6 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
 }
 
-/* ── 麾下遣散格(#1147):卡下遣散钮的名将格容器(纵向卡+钮,占位同裸卡网格);
-   遣散钮=小字淡描边,武装态(「确认遣散」二段确认)转朱砂实底白字——破坏性操作
-   的警示升档(TreasurePickModal 成交钮二段式同惯例);禁用态恒淡灰。 ── */
-.pile-modal .pile-hero-slot {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-.pile-modal .hero-dismiss {
-  font-size: 12px;
-  line-height: 1;
-  padding: 5px 14px;
-  color: var(--color-paper-dim);
-  background: none;
-  border: 1px solid color-mix(in srgb, var(--color-paper-dim) 45%, transparent);
-  border-radius: 4px;
-  cursor: pointer;
-  transition:
-    color 0.15s ease,
-    border-color 0.15s ease,
-    background 0.15s ease;
-}
-.pile-modal .hero-dismiss:hover:not(:disabled),
-.pile-modal .hero-dismiss:focus-visible:not(:disabled) {
-  color: var(--color-paper);
-  border-color: color-mix(in srgb, var(--color-lacquer-gold) 65%, transparent);
-}
-.pile-modal .hero-dismiss.armed {
-  color: var(--color-paper);
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-}
-.pile-modal .hero-dismiss:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
 /* ══ 矮屏规范·矮横屏档行高自适应(#708;断点=对局屏 A 档同一查询串,
    形态分档口径见 game/layout.css 文件尾)══
    壳夹高后体部可用高随视口收紧,内容单元(卡面/清单行)整体缩档,使审计基准局
