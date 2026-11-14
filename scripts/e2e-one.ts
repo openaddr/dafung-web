@@ -7,73 +7,74 @@
 // 全量入口(test:e2e)经 test-lock 包本脚本,E2E_WORKERS 等环境变量自然流入。
 // 入口水位前置闸(#1003,#958 会话复盘):开跑 CPU≥80% 红字警告负载竞速风险
 // (advisory 不拦跑)——负载期盲跑挂例谱漂移,2 轮纯浪费才想起 A/B 定性,判读机械闸化。
-// 进程水位硬闸(#1280):bun+node 进程计数超阈值响亮失败拒绝开跑——负载窗假挂
+// 进程水位硬闸(#1280):bun+非工具代理 node 超阈值响亮失败拒绝开跑——负载窗假挂
 // 不是算力是进程/调度水位(纯 CPU 燃烧 6 核 2.4m 不复现,#1280 进程取证),CPU
-// advisory 挡不住 bun/node 叠加窗,机械闸化成硬失败;阈值判据见 WATERMARK_GATE。
+// advisory 挡不住 bun/node 叠加窗;计数与阈值单源见 e2e-watermark.ts。
 import { spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, createWriteStream } from "node:fs";
-import { probeWatermark, warnIfLoaded } from "./e2e-watermark";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { stripVTControlCharacters } from "node:util";
+import { assertWatermark, warnIfLoaded } from "./e2e-watermark";
 
 const LOG = "tmp/e2e-one-last.log";
 mkdirSync("tmp", { recursive: true });
-const log = createWriteStream(LOG, { flags: "w" });
+writeFileSync(LOG, "");
+let outputTail = "";
 const tee = (chunk: Buffer | string): void => {
   const text = typeof chunk === "string" ? chunk : chunk.toString();
+  outputTail = (outputTail + text).slice(-8192);
   process.stdout.write(text);
-  log.write(text);
+  appendFileSync(LOG, text); // 同步落盘,任何退出路径都不丢最终判决。
 };
 
-/** 进程水位硬闸阈值(#1280):bun+node ≥ 28 拒绝开跑。校准判据:安静基线
- *  bun3+node11=14(2026-11-08 实测,含本闸自身 bun 进程与机器常驻 node 服务);
- *  早晨失败窗收尾水位 bun=17 为「本会话+单并行会话」叠加态(#1280 进程取证)——
- *  阈值取基线 2 倍,容一整个并行会话满编叠加,低于它历史无假挂聚集;纯 CPU 燃烧
- *  (不增进程数)不触闸,负载复现验收(6 燃烧进程)照跑。 */
-const WATERMARK_GATE = 28;
-
-function gateWatermark(): void {
-  const w = probeWatermark();
-  const count = (name: string): number =>
-    Number(w.text.match(new RegExp(`${name}=(\\d+)`))?.[1] ?? 0);
-  const bun = count("bun");
-  const node = count("node");
-  if (bun + node >= WATERMARK_GATE) {
-    const msg =
-      `[e2e-one] ⛔ 水位闸:并行会话水位过高(bun=${bun}+node=${node}≥${WATERMARK_GATE}),` +
-      `等其收尾或协调后重跑;负载窗假挂指纹见 #1280(到站链 waitFor 30s 爬不完=` +
-      `进程/调度水位,纯 CPU 燃烧不复现)。\n`;
-    process.stdout.write(msg);
-    // 同步落盘再退:log 流异步刷写跟不上 process.exit,闸拒绝理由必须留在 tmp 日志
-    appendFileSync(LOG, msg);
-    process.exit(1);
-  }
+try {
+  assertWatermark(warnIfLoaded("e2e-one"));
+} catch (error) {
+  const msg = `${String(error)}\n`;
+  process.stderr.write(msg);
+  // 探针/闸拒绝的明确理由也同步落盘。
+  appendFileSync(LOG, msg);
+  process.exit(1);
 }
-gateWatermark();
-warnIfLoaded("e2e-one");
-const exitCode = await new Promise<number>((resolve) => {
-  const run = (command: string, args: string[]): Promise<number> =>
-    new Promise((res) => {
-      tee(`\n[e2e-one] $ ${command} ${args.join(" ")}\n`);
-      const child = spawn(command, args, {
-        stdio: ["ignore", "pipe", "pipe"],
-        shell: process.platform === "win32",
-      });
-      child.stdout.on("data", tee);
-      child.stderr.on("data", tee);
-      child.on("close", (code) => res(code ?? 1));
+const run = (command: string, args: string[]): Promise<number> =>
+  new Promise((res, reject) => {
+    tee(`\n[e2e-one] $ ${command} ${args.join(" ")}\n`);
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: process.platform === "win32",
     });
+    child.stdout.on("data", tee);
+    child.stderr.on("data", tee);
+    child.on("error", reject);
+    child.on("close", (code) => res(code ?? 1));
+  });
 
-  (async () => {
-    // 段 1:与常规 build 共用打包完成判据;这里不声称跑过类型检查。
-    const buildCode = await run("bun", ["run", "build:bundle"]);
-    if (buildCode !== 0) {
-      tee(`\n[e2e-one] build 失败(exit ${buildCode}),跳过 playwright。\n`);
-      resolve(buildCode);
-      return;
-    }
-    // 段 2:playwright,参数透传。注意必须走 node 通道(不带 --bun:
-    // bun 跑 playwright launch() 挂起,how-to「截图/探针通路」节在案)。
-    resolve(await run("playwright", ["test", ...process.argv.slice(2)]));
-  })();
-});
-log.end();
+async function execute(): Promise<number> {
+  // 段 1:与常规 build 共用打包完成判据;这里不声称跑过类型检查。
+  const buildCode = await run("bun", ["run", "build:bundle"]);
+  if (buildCode !== 0) {
+    tee(`\n[e2e-one] build 失败(exit ${buildCode}),跳过 playwright。\n`);
+    return buildCode;
+  }
+  // 段 2:playwright,参数透传。注意必须走 node 通道(不带 --bun:
+  // bun 跑 playwright launch() 挂起,how-to「截图/探针通路」节在案)。
+  outputTail = ""; // 只认 Playwright 汇总,不让 build 输出冒充已执行的用例。
+  const code = await run("playwright", [
+    "test",
+    ...process.argv.slice(2),
+    "--forbid-only",
+    "--fail-on-flaky-tests",
+  ]);
+  if (code === 0 && !/^\s*[1-9]\d* passed\b/m.test(stripVTControlCharacters(outputTail))) {
+    tee("\n[e2e-one] 零执行或缺少 Playwright 通过汇总,不构成验证通过(列表/全 skip 也不放行)。\n");
+    return 1;
+  }
+  return code;
+}
+let exitCode: number;
+try {
+  exitCode = await execute();
+} catch (error) {
+  tee(`[e2e-one] 子进程启动失败:${String(error)}\n`);
+  exitCode = 1;
+}
 process.exit(exitCode);

@@ -47,10 +47,10 @@ export default defineConfig({
   // e2e 产物(trace/失败截图/视频)进 tmp/:与 shot.mjs 工作区同区,gitignore 单点覆盖
   outputDir: "tmp/test-results",
   fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  // 重试本地与 CI 同为 1:已知负载 flake 家族(联机双端/scrolls 时序/sidebar 8 人局)
-  // 几乎每轮全量都出 1-3 例单跑绿,过去每批门都要多跑一轮收尾。#106 的 10s 点击
-  // 上限后真回归是确定性的(重试照挂,如 pendingLand 回归),重试不再掩盖问题。
+  forbidOnly: true,
+  failOnFlakyTests: true,
+  // 重试只为保留首次失败与 retry trace 等诊断证据;重试通过仍为 flaky、非零退出。
+  // 不可靠例按 how-to「全量放行判据」当场处置,本地与 CI 同一放行语义。
   retries: 1,
   workers: process.env.E2E_WORKERS
     ? Number(process.env.E2E_WORKERS)
