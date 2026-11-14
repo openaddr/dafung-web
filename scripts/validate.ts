@@ -95,7 +95,7 @@ const DOMAINS: Record<string, { paths: RegExp; checks: string[] }> = {
   },
   scripts: {
     paths:
-      /^scripts\/(?:apk-smoke|bot-driver|build-dist|bun-release|check-[\w-]+|cli|cost-probe|dev-ports|dev|dist-freshness|engine-helpers|event-batch|fault-proxy|fetch-asset|frame-probe|generate-theme-tokens|mobile-context|online-client|play|pr-merge|procs|release|room-persistence|room-record|room|seat-projection|server|shot|sim-batch|sim-bench|sim-digest|sim-jinnang|state-digest|test-corpus|test-lock|validate|visual-compare|watchdogs|whole-game|wire|ws-new|ws-run)\.(?:ts|mjs)$/,
+      /^scripts\/(?:apk-smoke|bot-driver|build-dist|bun-release|check-[\w-]+|cli|command-log|context-read|cost-probe|dev-ports|dev|dist-freshness|engine-helpers|event-batch|fault-proxy|fetch-asset|frame-probe|generate-theme-tokens|mobile-context|online-client|play|pr-merge|procs|release|room-persistence|room-record|room|seat-projection|server|shot|sim-batch|sim-bench|sim-digest|sim-jinnang|state-digest|test-corpus|test-lock|validate|visual-compare|watchdogs|whole-game|wire|ws-new|ws-run)\.(?:ts|mjs)$/,
     checks: ["typecheck:scripts"],
   },
   engine: {
