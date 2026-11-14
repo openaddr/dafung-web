@@ -21,6 +21,7 @@ import { E2E_DEBUG_BRIDGE_KEY } from "../../src/app/fx/timings";
 import type { PlantOp } from "../../src/core/planter";
 import type { PresentationEvent } from "../../src/app/fx/presentation";
 import { waitFxIdle } from "./settle";
+import { newMobileContext } from "../mobile-context";
 
 /** 表现态入口(#1418):仅转发既有播放器;帧与定时器控制由几何 spec 自持。 */
 export function playPresentation(page: Page, events: PresentationEvent[]): Promise<void> {
@@ -32,7 +33,7 @@ export function playPresentation(page: Page, events: PresentationEvent[]): Promi
  *  页面(coreState/onlinePickCapitals 的两端)会拿到 undefined。master 上已断的接线,
  *  随 #253 e2e 迁移修通;只建 context,页面由调用方 newPage()。 */
 export async function newBridgeContext(browser: Browser): Promise<BrowserContext> {
-  const ctx = await browser.newContext();
+  const ctx = await newMobileContext(browser);
   await ctx.addInitScript((key) => localStorage.setItem(key, "1"), E2E_DEBUG_BRIDGE_KEY);
   return ctx;
 }

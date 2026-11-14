@@ -1,11 +1,41 @@
-// 地板名册(ADR-0062):地板·脊柱构造器×4——脊柱①设置屏旅程例(渲染/字盘/拦截/起兵开局流),永不迁移
+// 地板名册(ADR-0062):脊柱①设置屏旅程例(渲染/字盘/拦截/起兵开局流)+真浏览器环境守卫,永不迁移
 // React 重构 · 设置屏与开局配置(阶段 11)。
 // 意图来源(旧 spec → 此处):solo-mode.spec(座位/国号校验)、play.spec(开局渲染/选都就位)、
 // click.spec(点城选都的点击可靠性——React 版点城即定都,无确认框)。
-import { test, expect } from "../fixtures";
-import { snap, waitForEngine, openSoloSetup, pickCapital, waitMyRollDone } from "../react-helpers";
+import { test, expect, newMobileContext } from "../fixtures";
+import { snap, waitForEngine, openSoloSetup, waitMyRollDone } from "../react-helpers";
 import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
 import { TESTIDS } from "../../src/app/screens/game/testids";
+import { newBridgeContext } from "../helpers/drivers";
+
+// 真浏览器 API 面(ADR-0062):默认 fixture、裸上下文与调试桥上下文的移动环境须一致。
+// 只开首页读 viewport/pointer/touch 真值,不种局;预计约一秒,防新页装配漏传环境。
+test("默认页面与独立上下文同为移动横屏触控", async ({ page, browser }) => {
+  const raw = await newMobileContext(browser);
+  const bridge = await newBridgeContext(browser);
+  try {
+    await page.goto("/");
+    const pages = [page, await raw.newPage(), await bridge.newPage()];
+    await Promise.all(pages.slice(1).map((p) => p.goto(page.url())));
+    const environments = await Promise.all(
+      pages.map((p) =>
+        p.evaluate(() => ({
+          width: innerWidth,
+          height: innerHeight,
+          coarse: matchMedia("(pointer: coarse)").matches,
+          maxTouchPoints: navigator.maxTouchPoints,
+        })),
+      ),
+    );
+    expect(environments).toEqual([
+      { width: 844, height: 390, coarse: true, maxTouchPoints: 1 },
+      { width: 844, height: 390, coarse: true, maxTouchPoints: 1 },
+      { width: 844, height: 390, coarse: true, maxTouchPoints: 1 },
+    ]);
+  } finally {
+    await Promise.all([raw.close(), bridge.close()]);
+  }
+});
 
 // 真实段(脊柱①全 UI 链声明,ADR-0058):首页→单机→准备页真实 UI 链,三配置控件
 // (stepper/分段选择器/默认图回显)与座位表(真人/电脑占位)的真实渲染即被测环
@@ -78,14 +108,16 @@ test("国号非法(清空)起兵被拦:内联红字 + 按钮禁用,未开局", a
 test("起兵 → 点城定都 → 进入对局:p0 人类 + 其余电脑,国号无重号", async ({ page }) => {
   await page.goto("/?seed=20260815");
   await openSoloSetup(page);
-  await page.getByTestId(`${SETUP_TID.seatCount}-minus`).click(); // X10 stepper:4 → 3
-  await page.getByTestId(SETUP_TID.startGame).click();
+  // 真实触控贯穿配置→起兵→选都确认弹层;hasTouch 本身不会把 click 变成触控。
+  await page.getByTestId(`${SETUP_TID.seatCount}-minus`).tap(); // X10 stepper:4 → 3
+  await page.getByTestId(SETUP_TID.startGame).tap();
   await waitForEngine(page);
 
   // 选都引导 hint(dogfood 2026-09-28 起文案按 turn 分化:轮到玩家=「轮到你定都…」)
   // + 二次确认框(需求1:点城先弹「定都于此?」再确认筑城)
   await expect(page.getByTestId(TESTIDS.hint)).toContainText("定都");
-  await pickCapital(page);
+  await page.locator(".bv-tile.bv-selectable").first().tap();
+  await page.getByTestId(TESTIDS.confirmCapitalOk).tap();
 
   // 等开局放行 + 人类首手自动走完(#188 行军自动化;替代旧「等 roll-button 可用」)
   await waitMyRollDone(page, 0, 30_000);
