@@ -298,12 +298,11 @@ describe("事件流(#384):跳过回合 turnSkipped 与破产债主 creditorSeat"
     // 无债主(归银行)
     const e1 = makeEngine(5);
     finishSetup(e1);
-    const t1 = testEngine(e1);
     const mover1 = e1.activePlayer;
     mover1.cash = 50;
     mover1.properties = []; // 仅都城不可变卖 → 无可变卖资产
     beginGameEventBatch(e1);
-    expect(t1.payOrLiquidate(mover1, null, 200)).toBe("bankrupt");
+    expect(e1.payOrLiquidate(mover1, null, 200)).toBe("bankrupt");
     expect(e1.snapshot().events[0]).toMatchObject({
       kind: "playerBankrupt",
       seat: e1.players.indexOf(mover1),
@@ -312,13 +311,12 @@ describe("事件流(#384):跳过回合 turnSkipped 与破产债主 creditorSeat"
     // 有债主(资转债主)
     const e2 = makeEngine(5);
     finishSetup(e2);
-    const t2 = testEngine(e2);
     const mover2 = e2.activePlayer;
     const creditorSeat = e2.players.indexOf(mover2) === 0 ? 1 : 0;
     mover2.cash = 50;
     mover2.properties = [];
     beginGameEventBatch(e2);
-    expect(t2.payOrLiquidate(mover2, e2.players[creditorSeat], 200)).toBe("bankrupt");
+    expect(e2.payOrLiquidate(mover2, e2.players[creditorSeat], 200)).toBe("bankrupt");
     expect(e2.snapshot().events[0]).toMatchObject({
       kind: "playerBankrupt",
       seat: e2.players.indexOf(mover2),
@@ -381,14 +379,13 @@ describe("事件流(#385 缺口 2):破产清算逐城易主 assetTransferred", (
   it("破产清算:都城转债主,产出 [assetTransferred, playerBankrupt],toSeat=债主座位", () => {
     const e = makeEngine(5);
     finishSetup(e);
-    const t = testEngine(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
     const creditorSeat = seat === 0 ? 1 : 0;
     const capPropId = e.board.at(mover.capitalIndex).propertyId!;
     mover.cash = 50; // 仅都城在手(无可变卖资产)→ 直落破产,清算把都城转债主
     beginGameEventBatch(e);
-    expect(t.payOrLiquidate(mover, e.players[creditorSeat], 200)).toBe("bankrupt");
+    expect(e.payOrLiquidate(mover, e.players[creditorSeat], 200)).toBe("bankrupt");
     const events = e.snapshot().events;
     expect(kinds(events)).toEqual(["assetTransferred", "playerBankrupt"]);
     expect(events[0]).toMatchObject({
@@ -577,7 +574,6 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
   it("机遇抉择:resolveEncounterChoice 产出 encounterChoice(id+下标,成品文案不入事件)", () => {
     const e = makeEngine(5);
     finishSetup(e);
-    const t = testEngine(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
     const def = ENCOUNTERS.find(
@@ -587,7 +583,7 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
         c.choices.every((o) => o.effect?.kind !== "grantHero"),
     )!; // 无门槛双选项:两路都可用,恒入 AwaitingEncounter
     beginGameEventBatch(e);
-    expect(t.enterEncounter(def)).toBe("deciding");
+    expect(e.enterEncounterPhase(e.activePlayer, def)).toBe("deciding");
     expect(e.turnPhase).toBe("AwaitingEncounter");
     e.resolveEncounterChoice(0);
     const events = e.snapshot().events;

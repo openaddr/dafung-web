@@ -1,7 +1,7 @@
 // 机遇引擎单测(#123;ADR-0035 机遇必出):纯函数(softmax 调制/加权抽取) + 引擎行为
 // (开关两端/先于城池结算/驻跸与天命同链/结算四路径与回退/确定性)。随机钉法:enabled
 // 配置 0/1 两端 + landActiveOn 恰落目标格(timing.test 同款技巧),结算路径经
-// testEngine.applyEncounter 指定具体事件绕过抽取。
+// GameEngine.settleEncounter 指定具体事件绕过抽取。
 import { describe, it, expect, afterEach } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
@@ -362,10 +362,9 @@ describe("机遇引擎行为", () => {
   it("结算路径:发珍宝(牌堆扣一件)/ 得名将满 3 → 改印技能书(#1146)", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const te = testEngine(e);
     const mover = e.activePlayer;
     const deckBefore = e.treasureDeck.length;
-    te.applyEncounter(mover, {
+    e.settleEncounter(mover, {
       id: "窖藏现世",
       tier: "好运",
       tags: ["珍宝"],
@@ -381,7 +380,7 @@ describe("机遇引擎行为", () => {
     const full = e.activePlayer;
     for (let i = 0; i < 3; i++) armHero(e, full, HEROES[i]!, [HEROES[i]!.skillPool[0]!]);
     const cashBefore = full.cash;
-    te.applyEncounter(full, {
+    e.settleEncounter(full, {
       id: "义士来投",
       tier: "好运",
       tags: ["名将"],
@@ -397,14 +396,13 @@ describe("机遇引擎行为", () => {
   it("授宝遇牌堆空 → 折现 100 两两件套(#455 A2):cashChanged 事件 + CashGained 时机缺一不可", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const te = testEngine(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
     e.treasureDeck.length = 0; // 牌堆清空 → 「搜刮一空」折现路
     const cash0 = mover.cash;
     const entries = recordMomentCtx(e);
     beginGameEventBatch(e);
-    const r = te.applyEncounter(mover, {
+    const r = e.settleEncounter(mover, {
       id: "窖藏现世",
       tier: "好运",
       tags: ["珍宝"],
@@ -435,7 +433,6 @@ describe("机遇引擎行为", () => {
   it("赐城宣告(#719 四件套):传檄而定 grantCity 产 propertyGranted 事件,得城者 Lv.0 入册", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const te = testEngine(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
     const unowned = e.board.tiles.filter(
@@ -443,7 +440,7 @@ describe("机遇引擎行为", () => {
     );
     const count0 = mover.properties.length; // 都城在册(开局建城),赐城 = +1
     beginGameEventBatch(e);
-    const r = te.applyEncounter(mover, {
+    const r = e.settleEncounter(mover, {
       id: "传檄而定",
       tier: "好运",
       tags: ["城池"],
@@ -469,11 +466,10 @@ describe("机遇引擎行为", () => {
   it("结算路径:玩家转移上限=对方现金;levy 封顶以其现有银两为限(不送清算)", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const te = testEngine(e);
     const mover = e.activePlayer;
     const opponent = e.players.find((p) => p !== mover)!;
     opponent.cash = 50;
-    te.applyEncounter(mover, {
+    e.settleEncounter(mover, {
       id: "纳款输诚",
       tier: "好运",
       tags: ["银两", "玩家"],
@@ -487,7 +483,7 @@ describe("机遇引擎行为", () => {
     const payer = e.activePlayer;
     payer.cash = 10;
     const oppCash = e.players.find((p) => p !== payer)!.cash;
-    const r = te.applyEncounter(payer, {
+    const r = e.settleEncounter(payer, {
       id: "假道征粮",
       tier: "霉运",
       tags: ["银两", "玩家"],
@@ -720,7 +716,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     mover.reputation = 95;
-    testEngine(e).enterEncounter(byId("携民渡江"));
+    e.enterEncounterPhase(e.activePlayer, byId("携民渡江"));
     expect(e.turnPhase).toBe("AwaitingEncounter");
     e.resolveEncounterChoice(0);
     expect(mover.reputation).toBe(105);
@@ -733,7 +729,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     mover.treasures.push(treasure("t1"), treasure("t2"));
     const cash0 = mover.cash;
     testEngine(e).placeActive(benignTile(e)); // 中性床位:解完续跑落空结算
-    testEngine(e).enterEncounter(byId("以宝换贤"));
+    e.enterEncounterPhase(e.activePlayer, byId("以宝换贤"));
     expect(e.turnPhase).toBe("AwaitingEncounter");
     expect(e.choicesFor().every((o) => o.available)).toBe(true);
     e.resolveEncounterChoice(0);
@@ -752,7 +748,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     mover.treasures.push(treasure("t1")); // 1 件 < 2
     const turn0 = e.turnNumber;
     testEngine(e).placeActive(benignTile(e));
-    testEngine(e).enterEncounter(byId("以宝换贤"));
+    e.enterEncounterPhase(e.activePlayer, byId("以宝换贤"));
     expect(e.turnPhase).toBe("Roll"); // ≤1 可用选项:自动执行,不弹相位(ADR-0013)
     expect(e.turnNumber).toBe(turn0 + 1);
     expect(mover.treasures.length).toBe(1); // 珍宝未被换走
@@ -806,7 +802,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     const oppCash0 = opp.cash;
     const turn0 = e.turnNumber;
     testEngine(e).placeActive(benignTile(e));
-    const r = testEngine(e).enterEncounter(byId("结盟互市"));
+    const r = e.enterEncounterPhase(e.activePlayer, byId("结盟互市"));
     expect(r).toBe("deciding"); // 机遇占用本落格
     expect(e.turnPhase).toBe("Roll"); // 自动收尾,从未进 AwaitingEncounter
     expect(e.turnNumber).toBe(turn0 + 1);
@@ -838,7 +834,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     const e = makeEngine(7);
     finishSetup(e);
     e.activePlayer.treasures.push(treasure("t1"), treasure("t2"));
-    testEngine(e).enterEncounter(byId("以宝换贤"));
+    e.enterEncounterPhase(e.activePlayer, byId("以宝换贤"));
     expect(e.turnPhase).toBe("AwaitingEncounter");
     const s = e.snapshot();
     const e2 = makeEngine(99);
@@ -871,7 +867,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     const cash0 = mover.cash;
-    testEngine(e).applyEncounter(mover, def("屯粮居奇", { kind: "cash", delta: 250 }));
+    e.settleEncounter(mover, def("屯粮居奇", { kind: "cash", delta: 250 }));
     expect(mover.cash).toBe(cash0 + 250);
     expect(testEngine(e).logText().includes("机遇「屯粮居奇」:屯粮居奇 +250")).toBe(true);
   });
@@ -884,7 +880,7 @@ describe("#188 档 2 新抉择:选项效果结算", () => {
   /** 中性床位入相(解完续跑落空结算收尾,turnPhase 回 Roll)。 */
   function arm(e: GameEngine, id: string): void {
     testEngine(e).placeActive(benignTile(e));
-    testEngine(e).enterEncounter(byId(id));
+    e.enterEncounterPhase(e.activePlayer, byId(id));
     expect(e.turnPhase).toBe("AwaitingEncounter");
   }
 
@@ -1199,19 +1195,18 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
   it("目录调重生效(#789):粮道被劫 −250 两/体力 −10;漕船倾覆 −100 两/体力 −8;假道征粮 levy 50/体力 −7", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const te = testEngine(e);
     const mover = e.activePlayer;
     mover.stamina = 40; // 三连扣 10+8+7=25,不归 0(耗竭路径另有专测)
     const cash0 = mover.cash;
-    te.applyEncounter(mover, byId("粮道被劫"));
+    e.settleEncounter(mover, byId("粮道被劫"));
     expect(mover.cash).toBe(cash0 - 250);
     expect(mover.stamina).toBe(30);
 
-    te.applyEncounter(mover, byId("漕船倾覆"));
+    e.settleEncounter(mover, byId("漕船倾覆"));
     expect(mover.cash).toBe(cash0 - 350);
     expect(mover.stamina).toBe(22);
 
-    te.applyEncounter(mover, byId("假道征粮"));
+    e.settleEncounter(mover, byId("假道征粮"));
     expect(mover.cash).toBe(cash0 - 400);
     expect(mover.stamina).toBe(15);
   });
@@ -1221,7 +1216,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     mover.stamina = 60;
-    const r = testEngine(e).applyEncounter(mover, byId("粮道被劫"));
+    const r = e.settleEncounter(mover, byId("粮道被劫"));
     expect(r).toBe("settled");
     expect(mover.stamina).toBe(50);
     // 浮字由 fx 消费 staminaChanged 派生(见 presentation.test):锚事件的实际差
@@ -1243,7 +1238,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     mover.stamina = 6;
-    testEngine(e).applyEncounter(mover, byId("粮道被劫"));
+    e.settleEncounter(mover, byId("粮道被劫"));
     const text = testEngine(e).logText();
     expect(text.includes("体力 −6")).toBe(true); // 实际差 0−6=−6,非请求数 −10
     expect(text.includes("体力 −10")).toBe(false);
@@ -1277,7 +1272,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     mover.stamina = 60;
     const cash0 = mover.cash;
     testEngine(e).placeActive(benignTile(e)); // 中性床位:解完续跑落空结算
-    testEngine(e).enterEncounter(byId("温泉疗养"));
+    e.enterEncounterPhase(e.activePlayer, byId("温泉疗养"));
     expect(e.turnPhase).toBe("AwaitingEncounter");
     expect(e.snapshot().choices.map((o) => o.label)).toEqual([
       "付 150 两入浴(+30 体力)",
@@ -1304,7 +1299,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     const mover = e.activePlayer;
     mover.stamina = 50;
     const cash0 = mover.cash;
-    testEngine(e).applyEncounter(mover, byId("神医行诊"));
+    e.settleEncounter(mover, byId("神医行诊"));
     expect(mover.stamina).toBe(75);
     expect(mover.cash).toBe(cash0);
     // 浮字由 fx 消费 staminaChanged 派生:锚事件的实际差
@@ -1332,7 +1327,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     const cash0 = mover.cash;
     const turn0 = e.turnNumber;
     testEngine(e).placeActive(benignTile(e));
-    testEngine(e).enterEncounter(byId("夜行军"));
+    e.enterEncounterPhase(e.activePlayer, byId("夜行军"));
     expect(e.turnPhase).toBe("AwaitingEncounter");
     e.resolveEncounterChoice(0); // 连夜赶路(+90 两,体力 −20)
     expect(mover.cash).toBe(cash0 + 90);
@@ -1393,7 +1388,7 @@ describe("耗竭自动收口 × 出牌阶段(#452):唯一选项自动路径不�
     expect(e.players.every((p) => p.jinnangHandCount > 0)).toBe(true); // 场景前提:人人持牌
     giveOneProperty(e, e.activeIndex, 1);
     const turn0 = e.turnNumber;
-    testEngine(e).applyEncounter(mover, {
+    e.settleEncounter(mover, {
       id: "夜行军",
       tier: "霉运",
       tags: ["体力"],
@@ -1449,7 +1444,7 @@ describe("#1153 自动现金闸与保底放行(红线:机遇不送清算)", () =
     mover.cash = 79;
     const turn0 = e.turnNumber;
     testEngine(e).placeActive(benignTile(e)); // 中性床位:解完续跑空结算收尾
-    testEngine(e).enterEncounter(byId("河堤告急"));
+    e.enterEncounterPhase(e.activePlayer, byId("河堤告急"));
     expect(e.turnPhase).toBe("Roll"); // 唯一保底放行项:自动执行,不弹相位
     expect(e.turnNumber).toBe(turn0 + 1);
     expect(mover.cash).toBe(0); // 封顶:79 现金付 80 代价 → 实损 79,不送清算
@@ -1474,7 +1469,7 @@ describe("#1153 自动现金闸与保底放行(红线:机遇不送清算)", () =
     finishSetup(e);
     const mover = e.activePlayer;
     mover.cash = 100;
-    const r = testEngine(e).applyEncounter(mover, byId("粮道被劫"));
+    const r = e.settleEncounter(mover, byId("粮道被劫"));
     expect(r).toBe("settled");
     expect(mover.cash).toBe(0);
     expect(mover.isBankrupt).toBe(false);
@@ -1500,7 +1495,7 @@ describe("#1153 自动现金闸与保底放行(红线:机遇不送清算)", () =
     const cash02 = mover2.cash;
     const hand0 = mover2.jinnangHandCount;
     testEngine(e2).placeActive(benignTile(e2)); // 中性床位:解完续跑空结算收尾
-    testEngine(e2).enterEncounter(byId("太平要术"));
+    e2.enterEncounterPhase(e2.activePlayer, byId("太平要术"));
     e2.resolveEncounterChoice(0);
     expect(mover2.cash).toBe(cash02 - 100); // 实付 100(足额不封顶)
     expect(mover2.jinnangHandCount).toBe(hand0 + 1); // 锦囊入手(#147 grantCard)
@@ -1516,7 +1511,7 @@ describe("#1153 原语:效果级 repDelta 与指定招揽 heroId", () => {
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
     beginGameEventBatch(e);
-    const r = testEngine(e).applyEncounter(mover, {
+    const r = e.settleEncounter(mover, {
       id: "流言中伤(测试)",
       tier: "霉运",
       tags: ["声望"],
@@ -1541,7 +1536,7 @@ describe("#1153 原语:效果级 repDelta 与指定招揽 heroId", () => {
     const zhuge = { id: "test-kongming", name: "孔明", image: "", skillPool: [] };
     HEROES.push(zhuge);
     try {
-      const r = testEngine(e).applyEncounter(mover, {
+      const r = e.settleEncounter(mover, {
         id: "三顾茅庐(测试)",
         tier: "好运",
         tags: ["名将"],
@@ -1561,7 +1556,7 @@ describe("#1153 原语:效果级 repDelta 与指定招揽 heroId", () => {
       armHero(e2, opp2, zhuge); // 布场对手槽位(zhuge 已在表,不重复注册)
       e2.recruitedHeroIds.add("test-kongming"); // 占池:他帐已招揽(zhuge 台账外,显式占)
       const cash0 = mover2.cash;
-      const r2 = testEngine(e2).applyEncounter(mover2, {
+      const r2 = e2.settleEncounter(mover2, {
         id: "三顾茅庐(测试)",
         tier: "好运",
         tags: ["名将"],
@@ -1649,14 +1644,14 @@ describe("#1153 机遇章(P2 跨事件标记):setsFlags 写点与章闸", () => 
       setsFlags: ["元直荐书"],
       effect: { kind: "cash", delta: 0 },
     };
-    testEngine(e).applyEncounter(mover, inst);
+    e.settleEncounter(mover, inst);
     expect(mover.encounterFlags).toEqual(["元直荐书"]);
     // 抉择路:选项结算写 option.setsFlags
     const e2 = makeEngine(7);
     finishSetup(e2);
     const mover2 = e2.activePlayer;
     testEngine(e2).placeActive(benignTile(e2)); // 中性床位:解完续跑空结算收尾
-    testEngine(e2).enterEncounter({
+    e2.enterEncounterPhase(e2.activePlayer, {
       id: "获章抉择(测试)",
       tier: "中性",
       tags: ["声望"],
@@ -1671,7 +1666,7 @@ describe("#1153 机遇章(P2 跨事件标记):setsFlags 写点与章闸", () => 
     e2.resolveEncounterChoice(0);
     expect(mover2.encounterFlags).toEqual(["元直荐书", "怀玺"]);
     // 去重:同章再结算不重章
-    testEngine(e2).applyEncounter(mover2, inst);
+    e2.settleEncounter(mover2, inst);
     expect(mover2.encounterFlags).toEqual(["元直荐书", "怀玺"]);
   });
 
@@ -1682,7 +1677,7 @@ describe("#1153 机遇章(P2 跨事件标记):setsFlags 写点与章闸", () => 
     finishSetup(e);
     const mover = e.activePlayer;
     mover.stamina = 50;
-    const r = testEngine(e).applyEncounter(mover, {
+    const r = e.settleEncounter(mover, {
       id: "耗竭获章(测试)",
       tier: "霉运",
       tags: ["银两", "玩家", "体力"],

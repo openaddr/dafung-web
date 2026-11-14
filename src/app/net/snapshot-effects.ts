@@ -172,10 +172,8 @@ export class SnapshotEffects {
    *  终局专属,两道正交。 */
   private async dequeueChunk(chunk: QueuedChunk): Promise<void> {
     if (chunk.voided) return; // 边界作废:出队检查即弃(会话已由边界统一收回)
-    // 瞬空钉(#1254,ADR-0059 决策 1;实体与写入口见 catchup.ts setSnapPin):测试
-    // 钉死的常开吸附档——判档直接短路(不进 observe:落后治理是产品语义,钉档期无
-    // 治理对象),未播演出整块弃播、棋子直切声明式终态。钉住=测试常开档,不钉=正常
-    // 三档,产品默认 false 零变化(零兜底:不静默改判档行为)。
+    // 瞬空钉直接走吸附档,不进入产品落后度判据;只弃未播演出、棋子直切声明式终态。
+    // 实体与写入口见 catchup.setSnapPin,默认关闭,使用边界见 ADR-0065。
     if (isSnapPinned()) {
       abandonAllMarches();
       return;

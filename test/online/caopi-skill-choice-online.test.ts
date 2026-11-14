@@ -1,14 +1,7 @@
-// 「你可」待决的联机对跑(#1377 AC8,ADR-0062 层③):RoomRegistry 房间编排(与
-// room-transport/room.test 同一既有装配,零 WS 零 fs,InMemory 持久化)+ 双真人端点
-// (RecordingEndpoint)——上行=applyCommandFromSeat 座位鉴权命令面(#454),下行=
-// assembleDownlinkShot 单拍装配(redact 必经,与生产同一传输语义)。
-// 断言面:①挂窗拍经传输面下行(事件批先行);②非决策座位提交应答=403 房间编排拒绝;
-// ③决策座位应答经协议面上行落引擎(发动落账:目标被跳、标记归零);④对端在下一校准拍
-// (AwaitingJinnang 窗)收到的整房摘要携带决议后状态(pendingSkillChoices 键缺席、
-// marks 键缺席、turnSkipped 已在事件批)——「反应窗选择经协议面传导到对端」的闭环。
-// 布景判词:新技不可达(名将池本票不动),曹丕/标记经 planter 种植件直授(挂窗拍用
-// setStamina 损失过阈+引擎 endTurn 停窗,同 armReaction 的「布景=被测环前拍」口径);
-// 被测环=应答命令的上行传导与对端下行收敛,全程真命令通路。
+// 「你可」待决的房间协议覆盖:RoomRegistry + RecordingEndpoint + 内存持久化,不建 WS。
+// 上行经 applyCommandFromSeat 鉴权,下行经 assembleDownlinkShot 装配并裁剪私密信息。
+// 验证挂窗下行、非属主拒绝、属主应答落账及对端摘要/事件批收敛。
+// planter 只构造曹丕与标记前态,挂窗与应答均走公共命令(ADR-0065)。
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry } from "../../scripts/room";
 import type { SeatEndpoint } from "../../scripts/room";
@@ -110,7 +103,7 @@ describe("「你可」待决联机对跑(#1377 AC8):房间编排 + 双真人端�
     await flushTick();
     expect(ep1.byType("events").length).toBeGreaterThanOrEqual(1); // 对端收到挂窗拍事件批
 
-    // ── 上行鉴权面(#454):非决策座位替答=403 房间编排拒绝 ──
+    // ── 上行鉴权面:非决策座位替答=403 房间编排拒绝 ──
     await expect(
       reg.applyCommandFromSeat(roomId, 1, { type: "respondSkillChoice", seat: 1, use: false }, bc),
     ).rejects.toThrow("未轮到该座位决策");

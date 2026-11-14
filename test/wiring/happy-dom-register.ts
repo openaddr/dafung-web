@@ -1,14 +1,6 @@
-// 接线测试层(ADR-0062 层④)happy-dom 装配缝:文件内局部注册,不用 bunfig preload。
-// 判词(选型理由,#1284 量实①:preload 全局注册全量跑一遍定性)——preload 会把
-// happy-dom 的 window/document/WebSocket 等覆写灌进全部 79 个测试文件,实锤翻掉
-// 既有例:useMarch.animateMove 有「无 DOM 运行时」快路(typeof document ===
-// "undefined" → 段簿记直收尾,presentation.test.ts 依赖该语义),document 在场即
-// 走真 DOM 分支、行为等价性被破(该例 preload 全量挂、单文件+preload 复挂、主树
-// 原生态绿,三步定性)。故 DOM 只跟着接线用例走:哪个文件 ensure,哪个文件的
-// 运行时有 DOM;afterAll release 还原,后续文件回无 DOM 原生态。
-// bun test 单进程多文件共享模块注册表(量实②:store 哨兵跨文件可见),在册与否
-// 以 GlobalRegistrator.isRegistered 运行时态为准——多个接线测试文件先后
-// ensure/release 各自成对,不依赖文件执行序;成对调用是纪律,不成对即污染邻座。
+// happy-dom 按接线测试文件局部注册,afterAll 释放(ADR-0065)。
+// 全局 preload 会改变 useMarch.animateMove 的无 DOM 快路,污染无浏览器测试。
+// Bun 跨文件共享模块注册表,以 GlobalRegistrator.isRegistered 为准;ensure/release 须成对。
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { readFileSync } from "node:fs";
 
@@ -20,7 +12,7 @@ export function ensureHappyDom(): void {
   if (!GlobalRegistrator.isRegistered) {
     GlobalRegistrator.register();
     // Happy DOM无字体资源加载器;接线层提供事件/Promise接口形状,不证明字形几何。
-    // 真实字体、局部视口及像素输出由浏览器特效回归守住。
+    // 真实字体、视口与像素交由用户在 APK 中验收。
     (document as unknown as { fonts: unknown }).fonts = Object.assign(new EventTarget(), {
       ready: Promise.resolve(),
       load: () => Promise.resolve([]),

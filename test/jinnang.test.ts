@@ -954,7 +954,7 @@ describe("破产清手(#198):手牌入弃牌堆,15 张守恒", () => {
       hands: e.players.filter((x) => !x.isBankrupt).reduce((s, x) => s + x.jinnangHand.length, 0),
     });
     const before = total();
-    testEngine(e).payOrLiquidate(p, null, 200); // 欠 200,现金 0 → 直接破产
+    e.payOrLiquidate(p, null, 200); // 欠 200,现金 0 → 直接破产
     expect(p.isBankrupt).toBe(true);
     expect(p.jinnangHand).toEqual([]);
     expect(p.jinnangHandCount).toBe(0);

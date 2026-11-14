@@ -1,5 +1,5 @@
-// 双端对跑的具体控制面与读数(ADR-0062 层③):IPC 只搬运数据和测试意图,
-// 对局传输仍是 OnlineController → ReconnectingSocket → 真 WebSocket。
+// 双端对跑的控制意图与读数(ADR-0065):IPC 只传数据与测试意图,
+// 对局传输仍经 OnlineController → ReconnectingSocket → 真实 WebSocket。
 import type { useGameStore } from "@app/store/gameStore";
 import type { useNetStore } from "@app/store/netStore";
 import type { GameSnapshot } from "@core/snapshot";

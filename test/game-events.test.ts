@@ -324,7 +324,7 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
     const mover = e.activePlayer;
     t.place(e.players.indexOf(mover), MAP.board.tiles[0]!.index); // 必出制:任意格都出(ADR-0035)
     beginGameEventBatch(e);
-    t.maybeApplyEncounter(e.activePlayer); // 开关开,必抽中
+    e.maybeApplyEncounter(e.activePlayer); // 开关开,必抽中
     const events = e.snapshot().events;
     expect(events[0]?.kind).toBe("encounterTriggered");
     expect(events[0]).toMatchObject({
@@ -336,12 +336,11 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
   it("无可变卖资产付不起 → playerBankrupt(善后完成点产出)", () => {
     const e = makeEngine(5);
     finishSetup(e);
-    const t = testEngine(e);
     const mover = e.activePlayer;
     mover.cash = 50;
     mover.properties = []; // 仅都城不可变卖 → 无可变卖资产
     beginGameEventBatch(e);
-    const r = t.payOrLiquidate(mover, null, 200);
+    const r = e.payOrLiquidate(mover, null, 200);
     expect(r).toBe("bankrupt");
     const events = e.snapshot().events;
     expect(kinds(events)).toEqual(["playerBankrupt"]);

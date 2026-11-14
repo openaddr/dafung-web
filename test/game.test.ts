@@ -230,7 +230,7 @@ describe("名将(英雄)", () => {
     finishSetup(e);
     const picker = e.activePlayer;
     expect(picker.heroes.length).toBe(0);
-    testEngine(e).tryRecruitHero(picker); // 窄口触达私有招贤步骤
+    e.tryRecruitHero(picker); // 公共招贤步骤
     expect(e.turnPhase).toBe("AwaitingHeroPick");
     expect(e.offeredHeroes.length).toBe(3); // 池有 3 位 → 三选一
     e.resolveHeroPick(0);
@@ -354,7 +354,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const mover = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.event == null && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
-    testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
+    testEngine(e).landActiveAt(tile.index); // 场景组合:摆位 + Land + 落格结算
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     e.buyProperty();
     expect(mover.properties.find((x) => x.propertyId === def.id)!.level).toBe(0);

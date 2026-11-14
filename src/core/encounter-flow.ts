@@ -4,9 +4,9 @@
 // 首参接 GameEngine 直接读写引擎状态;与数据表 encounters.ts 分层(流程≠配置,零依赖纯数据)。
 // GameEngine 侧保留同名方法薄委托(authority.ts):公共入口 maybeApplyEncounter/
 // resolveEncounterChoice/exhaustIfDepleted,入相与即时结算
-// enterEncounterPhase/settleEncounter(#320 去私有化:域内经 g.xxx 往返消费,兼作
-// testing.ts 白盒窄面 EngineTestInternals 的触达点);reaction-window 续结算经壳上
-// g.maybeApplyEncounter 委托回调(#318 预案),锦囊抽牌按 #319 预案跨模块直调自由函数。
+// enterEncounterPhase/settleEncounter(#320 去私有化:域内经同名公共委托往返消费);
+// reaction-window 续结算经 g.maybeApplyEncounter 委托回调(#318 预案),
+// 锦囊抽牌按 #319 预案跨模块直调自由函数。
 import type { GameEngine } from "./authority";
 import { computeChoices } from "./choices";
 import {

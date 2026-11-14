@@ -12,7 +12,7 @@
 //          (幕启 < 摇、错拍落 < 判词);
 //   行军/bot — 段时长夹取区间必须有序、bot 回合节奏必须真实等待;
 //   倍率地板 — TIME_SCALE_FLOOR_MS ≥ 100(headless+软渲的可观察下限不被悄悄调低)。
-// 数值本身的逐位锁定在 test/e2e-time-scale.test.ts(生产恒等快照),本文件只管关系。
+// 本文件守编排关系;真实缩放行为(恒等、追帧压缩与非法倍率拒绝)见 test/infra/e2e-time-scale.test.ts。
 //
 // ADR-0029 起(#608)本文件兼守演出自洽不变量的运行时面(类型面守卫 =
 // FxSink 签名编译期摸不到引擎):「提取即定格」——提取完成后引擎继续推进/篡改
@@ -76,7 +76,7 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     // 清理/编排窗同通道缩放,「追帧 3x 清理掐断在途动画」的失配自除。e2e 无法驱动
     // 追帧判档(生产 = 联机积压出队点,SnapshotEffects 专有),判据在此机械化:
     // 逐档断言全长 ≤ 窗(掷骰签已单段式,签卡随 overlay 渐显,无独立弧长窗账)。
-    // 通道本身的除法行为见 test/e2e-time-scale.test.ts。
+    // 通道本身的真实缩放行为见 test/infra/e2e-time-scale.test.ts。
     for (const scale of [1, LAG.scaleMin, 2, 2.5, LAG.scaleMax]) {
       setCatchupScale(scale);
       const at = `catchup×${scale}`;

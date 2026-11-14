@@ -1,4 +1,4 @@
-// 双端对跑范例(ADR-0062 层③,#1436/#1437):每端独立 Bun 子进程,各装配生产
+// 双端对跑(ADR-0065):每端独立 Bun 子进程,各装配生产
 // OnlineController + gameStore/netStore,经生产 ReconnectingSocket 的真 WebSocket
 // 连进程内服务器。IPC 只承载具体测试意图与同拍读数,零 DOM/几何/像素/演出泵。
 //
@@ -10,11 +10,10 @@
 // 不替换 socket 语义或全局时钟。稳定读数停在固定种子的注册真人门,零弃试重跑。
 // 反应窗 seed2849/魏 的既有谱使用固定宽窗(长于本例总超时),每次有效手答/拒重复均
 // 以真实下行事件或 error 历史立屏障,超时代答无法在本例预算内替代手答。
-// #1297 的 outcomeKind 漂移豁免只留 Playing 恢复边界,其他例仍比较全字段。
+// outcomeKind 漂移豁免仅限 Playing 恢复边界,其他例仍比较全字段。
 //
-// 分层:纯传输故障仍归 protocol-online,断线横幅与真实设备交互由用户在 APK 中验收。
-// 快慢池按本体实测 >=3s 且真实恢复/进程类的现行判据;主线复验 Setup~0.44s、
-// Playing~1.54s、反应窗~0.53s,均入默认池;退避由生产 timer 接缝推进,无墙钟等待。
+// 纯传输故障归 protocol-online;真实设备交互由用户在 APK 验收。
+// 退避由生产 timer 接缝推进,无墙钟等待。
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

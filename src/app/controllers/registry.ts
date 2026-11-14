@@ -1,7 +1,5 @@
-// 控制器注册表(模块级单例):App 各屏统一从这里取当前 GameController,
-// 不把 controller 塞进 zustand(实例带方法/WS 连接等非序列化资源,同 engine 的理由,见 gameStore.ts 注释)。
-// 单机开局(setup 屏/临时快速开局)调 setController 注册 LocalController;
-// 联机(后续阶段)注册 OnlineController —— 屏幕组件对两种模式无感。
+// 控制器注册表:各屏经此取当前 GameController,单机注册 LocalController,联机注册 OnlineController。
+// 实例持有方法与连接,放在模块级而不进入 zustand 可序列化状态。
 import type { Board } from "@core/board";
 import type { MapCatalog } from "@core/board-loader";
 import type { MapData } from "@core/board-loader";
@@ -10,9 +8,8 @@ import type { GameController } from "./controller";
 let current: GameController | null = null;
 /** 当前对局地图原始数据(MapData)。快照不含地图(体积考虑),BoardView 需要它重建棋盘。 */
 let currentMap: MapData | null = null;
-/** 当前对局的静态查询上下文(board/catalog,Wave3 候选5):渲染层只读不可变地图数据,
- *  一律从这里取,不再伸手摸活引擎(getEngine/controller.engine)。两者随引擎构造而定、
- *  对局期间不变(联机换图=重建引擎后重新 setController),在此快照式持有即可。 */
+/** 渲染层的静态查询上下文(board/catalog);可变数据从快照读取。
+ *  地图随引擎构造确定,联机换图重建引擎后由 setController 更新。 */
 let currentContext: { board: Board; catalog: MapCatalog } | null = null;
 
 /** 注册新对局的控制器与地图(换局时旧 controller 会先 destroy 释放 WS 等资源)。 */
@@ -36,20 +33,14 @@ export function getControllerMap(): MapData | null {
   return currentMap;
 }
 
-/** 取当前对局的静态查询上下文(board/catalog;null = 尚未开局)。
- *  渲染层(HandPanel/DecisionScrollLayer 等)查城名/地产定义用它——候选5 的
- *  「渲染层停止摸活引擎」:引擎可变态不再暴露给渲染组件,可变数据唯一来源=快照。 */
+/** 取当前对局的静态查询上下文(board/catalog;null = 尚未开局),供渲染层查城名与地产定义。 */
 export function getControllerContext(): { board: Board; catalog: MapCatalog } | null {
   return currentContext;
 }
 
 // ──────────────────────────── window.__dafung 调试钩子 ────────────────────────────
-// 重建旧 src/render/state.ts 的调试入口:控制台可直接读引擎/快照、手动触发重同步。
-// 类型声明见 src/app/debug.d.ts(declare global,零运行时开销)。
-// 分层标注(#1255,ADR-0059 决策 5):本桥面=测试侧四层公共能力的驱动源,e2e 侧
-// 消费封装住 e2e/helpers/drivers.ts(种局/推进/瞬空链 seedSolo 族+plant/callEngine),其上
-// scenes/settle/patrol 三层与旧路径门面见 e2e/helpers/ 各文件契约头注——新测试
-// 能力经层取用,不散装直呼本桥。
+// 控制台与单次辅助可读引擎/快照、重同步、种植场景及控制演出与房间时钟。
+// 类型声明见 src/app/debug.d.ts;使用边界见 ADR-0065。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
 import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
 import { catchupCounters, setSnapPin } from "@app/fx/catchup";
@@ -71,42 +62,25 @@ import {
 } from "@app/screens/setup/setup-defaults";
 import { LocalController } from "./local";
 
-// 默认链键名与设置屏同字面量(App.tsx MAP_PREF_KEY / SoloSetupScreen GUOHAO_PREF_KEY):
-// 引 App/SoloSetupScreen 模块只为一个字符串会把整屏组件树拖进桥的 import 图,
-// 同字面量+注释指单源是 fixtures.ts 既定先例。缺省值(席位/身价/国号)不走本文件
-// 字面量——单源在 setup-defaults.ts(与设置屏共用,#1211 QC 抽取)。
+// 偏好键与 App.tsx MAP_PREF_KEY / SoloSetupScreen GUOHAO_PREF_KEY 保持一致;
+// 直接导入整屏会把组件树带入调试桥。席位/身价/国号默认值共用 setup-defaults.ts。
 const MAP_PREF_KEY = "dafung.mapId";
 const GUOHAO_PREF_KEY = "dafung.guohao";
 
-/** 在 main.tsx 挂载前调用一次;幂等(StrictMode 双调用安全)。
- *  双门禁(timings.ts E2E_DEBUG_BRIDGE_KEY):仅 dev 构建,或 e2e/截图脚手架经
- *  addInitScript 预置桥键时才注册——生产构建零引擎改写面(单机控制台可改引擎),
- *  测试/生产的可观察面不靠约定靠门禁(2026-09-25 学自 ZCode e2eStoreBridge)。 */
+/** main.tsx 挂载前安装调试桥;仅 dev 构建或显式预置 E2E_DEBUG_BRIDGE_KEY 时注册。
+ *  生产默认不暴露引擎改写面;明确请求的单次辅助可预置桥键(ADR-0065)。 */
 export function installDebugHooks(): void {
   const gated = import.meta.env.DEV || localStorage.getItem(E2E_DEBUG_BRIDGE_KEY) != null;
   if (!gated) return;
-  // ── 种局式快路径开局(#1211,e2e 专用)──
-  // 复刻 App.handleStart 生产三步(加载地图 → LocalController → setController/sync/
-  // 进 game 屏)+ 程序化选都,一步直达对局态。缺省逐项对齐 SoloSetupScreen 默认
-  // (单源 setup-defaults.ts):4 席 / 目标身价标准档 / 地图 = localStorage 记忆→
-  // 清单首项 / 国号 = 记忆→「魏」;机遇硬关(openSoloSetup 的 jiyu.json route 拦截
-  // 同语义)。选都只走公共命令 setupPickCapital(UI「定都于此」确认最终发的那条,
-  // 架构红线 3:不直改引擎内部状态);开局后未停在选择都相位 = 起兵编排有 bug,
-  // 当场抛错不静默(零兜底)。
-  // 本体提为局部函数(#1252 中盘构造器示导波):seedSoloToRound 复用同一条开局链,
-  // 不复制实现——开局语义单源仍在本注释与 how-to「种局式直通」条。
+  // 快路径开局复用地图加载、LocalController 与 setController/sync/切屏,再经公共命令选都。
+  // 默认值共用 setup-defaults.ts,地图/国号读取偏好;为确定性关闭机遇。
+  // seedSoloToRound 复用此链,开局后必须停在座位 0 选都门。
   const seedSolo = async (opts: { seed?: number; mapId?: string; seats?: number } = {}) => {
-    // 席位旋钮(#1328):seats 缺省=设置屏默认 4(setup-defaults 单源);显式传入须为
-    // 2–8 整数(与设置屏 stepper min/max、引擎「支持 2–8 个座位」同界),非法值响亮
-    // 抛错不静默截断(defaultSetupSeats 对非整数会地板截断=兜底,在旋钮口拦死)。
+    // 显式席位数须与设置屏/引擎同界,先拒绝非整数,避免 defaultSetupSeats 截断。
     if (opts.seats != null && (!Number.isInteger(opts.seats) || opts.seats < 2 || opts.seats > 8))
       throw new Error(`seedSolo:seats 须为 2–8 整数(收到 ${String(opts.seats)})`);
     const source = getMapSource();
-    // 亚段打点(#1273,常驻轻量诊断;performance.measure 名 df.* 前缀,cost-probe
-    // 回读聚合,不进任何门禁)。段界:resolve(参数解析)/loadMapById(fetch+解析+
-    // 校验建 Board)/ctor(LocalController 构造同步段:Worker 时钟+进程内房间
-    // createRoom+startGame+bot 选都,内部细分在 local.ts,此处整段一量)/setController
-    // (地图缓存命中后≈0)/sync(首帧快照直灌)/pickCapital(选都命令)。
+    // df.seed.* 分段量取参数解析、地图加载、控制器构造、注册、同步和选都;cost-probe 聚合读取。
     const tResolve = performance.now();
     const mapId = opts.mapId ?? localStorage.getItem(MAP_PREF_KEY) ?? (await getDefaultMapId());
     const guohao = localStorage.getItem(GUOHAO_PREF_KEY) ?? DEFAULT_GUOHAO;
@@ -121,11 +95,11 @@ export function installDebugHooks(): void {
       targetNetWorth: DEFAULT_TARGET_NET_WORTH,
       seed: opts.seed,
       mapId,
-      encounter: { enabled: false }, // 快路径硬关,与 openSoloSetup route 拦截同语义
+      encounter: { enabled: false }, // 快路径关闭机遇,固定场景输入
     });
     performance.measure("df.seed.ctor", { start: tCtor, end: performance.now() });
     const tSet = performance.now();
-    // 地图单源缓存(#1273):同图第二次取走 map-sources 进程内 memo,不再双 fetch 双析
+    // map-sources 缓存同图数据,注册时复用加载结果。
     setController(controller, await source.loadMapData(mapId));
     performance.measure("df.seed.setController", { start: tSet, end: performance.now() });
     const tSync = performance.now();
@@ -144,33 +118,22 @@ export function installDebugHooks(): void {
           `轮次=${e.currentSetupPlayerIndex} 候选=${e.offeredCapitals.length})`,
       );
     }
-    // 选都口径对齐旅程点击语义:pickCapital 助手点的是 DOM 首个可选格(BoardView 按
-    // 格 index 序渲染)= 候选集里棋盘序首个。offeredCapitals 数组序是抽出序、与棋盘
-    // 序不同序(seed 1101 实证 [20,7,25]、DOM 首格=7)——取 [0] 会让同 seed 两路开
-    // 出两局不同的棋,钉种子的用例全数漂移。统一原则:两路同 seed 必须同局。
+    // 选棋盘序首个候选,与 UI 首格点击一致;offeredCapitals 是抽出序,不能取 [0]。
     const tPick = performance.now();
     controller.setupPickCapital(Math.min(...e.offeredCapitals));
     performance.measure("df.seed.pickCapital", { start: tPick, end: performance.now() });
   };
 
-  // ── 中盘构造器(ADR-0059 示导波,#1252)──
-  // 冻结编排时钟后,页内按无头整局同款语义(回合数变化定界,whole-game driveToEnd 同源
-  // 口径)经房间命令面逐拍应答真人决策点,推进到第 N 回合边界,解冻交还被测环(沉降
-  // waitFxIdle/waitSettled 归调用方)。合法性=按构造等同(ADR-0059):现场由引擎真逻辑
-  // 经公共命令长出(RNG 流位与事件批按真实序产生),非深种;直调引擎仅限 choicesFor()
-  // 只读问询与状态读数,写一律走 dispatchCommand(混用会挪事件批归属)。
-  /** 真人决策点应答表(#1252 钉死口径):选项集 ≤1 引擎进相位门槛已自决(choices.ts
-   *  enterDecisionPhase/enterJinnangPhase 同款——真停在决策相位即有 ≥1 真选择),取
-   *  首个可用;反应窗一律「不用」代发(看门狗超时兜底同款);锦囊=今不用、珍宝交涉=
-   *  不交易,对齐既有 e2e 代发口径(actIfCan 先 pass / parkMyTurn 点 treasureSkip)。
-   *  破产清算不代答当场炸(多段变卖决策,目标回合内出现负债=换 seed/目标回合避开,
-   *  不静默兜)。 */
+  // 中盘构造:冻结房间时钟后,经房间命令面逐拍应答真人决策,推进到目标回合的稳定停靠态。
+  // 引擎只读查询与读数可直取,写入均走 dispatchCommand,保持事件批归属与 RNG 消耗序。
+  /** 取首个可用决策;反应窗答不用、锦囊今不用、珍宝不交易。
+   *  破产清算不代答,遇到即抛错,由调用方调整 seed/目标回合。 */
   const answerAtHumanStop = (e: GameEngine): GameCommand => {
     switch (e.turnPhase) {
       case "Roll":
-        return { type: "rollAndMove" }; // 停靠 Roll=开手无可用锦囊已自决,起摇即走(#188 同款)
+        return { type: "rollAndMove" }; // 停靠 Roll=开手无可用锦囊已自决,起摇即走
       case "AwaitingJinnang":
-        return { type: "useJinnang", cardId: null }; // 今不用(出牌阶段既有代发口径)
+        return { type: "useJinnang", cardId: null }; // 今不用
       case "AwaitingDecision": {
         const idx = e.choicesFor().findIndex((o) => o.available);
         const opt = e.choicesFor()[idx];
@@ -192,7 +155,7 @@ export function installDebugHooks(): void {
         return { type: "resolveEncounterChoice", index: idx };
       }
       case "AwaitingTreasureOwner":
-        return { type: "resolveTreasureOwner", action: { type: "skip" } }; // 不交易(既有代发口径)
+        return { type: "resolveTreasureOwner", action: { type: "skip" } }; // 不交易
       case "AwaitingReaction":
         return { type: "respondReaction", seat: 0, use: false }; // 「不用」(单机人类座位 0)
       case "AwaitingBankruptcySettle":
@@ -203,26 +166,15 @@ export function installDebugHooks(): void {
         throw new Error(`seedSoloToRound:不可应答相位 ${e.turnPhase}`);
     }
   };
-  /** 推进循环(#1272 精确 await 形态):每拍 = 真人决策点应答 → 让出一个宏任务 → 读
-   *  回合数,至停靠态(parkMyTurn 谓词:activeIndex/decisionOwner=0 × Awaiting*;另排除
-   *  AwaitingReaction——解冻后 5s 代发看门狗会收窗,非稳定停靠)且 turnNumber ≥
-   *  targetRound。afterFirstRoll(#1254 开口吸收):到站须在首掷之后——开手可用牌时
-   *  seedSolo 后即停 AwaitingJinnang(掷骰前),不排除会把 postRoll 停在未掷态,违反
-   *  「首掷已发生」语义;置位后停靠谓词加钉「本次快进已应答过 rollAndMove」。命令只在
-   *  interactive 门开启的同一同步块里派(dispatchCommand 的 pending/演出锁会静默吞命
-   *  令,interactive 转真即续拍重试);bot 腿由房间驱动链在本命令同步段内推进(e2e
-   *  botStepMs=0,delay=0 不挂时钟定时器,纯微任务链),页内不直调 botAct。
-   *  让出节拍(#1272,旧 20ms 固定轮询退役):一律宏任务短让出(setTimeout 0),与下行
-   *  拍的 transportBroadcast flush(setTimeout 0 统一排泵)同在定时器队列 FIFO——派发后
-   *  等的就是「该命令自己的完成信号」:事件批回流 → pending 解锁+本座演出落定 →
-   *  interactive 转真,首拍即观察到即续,固定税归零,零竞速形态不变(应答序只由引擎态
-   *  定,与拍距无关)。同 seed 两跑确定性:应答表无随机、看门狗冻结不点火、RNG 消耗序
-   *  由引擎定。 */
+  /** 停靠须由座位 0 行动且决策,处于非反应窗 Awaiting* 相位,turnNumber 达标。
+   *  afterFirstRoll 另要求本次快进已应答 rollAndMove,避免开手锦囊窗被认作首掷后。
+   *  仅在 interactive 时派命令,随后让出宏任务,等真实事件回流与本座演出落定;
+   *  bot 仍由房间驱动链推进。反应窗解冻会超时代答,不能作为稳定停靠态。 */
   const driveToRound = async (targetRound: number, opts?: { afterFirstRoll?: boolean }) => {
     const deadline = Date.now() + 120_000;
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
     let lastFp = "";
-    let stallSince = 0; // 当前 fp 首见的 interactive 拍时刻(无进展守卫墙钟锚;#1272 拍距不再固定,计时从拍数改墙钟)
+    let stallSince = 0; // 当前 fp 首见的 interactive 拍时刻,作为无进展守卫的墙钟锚
     let rolled = false; // 已应答过起摇(首掷在引擎侧随命令同步段落账)
     for (;;) {
       if (Date.now() > deadline)
@@ -251,8 +203,7 @@ export function installDebugHooks(): void {
         lastFp = fp;
         stallSince = Date.now();
       } else if (Date.now() - stallSince > 3000) {
-        // 只在 interactive 拍计时:行军演出(!interactive 段)不折入,fp 一变即重锚——
-        // 语义与旧 150 拍×20ms 同为「应答无进展 3s+」,演出再慢不误炸。
+        // 守卫只在 interactive 拍检查,指纹变化即重锚。
         throw new Error(
           `seedSoloToRound:应答无进展 3s+(phase=${e.turnPhase} round=${e.round})——命令被吞或驱动断链`,
         );
@@ -265,7 +216,7 @@ export function installDebugHooks(): void {
   };
   const w = window as typeof window & { __dafung?: unknown };
   w.__dafung = {
-    /** 表现态构造(#1418):原样走产品播放器与生产 sink;不改引擎或表现 store 字段。 */
+    /** 表现态构造:原样走产品播放器与生产 sink;不改引擎或表现 store 字段。 */
     playPresentation: (events: PresentationEvent[]) => {
       const sink = createEngineSink();
       anchorMarches(events, sink);
@@ -273,23 +224,17 @@ export function installDebugHooks(): void {
     },
     getEngine,
     setEngine,
-    /** 当前 store 里的快照(god view;等价旧 __dafung.snapshot)。 */
+    /** 当前 store 里的全量快照。 */
     snapshot: () => useGameStore.getState().snapshot,
     /** 手动从引擎重灌快照(怀疑 UI 与引擎脱节时排查用)。 */
     sync: () => {
       const e = getEngine();
       if (e) useGameStore.getState().syncFromEngine(e);
     },
-    /** 名将目录全量 HeroDef(#378):e2e/控制台种植招贤候选用——候选行 = {def, skillIds
-     *  (预掷授技,#787)},直写 offeredHeroes 必须给候选行形状;预掷结果由种植者定
-     *  (e2e 通常给整池),引擎落定原样入槽不重掷。 */
+    /** 名将目录供招贤候选种植;候选行须含 def 与预掷 skillIds,引擎落定时原样入槽。 */
     heroDefs: () => [...HEROES],
-    /** 种植件分发口(#1298,#1295 种植件体系):op=可序列化种植指令(联合单源
-     *  @core/planter,桥内转发到与单测/无头层**同一份实现** applyPlant——三层共用
-     *  场景构造能力,e2e 侧 type-import op 联合,字段写错编译期红)。只出机制+分发:
-     *  应用后不重灌派生量——时序纪律(写前等演出排空→写→controller().sync() 重灌
-     *  派生→写后再排空)由 e2e 封装 e2e/helpers/drivers.ts plant()/callEngine() 收口
-     *  (三拍判据单源在该头注)。经本桥双门禁,生产构建零暴露。 */
+    /** 转发 core/planter 的 applyPlant,与无浏览器测试共用场景构造(ADR-0065)。
+     *  只应用种植;调用方先等演出排空,写后经 controller().sync() 同步并再次等排空。 */
     plant: (op: PlantOp) => {
       const e = getEngine();
       if (e == null) throw new Error("plant:无活动对局(未开局不可种植)");
@@ -298,11 +243,8 @@ export function installDebugHooks(): void {
     /** 当前控制器(交互入口)。 */
     controller: () => getController(),
     seedSolo,
-    /** 中盘构造器(ADR-0059 示导波,#1252):seedSolo 同款开局 → 冻结房间时钟 → 页内
-     *  逐拍应答真人决策点(应答表见 answerAtHumanStop)推进至第 targetRound 回合边界
-     *  (停靠谓词对齐 parkMyTurn;afterFirstRoll=#1254 开口吸收,到站钉在首掷后)→
-     *  解冻。返回停靠态读数;同 seed 同目标回合两跑逐位一致(守卫 spec
-     *  e2e/react-midgame-constructor.spec.ts 钉 seed 守着)。 */
+    /** seedSolo 开局后冻结房间时钟,由 driveToRound 推进到目标回合的稳定停靠态后解冻。
+     *  afterFirstRoll 要求首掷已发生;演出排空由调用方等待。 */
     seedSoloToRound: async (opts: {
       seed?: number;
       mapId?: string;
@@ -324,18 +266,11 @@ export function installDebugHooks(): void {
       clock.resume();
       return arrival;
     },
-    /** 瞬空钉(#1254,ADR-0059 决策 1;词条 GLOSSARY「瞬空」):演出层测试阀门——钉住
-     *  期间 SnapshotEffects 出队点一律走吸附档(未播演出整块弃播、棋盘直切引擎终态,
-     *  引擎状态分毫不动),不追帧不等待;解除恢复正常三档。唯一写入口经本桥(双门禁,
-     *  生产构建零暴露);产品默认关闭零变化,不钉=正常三档(零兜底)。实体在
-     *  fx/catchup.ts,消费挂点在 net/snapshot-effects.ts dequeueChunk。 */
+    /** 瞬空钉:转发 catchup.setSnapPin,使 SnapshotEffects.dequeueChunk 常开吸附档。
+     *  只弃未播演出、棋子直切终态,不改引擎;产品默认关闭,解除后恢复正常判档(ADR-0065)。 */
     setSnapPin: setSnapPin,
-    // ── 房间时钟冻结闸(#421,调试观测面)──
-    // pause 后看门狗(#188 自动起摇/#281 反应窗/#118 停摆/#380 保留窗)与托管
-    // 步进的到点回调全部挂起,resume 按到点序补放——e2e 把对局钉在任意停靠态做
-    // 「种植→点击→断言」手术,根除与自动推进的竞速。纯调试面:产品路径从不调用,
-    // 不冻结时零行为变化;冻结后断言仍失败 = 真 bug,上报而非掩盖(零兜底)。
-    // 无活动 Worker 时钟(未开局/联机对局)当场抛错——调试面误用要响,不静默。
+    // 冻结单机 Worker 时钟的看门狗/自动起摇/托管回调,resume 按到点序补放。
+    // 未开局或联机没有 Worker 时钟,误用直接抛错。
     clockPause: () => {
       const c = latestWorkerClock();
       if (c == null) throw new Error("clockPause:无活动 Worker 时钟(仅单机对局可冻结)");
@@ -346,10 +281,9 @@ export function installDebugHooks(): void {
       if (c == null) throw new Error("clockResume:无活动 Worker 时钟(仅单机对局可冻结)");
       c.resume();
     },
-    // ── 落后即校准诊断面(#610,ADR-0029 ③;只读快照,实体见 fx/catchup.ts)──
+    // 落后即校准诊断只读快照(ADR-0029;实体见 fx/catchup.ts)。
     fxCatchup: () => ({ ...catchupCounters }),
-    // ── 帧诊读取口(ADR-0047 消费面):scripts/frame-probe.ts(日常帧率薄弱点检测)
-    //  经此读活动会话/lastDump,免再开导出下载通路。只读,不启停采样。 ──
+    // scripts/frame-probe.ts 经此读取活动帧诊/lastDump;只读,不启停采样(ADR-0047)。
     frameDiag: () => collectFrameDiag(),
   };
 }

@@ -1,103 +1,66 @@
-// data-testid 常量集中导出:e2e / 测试统一从这里 import,避免散落字符串拼写漂移。
-// 命名约定:kebab-case;区域容器 `xxx-panel`,条目 `xxx-item`(可带索引后缀)。
-// 棋盘侧的 data 属性由 BoardView/Tile 自带(data-tile=N),此处不重复定义。
-//
-// ── 退役核销(#255,#253 迁移清单闭环)──
-// 右栏 aside 系组件(HandPanel/StatusBar/TreasuryPanel/OthersPanel/CollapsedRail)与
-// 卡详情卷轴(CardDetailScroll)已删除,其旧 testid 常量(statusBar*/hand*/treasury*/
-// others*/sidebar*/roundInfo/jinnangCount/cardDetail*)一并退役;挂点去向见各现行
-// 常量注释(零语义漂移)。另:dice-face(签面)语义已迁仪表条「签」徽章,testid 不变。
-// #361 退役核销:pile-row(expandPile 明细行)随明细排退役删除,接替者是牌架双入口
-// (rack-treasures/rack-heroes)+ 两独立弹层(treasure-modal/hero-modal)。
-// 2026-10-17 退役核销:topbar-discard 随顶栏弃牌 chip 退役(18−牌库−Σ席位手牌可推导),
-// 接替形态=锦囊牌库小件(topbar-deck 落朱砂角标)。
-// #700 退役核销:topbar-active(回合方字条)/topbar-target(目标身价)/topbar-deck(牌库
-// 角标)随旧顶栏退役;dashboard-bar 系(dashCash/dashAttr/
-// dashStamina/dashTreasures/dashHeroes/dashYou)随仪表条本体退役(资产数值归席位格,
-// 签面迁手牌区左端,testid dice-face 不变);log-tab(战报把手)退役,入口降级设置弹层
-// (log-drawer 抽屉本体保留);autopilot-button(托管钮)随仪表条退役,#701 tap 弹层
-// 接管(过渡期托管不可达可接受,同一集成分支收口);mute-button/reset-view(音乐钮/
-// 总览复位钮)退役——音效开关降级入设置弹层;复位能力随 #700 退役,取景恒
-// computeFitView 总览定格(usePanZoom 已随 #946 平移缩放退役整删,复位语义不复存在)。
-// #853 退役核销:topbar-round(「N 轮」浮置 chip)随 chip 退役——轮次唯一落回合
-// 胶囊(turn-capsule,#732 拍板在先、#762 胶囊诞生后的双通道冗余,复裁退役)。
-// 接替形态=顶左两钮(topbar-overview/settings-button)+ 右下三圆钮(pile-buttons 族)
-// + 设置弹层(settings-* 族)+ 手牌区(hand-zone)。
-// #1097 退役核销(#1096 决议1/2):seat-pop 系单源常量(seatPop/seatPopCash/
-// seatPopNotice/seatPopStamina/seatPopRep/seatPopBadge/seatPopAutopilot)随单人格
-// 弹层(SeatPopModal)退役——查档收编诸侯详情四钻入(warlords* 族),托管开关
-// 收编设置弹层(settings-autopilot);席位格行2 后改汉字五账式(#1128:城/牌/
-// 将/宝/望+计数,五枚图标随退),seatAttr 族挂点与 aria 契约不变。
+// data-testid 单源:测试与明确请求的单次辅助从这里导入,避免字符串拼写漂移。
+// 命名用 kebab-case;棋盘格定位由 BoardView/Tile 的 data-tile 承载。
 export const TESTIDS = {
-  // ── 全浮层骨架(#700;#732 顶左行序:设置→详情两钮,顶中让给知会槽):
-  //  顶部条 / 席位格列 / 手牌区 / 右下三圆钮 ──
+  // ── 顶部浮层与席位格 ──
   topBar: "top-bar",
-  /** 顶左详情钮(诸侯详情弹窗入口,#732 正名;#702 点开十列分板弹层)。 */
+  /** 顶左详情钮,打开诸侯详情弹窗。 */
   topbarOverview: "topbar-overview",
   /** 顶左设置钮(开设置弹层)。 */
   settingsButton: "settings-button",
-  /** 战报未读金点挂件(#768):⚙ 设置钮右上 6px 金点,有未读战报时在、打开抽屉
-   *  即清(GameScreen 本地已读游标,不进快照);纯视觉表达,断言只论在场与否。 */
+  /** 设置钮上的战报未读金点,打开抽屉即清;已读游标归 GameScreen 本地态。 */
   settingsUnreadDot: "settings-unread-dot",
-  /** 席位格列容器(#698 重形:右缘单列 96×38 双行八项格,一人一格)。 */
+  /** 席位格列容器,一人一格。 */
   seatRail: "seat-rail",
-  /** 席位格(seat = 绝对座位号),挂对手席;自机格挂 seatSelf(不占本族——
-   *  「自身不出卡」旧契约的 e2e 以 seat-N 缺席为断言,自机入列不破它)。 */
+  /** 对手席位格(seat=绝对座位号);自机格单挂 seatSelf。 */
   seat: (seat: number) => `seat-${seat}` as const,
   seatCash: (seat: number) => `seat-cash-${seat}` as const,
-  /** 体力色条(#698:3px 细轨无刻度数;濒耗竭 low 类转朱砂,数值归仪表条/弹层)。 */
+  /** 体力色条,濒耗竭时 low 类转朱砂。 */
   seatStamina: (seat: number) => `seat-stamina-${seat}` as const,
   /** 属性计数(attr ∈ city|hand|rep|gem|hero;值裸排,名词在 aria-label)。 */
   seatAttr: (seat: number, attr: string) => `seat-attr-${attr}-${seat}` as const,
-  /** 托管常驻微标(seat = 座位号,#770):托管(AI 代打)开启的席位格,国号印右 8px
-   *  齿轮,纯展示挂点——开关交互唯一通路=设置弹层 settingsAutopilot(ADR-0028,
-   *  #1097 起原单人格弹层开关随格 tap 退役)。 */
+  /** 托管席位的常驻展示标记;开关入口为设置弹层 settingsAutopilot(ADR-0028)。 */
   seatHosted: (seat: number) => `seat-hosted-${seat}` as const,
-  /** 自机格根(#698:金描边+左金条+金渐变;纯展示无点击层,目标段候选层随 targets 在场)。 */
+  /** 自机格根;只在目标段挂候选点击层。 */
   seatSelf: "seat-self",
 
-  // ── 手牌区(#700:透明居中浮置,签面驻左端)──
+  // ── 手牌区 ──
   /** 手牌区容器(签面 + 锦囊手牌架;锦囊开关收起时不挂载)。 */
   handZone: "hand-zone",
 
-  // ── 右下三圆钮(#700:锦囊开关 / 珍宝 / 名将,44px 圆 + 计数角标)──
+  // ── 右下三圆钮 ──
   /** 三圆钮容器(坐姿渲染)。 */
   pileButtons: "pile-buttons",
-  /** 锦囊圆钮 = 手牌区显隐开关(亮=显示;对局内记忆,重进恢复)。 */
+  /** 锦囊圆钮,临时切换手牌区显隐;回合/窗态变化时由 GameScreen 重新同步。 */
   jinnangToggle: "jinnang-toggle",
   /** 珍宝圆钮(角标=珍宝数;点开珍宝藏品弹层)。 */
   pileTreasures: "pile-treasures",
   /** 名将圆钮(角标=名将数/3 上限;点开名将藏品弹层)。 */
   pileHeroes: "pile-heroes",
 
-  // ── 设置弹层(#700:顶左齿轮;战报/音效/版本/回主页入口降级入内)──
+  // ── 设置弹层 ──
   /** 弹层容器(ui/dialog 底件,题名可拖)。 */
   settingsDialog: "settings-dialog",
   /** 音效开关(Base UI Switch;开=有声,接原 AudioProvider 单通道静音账本)。 */
   settingsSfx: "settings-sfx",
-  /** 战报入口行(点开战报抽屉;数据照记,入口降级)。 */
+  /** 战报入口行,打开战报抽屉。 */
   settingsWarReport: "settings-war-report",
   /** 回到主页行(弃局离屏:销毁控制器回 setup)。 */
   settingsHome: "settings-home",
-  /** 托管开关(#1097 收编,#1096 决议2):Base UI Switch,接 ADR-0028 现役引擎通路
-   *  (useAutopilotOn 回读 + controller.setAutoPilot);仅自机语义(本弹层只属屏前真人)。 */
+  /** Base UI Switch,经 useAutopilotOn 回读、controller.setAutoPilot 下发;操作本座托管。 */
   settingsAutopilot: "settings-autopilot",
   /** 属性浮签内容件(Tip 组件的 Popup;hover/长按/聚焦三通路同签)。 */
   attrTip: "attr-tip",
 
-  // ── 席位格列(#698 重形)──
-
-  // ── 战报抽屉(#255;#700 起入口降级设置弹层,把手与未读角标退役,抽屉本体保留)──
+  // ── 战报抽屉(设置内打开)──
   logDrawer: "log-drawer",
-  /** 「加载更早」:窗口化渲染(#战报性能)按窗放开更早历史的按钮。 */
+  /** 战报按窗口渲染,此按钮放开更早历史。 */
   logEarlier: "log-earlier",
 
-  // ── 藏品弹层(#361;#700 起入口=右下三圆钮 pile-treasures/pile-heroes,
-  //  牌架双入口 testid 随 RackEntry 退役核销)──
+  // ── 藏品弹层(PileButtons 自持)──
   /** 两独立弹层容器(无互切页签;右上 X 关闭,关闭钮 testid 共用)。 */
   treasureModal: "treasure-modal",
   heroModal: "hero-modal",
-  /** 人物卷(#1446):当前麾下画像签、人物与实授技能文稿。 */
+  /** 人物卷:当前麾下画像签、人物与实授技能文稿。 */
   heroInspectionSelect: (heroId: string) => `hero-inspection-select-${heroId}` as const,
   heroInspectionRoster: "hero-inspection-roster",
   heroInspectionPortrait: "hero-inspection-portrait",
@@ -105,24 +68,20 @@ export const TESTIDS = {
   heroInspectionSkills: "hero-inspection-skills",
   heroInspectionSkill: (skillId: string) => `hero-inspection-skill-${skillId}` as const,
   heroInspectionActions: "hero-inspection-actions",
-  /** 技能书可点格(#1146,treasureId=书实例 id):己方出牌阶段+可学时为真 button;
-   *  不可用态(非出牌阶段/无可学者)同挂点但非交互渲染,禁用原因进 title。 */
+  /** 技能书格(treasureId=书实例 id):己方出牌阶段且可学时为 button;禁用原因进 title。 */
   bookUse: (treasureId: string) => `book-use-${treasureId}` as const,
-  /** 名将遣散钮(#1147,heroId=麾下将 id):己方回合可用;二段式确认(首点武装
-   *  「确认遣散」再点才发命令);非己回合禁用态,原因进 title。 */
+  /** 名将遣散钮(heroId=麾下将 id):己方回合可用,二段确认;禁用原因进 title。 */
   heroDismiss: (heroId: string) => `hero-dismiss-${heroId}` as const,
-  /** 多名可学弹窗(#1146):容器与可学者钮(heroId=麾下将 id)。 */
+  /** 多名可学时的弹窗容器与可学者按钮(heroId=麾下将 id)。 */
   bookLearnModal: "book-learn-modal",
   bookLearnItem: (heroId: string) => `book-learn-${heroId}` as const,
   modalClose: "modal-close",
-  /** 弹窗题名拖动把手(#674,与 modal-close 同族):两壳(ui/dialog 底件系与
-   *  BannerShell 横幅系)的题名行 handle 同挂;叠层时 e2e 用容器作用域区分。 */
+  /** 题名拖动把手,ui/dialog 与 BannerShell 共用;叠层时按容器作用域区分。 */
   modalDragHandle: "modal-drag-handle",
-  /** 弹层体部内滚容器(#708 矮屏规范,PileShell 壳单挂):夹高/滚动可达/滚动提示
-   *  断言的定位口。 */
+  /** PileShell 体部滚动容器。 */
   modalScrollBody: "modal-scroll-body",
 
-  // ── 窥探弹层(#575,军情密探即时窥探;viewer-only 演出)──
+  // ── 军情密探窥探弹层 ──
   /** 弹层容器(PileShell 壳;仅 viewer=本座渲染,关闭即清)。 */
   peekModal: "peek-modal",
   /** 被窥锦囊牌面(cardId=牌名;弹层内容区点击即关闭)。 */
@@ -130,49 +89,41 @@ export const TESTIDS = {
   /** 空手牌空态(「囊中空空」浅印;目标有效性对手牌数无守卫,真业务态)。 */
   peekEmpty: "peek-empty",
 
-  // ── 技能全览弹框(#605,规格 #603 T2;#818 起技能卡主技名同为入口)──
+  // ── 技能全览弹框 ──
   /** 弹层容器(PileShell 壳;招贤点卡/点技名 chip、技能卡主技名、麾下将点技名弹出)。 */
   skillGlossary: "skill-glossary",
   /** 招贤拍板钮(footer「收为麾下」;仅招贤消费方传 onPick 时在场,浏览语境无钮)。 */
   skillGlossaryPick: "skill-glossary-pick",
   /** 技能行(skillId=技 id;被点技挂 is-hl 高亮类)。 */
   skillGlossaryRow: (skillId: string) => `skill-glossary-row-${skillId}` as const,
-  /** 卡面技名定位选择器(挂 data-skill=技 id,渲染单源在 HeroCardFace chips 与
-   *  SkillCardFace 主技名;e2e 点技名走此选择器,勿裸写属性串)。 */
+  /** 技名选择器,对应 HeroCardFace chips 与 SkillCardFace 主技名的 data-skill。 */
   skillChip: (skillId: string) => `[data-skill="${skillId}"]` as const,
   skillChipAny: "[data-skill]" as const,
 
-  // ── 名下城池清单弹层(#622,规格 #621:席位格/仪表条城池图标点开)──
+  // ── 名下城池清单(诸侯详情城池列打开)──
   /** 弹层容器(PileShell 壳,朱印「城」;只读清单,零操作项,随快照实时重渲)。 */
   cityLedger: "city-ledger",
   /** 城池行(propertyId=城 id;行序=棋盘 index 序)。 */
   cityLedgerRow: (propertyId: string) => `city-ledger-row-${propertyId}` as const,
-  /** 行首真实格缩略图(#623:非交互 Tile 复用 svg 壳;propertyId=城 id)。 */
+  /** 城池行首的非交互 Tile 缩略图(propertyId=城 id)。 */
   cityLedgerThumb: (propertyId: string) => `city-ledger-thumb-${propertyId}` as const,
   /** 空态(「名下暂无城池」浅印;名下无城=真业务态,未购地/破产清场均可达)。 */
   cityLedgerEmpty: "city-ledger-empty",
 
-  // ── 动作条(#256 出牌阶段态:旧弹窗退役,浮于仪表条上缘,两段制)──
-  /** 动作条容器(卡牌段=出牌/不出;目标段=选择目标标签+作罢)。 */
+  // ── 出牌动作条 ──
+  /** 动作条容器;卡牌段出牌/不出,目标段出/作罢。 */
   actionbar: "actionbar",
-  /** 卡牌段「出牌」确认钮(选中放大牌后可用;未选中=禁用)。 */
+  /** 卡牌段「出牌」确认钮;未选牌时自门控并触发可用牌提示。 */
   actionbarPlay: "actionbar-play",
-  /** 卡牌段「不出」(今不用;牌不消耗)。e2e 放行点(原 scroll-jinnang-pass 语义平移)。 */
+  /** 卡牌段「不出」,牌不消耗。 */
   actionbarPass: "actionbar-pass",
-  /** 目标段「选择目标」标签(信息件,非按钮)。 */
+  /** 目标段确认钮,未选目标时显示「选择目标」且禁用,选中后显示「出」。 */
   actionbarTarget: "actionbar-target",
   /** 目标段「作罢」(收回此计牌:不消耗、不记冷却)。 */
   actionbarCancel: "actionbar-cancel",
-  /** 目标段席位点击层(真按钮;点席位=选中/再点同席取消,打出走动作条「出」,#417)。
-   *  自选目标起仪表条身份区「你」印在目标段兼任自己候选钮,复用本族 testid
-   *  (对手席位格与仪表条同一选择器通路)。 */
+  /** 目标段席位按钮(含自机);首点选中、再点取消,打出经动作条确认。 */
   seatTarget: (seat: number) => `seat-target-${seat}` as const,
-  /** 目标段选城候选(#1388 T2 火攻定向立形,#1389 火烧连营锦囊城指向域同款复用——
-   *  无差别点亮不设第二形制,故族名收口域中立 cityTarget):棋盘格即点击层(Tile 根
-   *  data-tile 承载,候选挂 data-city-target;金环呼吸在氛围层 crown,格上零文字标牌
-   *  §4.6)。点选=选中/再点同格取消/点他格改选(#417 同族),打出走动作条「出」
-   *  (actionbarTarget);作罢钮复用 actionbarCancel。CSS 选择器形(skillChip 同款;
-   *  旧名 skillCityTarget 随锦囊域并入退役——形制单源,选择器单源随之)。 */
+  /** 目标城的 Tile 根挂 data-city-target;同格再点取消、点他格改选,确认/作罢走动作条。 */
   cityTarget: (tileIndex: number) => `[data-tile="${tileIndex}"][data-city-target]`,
   /** 目标段选城·选中定靶态(实金双环停持,呼吸停;Tile 根挂 data-city-target-selected)。 */
   cityTargetPicked: (tileIndex: number) => `[data-tile="${tileIndex}"][data-city-target-selected]`,
@@ -180,32 +131,28 @@ export const TESTIDS = {
   cityTargetAny: "[data-city-target]",
   cityTargetPickedAny: "[data-city-target-selected]",
 
-  /** 城池格防御盾排(#1391 T5):排标记挂 data-shield-row(附 data-defense=当前值),
-   *  盾件挂 data-shield——受损=盾数缩短(DESIGN §5.2),无主城整排不渲染,打空都城
-   *  =排在盾零。CSS 选择器形(cityTarget 同款);TileThumb 缩略图同件同渲染,断言
-   *  棋盘面须带 #board 作用域区分。 */
+  /** 城池盾排挂 data-shield-row/data-defense,盾件挂 data-shield;无主城不渲染,都城零盾仍留排。
+   *  TileThumb 复用同件,定位棋盘须带 #board 作用域。 */
   cityShieldRow: (tileIndex: number) => `#board [data-tile="${tileIndex}"] [data-shield-row]`,
   cityShield: (tileIndex: number) => `#board [data-tile="${tileIndex}"] [data-shield]`,
 
-  // ── 手牌架(#238 常驻;#256 出牌阶段态;#254 叠加压缩)──
-  /** 锦囊(#122):己方手牌容器 / 单张牌面(带牌名)。#238/T3:jinnangHand 挂手牌架的
-   *  「手牌行」(有牌才存在);架本体挂 jinnangRack(常驻)。 */
+  // ── 手牌架 ──
+  /** 己方手牌行,有牌才挂载;牌架本体另挂 jinnangRack。 */
   jinnangHand: "jinnang-hand",
   /** 全展时承载原牌行的局部横向浏览视口。 */
   jinnangViewport: "jinnang-viewport",
   jinnangCard: (cardId: string) => `jinnang-card-${cardId}` as const,
-  /** #238/T3:底部常驻手牌架容器(架首章 + 手牌行/空态牌背)。 */
+  /** 手牌架容器,承载牌行或空态。 */
   jinnangRack: "jinnang-rack",
-  /** #238/T3:点牌详情弹层容器(ui/dialog 底件,桌面底部面板/窄屏抽屉双皮)。 */
+  /** 点牌详情弹层容器,使用 ui/dialog 底件。 */
   jinnangDetail: "jinnang-detail",
-  /** 架尾计数章(#751 C2):.many 压缩态常驻(pointer:coarse 档显示),点按切换
-   *  持续全展检视;textContent = 实际渲染项数(锦囊与技能混排)。 */
+  /** 架尾计数章:.many 压缩态在粗指针设备显示,点按切换持续全展;计数含锦囊与技能。 */
   jinnangSpreadBadge: "jinnang-spread-badge",
   diceFace: "dice-face",
-  /** 决策按钮(交互重构后按钮本体住在各决策卷轴里,testid 命名不变,减少 e2e 震荡)。 */
+  /** 决策卷轴内的操作按钮。 */
   actionButton: (action: string) => `action-${action}` as const, // action-buy / action-skip / …
 
-  // ── 拼点签面(#637,ADR-0030 全屏拼点演出;一次性演出,全桌同见)──
+  // ── 拼点签面(ADR-0030)──
   /** 全屏签面幕容器(幕启→并行摇→错拍落→判词→渐出;append 到 body,非棋盘层)。 */
   duelOverlay: "duel-overlay",
   /** 参与者签面(seat = 绝对座位号;签头=玩家色底+国号,签身=骨牌大字)。 */
@@ -213,7 +160,7 @@ export const TESTIDS = {
   /** 中缝朱砂「拼」印(data-verdict = pending|win|tie 判词态;tie 钤变金「平」)。 */
   duelVerdict: "duel-verdict",
 
-  // ── 反应窗(#281,#234 P1-D 牌架即反应窗)──
+  // ── 反应窗 ──
   /** 结算事件横幅(从手牌架上缘长出;仅被询问座位渲染)。 */
   reactionBanner: "reaction-banner",
   /** 左段事件文案(「X 使用【火烧连营】」/「X 行军将过你的城池」)。 */
@@ -229,7 +176,7 @@ export const TESTIDS = {
   /** AOE 选份候选笺(横征暴敛等全体域:点笺=定被保护份;seat=被保护座位,含自己)。 */
   reactionSeat: (seat: number) => `reaction-seat-${seat}` as const,
 
-  // ── 「你可」选择闸触发卡(#1378,放逐/行殇待决窗)──
+  // ── 「你可」选择闸触发卡 ──
   /** 触发卡横幅(从手牌架上缘长出,反应窗同形;仅待决属主座位渲染)。 */
   skillChoiceBanner: "skill-choice-banner",
   /** 触发卡文案(「X「放逐」可达发动条件…」)。 */
@@ -244,72 +191,56 @@ export const TESTIDS = {
    *  数值与名词在 aria-label(状态表达 §4.6,格上不落文字标牌)。 */
   seatSkillMark: (seat: number) => `seat-skill-mark-${seat}` as const,
 
-  // ── 托管:autopilot-button 常量随钮退役(头部 #700 核销注),#1097 起通路=
-  //  设置弹层 settings-autopilot(原自机格弹层开关随 #1096 决议1 退役)──
-
   // ── 覆盖提示 ──
-  hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串
+  hint: "hint", // App.tsx 的提示也共用此挂点
   thinking: "thinking",
-  waitingBar: "waiting-bar", // G-3/16/21 统一等待状态条(WaitingBar.tsx;#732 起渲染宿主在知会槽)
-  /** 顶中知会横幅槽(#732):都城停条带/等待条/常驻回合胶囊共用的一条带容器——
-   *  可排队、同槽互斥,瞬态知会优先于等待条(NoticeBanner.tsx;回合全幅横幅已退役 #958)。 */
+  waitingBar: "waiting-bar", // 知会槽内的等待状态条
+  /** 顶中知会槽,都城停条带/等待条/回合胶囊同槽互斥,瞬态知会优先。 */
   noticeBanner: "notice-banner",
-  /** 常驻回合胶囊(回合宣告唯一形制,#762 立/#958 起):当前回合方(国号印+名号+轮次),
-   *  每次宣告重挂、常驻于知会槽(NoticeBanner.tsx;融合的等待附加信息仍走 waiting-bar)。 */
+  /** 回合宣告胶囊,显示国号印/名号/轮次,每次宣告重挂;等待附加信息另挂 waitingBar。 */
   turnCapsule: "turn-capsule",
-  /** 掷骰签锚点(#927,ADR-0043):知会槽内的常驻零宽件,几何=回合胶囊右缘——
-   *  掷骰签定位读它。不读胶囊节点本身:bot 配速关 0 的批洪流下,宣告批可能
-   *  作为过时批被吸附作废(ADR-0029),胶囊节点合法地不物化,瞬态节点不可为锚。 */
+  /** 知会槽内常驻零宽锚点,位于回合胶囊右缘(ADR-0043)。
+   *  宣告批被吸附时胶囊可不物化,因此掷骰签不能依赖胶囊瞬态节点。 */
   diceSignAnchor: "dice-sign-anchor",
-  /** 竖屏手机「请横屏」提示层(#276 纠偏:移动端只做横屏形态;显隐全在 layout.css
-   *  媒询,常驻 DOM——桌面窄窗口 pointer:fine 不触发)。 */
+  /** 「请横屏」提示层常驻 DOM,显隐由 layout.css 媒询决定;桌面窄窗口不触发。 */
   rotateHint: "rotate-hint",
 
-  // ── 棋盘区小组件 ──
-  // #700 退役核销:mute-button(音乐钮,音效开关降级入设置弹层 settings-sfx)、
-  // reset-view(总览复位钮)随旧顶栏退役,常量删除;取景恒 computeFitView 总览定格
-  // (#946 平移缩放退役,usePanZoom 整删,复位语义不复存在)。
-
-  // ── 选都确认(#35:按钮搬进城池详情卷轴,testid 不变,e2e 选择器零震荡)──
-  /** 详情卷轴选都模式的「定都于此」按钮(旧独立确认框容器 testid 已退役)。 */
+  // ── 选都确认 ──
+  /** 详情卷轴选都模式的「定都于此」按钮。 */
   confirmCapitalOk: "confirm-capital-ok",
   confirmCapitalCancel: "confirm-capital-cancel",
 
-  // ── 未开局兜底页(S9)──
+  // ── 未开局空态 ──
   /** 「尚未开局」卡片的「回到首页」按钮(快照缺失时的引导逃生口)。 */
   notStartedBack: "not-started-back",
 
-  // ── 席位明细弹层(#701 格上图标直达的明细族;#1097 起唯一入口=诸侯详情四钻入)──
+  // ── 诸侯详情钻入明细 ──
   /** 明细弹层容器(战盔→名录 / 玉璧→珍宝列表 / 墨竹→声望;PileShell 壳)。 */
   seatHeroModal: "seat-hero-modal",
   seatGemModal: "seat-gem-modal",
   seatRepModal: "seat-rep-modal",
 
-  // ── 诸侯详情弹窗(#702,spec #697 ⑥,#732 正名):顶左 ☰ 点开的十列名录直读分板;
-  //  #1097 起四元素可点钻入(#1096 决议3):城池 chips→#622 清单 / 名将 chips→名录 /
-  //  珍宝槽→列表 / 声列→声望明细(金描边+尾「›」,钻入式单层互斥)──
+  // ── 诸侯详情:城池/名将/珍宝/声望列可点开明细 ──
   /** 弹层容器(ui/dialog 底件,题名可拖;打开不暂停对局,行随快照实时重渲)。 */
   warlordsOverview: "warlords-overview",
   /** 总览行(seat = 座位号,座序即行序;十列 grid 一人一行)。状态类挂点:
    *  自机行 .self 金描边 / 破产行 .dead 灰化 / 活跃方 .is-active(印金圈)。 */
   warlordsRow: (seat: number) => `warlords-row-${seat}` as const,
-  /** 行内数值本体(cash/stamina/hand/rep;纯数文本,e2e 与投影逐字对照)。 */
+  /** 行内数值本体(cash/stamina/hand/rep),仅含数值文本。 */
   warlordsCash: (seat: number) => `warlords-cash-${seat}` as const,
   warlordsStamina: (seat: number) => `warlords-stamina-${seat}` as const,
   warlordsHand: (seat: number) => `warlords-hand-${seat}` as const,
   warlordsRep: (seat: number) => `warlords-rep-${seat}` as const,
-  /** 城池列(可点钻入件):城池名 chips 黛青,超 3 折叠「+N」;点击开 #622 名下城池清单。 */
+  /** 城池列,点击打开名下城池清单。 */
   warlordsCities: (seat: number) => `warlords-cities-${seat}` as const,
   /** 名将列(可点钻入件):麾下名将名 chips 朱砂 + 空槽(信息公开);点击开名将名录。 */
   warlordsHeroes: (seat: number) => `warlords-heroes-${seat}` as const,
   /** 珍宝计数槽(可点钻入件):槽位=件数示意,空槽画空格;点击开珍宝列表。 */
   warlordsGems: (seat: number) => `warlords-gems-${seat}` as const,
-  /** 声列钻入钮(seat = 座位号;数值本体 warlordsRep 单独挂——e2e 纯数断言不受
-   *  钮身「声」字串扰,#1097 四钻入)。 */
+  /** 声望详情钻入钮;纯数值另挂 warlordsRep,与钮身「声」字分开定位。 */
   warlordsRepCell: (seat: number) => `warlords-rep-cell-${seat}` as const,
 
-  // ── 联机连接横幅(#664 补登:挂点在 shared/ConnectionBanner,GameScreen/LobbyScreen
-  //  顶部长出;断线重连状态条)──
+  // ── 联机连接横幅(shared/ConnectionBanner)──
   connectionBanner: "connection-banner",
   connectionRetry: "connection-retry",
   connectionExit: "connection-exit",
