@@ -5,7 +5,7 @@
 // 的特性分支从警告升级为失败(显式 --allow-behind 豁免)——审计取证的 file:line 对基线
 // 漂移零容忍,警告级提示会被「命令退出 0」掩盖;另加冲突标记扫描(#462 事故防复发)。
 // 2026-10-15 jj 化(#533,配合项目 jj 单路径):git 调用面整体退役,主树(colocated)
-// 与 jj workspace(无 .git)同一套代码。旧四件套映射与取舍:
+// 与 jj workspace 同一套代码。旧四件套映射与取舍:
 //   - `git fetch origin --prune` → `jj git fetch`:默认远端即 origin;--prune 无对应
 //     也不需要——jj 远端书签是远端状态的镜像,远端删掉的书签 fetch 后本地同步消失,
 //     prune 语义天然内含。fetch 失败仍=红(网络断刻意失败语义不变)。
@@ -143,17 +143,22 @@ if (doFetch) {
 const failures: string[] = [];
 
 // rule 0:主树停靠位占用(见判定规则 0;#984 retro 起无论调用方在哪都查——主树内
-// 直查 @,workspace 内解析 workspace list 的 default 行按 commit 回查,共享 store
-// 任何位置可查)
+// workspace list 模板读取 default 注册目标,共享 store 任何位置可查。
+// 次 workspace 同样可能有 .git 文件,磁盘 .git 不能识别主树。)
 {
-  const inMainTree = existsSync(".git");
-  const mainAt = inMainTree
-    ? "@"
-    : (jj("workspace", "list")
-        .split("\n")
-        .find((line) => line.startsWith("default:"))
-        ?.match(/^default:\s+\S+\s+(\S+)/)?.[1] ?? null);
-  if (mainAt != null) {
+  const main = jj(
+    "workspace",
+    "list",
+    "-T",
+    'name ++ "\\t" ++ self.target().commit_id() ++ "\\t" ++ current_workspace ++ "\\n"',
+  )
+    .split("\n")
+    .map((line) => line.split("\t"))
+    .find(([name]) => name === "default");
+  if (!main) throw new Error("[freshness] default 工作区注册缺失,无法检查主树停靠位");
+  const mainAt = main[1]!;
+  const inMainTree = main[2] === "true";
+  {
     // 0 附:瞬时句柄残影去抖(2026-11-06 #1096 收口实锤):构建/编辑器握住文件的
     // 瞬间,快照会呈现「N files 0 insertions 0 deletions」的空壳非空态,片刻自愈
     // (句柄释放即真净)。隔 2s 复查一次再定性——不是兜底,是去除抖动的一次重读;

@@ -74,6 +74,9 @@ Bun.spawnSync = (args, options) => {
 };`,
   );
   jj(root, "git", "init");
+  jj(root, "config", "set", "--repo", "user.name", "Fixture");
+  jj(root, "config", "set", "--repo", "user.email", "fixture@example.invalid");
+  jj(root, "metaedit", "--update-author");
   jj(root, "describe", "-m", "基线");
   const base = jj(root, "log", "-r", "@", "--no-graph", "-T", "commit_id");
   jj(root, "bookmark", "set", "master");

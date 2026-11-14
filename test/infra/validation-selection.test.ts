@@ -3,7 +3,7 @@
 // 默认池不启动子进程。普通/协议生产变更/未知域/失败与改码失效均经公开命令验证。
 import { afterEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "../..");
 const CLI = join(ROOT, "scripts/validate.ts");
@@ -25,7 +25,7 @@ function jj(root: string, ...args: string[]): string {
   return result.output.trim();
 }
 
-function fixture() {
+function fixture(files: Record<string, string> = {}) {
   mkdirSync(join(ROOT, "tmp"), { recursive: true });
   const root = mkdtempSync(join(ROOT, "tmp/validation-selection-"));
   roots.push(root);
@@ -50,7 +50,14 @@ function fixture() {
     ].map((id) => [id, `bun scripts/fixture-check.ts ${id}`]),
   );
   writeFileSync(join(root, "package.json"), JSON.stringify({ type: "module", scripts }));
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), text);
+  }
   jj(root, "git", "init");
+  jj(root, "config", "set", "--repo", "user.name", "Fixture");
+  jj(root, "config", "set", "--repo", "user.email", "fixture@example.invalid");
+  jj(root, "metaedit", "--update-author");
   const base = jj(root, "log", "-r", "@", "--no-graph", "-T", "commit_id");
   jj(root, "new");
   return { root, base };
@@ -59,6 +66,83 @@ function fixture() {
 function run(root: string, ...args: string[]) {
   return command(root, [process.execPath, CLI, ...args]);
 }
+
+testValidation(
+  "固定基线的纯注释保留静态基础门,行为门由实质变更或显式 profile 追加且回执仍绑定原文",
+  () => {
+    const original = "export const value = 1;\n";
+    const { root, base } = fixture({
+      "src/core/authority.ts": original,
+      "scripts/room.ts": original,
+    });
+    for (const path of ["src/core/authority.ts", "scripts/room.ts"])
+      writeFileSync(join(root, path), `// 新说明\n${original}`);
+    const preview = run(root, "plan", "--base", base);
+    expect(preview.code, preview.output).toBe(0);
+    const ids = JSON.parse(preview.output).checks.map((check: { id: string }) => check.id);
+    expect(ids).toEqual(["lint", "check:fmt", "build", "test", "typecheck:scripts", "check:core"]);
+
+    const explicit = run(
+      root,
+      "plan",
+      "--base",
+      base,
+      "--profile",
+      "engine",
+      "--profile",
+      "economy",
+      "--profile",
+      "protocol",
+      "--profile",
+      "recovery",
+    );
+    expect(explicit.code, explicit.output).toBe(0);
+    expect(JSON.parse(explicit.output).checks.map((check: { id: string }) => check.id)).toEqual(
+      expect.arrayContaining([
+        "check:goldens",
+        "check:sim-bench",
+        "test:protocol",
+        "test:recovery",
+      ]),
+    );
+
+    const receipt = join(root, "tmp/comments.json");
+    const executed = run(root, "run", "--base", base, "--out", receipt);
+    expect(executed.code, executed.output).toBe(0);
+    writeFileSync(join(root, "scripts/room.ts"), `// 再改说明\n${original}`);
+    const stale = run(root, "verify", receipt);
+    expect(stale.code, stale.output).not.toBe(0);
+    expect(stale.output).toContain("内容已变化");
+
+    writeFileSync(join(root, "src/core/authority.ts"), "export const value: number = 1;\n");
+    rmSync(join(root, "scripts/room.ts"));
+    writeFileSync(join(root, "scripts/wire.ts"), "// 新增文件仍是实质变更\n");
+    writeFileSync(
+      join(root, "scripts/change-classification.ts"),
+      "export const classify = true;\n",
+    );
+    const changed = run(root, "plan", "--base", base);
+    expect(changed.code, changed.output).toBe(0);
+    const checks = JSON.parse(changed.output).checks;
+    expect(checks.map((check: { id: string }) => check.id)).toEqual(
+      expect.arrayContaining([
+        "typecheck:scripts",
+        "check:core",
+        "check:goldens",
+        "check:sim-bench",
+        "test:protocol",
+        "test:recovery",
+      ]),
+    );
+    expect(
+      checks.find((check: { id: string }) => check.id === "test:protocol").reasons,
+    ).toContainEqual({ path: "scripts/wire.ts", reason: "protocol 生产影响域" });
+    expect(
+      checks.find((check: { id: string }) => check.id === "test:recovery").reasons,
+    ).toContainEqual({ path: "scripts/room.ts", reason: "recovery 生产影响域" });
+  },
+  30_000,
+);
 
 testValidation(
   "普通变更预览与执行绑定当前内容,描述变化仍有效而改码后旧结果拒绝",

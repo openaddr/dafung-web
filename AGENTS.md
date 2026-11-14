@@ -95,4 +95,4 @@ TypeScript + Vite + React 三国大富翁:**权威引擎** `src/core/`(纯逻辑
 
 - 操作工单前读[工单约定](./docs/agents/issue-tracker.md)；分诊时查[默认标签](./docs/agents/triage-labels.md)。
 - 派子代理前读[派单模板](./docs/agents/派单模板.md)，落实文件属主、验证范围与主线诊断/QC。
-- **执行规格票必显式调用 `implement-spec`**，每波重新加载；项目适配为 jj workspace 串行实施，主线承担 merger、接缝和诊断，细则见派单模板。
+- **执行规格票必显式调用 `implement-spec`**，每波重新加载；并行 workspace、固定起基与主线收口按派单模板。

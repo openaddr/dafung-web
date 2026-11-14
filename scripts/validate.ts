@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
+import { classifyChange } from "./change-classification";
 
 interface Check {
   id: string;
@@ -95,7 +96,7 @@ const DOMAINS: Record<string, { paths: RegExp; checks: string[] }> = {
   },
   scripts: {
     paths:
-      /^scripts\/(?:apk-smoke|bot-driver|build-dist|bun-release|check-[\w-]+|cli|command-log|context-read|cost-probe|dev-ports|dev|dist-freshness|engine-helpers|event-batch|fault-proxy|fetch-asset|frame-probe|generate-theme-tokens|mobile-context|online-client|play|pr-merge|procs|release|room-persistence|room-record|room|seat-projection|server|shot|sim-batch|sim-bench|sim-digest|sim-jinnang|state-digest|test-corpus|test-lock|validate|visual-compare|watchdogs|whole-game|wire|ws-new|ws-run)\.(?:ts|mjs)$/,
+      /^scripts\/(?:apk-smoke|bot-driver|build-dist|bun-release|change-classification|check-[\w-]+|cli|command-log|context-read|cost-probe|dev-ports|dev|dist-freshness|engine-helpers|event-batch|fault-proxy|fetch-asset|frame-probe|generate-theme-tokens|mobile-context|online-client|play|pr-merge|procs|release|room-persistence|room-record|room|seat-projection|server|shot|sim-batch|sim-bench|sim-digest|sim-jinnang|state-digest|test-corpus|test-lock|validate|visual-compare|watchdogs|whole-game|wire|ws-new|ws-run)\.(?:ts|mjs)$/,
     checks: ["typecheck:scripts"],
   },
   engine: {
@@ -136,8 +137,19 @@ const DOMAINS: Record<string, { paths: RegExp; checks: string[] }> = {
     paths: /^(?:scripts\/(?:bun-release|test-lock)\.ts$)/,
     checks: ["test:release-guard"],
   },
-  validation: { paths: /^scripts\/(?:validate|pr-merge)\.ts$/, checks: ["test:validation"] },
+  validation: {
+    paths: /^scripts\/(?:validate|pr-merge|change-classification)\.ts$/,
+    checks: ["test:validation"],
+  },
 };
+
+// 纯注释仅缩减行为验证;基础门、core/board 静态守门、脚本类型和工具自检继续执行。
+const BEHAVIOR_CHECKS = new Set([
+  "check:goldens",
+  "check:sim-bench",
+  "test:protocol",
+  "test:recovery",
+]);
 
 interface Result {
   format: 1;
@@ -155,10 +167,14 @@ interface Result {
   >;
 }
 
-function jj(...args: string[]): string {
+function jjOutput(...args: string[]): string {
   const child = Bun.spawnSync(["jj", ...args], { stdout: "pipe", stderr: "pipe" });
   if (child.exitCode !== 0) throw new Error(`jj ${args.join(" ")}: ${child.stderr.toString()}`);
-  return child.stdout.toString().trim();
+  return child.stdout.toString();
+}
+
+function jj(...args: string[]): string {
+  return jjOutput(...args).trim();
 }
 
 function currentContent(): { commit: string; contentSha256: string } {
@@ -199,6 +215,8 @@ function plan(base: string, profiles: string[]): Plan {
     .filter(Boolean)
     .map((path) => path.replaceAll("\\", "/"))
     .sort();
+  const basePaths = new Set(jj("file", "list", "-r", baseCommit).split("\n"));
+  const currentPaths = new Set(jj("file", "list", "-r", current.commit).split("\n"));
   const selected = new Map<string, Check>();
   const add = (id: string, path: string, reason: string): void => {
     const check = selected.get(id);
@@ -214,17 +232,27 @@ function plan(base: string, profiles: string[]): Plan {
     for (const id of DOMAINS[profile]!.checks) add(id, "--profile", `${profile} 显式补充域`);
   }
   for (const path of changes) {
+    const commentOnly =
+      /\.[cm]?[jt]sx?$/.test(path) &&
+      basePaths.has(path) &&
+      currentPaths.has(path) &&
+      classifyChange(
+        path,
+        jjOutput("file", "show", "-r", baseCommit, path),
+        jjOutput("file", "show", "-r", current.commit, path),
+      ) === "comment-only";
     const matches = Object.entries(DOMAINS).filter(([, domain]) => domain.paths.test(path));
     if (matches.length === 0 && profiles.length === 0 && existsSync(path))
       throw new Error(`未知影响域:${path};请显式选择 --profile`);
     for (const [name, domain] of matches)
-      for (const id of domain.checks) add(id, path, `${name} 生产影响域`);
+      for (const id of domain.checks)
+        if (!commentOnly || !BEHAVIOR_CHECKS.has(id)) add(id, path, `${name} 生产影响域`);
     for (const id of ["lint", "check:fmt", "build", "test"])
       add(
         id,
         path,
         matches.length > 0
-          ? `变更域:${matches.map(([name]) => name).join(",")}`
+          ? `变更域:${matches.map(([name]) => name).join(",")}${commentOnly ? ";纯注释/空白" : ""}`
           : existsSync(path)
             ? `显式分类:${profiles.join(",")}`
             : "删除文件",
