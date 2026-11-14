@@ -11,14 +11,16 @@ interface OwnershipPlayer {
   guohao: string;
   colorIndex: number;
   capitalIndex: number;
-  properties: { propertyId: string; level: number }[];
+  properties: { propertyId: string; level: number; defense: number }[];
 }
 
-/** 单城持有信息(铭牌底染/旌旗/等级珠的推导源)。 */
+/** 单城持有信息(铭牌底染/旌旗/等级珠/防御盾排的推导源)。 */
 export interface TileHolding {
   colorIndex: number;
   guohao: string;
   level: number;
+  /** 当前防御值(#1391 T5,引擎持有态账面,盾排常显的直读源)。 */
+  defense: number;
 }
 
 /** 全场归属表:propertyId → 首见持有者(players 序即座位序,同格双主取首见)。 */
@@ -27,7 +29,12 @@ export function holdingsOf(players: readonly OwnershipPlayer[]): Map<string, Til
   for (const p of players) {
     for (const h of p.properties) {
       if (!m.has(h.propertyId))
-        m.set(h.propertyId, { colorIndex: p.colorIndex, guohao: p.guohao, level: h.level });
+        m.set(h.propertyId, {
+          colorIndex: p.colorIndex,
+          guohao: p.guohao,
+          level: h.level,
+          defense: h.defense,
+        });
     }
   }
   return m;

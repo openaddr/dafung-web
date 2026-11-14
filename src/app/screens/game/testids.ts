@@ -172,6 +172,13 @@ export const TESTIDS = {
   cityTargetAny: "[data-city-target]",
   cityTargetPickedAny: "[data-city-target-selected]",
 
+  /** 城池格防御盾排(#1391 T5):排标记挂 data-shield-row(附 data-defense=当前值),
+   *  盾件挂 data-shield——受损=盾数缩短(DESIGN §5.2),无主城整排不渲染,打空都城
+   *  =排在盾零。CSS 选择器形(cityTarget 同款);TileThumb 缩略图同件同渲染,断言
+   *  棋盘面须带 #board 作用域区分。 */
+  cityShieldRow: (tileIndex: number) => `#board [data-tile="${tileIndex}"] [data-shield-row]`,
+  cityShield: (tileIndex: number) => `#board [data-tile="${tileIndex}"] [data-shield]`,
+
   // ── 手牌架(#238 常驻;#256 出牌阶段态;#254 叠加压缩)──
   /** 锦囊(#122):己方手牌容器 / 单张牌面(带牌名)。#238/T3:jinnangHand 挂手牌架的
    *  「手牌行」(有牌才存在);架本体挂 jinnangRack(常驻)。 */

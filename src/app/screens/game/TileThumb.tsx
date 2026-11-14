@@ -62,6 +62,9 @@ export function TileThumb({
     capitalCandidateOrder: null,
     isCityTarget: false, // 缩略图无目标段语境(#1388 T2 状态字段显式归零,非兜底)
     isCityPicked: false,
+    // 防御盾排随持有账面(#1391 T5,与棋盘同源):无主=null 整排不渲染(非兜底,
+    // 无防御语义是机制语义本尊)
+    defense: holding != null ? holding.defense : null,
   };
   return (
     <svg

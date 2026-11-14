@@ -54,6 +54,9 @@ export const SCROLL_TESTIDS = {
 
   // ── 城池详情 ──
   tileDetailScroll: "scroll-tile-detail",
+  /** 防御值行(#1391 T5,有主城才有):「防御 当前/满值」数值本体,满值=满值表
+   *  core/defense.ts 单源;无主城不渲染(免疫,无防御语义)。 */
+  tileDetailDefense: "scroll-tile-detail-defense",
 
   // ── 胜利屏 ──
   victoryScreen: "victory-screen",
