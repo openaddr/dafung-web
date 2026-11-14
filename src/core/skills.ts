@@ -1,10 +1,13 @@
 // 技能表(ADR-0036 技能升一等公民):技与将解耦——技能独立成表,一条技可入多个名将的
 // 池(重叠是特性,不做去重守卫);技 id 全局唯一,用技名拼音、不带将名前缀(复用不撒谎)。
-// 被动技(TriggerSkill·时机驱动)与主动技(ActiveSkillDef·出牌阶段手动)同表同目录;
+// 被动技(TriggerSkill·时机驱动)、主动技(ActiveSkillDef·出牌阶段手动)与静态被动
+// (StaticSkillDef·持有即恒常改一条推导值,#1390 英姿)同表同目录;
 // 名将经 HeroDef.skillPool 按池声明序引用(池序 = 派发序/卡面序/浮字拼接序,见 src/core/heroes.ts)。
 // 新增技 = 往 SKILLS 加一条纯数据(效果查 src/core/effects.ts 注册表;扩展指南见
 // docs/explanation/时机框架.md);新时机/新效果才需要动 timing.ts / effects.ts,
 // 本文件永远只是纯数据 + 按 id 的读口(池序契约在麾下槽位 skillIds,见 src/core/roster.ts)。
+import type { GameEngine } from "./authority";
+import { DEFAULT_DIE_FACES } from "./dice";
 import type { GameMoment } from "./timing";
 
 // ── 技能系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查
@@ -53,8 +56,19 @@ export interface ActiveSkillDef {
   params?: Record<string, number>;
 }
 
-/** 技能(被动 ∪ 主动)统一形状:技表条目;查得后经 isTriggerSkill/isActiveSkill 收窄。 */
-export type SkillDef = TriggerSkill | ActiveSkillDef;
+/** 静态被动(#1390 英姿首例):无时机、无结算、无冷却——持有即恒常改一条**推导值**
+ *  (现役唯一=骰面数,查询口 heroDieFaces 单源推导,不入快照/不经派发/无快照双源)。
+ *  与 TriggerSkill(时机驱动)、ActiveSkillDef(出牌手动)同表三形;卡面/全览/手册
+ *  按形制渲染(非 active 非 trigger = 静态)。 */
+export interface StaticSkillDef {
+  id: string; // 唯一(查询口按 id 判持有,如 heroDieFaces 判 yingzi)
+  name: string; // 英姿(卡面/全览/手册展示,#358)
+  desc: string; // 技效说明(玩家可见;#604 每技自带)
+}
+
+/** 技能(被动 ∪ 主动 ∪ 静态被动)统一形状:技表条目;查得后经
+ *  isTriggerSkill/isActiveSkill/isStaticSkill 收窄。 */
+export type SkillDef = TriggerSkill | ActiveSkillDef | StaticSkillDef;
 
 export function isTriggerSkill(skill: SkillDef): skill is TriggerSkill {
   return "when" in skill;
@@ -62,6 +76,10 @@ export function isTriggerSkill(skill: SkillDef): skill is TriggerSkill {
 
 export function isActiveSkill(skill: SkillDef): skill is ActiveSkillDef {
   return "kind" in skill;
+}
+
+export function isStaticSkill(skill: SkillDef): skill is StaticSkillDef {
+  return !isTriggerSkill(skill) && !isActiveSkill(skill);
 }
 
 /** 技表(id 全局唯一由本表自证;扩展经 extension-registry 注册并入同表)。 */
@@ -242,6 +260,15 @@ export const SKILLS: SkillDef[] = [
     // 缓兵之计的跳过(jinnang)与行殇本笔(xingshang)均不触发。
     scope: "others",
   },
+  // ── 静态被动(#1390,spec #1386 周瑜重做):持有即恒常,无时机/无结算/无冷却——
+  // 骰面数由持有状态经 heroDieFaces 推导(下方查询口单源),不入快照(免双源);
+  // 不经 dispatchMoment(两形守卫皆 false,派发/出牌卷轴/技能卡三面天然跳过)。
+  // 文案 = 规格 #1386 定稿原文(#1385 评论区,「筛子」正名「骰子」)。──
+  {
+    id: "yingzi",
+    name: "英姿",
+    desc: "你的骰子增加1面，此面值递增1。",
+  },
   // ── 主动技(出牌阶段手动,#188 档 3)──
   {
     id: "huogong",
@@ -290,4 +317,21 @@ export function activeSkillById(id: string): ActiveSkillDef {
   const skill = skillById(id);
   if (!isActiveSkill(skill)) throw new Error(`技能 ${id} 不是主动技(数据 bug)`);
   return skill;
+}
+
+// ── 骰面数查询口(#1390 英姿;掷骰面数唯一单源)──
+
+/** 英姿技 id(面数推导的持有判据;与 SKILLS 表条目同源,常量供查询口与测试引用)。 */
+export const YINGZI_SKILL_ID = "yingzi";
+
+/** 持有英姿者骰面数 +1(第七面 = DEFAULT_DIE_FACES+1 = 7),否则六面。
+ *  持有状态从**麾下槽位已授技**(HeroSlot.skillIds)推导——与冷却账同族(同一份槽位态),
+ *  不入快照(免双源):快照已有槽位 skillIds,面数随查随得,恢复/联机天然一致;
+ *  骰值本身照常走既有 RNG 快照通路。适用该玩家全部掷骰(行军/拼点双掷/探宝拼点双骰);
+ *  开局定序掷骰发生在招募前(麾下恒空),天然六面(setup-flow 不接本口)。 */
+export function heroDieFaces(e: GameEngine, seat: number): number {
+  const p = e.players[seat];
+  if (p == null) throw new Error(`heroDieFaces:座位 ${seat} 不存在(共 ${e.players.length} 席)`);
+  const hasYingzi = p.heroes.some((slot) => slot.skillIds.includes(YINGZI_SKILL_ID));
+  return hasYingzi ? DEFAULT_DIE_FACES + 1 : DEFAULT_DIE_FACES;
 }

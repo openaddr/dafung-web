@@ -1718,8 +1718,9 @@ describe("技能演出补课(#850):施展金圈+升档浮字/被动技名小签"
     armHero(
       e,
       mover,
-      HEROES.find((h) => h.id === "zhouyu")!,
-    ); // 疾行(BeforeMarch·moveBonus+1)
+      HEROES.find((h) => h.id === "zhangxingcai")!,
+      ["jixing"],
+    ); // 疾行(BeforeMarch·moveBonus+1;#1390 周瑜池换血后载体随张星彩池,窄授免掷金互扰)
     // 摆位到不拦检、落无主地产城的合法路径(game-events-vocab 同款预言,批面保持小)
     const die = createDice(e.dice.getRngState()).roll().die;
     const steps = die + 1;

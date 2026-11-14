@@ -58,7 +58,7 @@ function finishSetup(e: GameEngine): void {
 }
 
 describe("事件流(#384):名将被动技击发 skillFired", () => {
-  it("周瑜疾行:rollAndMove 产出 [skillFired, diceRolled, marchArrived],座位=技属主", () => {
+  it("疾行(张星彩池,#1390 后周瑜出池):rollAndMove 产出 [skillFired, diceRolled, marchArrived],座位=技属主", () => {
     const e = makeEngine(11);
     finishSetup(e);
     const t = testEngine(e);
@@ -67,8 +67,9 @@ describe("事件流(#384):名将被动技击发 skillFired", () => {
     armHero(
       e,
       mover,
-      HEROES.find((h) => h.id === "zhouyu")!,
-    ); // 疾行 jixing(BeforeMarch·moveBonus+1)
+      HEROES.find((h) => h.id === "zhangxingcai")!,
+      ["jixing"],
+    ); // 疾行 jixing(BeforeMarch·moveBonus+1;#1390 周瑜池换血后载体随张星彩池,窄授免掷金互扰)
     const die = createDice(e.dice.getRngState()).roll().die; // 探针骰,不消耗引擎 rng
     const steps = die + 1; // 疾行加成一并计入路径预言
     const target = MAP.board.tiles.find((tile) => {
@@ -87,7 +88,7 @@ describe("事件流(#384):名将被动技击发 skillFired", () => {
     expect(events[0]).toMatchObject({
       kind: "skillFired",
       seat,
-      heroId: "zhouyu",
+      heroId: "zhangxingcai",
       skillId: "jixing",
       moment: "BeforeMarch",
     });

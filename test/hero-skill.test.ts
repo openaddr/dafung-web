@@ -150,32 +150,38 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
   it("同名技多槽:每实例一选项各携实例(#817 翻案 #806 去重权宜,#815 拍板);各自发动各落各自实例冷却,互不串账", () => {
     const e = prepared();
     const p = e.activePlayer;
-    armSkill(e, "zhouyu", "leigu");
-    armSkill(e, "zhangxingcai", "leigu"); // 同玩家两槽同名技(生产形:周瑜+星彩同授擂鼓)
-    const opts = e.choicesFor().filter((o) => isSkillOption(o) && o.skillId === "leigu");
+    // 同玩家两槽同名技(生产形:周瑜+诸葛亮共享火攻——#1390 周瑜池换血后擂鼓改张星彩
+    // 单属,共享主动技现役唯火攻;城目标域发动需合法目标,布一座射程内的他人 Lv 城)
+    armSkill(e, "zhouyu", "huogong");
+    armSkill(e, "zhugeliang", "huogong");
+    const otherSeat = (e.players.indexOf(p) + 1) % e.players.length;
+    const target = grantCityNear(e, otherSeat, 1, p.position);
+    const opts = e.choicesFor().filter((o) => isSkillOption(o) && o.skillId === "huogong");
     expect(opts).toHaveLength(2); // 一实例一选项:不合并,卡面属主各随各槽
-    expect(opts.map((o) => o.id)).toEqual(["skill:zhouyu:leigu", "skill:zhangxingcai:leigu"]); // 选项 id 携实例(拼接单源 skillOptionId,此处对拍字面量钉形状)
-    expect(opts.map((o) => o.skillHero)).toEqual(["周瑜", "张星彩"]);
+    expect(opts.map((o) => o.id)).toEqual(["skill:zhouyu:huogong", "skill:zhugeliang:huogong"]); // 选项 id 携实例(拼接单源 skillOptionId,此处对拍字面量钉形状)
+    expect(opts.map((o) => o.skillHero)).toEqual(["周瑜", "诸葛亮"]);
     expect(opts.every((o) => o.available)).toBe(true);
-    // 实例一(周瑜)发动:直落周瑜槽,张星彩实例不受扰(互不串账)
-    e.resolveHeroSkill("zhouyu", "leigu");
-    expect(p.heroes[0].lastFired["leigu"]).toBe(e.round);
-    expect(p.heroes[1].lastFired["leigu"]).toBeUndefined();
+    // 实例一(周瑜)发动:直落周瑜槽,诸葛亮实例不受扰(互不串账)
+    e.resolveHeroSkill("zhouyu", "huogong");
+    e.resolveHeroSkill("zhouyu", "huogong", [target.tileIndex]); // 城目标域:提交目标城
+    expect(p.heroes[0].lastFired["huogong"]).toBe(e.round);
+    expect(p.heroes[1].lastFired["huogong"]).toBeUndefined();
     // 冷却中的实例灰置报本槽剩余轮数;就绪实例仍可用
     e.turnPhase = "AwaitingJinnang";
-    const zy = skillOpt(e, "zhouyu", "leigu");
-    const zxc = skillOpt(e, "zhangxingcai", "leigu");
+    const zy = skillOpt(e, "zhouyu", "huogong");
+    const zgl = skillOpt(e, "zhugeliang", "huogong");
     expect(zy?.available).toBe(false);
     expect(zy?.reason).toContain("冷却");
-    expect(zxc?.available).toBe(true);
-    // 实例二(张星彩)发动:落张星彩槽,周瑜冷却账未被改写
-    e.resolveHeroSkill("zhangxingcai", "leigu");
-    expect(p.heroes[0].lastFired["leigu"]).toBe(e.round);
-    expect(p.heroes[1].lastFired["leigu"]).toBe(e.round);
+    expect(zgl?.available).toBe(true);
+    // 实例二(诸葛亮)发动:落诸葛亮槽,周瑜冷却账未被改写
+    e.resolveHeroSkill("zhugeliang", "huogong");
+    e.resolveHeroSkill("zhugeliang", "huogong", [target.tileIndex]);
+    expect(p.heroes[0].lastFired["huogong"]).toBe(e.round);
+    expect(p.heroes[1].lastFired["huogong"]).toBe(e.round);
     // 双实例全冷却:两选项各自灰置
     e.turnPhase = "AwaitingJinnang";
-    expect(skillOpt(e, "zhouyu", "leigu")?.available).toBe(false);
-    expect(skillOpt(e, "zhangxingcai", "leigu")?.available).toBe(false);
+    expect(skillOpt(e, "zhouyu", "huogong")?.available).toBe(false);
+    expect(skillOpt(e, "zhugeliang", "huogong")?.available).toBe(false);
     expect(hasUsableJinnang(e)).toBe(false);
   });
 

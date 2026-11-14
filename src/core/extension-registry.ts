@@ -15,7 +15,7 @@
 //  - 注册是模块级全局态(与 EFFECTS/HEROES 同生命周期):进程内装载一次即全引擎生效
 //    (服务端=全房间,单机=本页);unregisterExtensionPackage 供测试隔离与将来热卸载。
 import { HEROES, type HeroDef } from "./heroes";
-import { SKILLS, isActiveSkill, type SkillDef } from "./skills";
+import { SKILLS, isTriggerSkill, type SkillDef } from "./skills";
 import { EFFECTS } from "./effects";
 import { MOMENTS } from "./timing";
 import type { ExtensionAuthorityModule, ExtensionManifest } from "./extension-contract";
@@ -87,7 +87,7 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
   // (内置 ∪ 本包 ∪ 已装包);技效描述必非空(#604 desc 挂技自带,扩展包是裸 JS 类型层
   // 守不住,装载点补位)。
   for (const s of skills) {
-    if (!isActiveSkill(s)) {
+    if (isTriggerSkill(s)) {
       if (!MOMENTS.includes(s.when))
         throw new Error(
           `扩展注册:${manifest.id} 技能「${s.id}」挂了未登记时机「${s.when}」(查 core/timing.ts MOMENTS)`,

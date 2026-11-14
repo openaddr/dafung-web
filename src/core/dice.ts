@@ -1,8 +1,14 @@
-// 骰子:可注入随机种子以便测试。单骰 1–6。
+// 骰子:可注入随机种子以便测试。单骰 1–面数(面数参数化,#1390):缺省六面;持英姿者
+// 七面——面数唯一单源 = skills.ts `heroDieFaces`(持有状态从麾下槽位已授技推导),
+// 掷骰调用方显式传参,本文件不查技能(叶子模块零反向依赖)。钉骰契约(planter.ts
+// pinDice):钉值 > 本次掷骰面数 = 消费点响亮炸点名(7 仅持英姿可达)。
+
+/** 缺省骰面数(六面;开局定序掷骰等不经技能面数的通用语义)。 */
+export const DEFAULT_DIE_FACES = 6;
 
 /** 单骰掷骰结果(移动步数 = die)。 */
 export interface DiceRoll {
-  die: number; // 1–6(单骰;移动步数 = die)
+  die: number; // 1–面数(单骰;移动步数 = die)
 }
 
 /** mulberry32:快速可种子化 PRNG。返回 next + 状态读写(供序列化跨进程续掷)。 */
@@ -29,9 +35,11 @@ export function mulberry32(seed: number): {
 }
 
 export interface Dice {
-  roll(): DiceRoll;
-  /** 返回 1–6,供掷骰定序/拼点复用。 */
-  rollDie(): number;
+  /** 掷骰:faces 缺省 = DEFAULT_DIE_FACES(六面);掷骰调用方按 skills.heroDieFaces
+   *  显式传参(持英姿者 7,#1390)。 */
+  roll(faces?: number): DiceRoll;
+  /** 返回 1–面数,供掷骰定序/拼点复用(faces 语义同 roll)。 */
+  rollDie(faces?: number): number;
   nextFloat(): number;
   /** 当前 PRNG 内部状态(供 CLI/联机跨进程续掷)。 */
   getRngState(): number;
@@ -41,10 +49,10 @@ export interface Dice {
 
 export function createDice(seed?: number): Dice {
   const rng = mulberry32(seed ?? Math.floor(Math.random() * 0xffffffff));
-  const rollDie = (): number => 1 + Math.floor(rng.next() * 6);
+  const rollDie = (faces = DEFAULT_DIE_FACES): number => 1 + Math.floor(rng.next() * faces);
   return {
-    roll(): DiceRoll {
-      return { die: rollDie() };
+    roll(faces?: number): DiceRoll {
+      return { die: rollDie(faces) };
     },
     rollDie,
     nextFloat: rng.next,

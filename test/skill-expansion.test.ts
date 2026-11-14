@@ -2,6 +2,8 @@
 // 四新将(司马懿/邓艾/曹仁/糜竺)(内置将 4→8)。#1378 曹丕池换血:趁火打劫随曹丕
 // 退役整删(本件 NEW_IDS 降为 11 技、破产行为例删),曹丕池={放逐,行殇}
 // (池钉与属主钉随 #1378 更新;放逐/行殇行为面归 fangzhu-xingshang.test.ts)。
+// #1390 周瑜池换血:周瑜池={英姿,火攻}(疾行/擂鼓移出周瑜池,技能本体保留、
+// 张星彩池不动;英姿行为面归 yingzi.test.ts)。
 // 数据形制钉(#1145 表:时机×效果×初值×scope,终稿形制;数值=校准初值,校准归 D 票)+
 // 全表逐字钉(自 hero-skill.test 钉4 迁入并扩至九将,#1145 收口裁决 + #1142 卧龙并入)+
 // 每技引擎行为四钉(命中/不命中/数值/受益人)+ timing 派发点位/scope 断言。
@@ -136,9 +138,9 @@ function grantCity(e: GameEngine, seat: number, propertyId: string) {
 }
 
 describe("技能扩展内容包:数据形制(#1145)", () => {
-  it("全表逐字钉:内置将 5→9(四新将入表;含 #1142 卧龙,#1378 曹丕池换血)", () => {
+  it("全表逐字钉:内置将 5→9(四新将入表;含 #1142 卧龙,#1378 曹丕池换血,#1390 周瑜池换血)", () => {
     expect(HEROES.map((h) => [h.id, h.skillPool])).toEqual([
-      ["zhouyu", ["jixing", "huogong", "leigu"]], // 周瑜{疾行,火攻,擂鼓}
+      ["zhouyu", ["yingzi", "huogong"]], // 周瑜{英姿,火攻}(#1390 池换血:疾行/擂鼓移出,技能本体保留)
       ["caopi", ["fangzhu", "xingshang"]], // 曹丕{放逐,行殇}(#1378 池换血)
       ["zhangxingcai", ["zhijin", "leigu", "jixing"]], // 张星彩{掷金,擂鼓,疾行}
       ["huatuo", ["qingnang", "zhenji"]], // 华佗{青囊,赈济}
@@ -150,17 +152,18 @@ describe("技能扩展内容包:数据形制(#1145)", () => {
     ]);
   });
 
-  it("技属主集钉:共享四条(疾行/擂鼓/火攻/岁俸,#1378 后渔利/掷金改单属)+ 放逐/行殇单属主", () => {
+  it("技属主集钉:共享两条(火攻/岁俸,#1390 后疾行/擂鼓改张星彩单属)+ 静态被动英姿/放逐/行殇单属主", () => {
     const owners = (id: string) =>
       HEROES.filter((h) => h.skillPool.includes(id))
         .map((h) => h.id)
         .sort();
-    expect(owners("jixing")).toEqual(["zhangxingcai", "zhouyu"]);
-    expect(owners("leigu")).toEqual(["zhangxingcai", "zhouyu"]);
+    expect(owners("jixing")).toEqual(["zhangxingcai"]); // 疾行:张星彩单属(#1390 周瑜出池,本体保留)
+    expect(owners("leigu")).toEqual(["zhangxingcai"]); // 擂鼓:张星彩单属(#1390 周瑜出池,本体保留)
     expect(owners("zhijin")).toEqual(["zhangxingcai"]); // 掷金:张星彩单属(#1378 曹丕出池)
     expect(owners("suifeng")).toEqual(["dengai", "simayi"]); // 岁俸:司马懿↔邓艾
     expect(owners("huogong")).toEqual(["zhouyu", "zhugeliang"]); // 火攻:周瑜↔诸葛亮(#1142)
     expect(owners("yuli")).toEqual(["zhugeliang"]); // 渔利:诸葛亮单属(#1378 曹丕出池)
+    expect(owners("yingzi")).toEqual(["zhouyu"]); // 英姿:周瑜独占(#1390 周瑜重做)
     expect(owners("fangzhu")).toEqual(["caopi"]); // 放逐/行殇:曹丕独占(#1378 换血)
     expect(owners("xingshang")).toEqual(["caopi"]);
     for (const single of ["qingnang", "zhenji", ...NEW_IDS.filter((id) => id !== "suifeng")]) {

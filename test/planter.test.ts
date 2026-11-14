@@ -421,12 +421,16 @@ describe("pinDice(钉骰子,测试替身)", () => {
     expect(e.dice.rollDie()).toBe(firstNaturalDie); // 拼点口还原后续走自然骰
   });
 
-  it("空值队列与非 1..6 整数当场炸(骰面契约,零兜底)", () => {
+  it("空值队列与非 1..7 整数当场炸(骰面契约,零兜底);7 放行,超面数在消费点炸点名(#1390)", () => {
     const e = makeEngine();
     expect(() => pinDice(e, "march", [])).toThrow();
     expect(() => pinDice(e, "duel", [0])).toThrow();
-    expect(() => pinDice(e, "march", [7])).toThrow();
+    expect(() => pinDice(e, "march", [8])).toThrow(); // 1..7 契约外当场炸(种植点)
     expect(() => pinDice(e, "duel", [2.5])).toThrow();
+    pinDice(e, "march", [7]); // 7 在契约内(种植点放行;持英姿才可消费)
+    expect(() => e.dice.roll()).toThrow(/钉值 7 超本次掷骰面数 6/); // 缺省六面消费即炸(替身耗尽自还原)
+    pinDice(e, "march", [7]); // 重钉再证合法面
+    expect(e.dice.roll(7).die).toBe(7); // 面数 7(持英姿掷骰方传入)消费合法
   });
 });
 
