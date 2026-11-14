@@ -71,6 +71,8 @@ import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { GHOST } from "@app/fx/timings";
+import { installControlledClock } from "./controlled-clock";
 
 /** 晚绑模块型(late binding,红线见头注第 0 步;type-of-import 类型面静态引用,
  *  求值面零触碰,不破晚绑)。 */
@@ -134,6 +136,7 @@ function seedPlayingEngine(): GameEngine {
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
+let clock: ReturnType<typeof installControlledClock>;
 
 /** act() 内挂 GameScreen;卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -186,19 +189,10 @@ function click(el: Element): void {
   });
 }
 
-/** 有界等待卸载(battle-wiring 配方原样):退场协议(幽灵帧 210ms「播完再移除」)
- *  走完即卸——happy-dom 真定时器自然走时,轮询到位即收,超死线响亮红。判词:卸载
- *  后的「null 断言」必须等协议走完;协议在途就把在场 happy-dom 节点递给 expect,
- *  断言失败路径的 diff 序列化会走节点循环引用(爆炸实锤见 battle-wiring
- *  waitUnmounted 判词)。 */
-async function waitUnmounted(query: () => Element | null, label: string): Promise<void> {
-  const deadline = Date.now() + 2_000;
-  while (query() != null && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
-  expect(query(), label).toBeNull();
+/** 推进退场出口后断卸载;布尔断言避免失败时序列化 happy-dom 循环节点。 */
+async function finishExit(query: () => Element | null, label: string): Promise<void> {
+  await clock.advance(GHOST.frameMs);
+  expect(query() == null, label).toBe(true);
 }
 
 beforeAll(async () => {
@@ -256,23 +250,27 @@ beforeEach(() => {
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock = installControlledClock();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await clock.settle();
   if (root != null) {
     act(() => root!.unmount());
     root = null;
   }
+  if (container != null) container.remove();
   container = null;
   setController(null); // registry 换局销毁契约:控制器随例释放,不留活口
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  clock.restore();
 });
 
 afterAll(async () => {
   // 排干 React 调度器余拍(模板同款)再拆 happy-dom。
-  await new Promise((r) => setTimeout(r, 0));
+  await Bun.sleep(0);
   await releaseHappyDom();
 });
 
@@ -300,22 +298,18 @@ describe("机遇卷轴接线(自 react-encounters 迁入,#1318 批T4)", () => {
     // 异步拍收口(battle-wiring settle 同款):卷轴壳内 ScrollArea 底件挂载拍有 RO
     // 测量态更新,回调在 act 外落会刷 act 警告噪声——让一拍宏任务并包进 act
     // (断言面不依赖该拍,纯噪声治理)。
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 0));
-    });
+    await clock.settle();
     // ≥2 真实选项(抉择型判据;不可用项才会 disabled,本锚两选项皆可用)
     const opt = q(el, SCROLL_TESTIDS.encounterOption(OPT_DECLINE_LOOT));
     if (opt == null) throw new Error("接线测试:机遇选项缺席(卷轴选项装配断)");
     expect(opt.hasAttribute("disabled")).toBe(false);
     // 点第一可用选项收卷:真命令 resolveEncounterChoice → 结算落账 → 卷轴收
-    // (卸载断言走 waitUnmounted:决策卷轴离场走幽灵帧退场协议 210ms,判词见 helper 注)
+    // (卸载断言走 finishExit:决策卷轴离场走幽灵帧退场协议 210ms,判词见 helper 注)
     click(opt);
     // 异步拍收口(同上):落格续跑后接续弹出的下家卷轴(购地)挂载拍有 RO 测量态
     // 更新,回调在 act 外落会刷 act 警告噪声——让一拍宏任务并包进 act。
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 0));
-    });
-    await waitUnmounted(() => q(el, SCROLL_TESTIDS.encounterScroll), "机遇卷轴应随结算退场");
+    await clock.settle();
+    await finishExit(() => q(el, SCROLL_TESTIDS.encounterScroll), "机遇卷轴应随结算退场");
     expect(snap().turnPhase).not.toBe("AwaitingEncounter"); // 相位被真命令推进(落格续跑)
     // 声望渲染落账值:「封冢而还」声望 +5(0→5),徽章 aria 随快照重渲
     expect(repBadge.getAttribute("aria-label")).toBe(`声望 ${REP_AFTER}`);

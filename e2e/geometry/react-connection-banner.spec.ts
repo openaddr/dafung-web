@@ -3,7 +3,7 @@
 // 首连及手动恢复都走原生 WebSocket 和真实权威摘要；故障时在全局构造边界只发 close，
 // 浏览器虚拟时钟推进真实退避链。零引擎种植、零 store 直写、零控制器私有穿透。
 // 原座/托管/旧回调隔离归 test/online/online-dual-run.test.ts；本例只补真浏览器证据。
-import { testUnscaled as test, expect, type Page } from "../fixtures";
+import { testUnscaled as test, expect, newMobileContext, type Page } from "../fixtures";
 import { onlinePickCapitals } from "../react-helpers";
 import { TESTIDS } from "../../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
@@ -152,7 +152,7 @@ test.describe("两屏恢复横幅的真实触达(#1425)", () => {
     await page.route("**/room/new", (route) =>
       route.continue({ postData: JSON.stringify({ ...route.request().postDataJSON(), seed: 1 }) }),
     );
-    const guestContext = await browser.newContext({ viewport: VIEWPORT });
+    const guestContext = await newMobileContext(browser);
     const guest = await guestContext.newPage();
     guest.setDefaultTimeout(10_000);
     try {

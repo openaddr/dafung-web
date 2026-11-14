@@ -89,11 +89,11 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 - **测试宁缺毋滥**:重复用例、低性能用例宁可不要,发现即删或重写;新增用例先答「守住什么、花几秒」。
 - **概率性不可靠用例零容忍(#987,效率第一)**:凡随机 seed、负载、时序竞速可致挂的用例,**发现即删、默认删,不留台账养着**;仅当一两行确定性改造能根除且该覆盖不可替代时才允许保留。**删用例不需要批准**;处置序见[开发与测试](./docs/how-to/开发与测试.md)「全量放行判据」条。
 - **回归例三条款**:①每修一个 bug 配 1-3 个「不修必挂」的回归例,不许顺手撒一把;②测试体量与修动成比例;③禁镜像实现的测试——不许为测试再造一份同样的逻辑自己验自己(假覆盖)。
-- **小改动禁跑全量 e2e(#1014)**:机制无关改动(纯删/退役/文案/文档/测试重钉/样式 token/脚本)禁跑全量 e2e、禁等锁——放行口径 = `bun test` + `build` + 本票域定向 spec(触 UI 才跑);全量只许三处(①集流/发版前收口 ②引擎核心/协议面跨域大改 ③master 级新家族基线对跑),细则见[开发与测试](./docs/how-to/开发与测试.md)「全量放行判据」条。
+- **小改动禁跑全量 e2e(#1014)**:机制无关改动(纯删/退役/文案/文档/测试重钉/样式 token/脚本)禁跑全量 e2e、禁等锁——放行口径 = `bun run test` + `build` + 本票域定向 spec(触 UI 才跑);全量只许三处(①集流/发版前收口 ②引擎核心/协议面跨域大改 ③master 级新家族基线对跑),细则见[开发与测试](./docs/how-to/开发与测试.md)「全量放行判据」条。
 - **缺能力=补种植件,force 不复活(链路 spec #1295)**:三层测试(单测/无头/e2e)场景构造缺能力时,补种植件(`core/planter.ts` 的 op 联合加 kind)——force 直写逃生口已随 #1303 退役、全仓归零,不复活;callEngine 只许承载引擎公共方法直呼,字段直写一律种植件(判词单源 planter.ts 各族头注,ADR-0058 修订节)。
 - **视觉设计与回归以移动端横屏 844×390 为标准档**(细则见 DESIGN §4.7;桌面档维持零重排,不设专项布局断言)。
 - **开工前 `bun run check:freshness`**(过期禁止开工;多轮任务每轮续作前重跑,并行会话可能已合票推进 master)。
-- **门槛挂 PR 前——本地全绿**(无 CI,本地是唯一门):lint 0 warning + fmt + check:fmt + build + bun test,改 `scripts/` 加跑 typecheck:scripts,改 `src/core/` 加跑 check:core 与 `check:goldens`(引擎行为面),改棋盘视觉层加跑 check:board,影响局长/破产面的机制改动加跑 `check:sim-bench`,改 AGENTS.md 加跑 check:agents-budget(双档体量闸,口径 ADR-0033 修订节)——各检查细则见[开发与测试](./docs/how-to/开发与测试.md)。实锤陷阱:**改共享类型(挂根字段增删一类)先 `bun run typecheck` 盘点全部消费点再动刀**——排除式过滤词的 grep 会按文件名吞命中,漏网到 build 才爆就是几轮返工。
+- **门槛挂 PR 前——本地全绿**(无 CI,本地是唯一门):lint 0 warning + fmt + check:fmt + build + bun run test,改 `scripts/` 加跑 typecheck:scripts,改 `src/core/` 加跑 check:core 与 `check:goldens`(引擎行为面),改棋盘视觉层加跑 check:board,影响局长/破产面的机制改动加跑 `check:sim-bench`,改 AGENTS.md 加跑 check:agents-budget(双档体量闸,口径 ADR-0033 修订节)——各检查细则见[开发与测试](./docs/how-to/开发与测试.md)。实锤陷阱:**改共享类型(挂根字段增删一类)先 `bun run typecheck` 盘点全部消费点再动刀**——排除式过滤词的 grep 会按文件名吞命中,漏网到 build 才爆就是几轮返工。
 - **产品波合入带浏览器快池**:凡动玩家可见机制的票(DoD 清单口径),合入 master 时带跑一轮浏览器快池 `bun run test:e2e`,行为涟漪当日闭环(墙钟现行标定见[耗时回顾](./docs/agents/耗时回顾.md)基线账)。
 - **杀进程先验名**:`tasklist` 验进程名,只杀自己拉起的进程;`aurora_slim` 是用户 VPN 日常必用,永不入清理名单。
 

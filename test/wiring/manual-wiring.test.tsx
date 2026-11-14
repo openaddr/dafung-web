@@ -22,10 +22,8 @@
 //      ——入口点击链与首页导航非本例断言面,e2e 同口径);
 //   4. act() 内渲染与变更,断言面只许 testid/DOM 文本。
 //
-// 【退场协议等待判词】叠层关闭走 useDialogExit「播完再移除」(210ms setTimeout 出口
-// 卸载)——本层断言的不是时序数值而是「协议走完即卸载」的语义:happy-dom 真定时器
-// 自然走时,有界轮询(2s 死线,act 内让出)到位即收,超线即响亮红;实仓先例 =
-// test/online/local-room.test.ts 的有界轮询形态。非演出泵(无 rAF 循环、无动画值断言)。
+// 【退场协议控时】叠层关闭走 useDialogExit「播完再移除」,复用 controlled-clock
+// 的时间边界推进退场出口,断言「协议走完即卸载」;不跑演出泵、不等真实业务时钟。
 //
 // 【store 隔离】本族零 store 消费(手册直读 core 目录表),仍按纪律成对 reset
 // (模板同款,防前文件残留)。
@@ -38,6 +36,8 @@ import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { GHOST } from "@app/fx/timings";
+import { installControlledClock } from "./controlled-clock";
 
 /** 晚绑模块型(late binding):类型面静态、求值面动态(晚绑红线见头注第 0 步)。 */
 type ManualModule = typeof import("@app/screens/manual/ManualModal");
@@ -45,6 +45,7 @@ let ManualModal: ManualModule["ManualModal"];
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
+let clock: ReturnType<typeof installControlledClock>;
 
 /** act() 内挂 Host(手册弹层挂载即开态);卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -75,15 +76,10 @@ function click(el: Element): void {
   });
 }
 
-/** 退场协议收口等待(判词见头注):有界轮询到「叠层卸载」即收,超死线响亮红。 */
-async function waitUnmounted(query: () => Element | null, label: string): Promise<void> {
-  const deadline = Date.now() + 2_000;
-  while (query() != null && Date.now() < deadline) {
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 20));
-    });
-  }
-  expect(query(), label).toBeNull();
+/** 退场出口完成后断卸载;布尔断言避免失败时序列化 happy-dom 的循环节点。 */
+async function finishExit(query: () => Element | null, label: string): Promise<void> {
+  await clock.advance(GHOST.frameMs);
+  expect(query() == null, label).toBe(true);
 }
 
 beforeAll(async () => {
@@ -96,16 +92,20 @@ beforeAll(async () => {
 beforeEach(() => {
   useGameStore.getState().reset();
   useNetStore.getState().reset();
+  clock = installControlledClock();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await clock.settle();
   if (root != null) {
     act(() => root!.unmount());
     root = null;
   }
+  if (container != null) container.remove();
   container = null;
   useGameStore.getState().reset();
   useNetStore.getState().reset();
+  clock.restore();
 });
 
 afterAll(async () => {
@@ -129,7 +129,7 @@ describe("手册详情叠层接线(ADR-0062 层④,#1288 批一):点卡 → 叠�
     const close = q(document, TESTIDS.modalClose);
     if (close == null) throw new Error("接线测试:叠层关闭钮缺席");
     click(close);
-    await waitUnmounted(() => q(document, TESTIDS.skillGlossary), "技能全览叠层应随协议卸载");
+    await finishExit(() => q(document, TESTIDS.skillGlossary), "技能全览叠层应随协议卸载");
   });
 
   // 机遇详情(e2e「机遇详情」例迁入,#1288):霉运卡点开详情,即时条注体力代价
@@ -151,9 +151,6 @@ describe("手册详情叠层接线(ADR-0062 层④,#1288 批一):点卡 → 叠�
     const close = q(document, TESTIDS.modalClose);
     if (close == null) throw new Error("接线测试:叠层关闭钮缺席");
     click(close);
-    await waitUnmounted(
-      () => q(document, MANUAL_TID.detail("粮道被劫")),
-      "机遇详情叠层应随协议卸载",
-    );
+    await finishExit(() => q(document, MANUAL_TID.detail("粮道被劫")), "机遇详情叠层应随协议卸载");
   });
 });
