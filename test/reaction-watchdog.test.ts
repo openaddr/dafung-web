@@ -146,9 +146,9 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
   it("断线座位:窗开即断,超时照代发「不用」,结算照走、回合续推不冻结", async () => {
     const clock = new ManualClock();
     const { reg, roomId, events, e } = await playingRoom(clock);
-    // 布场:seat2(bot)出火烧连营指定 seat1(持识破诡计=被询问者;种子房唯一 Lv1 城
-    // =确定性降级对象)。出牌者=bot:窗收后链继续驱动 bot 走完回合 → 回合数前进,
-    // 「对局不冻结」由此钉死(e2e 原例的 advanced 断言面)。
+    // 布场:seat2(bot)出火烧连营以 seat1 的城为火源(持识破诡计=被询问者)。出牌者=bot:
+    // 窗收后链继续驱动 bot 走完回合 → 回合数前进,「对局不冻结」由此钉死(e2e 原例的
+    // advanced 断言面)。
     e.activeIndex = 2;
     e.pendingJinnang = null;
     e.pendingSkill = null;
@@ -158,15 +158,16 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     e.players[2].jinnangHandCount = 1;
     e.players[1].jinnangHand = ["识破诡计"];
     e.players[1].jinnangHandCount = 1;
-    // seat1 种一座非都城 Lv1 城(种子局唯一 Lv>0 持有 → demolish 结算唯一候选,零随机):
+    // seat1 种一座非都城 Lv1 城当火源(城指向域 #1389,提交火源城 tileIndex):
     // 都城挪出落点格防重叠,城从 catalog 取无主格。
     const capId1 = e.board.at(e.players[1].capitalIndex)?.propertyId;
-    const lot = e.board.tiles.find(
+    const lotTile = e.board.tiles.find(
       (t) =>
         t.propertyId != null &&
         t.propertyId !== capId1 &&
         !e.players.some((p) => p.properties.some((h) => h.propertyId === t.propertyId)),
-    )!.propertyId!;
+    )!;
+    const lot = lotTile.propertyId!;
     for (const p of e.players) p.position = p.capitalIndex; // 全员挪回都城,免开局链余波
     // 起手珍宝波(#1172 连带)布场前提重钉:起手人人 2 件珍宝后,「落他人城」从
     // 无事发生终端(movement-flow:城主无珍宝 → endTurn)变为珍宝交涉窗(城主三选,
@@ -185,9 +186,10 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     });
     const turnBefore = e.turnNumber;
 
-    // 出牌宣布走引擎公共方法(两段:入目标段 → 提交目标),此刻尚未跑链、未武装
+    // 出牌宣布走引擎公共方法(两段:入目标段 → 提交火源城 tileIndex,#1389 城指向),
+    // 此刻尚未跑链、未武装
     e.resolveJinnang("火烧连营");
-    e.resolveJinnang("火烧连营", [1]);
+    e.resolveJinnang("火烧连营", [lotTile.index]);
     expect<string>(e.turnPhase).toBe("AwaitingReaction"); // 显式宽化:赋值窄化不绑架断言
     expect(clock.size).toBe(0); // 窗已开但武装只发生在驱动链出口(与生产同:链到窗即停即武装)
 
@@ -219,8 +221,9 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     expect(
       e.log.some((l) => l.detail.includes("reactionRespond") && l.detail.includes("use=0")),
     ).toBe(true);
-    // 结算照走:火烧连营执行,seat1 的城防降为 0 级(不用不救城)
-    expect(e.players[1].properties.find((h) => h.propertyId === lot)?.level).toBe(0);
+    // 结算照走:火烧连营执行,seat1 的城挨 1 点火焰伤害(不用不救城):防御 4→3,等级不动
+    expect(e.players[1].properties.find((h) => h.propertyId === lot)?.defense).toBe(3);
+    expect(e.players[1].properties.find((h) => h.propertyId === lot)?.level).toBe(1);
     // 对局继续推进:链驱动 bot 走完本回合,回合数前进(不冻结在断线座位)
     for (let i = 0; i < 4000 && e.turnNumber <= turnBefore && !e.isOver; i++) {
       clock.fireAll();

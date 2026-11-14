@@ -45,10 +45,8 @@ export interface ActiveSkillDef {
    *  ——距离 ≤ params.range 且城池等级>0 且城主为他人;提交通道=目标城 tileIndex)。 */
   target: "none" | "other" | "any" | "city";
   /** 结算路径(游戏内唯一定义处):fireBlast=对目标城造成 params.damage 点火焰伤害
-   *  (结算单点 defense.applyFireDamage,#1388);relief=付费回体力;
-   *  warDrum=本回合下一次掷骰步数加成。旧 demolish(随机降级/失城,#226)已随火攻
-   *  定向化退役,锦囊路火烧连营的 demolish 结算单点(jinnang-execution
-   *  demolishOnVictim)保留仍在用。 */
+   *  (结算单点 defense.applyFireDamage,#1388;#1389 起火烧连营锦囊路同走该单点);
+   *  relief=付费回体力;warDrum=本回合下一次掷骰步数加成。 */
   kind: "fireBlast" | "relief" | "warDrum";
   /** 技能参数(纯数据,可序列化):fireBlast={range,damage};relief={cost,stamina};
    *  warDrum={bonus}。缺必填项结算时响亮抛错(零兜底)。 */

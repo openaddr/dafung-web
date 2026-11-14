@@ -913,8 +913,9 @@ describe("RoomRegistry · 命令 + onUpdate 直播", () => {
 });
 
 describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
-  /** 开一个识破反应窗:活跃座位手「火烧连营」,另一座位手「识破诡计」+ 都城持仓。
-   *  布场口径同 test/reaction-window.test.ts(直调引擎公共面摆测试态,不经 cmd 通道)。 */
+  /** 开一个识破反应窗:活跃座位手「火烧连营」(城指向 #1389,中心=受害者都城),
+   *  另一座位手「识破诡计」+ 都城持仓。布场口径同 test/reaction-window.test.ts
+   *  (直调引擎公共面摆测试态,不经 cmd 通道)。 */
   async function openCounterWindow(reg: RoomRegistry, roomId: string) {
     const e = reg.get(roomId)!.engine!;
     if (e.players.length !== 2) throw new Error("测试预期 2 座房间");
@@ -924,15 +925,14 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     e.players[userSeat].jinnangHandCount = 1;
     e.players[victimSeat].jinnangHand = ["识破诡计"];
     e.players[victimSeat].jinnangHandCount = 1;
-    // 换图后开局手牌可用性随种子浮动(#477 卡级预检:火烧开局无可毁之城=灰置,可能不进「出牌阶段」)。
-    // 本场景只验反应窗的座位校验——未进窗就直置军师相位,与进相路径无关。
+    // 本场景只验反应窗的座位校验——未进窗就直置出牌相位,与进相路径无关。
     if (e.turnPhase !== "AwaitingJinnang") e.turnPhase = "AwaitingJinnang";
     const capId = e.board.at(e.players[victimSeat].capitalIndex!)?.propertyId;
     e.players[victimSeat].properties = [
       { propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
     ];
     e.resolveJinnang("火烧连营"); // 入目标段
-    e.resolveJinnang("火烧连营", [victimSeat]); // 宣布 → 反应窗挂起
+    e.resolveJinnang("火烧连营", [e.players[victimSeat].capitalIndex!]); // 宣布 → 反应窗挂起
     expect(e.turnPhase as string).toBe("AwaitingReaction");
     return { e, userSeat, victimSeat };
   }

@@ -23,8 +23,9 @@ export interface JinnangReactionView {
   cardId: string;
   /** 锦囊使用者座位。 */
   userSeat: number;
-  /** 目标座位集:self=[使用者]、one/two-others=被指定座位、all-others=受影响全员
-   *  (=可被拆的份清单,UI 据此渲染「保护哪份」)。 */
+  /** 目标座位集:self=[使用者]、one/two-others=被指定座位、all-others=受影响全员、
+   *  one-city(#1389)=受击城 tileIndex 清单(=可被拆的份清单,份=一座受击城,UI 据此
+   *  渲染「保护哪城」;座位域照旧按座位渲染)。 */
   targetSeats: number[];
   /** [per-seat private] 被询问座位集(持识破诡计者,使用者除外;god-view 全集,投影见类型头注释)。 */
   queriedBySeat: number[];
@@ -74,7 +75,8 @@ export type ReactionPayload =
       kind: "jinnang";
       userSeat: number;
       cardId: string;
-      /** executeJinnang 的目标参数(one/two-others=被指定座位;self/all-others=[])。 */
+      /** executeJinnang 的目标参数(one/two-others=被指定座位;one-city=#1389 中心城
+       *  tileIndex;self/all-others=[])。 */
       targets: number[];
     }
   | {
@@ -279,14 +281,17 @@ export function respondReaction(
     }
     if (pr.view.kind === "jinnang") {
       if (pr.payload.kind === "jinnang") {
-        // 份校验(根窗):AOE 必带且须在受影响名单内;连环计可省略(任意一张识破即全计作废),
-        // 带了须合法;self/one 份额唯一,shareSeat 不参与语义。
+        // 份校验(根窗):AOE/城指向域必带且须在份名单内(城指向域份=受击城 tileIndex,
+        // #1389);连环计可省略(任意一张识破即全计作废),带了须合法;self/one 份额唯一,
+        // shareSeat 不参与语义。
         const domain = jinnangCardOf(pr.view.cardId).targetDomain;
         if (
-          domain === "all-others" &&
+          (domain === "all-others" || domain === "one-city") &&
           (shareSeat == null || !pr.view.targetSeats.includes(shareSeat))
         ) {
-          g.warn(`respondReaction:识破【${pr.view.cardId}】须指定被保护份`);
+          g.warn(
+            `respondReaction:识破【${pr.view.cardId}】须指定被保护${domain === "one-city" ? "城份" : "份"}`,
+          );
           return;
         }
         if (
@@ -337,7 +342,9 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
  *  JinnangAnnounced 时机(公开事件+出牌线,与根锦囊同口),持识破者(本环打出者除外,
  *  含链根使用者救计)开下一环询问窗;无人可反不开窗,本环立即站住(#281「不开窗直接
  *  结算」同口径)。protects=本环站住时争夺份的待遇:根窗首环恒 true(保住);链环窗
- *  逐环翻转(反识破站住=上一环作废=该份恢复受击)。 */
+ *  逐环翻转(反识破站住=上一环作废=该份恢复受击)。
+ *  时机 ctx.targetSeats 语义=受影响座位(与根宣布同口径):城指向域(#1389)争夺份=城,
+ *  映射为城主座位;席位域照旧=份座位本身。 */
 function announceCounterLink(
   g: GameEngine,
   seat: number,
@@ -349,17 +356,27 @@ function announceCounterLink(
   protects: boolean,
 ): void {
   const responder = g.players[seat];
+  const rootDomain = jinnangCardOf(root.cardId).targetDomain;
+  // 争夺份的「受影响座位」投影:城指向域=城主座位(份恒为有主受击城,无主=状态机 bug)
+  const shareAnnouncedSeat = (s: number): number => {
+    if (rootDomain !== "one-city") return s;
+    const propId = g.board.at(s).propertyId;
+    if (propId == null) throw new Error(`识破链环争夺城份格 ${s} 无城(状态机 bug)`); // 零兜底
+    const owner = g.findOwner(propId);
+    if (owner == null) throw new Error(`识破链环争夺城份 ${propId} 无主(受击城恒有主,状态机 bug)`);
+    return g.players.indexOf(owner);
+  };
   // 打出宣告走 JinnangAnnounced 时机产事件(fx 面出牌线+文案浮字,#719 死写删除)
   g.logEvent(
     "system",
     responder.guohao,
     `${responder.guohao} 打出【${cardId}】,欲拆 ${g.players[root.userSeat].guohao} 的【${root.cardId}】`,
-    `reactionCounterAnnounce by=${responder.id} root=${root.cardId}${share != null ? ` share=${g.players[share].id}` : ""}`,
+    `reactionCounterAnnounce by=${responder.id} root=${root.cardId}${share != null ? ` share=${rootDomain === "one-city" ? `tile#${share}` : g.players[share].id}` : ""}`,
   );
   g.dispatchMoment("JinnangAnnounced", {
     subject: seat,
     cardId,
-    targetSeats: share != null ? [share] : [],
+    targetSeats: share != null ? [shareAnnouncedSeat(share)] : [],
   }); // 时机·JinnangAnnounced:识破宣布(链环与根同口,事件流公开)
   const payload: ReactionPayload = {
     kind: "counter",
@@ -423,8 +440,12 @@ function settleRootCounterWindow(g: GameEngine, pr: PendingReaction): void {
       returnSupersededCounters(g, plays.slice(1), def.id);
       return;
     }
-    case "all-others": {
-      // AOE 按份拆:每份座位序第一张进各自反识破链(兄弟链按座位序串行),同份其余退回
+    case "all-others":
+    case "one-city": {
+      // 按份拆(all-others=座位份;one-city=#1389 城指向域,份=受击城 tileIndex):
+      // 每份座位序第一张进各自反识破链(兄弟链按座位序串行),同份其余退回。
+      // 份单位随域不同(座位/城),链环累积与豁免集通路同一(negated 数字集随根结算
+      // 并入 executeJinnang exempt)。
       const claimed = new Set<number>();
       const upcoming: Extract<ReactionPayload, { kind: "counter" }>["upcoming"] = [];
       const superseded: ReactionAnswer[] = [];
@@ -503,9 +524,10 @@ function settleChainCounterWindow(g: GameEngine, pr: PendingReaction): void {
 }
 
 /** 反识破链环站住(#571,ADR-0060):站住识破的否定生效——整计域(连环计/单份计)
- *  protect=true=作废/落空即终局,protect=false=计恢复照常执行;AOE 该份入豁免集
- *  (判定事件逐份落账,protect=false 的环不落账=该份照常受击)。兄弟链未清则续开
- *  下一环(牌已随根窗收窗扣账),清空后按根域收口执行。 */
+ *  protect=true=作废/落空即终局,protect=false=计恢复照常执行;按份域(all-others
+ *  座位份/one-city 城份,#1389)该份入豁免集(判定事件逐份落账,protect=false 的环
+ *  不落账=该份照常受击)。兄弟链未清则续开下一环(牌已随根窗收窗扣账),清空后按根域
+ *  收口执行。 */
 function settleCounterStands(
   g: GameEngine,
   payload: Extract<ReactionPayload, { kind: "counter" }>,
@@ -513,7 +535,8 @@ function settleCounterStands(
   const root = payload.root;
   const rootDef = jinnangCardOf(root.cardId);
   const responder = g.players[payload.userSeat];
-  if (rootDef.targetDomain !== "all-others") {
+  const perShare = rootDef.targetDomain === "all-others" || rootDef.targetDomain === "one-city";
+  if (!perShare) {
     if (payload.protects) {
       // 整计域:识破站住=作废(连环计缺角)/落空(单份计),终局(宣告走 jinnangVoided 事件,fx 面文案浮字)
       const verdict = rootDef.targetDomain === "two-others" ? "作废" : "落空";
@@ -535,15 +558,19 @@ function settleCounterStands(
     g.settleJinnangExit();
     return;
   }
-  // AOE:本环保下的份判定落账
+  // 按份域:本环保下的份判定落账(shareSeat 语义随根域:座位份=座位;城份=受击城 tileIndex)
   if (payload.protects && payload.shareSeat != null) {
-    const shielded = g.players[payload.shareSeat];
+    const isCityShare = rootDef.targetDomain === "one-city";
+    const shareLabel = isCityShare
+      ? `「${g.board.at(payload.shareSeat).name}」`
+      : `${g.players[payload.shareSeat].guohao} `;
+    const shareAudit = isCityShare ? `tile#${payload.shareSeat}` : g.players[payload.shareSeat].id;
     // 份保住宣告走 jinnangVoided(shareSeat)事件(fx 面文案浮字,#719 死写删除)
     g.logEvent(
       "system",
       responder.guohao,
-      `${responder.guohao} 识破【${rootDef.id}】,${shielded.guohao} 那一份失效`,
-      `reactionCounter card=${rootDef.id} by=${responder.id} share=${shielded.id}`,
+      `${responder.guohao} 识破【${rootDef.id}】,${shareLabel}${isCityShare ? "这一城免烧" : "那一份失效"}`,
+      `reactionCounter card=${rootDef.id} by=${responder.id} share=${shareAudit}`,
     );
     emitGameEvent(g, payload.userSeat, {
       kind: "jinnangVoided",

@@ -56,11 +56,11 @@ export type GameMoment =
   /** 城池升级后:扩军 upgradeProperty 成功 + 公道买卖成交升级,两处(满级不触发)。
    *  ctx.propertyId = 升级城。subject = 城主。 */
   | "PropertyUpgraded"
-  /** 城池受损·降 1 级(#457):火烧连营(锦囊路 demolishOnVictim 调用侧)与耗竭「降 1 级」
+  /** 城池受损·降 1 级(#457):火烧连营(锦囊路调用侧,#1389 起按果逐城派)与耗竭「降 1 级」
    *  处置,两写点。火攻主动技路不派(主动技结算内不派发既有口径)。
    *  ctx.propertyId/ctx.tileIndex = 涉事城。subject = 城主。 */
   | "PropertyDemolished"
-  /** 失城(#457):火烧连营城防尽毁失城(锦囊路调用侧,与降级同点按果择一)与耗竭
+  /** 失城(#457):火烧连营烧毁失城(锦囊路调用侧,与降级同点按果择一逐城派,#1389)与耗竭
    *  「失去整座」处置,两写点(都城不可失,失的恒为非都城)。
    *  ctx.propertyId/ctx.tileIndex = 失去的城。subject = 失城者。 */
   | "PropertyLost"

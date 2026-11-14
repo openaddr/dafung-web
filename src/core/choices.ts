@@ -26,7 +26,7 @@ export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set(
   "grantHero",
   "levyAll", // T3:指向他人四牌
   "stealTreasure",
-  "demolish",
+  "fireWall", // #1389 T3 棒1:火烧连营溅射化(城指向/前方溅射/识破按城拆份)
   "skipTurn",
   "duel", // T4:连环计二虎竞食
   "peek", // T4:军情密探
@@ -239,19 +239,6 @@ function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
   ];
 }
 
-/** demolish 目标守卫(#226 口径,火烧连营锦囊专用):城防有 Lv>0 可降、或有非都城
- *  可失,二者居一才可指定——「仅剩 0 级都城」的目标无城可毁,失城分支又不许动都城
- *  (与耗竭/破产同口径),放行只会烧空。(#1388 T2 火攻主动技已切城目标域,不再共用
- *  本守卫;随机降级/失城语义归锦囊路。) */
-export function demolishTargetOk(e: GameEngine, target: number): { ok: boolean; reason?: string } {
-  const t = e.players[target];
-  const capPropId = t.capitalIndex >= 0 ? (e.board.at(t.capitalIndex)?.propertyId ?? null) : null;
-  const canDowngrade = t.properties.some((h) => h.level > 0);
-  const canLose = t.properties.some((h) => h.propertyId !== capPropId);
-  if (!canDowngrade && !canLose) return { ok: false, reason: "无可毁之城" };
-  return { ok: true };
-}
-
 /** 目标有效性(#122/T3):非己、存活(#281:免战庇护已随免战金牌退役,目标排除逻辑删除);
  *  卡面附加条件由 effectKind 分派。反应域牌不经目标段,永不走此校验。 */
 export function jinnangTargetOk(
@@ -267,12 +254,12 @@ export function jinnangTargetOk(
     case "stealTreasure":
       if (t.treasures.length === 0) return { ok: false, reason: "无珍宝" };
       break;
-    case "demolish": {
-      // 都城可降不可失(#226):守卫语义单源 demolishTargetOk
-      const verdict = demolishTargetOk(e, target);
-      if (!verdict.ok) return verdict;
-      break;
-    }
+    case "fireWall":
+      // 城指向域(#1389):不走席位校验(合法性单源 fireWallCenterTargets 候选集,
+      // 提交复验按 cityTargetOptionId 对选项集),误入本口=调用方目标域分派 bug
+      throw new Error(
+        `jinnangTargetOk:火烧连营为城指向域,不走席位校验(候选单源 fireWallCenterTargets,#1389)`,
+      );
   }
   return { ok: true };
 }
@@ -349,6 +336,88 @@ export function heroSkillCityTargets(
   return out;
 }
 
+// ─────────── 火烧连营城指向域(#1389,谓词全局唯一单源,形制对齐 heroSkillCityTargets)───────────
+
+/** 火烧连营火源候选(#1389 城目标域):全部城池格(全城池制 #826 下棋盘每格都是城;
+ *  无距离限制——任意城皆可为溅射中心,含无主城=几何中心(自身免伤)与己城)。
+ *  choices 选项装配、目标段候选、bot 中心打分全回查本口,UI/bot 不复制谓词(ADR-0013)。
+ *  确定性:tileIndex 序;排序归消费方(bot 自带打分)。 */
+export interface FireWallCenterTarget {
+  propertyId: string;
+  tileIndex: number;
+  name: string; // 城名(候选钮 label 基底)
+  ownerSeat: number | null; // null=无主(可作火源而自身免伤,#1386)
+  level: number | null; // null=无主(城池等级只在持有态上)
+}
+
+export function fireWallCenterTargets(e: GameEngine): FireWallCenterTarget[] {
+  const out: FireWallCenterTarget[] = [];
+  for (const tile of e.board.tiles) {
+    if (tile.propertyId == null) continue; // 是城才溅:propertyId null=编辑器半成品格,非城
+    const owner = e.findOwner(tile.propertyId);
+    const holding = owner == null ? null : findHolding(owner, tile.propertyId);
+    if (owner != null && holding == null)
+      throw new Error(`fireWallCenterTargets:城 ${tile.propertyId} 城主与持有失配(状态机 bug)`); // 零兜底
+    out.push({
+      propertyId: tile.propertyId,
+      tileIndex: tile.index,
+      name: tile.name,
+      ownerSeat: owner == null ? null : e.players.indexOf(owner),
+      level: holding == null ? null : holding.level,
+    });
+  }
+  return out;
+}
+
+/** 火烧连营溅射受击清单(#1389 结算/识破份共用谓词):火源=中心 tileIndex,受击面=
+ *  中心 + 前方距离 1、2 格上的城(#1386 前方距离谓词;是城才溅——全城池制下恒为城,
+ *  propertyId null 的半成品格不入)。「一份=一座受击城」:识破份清单、火烧结算、
+ *  bot 打分同读此口。immune=有主但为打空都城(0 级防御 0)——对火焰伤害免疫
+ *  (defense.applyFireDamage 吸收),不算受击份(bot 不计命中),但仍在溅射面内
+ *  (挨了打只是被吸收,果分战报照记)。确定性:中心→前方 1 格→前方 2 格(格序)。 */
+export interface FireWallBurnCity {
+  tileIndex: number;
+  propertyId: string;
+  name: string;
+  ownerSeat: number | null; // null=无主:不受火焰伤害(不调结算单点,溅射锚/占位照记)
+  level: number | null; // 与 ownerSeat 同步为 null(无主无持有态)
+  defense: number | null; // 同上
+  immune: boolean; // 有主打空都城:伤害被吸收(0 级都城打空即停免疫,#1386)
+}
+
+export function fireWallSplashCities(e: GameEngine, centerTileIndex: number): FireWallBurnCity[] {
+  const out: FireWallBurnCity[] = [];
+  for (const tile of e.board.tiles) {
+    if (tile.propertyId == null) continue;
+    const forward = e.board.forwardDistance(centerTileIndex, tile.index);
+    if (forward > 2) continue; // 溅射距离门:中心+前方 1、2 格
+    const owner = e.findOwner(tile.propertyId);
+    const holding = owner == null ? null : findHolding(owner, tile.propertyId);
+    if (owner != null && holding == null)
+      throw new Error(`fireWallSplashCities:城 ${tile.propertyId} 城主与持有失配(状态机 bug)`); // 零兜底
+    const ownerSeat = owner == null ? null : e.players.indexOf(owner);
+    const immune =
+      holding != null &&
+      holding.level === 0 &&
+      holding.defense === 0 &&
+      tile.propertyId === e.board.at(owner!.capitalIndex)?.propertyId;
+    out.push({
+      tileIndex: tile.index,
+      propertyId: tile.propertyId,
+      name: tile.name,
+      ownerSeat,
+      level: holding == null ? null : holding.level,
+      defense: holding == null ? null : holding.defense,
+      immune,
+    });
+  }
+  return out.sort((a, b) => {
+    const fa = e.board.forwardDistance(centerTileIndex, a.tileIndex);
+    const fb = e.board.forwardDistance(centerTileIndex, b.tileIndex);
+    return fa - fb || a.tileIndex - b.tileIndex;
+  });
+}
+
 /** AwaitingJinnang(出牌阶段,#122/T2 + #188 档 3):统一决策窗——锦囊卡牌段 + 就绪主动技 +
  *  「今不用」。目标段二态:pendingJinnang(锦囊选人)或 pendingSkill(技能选人)在场时
  *  改列候选座位 +「作罢」。锦囊 effect 尚未接入结算的种类灰置。 */
@@ -357,6 +426,20 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
   const pending = e.pendingJinnang;
   if (pending) {
     const def = jinnangCardOf(pending.cardId);
+    // 城指向目标段(#1389 火烧连营):候选=全部城池格(谓词单源 fireWallCenterTargets;
+    // 无主城标注「作火源自身免伤」语义进 label),逐城携城 id/城主;提交通道=targetTileIndex
+    // (命令 targets=[tileIndex],id 拼接单源 cityTargetOptionId——与技能城目标段同形制)。
+    if (def.targetDomain === "one-city") {
+      const targets: ChoiceOption[] = fireWallCenterTargets(e).map((c): ChoiceOption => ({
+        id: cityTargetOptionId(c.tileIndex),
+        label: c.ownerSeat == null ? `${c.name}(无主,作火源自身免伤)` : c.name,
+        available: true,
+        targetPropertyId: c.propertyId,
+        targetOwnerSeat: c.ownerSeat ?? undefined,
+        targetTileIndex: c.tileIndex,
+      }));
+      return [...targets, { id: "cancel", label: "作罢", available: true }];
+    }
     // 末段候选排除首段已定目标(声明单源 jinnang.TARGET_DOMAIN_STAGES.excludeFirstFromSecond,
     // #1067;两步域段名 two-b 由载荷形状承载)
     const exclude =
@@ -421,23 +504,28 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     // (hasUsableJinnang 由此不计纯反应牌);只在反应窗(snapshot.reaction)打出。
     const reactionOnly = isReactionCard(def);
     // 连环计需要两名有效目标:候选不足即灰置「对手不足」(T4);单目标域(#477)同样
-    // 预检——一名有效目标都没有时牌不可名标,放行只会烧空/窥空(火烧=对手无可毁之城,
-    // 窃玉=对手无珍宝,密探/缓兵=无存活对手,末者实际对局不可达,域级守卫顺手覆盖)。
+    // 预检——一名有效目标都没有时牌不可名标,放行只会窥空(窃玉=对手无珍宝,密探/缓兵
+    // =无存活对手,末者实际对局不可达,域级守卫顺手覆盖);城指向域(#1389)同族门:
+    // 目标段无候选=牌不可出(候选=全部城,实际对局恒可达,门与目标域既有口径对齐)。
     const needTwo = def.targetDomain === "two-others";
     const needOne = def.targetDomain === "one";
+    const isCityDomain = def.targetDomain === "one-city";
     const validTargets =
       needTwo || needOne
         ? e.players.filter(
             (_, i) => jinnangTargetOk(e, e.players.indexOf(p), i, def.effect.kind).ok,
           ).length
         : 0;
-    const targetsShort = (needTwo && validTargets < 2) || (needOne && validTargets < 1);
+    const targetsShort =
+      (needTwo && validTargets < 2) ||
+      (needOne && validTargets < 1) ||
+      (isCityDomain && fireWallCenterTargets(e).length === 0);
     const targetsReason = !targetsShort
       ? undefined
       : needTwo
         ? "对手不足"
-        : def.effect.kind === "demolish"
-          ? "无可毁之城"
+        : isCityDomain
+          ? "无可指向之城"
           : def.effect.kind === "stealTreasure"
             ? "无珍宝"
             : "对手不足";

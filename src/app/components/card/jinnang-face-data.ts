@@ -48,6 +48,7 @@ export const JINNANG_TARGET_LABEL: Record<JinnangTargetDomain, string> = {
   one: "指定一名其他诸侯",
   "two-others": "指定两名其他诸侯",
   "all-others": "其余所有诸侯",
+  "one-city": "指定任意一座城",
   reaction: "反应窗打出",
 };
 

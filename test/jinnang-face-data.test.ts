@@ -97,12 +97,13 @@ describe("JINNANG_FAMILY(五标签映射:一标签一族)", () => {
 });
 
 describe("JINNANG_TARGET_LABEL(目标域中文)", () => {
-  it("五域齐全,文案与牌面用语规范一致", () => {
+  it("六域齐全,文案与牌面用语规范一致", () => {
     expect(JINNANG_TARGET_LABEL).toEqual({
       self: "自身",
       one: "指定一名其他诸侯",
       "two-others": "指定两名其他诸侯",
       "all-others": "其余所有诸侯",
+      "one-city": "指定任意一座城",
       reaction: "反应窗打出",
     });
   });

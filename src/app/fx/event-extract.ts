@@ -581,9 +581,32 @@ export function extractBatchEvents(
       }
       case "jinnangVoided": {
         // 识破生效(#281):线端=应答者 → 被保份/被拆计方(可解析时),字报结果。
-        // shareSeat 过座位契约校验(单源 core/event-tiers,#431 移交顺带项):越界座位
-        // = 产出侧 bug,当场炸出,不静默写 undefined。
+        // shareSeat 语义随根牌域(#1389):one-city=受击城 tileIndex(棋盘界校验,
+        // 线锚城格,文案报城名);其余域=座位(座位契约校验单源 core/event-tiers,
+        // #431 移交顺带项:越界座位=产出侧 bug,当场炸出,不静默写 undefined)。
         const seat = eventSeat(engine, ev);
+        const voidedDomain = jinnangCardOf(ev.cardId).targetDomain;
+        if (ev.shareSeat != null && voidedDomain === "one-city") {
+          const t = ev.shareSeat;
+          if (!Number.isInteger(t) || t < 0 || t >= engine.board.count)
+            throw new Error(`jinnangVoided:城份格越界(${t})——产出侧 bug`);
+          const from = engine.board.positionOf(engine.players[seat].position);
+          const to = engine.board.positionOf(t);
+          events_.push({
+            kind: "jinnangPlayed",
+            playerId: engine.players[seat].id,
+            cardId: ev.cardId,
+            lines: [{ x1: from.x, y1: from.y, x2: to.x, y2: to.y }],
+          });
+          events_.push(
+            textFloater(
+              engine,
+              seat,
+              `${guohaoOf(engine, seat)} 识破,「${engine.board.at(t).name}」免于【${ev.cardId}】`,
+            ),
+          );
+          break;
+        }
         if (ev.shareSeat != null) eventSeatPlayer(engine, ev.shareSeat, "jinnangVoided.shareSeat");
         const target = voidLineTarget(ev, cursors);
         if (target != null && target !== seat) {
@@ -592,7 +615,7 @@ export function extractBatchEvents(
         const text =
           ev.shareSeat != null
             ? `${guohaoOf(engine, seat)} 识破,${guohaoOf(engine, ev.shareSeat)} 免于【${ev.cardId}】`
-            : jinnangCardOf(ev.cardId).targetDomain === "two-others"
+            : voidedDomain === "two-others"
               ? `${guohaoOf(engine, seat)} 识破!【${ev.cardId}】作废`
               : `${guohaoOf(engine, seat)} 识破!【${ev.cardId}】落空`;
         events_.push(textFloater(engine, seat, text));

@@ -16,8 +16,16 @@ export type JinnangTag = "谋" | "攻" | "守" | "援" | "即时";
 
 /** 目标域:由牌面固定(GLOSSARY.md 锦囊条)。two-others=两步目标段(语义见下
  *  TARGET_DOMAIN_STAGES 声明表——新 two-others 牌自动获得两步流,#1067);
+ *  one-city(#1389)= 城指向单选:目标=任意一座城(tileIndex 提交,无距离限制;
+ *  无主城/己城皆可选),候选谓词单源 choices.fireWallCenterTargets,识破按城拆份;
  *  reaction(#281)= 纯反应牌:无手动目标段,不经出牌阶段目标校验,只在反应窗打出。 */
-export type JinnangTargetDomain = "self" | "one" | "two-others" | "all-others" | "reaction";
+export type JinnangTargetDomain =
+  | "self"
+  | "one"
+  | "two-others"
+  | "all-others"
+  | "one-city"
+  | "reaction";
 
 /** 目标域 → 目标段流声明表(#1067 语义声明化单源):「两步目标段、第二步排除首目标」
  *  不再内联在 resolveJinnang/choices——两消费点按 targetDomain 查此表。
@@ -32,6 +40,7 @@ export const TARGET_DOMAIN_STAGES: Record<
   one: { stages: 1, excludeFirstFromSecond: false },
   "two-others": { stages: 2, excludeFirstFromSecond: true },
   "all-others": { stages: 0, excludeFirstFromSecond: false },
+  "one-city": { stages: 1, excludeFirstFromSecond: false },
   reaction: { stages: 0, excludeFirstFromSecond: false },
 };
 
@@ -43,7 +52,7 @@ export type JinnangEffect =
   | { kind: "grantHero"; fallbackCash: number } // 求贤令:招贤一枚,名将尽折现
   | { kind: "levyAll"; amount: number } // 横征暴敛:全体其他玩家各付(上限=现金,不清算)
   | { kind: "stealTreasure" } // 窃玉偷香:随机夺目标一张珍宝
-  | { kind: "demolish" } // 火烧连营:随机降目标一座城 1 级,全 0 级则失去一座
+  | { kind: "fireWall"; damage: number } // 火烧连营(#1389 溅射化):以指定城为火源,对此城及前方距离 1、2 格上的城各 damage 点火焰伤害(结算单点 defense.applyFireDamage;识破按城拆份)
   | { kind: "skipTurn" } // 缓兵之计:目标下回合被跳过
   | { kind: "peek" } // 军情密探:即时窥探目标锦囊手牌一次(#575,窥探弹层 viewer-only 演出)
   | { kind: "duel"; winnerBankGain: number; loserPaysUser: number }; // 连环计:二虎竞食
@@ -105,9 +114,9 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     id: "火烧连营",
     copies: 2,
     tags: ["攻"],
-    targetDomain: "one",
-    text: "火烧营寨:指定一名其他诸侯,随机降其一座城池 1 级;其城池全为 0 级则随机失去一座。",
-    effect: { kind: "demolish" },
+    targetDomain: "one-city",
+    text: "火烧营寨:指定任意一座城为火源,对此城及其前方距离 1、2 格上的城各造成 1 点火焰伤害;无主城不受火焰伤害(作火源则自身免伤),己方城照烧。",
+    effect: { kind: "fireWall", damage: 1 },
   },
   {
     id: "识破诡计",

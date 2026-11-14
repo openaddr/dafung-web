@@ -125,6 +125,9 @@ function seedPlayingEngine(): GameEngine {
     }
   }
   if (e.phase !== "Playing") throw new Error(`种局:选都链后非 Playing(phase=${e.phase})`);
+  // 出牌窗放行(#1389 起火烧连营改任意城当中心,开局第 1 回合恒有合法目标=窗恒开,
+  // 不再直落 Roll):与 UI「不出」同一命令(今不用,牌不消耗),停靠锚语义不变=开局 Roll。
+  if (e.turnPhase === "AwaitingJinnang") e.submitCommand({ type: "useJinnang", cardId: null });
   if (e.turnPhase !== "Roll") throw new Error(`种局:开局非 Roll 停靠(turnPhase=${e.turnPhase})`);
   return e;
 }

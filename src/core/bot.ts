@@ -5,7 +5,14 @@ import type { Player } from "./model";
 import type { EncounterEffect } from "./encounters";
 import type { PendingReaction } from "./reaction-window";
 import { jinnangCardOf } from "./jinnang";
-import { activeSkillOf, heroSkillCityTargets, isSkillOption, skillOptionId } from "./choices";
+import {
+  activeSkillOf,
+  fireWallCenterTargets,
+  fireWallSplashCities,
+  heroSkillCityTargets,
+  isSkillOption,
+  skillOptionId,
+} from "./choices";
 import { netWorth } from "./networth";
 import { guidePriceOf, isSkillBook } from "./treasures";
 import { skillBookLearners } from "./roster";
@@ -73,7 +80,8 @@ export function encounterCashImpact(effect: EncounterEffect | undefined): number
  *  (连环计/军情密探结算未接入,端到端到不了,纯决策直测)。 */
 interface JinnangIntent {
   use: boolean;
-  /** one/two-others 域的偏好目标座位(优先序:排位在前者优先;连环计两段依次取 [0]、[1])。
+  /** one/two-others 域的偏好目标座位、one-city 域(#1389)的偏好中心城 tileIndex
+   *  (优先序:排位在前者优先;连环计两段依次取 [0]、[1])。
    *  仅是策略偏好——真正可发性仍以目标段 choicesFor 的 available 为准(ADR-0013 同口径)。 */
   targets?: number[];
 }
@@ -113,12 +121,29 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
       );
       return { use: ranked.length > 0, targets: ranked.map(({ seat }) => seat) };
     }
-    case "demolish": {
-      // 火烧连营:城最多者(无城者不入选)
-      const ranked = byKeyDesc(({ t }) => t.properties.length).filter(
-        ({ t }) => t.properties.length > 0,
-      );
-      return { use: ranked.length > 0, targets: ranked.map(({ seat }) => seat) };
+    case "fireWall": {
+      // 火烧连营(#1389 溅射化,统一原则与人类同规则):择溅射收益最大的中心——
+      // 有效命中(他人之城且可受损:有主、非打空都城免疫)数最多 → 受击城等级和最高
+      // → 中心 tileIndex 小(确定性,全序键无并列歧义);无主城允许当锚(自身免伤,
+      // 看的是它溅到的邻居)。无有效命中(溅射全为无主/免疫/己城)则不出。
+      // targets=偏好序的中心城 tileIndex(城指向域提交通道,与火攻技同款)。
+      const scored = fireWallCenterTargets(engine)
+        .map((c) => {
+          const hits = fireWallSplashCities(engine, c.tileIndex).filter(
+            (b): b is typeof b & { ownerSeat: number; level: number } =>
+              b.ownerSeat != null && b.ownerSeat !== mySeat && !b.immune && b.level != null,
+          );
+          return {
+            tileIndex: c.tileIndex,
+            hits: hits.length,
+            levelSum: hits.reduce((s, b) => s + b.level, 0),
+          };
+        })
+        .sort((a, b) => b.hits - a.hits || b.levelSum - a.levelSum || a.tileIndex - b.tileIndex);
+      return {
+        use: scored[0]!.hits > 0,
+        targets: scored.filter((s) => s.hits > 0).map((s) => s.tileIndex),
+      };
     }
     case "peek":
       // 军情密探:自己手牌 ≥2 才用(bot 拿信息无用,基本留给玩家——§8);目标取现金最高者
@@ -161,28 +186,40 @@ interface ReactionDecision {
 const EST_COUNTER_CARD_VALUE = 100;
 const EST_SKIP_TURN_LOSS = 200;
 
-/** 被公告锦囊落在 seat 头上的估损(#281 净值贪心,确定性不掷骰):火烧连营=最高降级
- *  变卖价差(城防全 0 级则按最便宜非都城整城变卖价,都城不可失 #226 同口径);
+/** 火烧连营单城火烧估损(#1389):seat 名下 tileIndex 这座城的火焰损失——等级>0=降 1 级
+ *  的变卖价差;0 级非都城=整城变卖价(烧毁失城回无主);0 级都城=0(打空即停免疫,
+ *  不可失 #226 同口径)。城不在 seat 名下=状态机 bug,响亮炸(零兜底)。 */
+function cityFireLossEstimate(engine: GameEngine, seat: number, tileIndex: number): number {
+  const propId = engine.board.at(tileIndex).propertyId;
+  if (propId == null) throw new Error(`bot 估损:格 ${tileIndex} 无城(份清单损坏,状态机 bug)`); // 零兜底
+  const me = engine.players[seat];
+  const h = me.properties.find((x) => x.propertyId === propId);
+  if (h == null) throw new Error(`bot 估损:城 ${propId} 不在座位 ${seat} 名下(状态机 bug)`); // 零兜底
+  const cd = engine.catalog.get(propId);
+  if (!cd) throw new Error(`bot 估损:城 ${propId} 不在 catalog(数据 bug)`); // 零兜底
+  if (h.level > 0) return cd.valueByLevel[h.level] - cd.valueByLevel[h.level - 1];
+  const capPropId = engine.board.at(me.capitalIndex)?.propertyId;
+  return h.propertyId === capPropId ? 0 : cd.valueByLevel[0];
+}
+
+/** 被公告锦囊落在 seat 头上的估损(#281 净值贪心,确定性不掷骰):火烧连营(#1389
+ *  城指向域)=被保护城份(shareTile)的单城估损,缺 shareTile=决策链 bug;
  *  横征暴敛=200(上限现金);缓兵之计=跳回合常数;连环计=被卷入拼点期望损失;
  *  窃玉=最便宜珍宝指导价;军情密探=0(bot 拿情报无用);求贤令=0(不损他人)。 */
-function counterLossEstimate(engine: GameEngine, seat: number, cardId: string): number {
+function counterLossEstimate(
+  engine: GameEngine,
+  seat: number,
+  cardId: string,
+  shareTile?: number,
+): number {
   const def = jinnangCardOf(cardId);
   const me = engine.players[seat];
   switch (def.effect.kind) {
-    case "demolish": {
-      const capPropId = engine.board.at(me.capitalIndex)?.propertyId;
-      let loss = 0;
-      for (const h of me.properties) {
-        const cd = engine.catalog.get(h.propertyId);
-        if (!cd) continue;
-        if (h.level > 0) {
-          loss = Math.max(loss, cd.valueByLevel[h.level] - cd.valueByLevel[h.level - 1]);
-        } else if (h.propertyId !== capPropId) {
-          loss = Math.max(loss, cd.valueByLevel[0]); // 全 0 级 → 失一座非都城
-        }
-      }
-      return loss;
-    }
+    case "fireWall":
+      // #1389 溅射化:识破免单城,估损=所护城份的火烧损失(份由 counterHarmOf 择定)
+      if (shareTile == null)
+        throw new Error(`counterLossEstimate:火烧连营缺被保护城份(决策链 bug)`); // 零兜底
+      return cityFireLossEstimate(engine, seat, shareTile);
     case "levyAll":
       return Math.min(def.effect.amount, me.cash);
     case "skipTurn":
@@ -208,28 +245,80 @@ function counterLossEstimate(engine: GameEngine, seat: number, cardId: string): 
   }
 }
 
+/** 识破估损视点(#281/#571):估损座位+根牌+应答份+城指向域的被护城格(估损入口)。 */
+interface CounterHarm {
+  estimateSeat: number;
+  rootCardId: string;
+  shareSeat?: number;
+  /** 城指向域(#1389):被保护的受击城 tileIndex(估损=该城的火烧损失)。 */
+  shareTile?: number;
+}
+
+/** 城指向域读取受击城份的城主与城 id(#1389):份恒为有主城,失配=状态机 bug(零兜底)。 */
+function cityShareOf(engine: GameEngine, tileIndex: number): { ownerSeat: number; propId: string } {
+  const propId = engine.board.at(tileIndex).propertyId;
+  if (propId == null) throw new Error(`bot 识破判据:城份格 ${tileIndex} 无城(状态机 bug)`); // 零兜底
+  const owner = engine.findOwner(propId);
+  if (owner == null) throw new Error(`bot 识破判据:城份 ${propId} 无主(受击城恒有主,状态机 bug)`); // 零兜底
+  return { ownerSeat: engine.players.indexOf(owner), propId };
+}
+
 /** 反应窗「伤我利」判据(#281 自保口径的 #571 泛化):公告的牌站住会伤到 seat 的利益,
  *  返回估损视点(估损座位+根牌+应答份);与己无关返回 null。
  *  - 根窗(payload.jinnang):公告锦囊落我份 → 视点=自己(估损=被击损失);
+ *    城指向域(#1389)份=受击城,我名下受击城里挑估损最高的一座护(并列 tileIndex 小,
+ *    确定性;bot 只护己城,他城被烧不拆);
  *  - 链环 protects=true(识破站住=根计被拆):我是链根使用者才伤(救计),估损视点=
- *    争夺份(根计在那份上的效果幅度≈我的得利损失;连环计无份按自席取 victim 视点保守值);
- *  - 链环 protects=false(识破被反=根计恢复受击):恢复的份落我头上才伤(护),视点=自己。 */
-function counterHarmOf(
-  pr: PendingReaction,
-  seat: number,
-): { estimateSeat: number; rootCardId: string; shareSeat?: number } | null {
+ *    争夺份(根计在那份上的效果幅度≈我的得利损失;连环计无份按自席取 victim 视点保守值;
+ *    城指向域争夺份=城,视点=城主座位、估损=该城火烧损失);
+ *  - 链环 protects=false(识破被反=根计恢复受击):恢复的份落我头上才伤(护),视点=自己
+ *    (城指向域=恢复的城份城主是我)。 */
+function counterHarmOf(engine: GameEngine, pr: PendingReaction, seat: number): CounterHarm | null {
   if (pr.payload.kind === "jinnang") {
     if (pr.view.kind !== "jinnang") return null; // jinnang 载荷必挂 jinnang 窗(状态机不变量)
+    const domain = jinnangCardOf(pr.view.cardId).targetDomain;
+    if (domain === "one-city") {
+      // 城指向域(#1389):view.targetSeats=受击城 tileIndex 清单(座位域的座位判据不适用,
+      // 座位数与城格数可能撞值)——只护我名下的受击城,择估损最高者
+      const mine = pr.view.targetSeats
+        .filter((tile) => cityShareOf(engine, tile).ownerSeat === seat)
+        .map((tile) => ({ tile, loss: cityFireLossEstimate(engine, seat, tile) }))
+        .sort((a, b) => b.loss - a.loss || a.tile - b.tile);
+      if (mine.length === 0) return null;
+      return {
+        estimateSeat: seat,
+        rootCardId: pr.view.cardId,
+        shareSeat: mine[0]!.tile,
+        shareTile: mine[0]!.tile,
+      };
+    }
     if (!pr.view.targetSeats.includes(seat)) return null;
     return { estimateSeat: seat, rootCardId: pr.view.cardId, shareSeat: seat };
   }
   if (pr.payload.kind !== "counter") return null; // march 窗另有分支,到不了这里
   const { root, shareSeat, protects } = pr.payload;
+  const rootDomain = jinnangCardOf(root.cardId).targetDomain;
   if (protects) {
     if (root.userSeat !== seat) return null; // 别人的计被拆,与己无关
+    if (rootDomain === "one-city" && shareSeat != null) {
+      // 城指向域:争夺份=城,视点=城主座位、估损=该城的火烧损失
+      const { ownerSeat } = cityShareOf(engine, shareSeat);
+      return {
+        estimateSeat: ownerSeat,
+        rootCardId: root.cardId,
+        shareSeat,
+        shareTile: shareSeat,
+      };
+    }
     return { estimateSeat: shareSeat ?? seat, rootCardId: root.cardId, shareSeat };
   }
-  const rootDomain = jinnangCardOf(root.cardId).targetDomain;
+  if (rootDomain === "one-city") {
+    // 城指向域:恢复的城份城主是我才伤(shareSeat 缺省=中心城,同席位域「缺省=唯一份」形制)
+    const tile = shareSeat ?? root.targets[0];
+    const { ownerSeat } = cityShareOf(engine, tile);
+    if (ownerSeat !== seat) return null;
+    return { estimateSeat: seat, rootCardId: root.cardId, shareSeat: tile, shareTile: tile };
+  }
   const restored =
     rootDomain === "all-others" || rootDomain === "one"
       ? (shareSeat ?? root.targets[0])
@@ -259,15 +348,19 @@ export function botReactionDecision(engine: GameEngine, seat: number): ReactionD
     return { use: false };
   }
   // 识破诡计:只护己利(#571)
-  const harm = counterHarmOf(pr, seat);
+  const harm = counterHarmOf(engine, pr, seat);
   if (harm == null) return { use: false };
-  if (counterLossEstimate(engine, harm.estimateSeat, harm.rootCardId) <= EST_COUNTER_CARD_VALUE)
+  if (
+    counterLossEstimate(engine, harm.estimateSeat, harm.rootCardId, harm.shareTile) <=
+    EST_COUNTER_CARD_VALUE
+  )
     return { use: false };
   const cardId = me.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "counter");
   if (cardId == null) return { use: false };
-  // 根窗 AOE 携自保份(#281);链环应答不带份——争夺份随窗载荷(#571)
+  // 根窗 AOE 携自保份(#281;城指向域=被护城份 tileIndex,#1389);链环应答不带份——
+  // 争夺份随窗载荷(#571)
   return pr.payload.kind === "jinnang"
-    ? { use: true, cardId, shareSeat: seat }
+    ? { use: true, cardId, shareSeat: harm.shareSeat ?? seat }
     : { use: true, cardId };
 }
 
@@ -332,26 +425,34 @@ export function heroSkillIntent(
   }
 }
 
-/** 目标段提交(#148):按意图偏好序对着引擎目标段选项集(唯一可用口径)逐段提交;
- *  偏好目标全不可发 → 作罢(牌不消耗,退回卡牌段)返回 false,由调用方换下一张。 */
+/** 目标段提交(#148;#1389 城指向域同窗):按意图偏好序对着引擎目标段选项集(唯一可用
+ *  口径)逐段提交——席位域匹配 targetSeat、城指向域匹配 targetTileIndex(与技能城目标段
+ *  同款分派);偏好目标全不可发 → 作罢(牌不消耗,退回卡牌段)返回 false,由调用方换
+ *  下一张。 */
 function commitJinnangTargets(engine: GameEngine, cardId: string): boolean {
   const prefs = jinnangIntent(engine, cardId).targets ?? [];
   while (engine.pendingJinnang) {
     const stage = engine.pendingJinnang.stage;
     const wanted = stage === "two-b" ? prefs.slice(1, 2) : prefs; // 连环计第二段必须次挑
-    let seat: number | null = null;
+    let target: number | null = null;
     for (const w of wanted) {
-      const opt = engine.choicesFor().find((o) => o.available && o.targetSeat === w);
-      if (opt?.targetSeat != null) {
-        seat = opt.targetSeat;
+      const opt = engine
+        .choicesFor()
+        .find(
+          (o) =>
+            o.available &&
+            (o.targetTileIndex != null ? o.targetTileIndex === w : o.targetSeat === w),
+        );
+      if (opt != null) {
+        target = opt.targetTileIndex ?? opt.targetSeat!;
         break;
       }
     }
-    if (seat == null) {
+    if (target == null) {
       engine.resolveJinnang(cardId, undefined, true); // 作罢
       return false;
     }
-    engine.resolveJinnang(cardId, [seat]);
+    engine.resolveJinnang(cardId, [target]);
   }
   return true;
 }

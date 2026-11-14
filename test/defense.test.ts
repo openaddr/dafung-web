@@ -1,5 +1,5 @@
 // 防御值系统单测(#1387 T1 棒1):满值表与越界抛错 / 等级变动重置挂点(购入/扩军/公道
-// 买卖成交/破产易主/旧 demolish 降级)/ 火焰伤害结算单点(扣减→降级回满→失城、都城打空
+// 买卖成交/破产易主/火焰伤害降级)/ 火焰伤害结算单点(扣减→降级回满→失城、都城打空
 // 即停+免疫、无主城抛错)/ 快照往返 / 种植件 setDefense / 外敌乘虚回归钉(不走防御值)。
 // 只测外部行为(返回值+引擎状态),不镜像实现;布景一律走种植件(#1295)。
 import { describe, it, expect } from "bun:test";
@@ -206,28 +206,6 @@ describe("火焰伤害结算单点 applyFireDamage(#1386 全局唯一)", () => {
     finishSetup(e);
     const pid = freeCity(e);
     expect(() => applyFireDamage(e, e.players[0], pid, 1)).toThrow();
-  });
-});
-
-describe("旧 demolish 降级点(火烧连营,防御值跟等级走)", () => {
-  it("锦囊路降 1 级后防御=新等级满值,不带损前暗账", () => {
-    const e = makeEngine(42);
-    finishSetup(e);
-    const victimSeat = e.players.indexOf(e.activePlayer) === 0 ? 1 : 0;
-    const victim = e.players[victimSeat];
-    const pid = capitalId(e, victimSeat);
-    grantProperty(e, victimSeat, pid, 2); // 都城拉到 Lv2(满防 3)
-    setDefense(e, victimSeat, pid, 1); // 受损态
-    const user = e.activePlayer;
-    user.jinnangHand = ["火烧连营"];
-    user.jinnangHandCount = 1;
-    e.turnPhase = "AwaitingJinnang";
-    e.resolveJinnang("火烧连营");
-    e.resolveJinnang("火烧连营", [victimSeat]);
-    expect(victim.properties.find((h) => h.propertyId === pid)).toMatchObject({
-      level: 1,
-      defense: 4, // 降级点 resetToFull:2→1 级回满,受损的 1 不跟随
-    });
   });
 });
 
