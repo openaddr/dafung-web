@@ -16,6 +16,8 @@
 // 用法:bun scripts/pr-merge.ts <书签名> [--title "<标题>"] [--body-file <路径>] [--create-only]
 //   <书签名> 须已在本地存在且已 `jj describe`(空描述直接红,交付纪律=描述即标题);
 //   --create-only 只 push+开 PR,不合并不删分支(派单代理交付用,主线 QC 后再全链收口)。
+//   --validation-receipt <路径> 复用 validate 完整通过回执(相对 workspace 根解析);
+//   精确绑定 master@origin、当前工作树与目标书签内容,失败在 push 前中止,不回退。
 //   --expect <路径>(可重复,**必带,缺省拒收**)= 预期文件集硬闸(S3):change diff 与
 //   声明集精确对账(声明侧引号与「\」分隔符自动归一,调用方零心智;2026-10-29 #751
 //   retro:shell 拼参的引号与 Windows 反斜杠曾致双向对账全红),多出(并行写入折入,先
@@ -79,7 +81,7 @@ const expectPaths = args
   .filter((p) => p && !p.startsWith("--"));
 if (!bookmark || bookmark.startsWith("-")) {
   console.error(
-    "[pr-merge] 用法:bun scripts/pr-merge.ts <书签名> [--title ...] [--body-file <路径>] [--create-only] [--expect <路径>]...",
+    "[pr-merge] 用法:bun scripts/pr-merge.ts <书签名> [--title ...] [--body-file <路径>] [--create-only] [--validation-receipt <路径>] [--expect <路径>]...",
   );
   process.exit(2);
 }
@@ -163,6 +165,36 @@ let materializedId = "";
 let orphanHeads: string[] = [];
 
 if (!prNumber) {
+  // 回执先于占用清理/等效 squash 校验,禁止物化目标树掩盖调用者验证了另一棵树。
+  const reuseValidation = args.includes("--validation-receipt");
+  if (reuseValidation) {
+    const receipt = flag("--validation-receipt");
+    if (!receipt || receipt.startsWith("--")) {
+      console.error("[pr-merge] --validation-receipt 缺少结果文件路径");
+      process.exit(2);
+    }
+    const root = jj("root");
+    // 精确基线须来自本次刷新的远端账本;fetch 只读远端,无效回执仍零远端写入。
+    jj("git", "fetch");
+    const verified = Bun.spawnSync(
+      [
+        process.execPath,
+        path.join(import.meta.dir, "validate.ts"),
+        "verify",
+        path.resolve(root, receipt),
+        "--base",
+        "master@origin",
+        "--target",
+        bookmark,
+      ],
+      { cwd: root, stdout: "inherit", stderr: "inherit" },
+    );
+    if (verified.exitCode !== 0) {
+      console.error("[pr-merge] 验证回执无效——停止收口,请重新 validate run。");
+      process.exit(1);
+    }
+    console.log("[pr-merge] 验证回执有效,复用已通过的 build/慢池 canary。");
+  }
   // 0.5) 工作副本占用预检(#1208,2026-11-08 三度实锤:1.1 物化在当前工作区 @ 落刀,
   //      build/freshness 的「主树 @ 非空」咬住自家物化红死)。占用检查前移到一切副作用
   //      之前,语义=防卷入别人的活:空 → 过;与书签同树 → 上次收口断在半途的物化残留,
@@ -170,10 +202,18 @@ if (!prNumber) {
   {
     const occ = jj("log", "-r", "@", "--no-graph", "-T", 'if(empty, "EMPTY", "OCCUPIED")');
     if (occ === "OCCUPIED") {
-      const sameTree = jj("diff", "--from", "@", "--to", bookmark, "--stat") === "";
+      // 回执路径保持已验证树;--stat 的零变更汇总不能用来判空。
+      const sameTree =
+        jj("diff", "--from", "@", "--to", bookmark, reuseValidation ? "--name-only" : "--stat") ===
+        "";
       if (sameTree) {
-        jj("restore");
-        console.log("[pr-merge] 工作副本为上次收口的物化残留(与书签同树)——已清空重跑(#1208)。");
+        if (reuseValidation) {
+          jj("new", bookmark);
+          console.log("[pr-merge] 工作副本与已验证书签同树——已起空停靠,保留验证内容。");
+        } else {
+          jj("restore");
+          console.log("[pr-merge] 工作副本为上次收口的物化残留(与书签同树)——已清空重跑(#1208)。");
+        }
       } else {
         console.error(
           "[pr-merge] 当前工作区 @ 有活——继续收口会搁浅它(1.1 物化)并误报占用(freshness rule 0)。让出主树(AGENTS 版本协作「@ 有别人的活=让出」);确认归属属自己后清空再跑。",
@@ -359,7 +399,7 @@ if (!prNumber) {
   //       无豁免旗标:有旗标=「这次小就不跑了」复归纪律态;秒级成本对照 master 破损
   //       代价(下游票全数被闸+热修一轮)稳赚。快错排序:瞬闸(文件集/冲突/freshness)
   //       →本闸(秒级)→慢池 canary(分钟级)→push。
-  {
+  if (!reuseValidation) {
     console.log("[pr-merge] build 闸:tsc --noEmit + vite build…");
     const build = Bun.spawnSync(["bun", "run", "build"], {
       stdout: "inherit",
@@ -379,7 +419,7 @@ if (!prNumber) {
   //       #971 A/B+探针定罪)。本次 change 触及 test/*.test.ts 且文件含 DAFUNG_SLOW
   //       标记即定向跑(单例 3-30s 级,DAFUNG_SLOW=1),红即停;未触及零成本跳过。
   //       裸 bun test 不经全量锁(定向豁免,how-to「把测试跑起来」节)。
-  {
+  if (!reuseValidation) {
     const touched = jj("diff", "-r", bookmark, "--name-only")
       .split("\n")
       .map((s) => s.trim().replaceAll("\\", "/"))

@@ -80,6 +80,7 @@ CHECKS["test:validation"] = {
     "scripts/bun-release.ts",
     "--files",
     "test/infra/validation-selection.test.ts",
+    "test/infra/pr-merge-validation.test.ts",
   ],
   env: { DAFUNG_SLOW: "1" },
 };
@@ -135,7 +136,7 @@ const DOMAINS: Record<string, { paths: RegExp; checks: string[] }> = {
     paths: /^(?:scripts\/(?:bun-release|test-lock)\.ts$)/,
     checks: ["test:release-guard"],
   },
-  validation: { paths: /^scripts\/validate\.ts$/, checks: ["test:validation"] },
+  validation: { paths: /^scripts\/(?:validate|pr-merge)\.ts$/, checks: ["test:validation"] },
 };
 
 interface Result {
@@ -330,19 +331,39 @@ async function main(): Promise<number> {
     throw new Error("请从 jj workspace 根目录运行 validate");
   const [mode, ...args] = process.argv.slice(2);
   if (mode === "verify") {
-    if (args.length !== 1) throw new Error("用法:validate verify <结果文件>");
+    const binding = new Map<string, string>();
+    for (let i = 1; i < args.length; i += 2) {
+      const name = args[i]!;
+      const value = args[i + 1];
+      if (!["--base", "--target"].includes(name) || !value || binding.has(name))
+        throw new Error("用法:validate verify <结果文件> [--base <rev> --target <rev>]");
+      binding.set(name, value);
+    }
+    if (!args[0] || (binding.size !== 0 && binding.size !== 2))
+      throw new Error("用法:validate verify <结果文件> [--base <rev> --target <rev>]");
     const receipt = JSON.parse(readFileSync(args[0]!, "utf8")) as Result;
     if (
       receipt.format !== 1 ||
       receipt.status !== "passed" ||
-      receipt.finishedAt === null ||
+      typeof receipt.finishedAt !== "string" ||
       receipt.results.length === 0 ||
       receipt.results.length !== receipt.plan.checks.length ||
       receipt.results.some((check) => check.exitCode !== 0)
     )
       throw new Error("验证结果未完整通过");
     assertCurrent(receipt.contentSha256);
-    const selected = plan(receipt.base.commit, receipt.plan.profiles);
+    const selected = plan(binding.get("--base") ?? receipt.base.commit, receipt.plan.profiles);
+    if (
+      selected.base.commit !== receipt.base.commit ||
+      receipt.plan.base.commit !== receipt.base.commit
+    )
+      throw new Error("验证回执基线与本次合并的精确基线不一致");
+    if (binding.has("--target")) {
+      const target = jj("log", "-r", binding.get("--target")!, "--no-graph", "-T", "commit_id");
+      if (!/^[a-f0-9]{40}$/.test(target)) throw new Error("--target 必须解析为唯一完整提交");
+      if (jj("diff", "--from", selected.commit, "--to", target, "--name-only") !== "")
+        throw new Error("当前工作树与目标书签内容不一致,不能复用验证回执");
+    }
     if (
       selected.contentSha256 !== receipt.plan.contentSha256 ||
       JSON.stringify(selected.checks) !== JSON.stringify(receipt.plan.checks) ||
