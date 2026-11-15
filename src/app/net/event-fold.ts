@@ -28,7 +28,7 @@
 //                 降级清单逐城 -1 级(0 级封底)+ skipTurns 按显式 restTurns 累加;
 //                 assetTransferred → 破产逐城易主(承让方入册/无债主回无主)
 //   金钱族        cashChanged → 现金逐条累加(delta 带符号)+ 落格表现态相邻回填
-//                 (reason=supply 回填补给金额;stock(商市行情)置 Noop + 批内破产标记)
+//                 (reason=supply 回填补给金额;stock(商市行情)入账后续推城池交易链)
 //   珍宝族        treasureGained → 得宝入册(流水号实例 id 按静态表回溯定义);
 //                 treasureSold → 卖家出册(银两不在此折:交割价随 treasureTraded、变卖所得
 //                 随 assetLiquidated,防双计);treasureTraded → escrow 清/visitor 收口/
@@ -483,11 +483,8 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const outcome = engine.lastLandOutcome;
         if (ev.reason === "supply" && outcome?.kind === "OwnProperty" && outcome.resupply == null)
           outcome.resupply = ev.delta; // 都城补给金额(驻跸/落都城两路)
-        if (ev.reason === "stock")
-          engine.lastLandOutcome = {
-            kind: "Noop",
-            causedBankruptcy: false,
-          };
+        // 商市固定事件后仍续跑城池交易链;以行情后的现金推演,上涨可跨过购价门槛。
+        if (ev.reason === "stock") foldMainLanding(engine, p, p.position);
         break;
       }
       // ── 名将族 ──

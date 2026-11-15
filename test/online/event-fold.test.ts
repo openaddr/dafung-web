@@ -17,6 +17,8 @@ import {
   giveJinnang,
   giveTreasure,
   grantProperty,
+  pinDice,
+  placePlayer,
   setCash,
 } from "@core/planter";
 import { cmdMsg, type InboundMsg } from "../../scripts/wire";
@@ -36,7 +38,7 @@ const MAP = loadMap(guanzhongData);
 const CHANGAN = 0;
 const LUOYANG = MAP.board.tiles.find((t) => t.propertyId === "prop-luoyang")!.index;
 
-function makeEngine(): GameEngine {
+function makeEngine(seed = 7): GameEngine {
   const seats: SeatConfig[] = [
     { name: "A", isBot: false, guohao: "魏" },
     { name: "B", isBot: false, guohao: "蜀" },
@@ -47,7 +49,7 @@ function makeEngine(): GameEngine {
     startingCash: 10000,
     startingTreasures: 0,
   };
-  return new GameEngine(MAP.board, MAP.catalog, createDice(7), cfg);
+  return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
 
 /** 事件首部三件套(折叠认 kind/seat + 族字段 + round/turn 首部摸照)。 */
@@ -545,10 +547,43 @@ describe("折叠投影器 · 珍宝族", () => {
 });
 
 describe("折叠投影器 · 金钱族相邻回填", () => {
-  it("stock(商市行情)落格表现态 Noop", () => {
-    const e = makeEngine();
-    foldEventBatch(e, [ev(0, { kind: "cashChanged", delta: -150, reason: "stock" })]);
-    expect(e.lastLandOutcome).toEqual({ kind: "Noop", causedBankruptcy: false });
+  it.each([
+    { seed: 7, own: false, direction: "上涨", kind: "PropertyAvailable", crossesPrice: true },
+    { seed: 1, own: false, direction: "下跌", kind: "PropertyAvailable" },
+    { seed: 7, own: true, direction: "上涨", kind: "OwnProperty" },
+    { seed: 1, own: true, direction: "下跌", kind: "OwnProperty" },
+  ])("商市%s交易链与权威一致", ({ seed, own, kind, direction, crossesPrice }) => {
+    const e = makeEngine(seed);
+    const market = MAP.board.tiles.find((t) => t.event === "market")!;
+    armPhase(e, { phase: "Playing", turnPhase: "Roll", activeIndex: 0 });
+    placePlayer(e, 0, market.index - 1);
+    if (own) grantProperty(e, 0, market.propertyId!, 0);
+    if (crossesPrice) setCash(e, 0, MAP.catalog.get(market.propertyId!)!.purchasePrice - 50);
+    pinDice(e, "march", [1]);
+    const replica = makeEngine();
+    replica.restoreFromSnapshot(e.snapshot());
+
+    e.submitCommand({ type: "rollAndMove" });
+    const batch: GameEvent[] = JSON.parse(JSON.stringify(e.gameEvents));
+    const swing = batch.find((event) => event.kind === "cashChanged" && event.reason === "stock");
+    if (swing?.kind !== "cashChanged") throw new Error("商市真实事件批缺行情结算");
+    expect(Math.sign(swing.delta)).toBe(direction === "上涨" ? 1 : -1);
+    expect(e.pendingLand).toEqual({ kind, propertyId: market.propertyId! });
+    foldEventBatch(replica, batch);
+
+    expect({
+      cash: replica.activePlayer.cash,
+      turnPhase: replica.turnPhase,
+      pendingLand: replica.pendingLand,
+      lastLandOutcome: replica.snapshot().lastLandOutcome,
+      choices: replica.choicesFor(),
+    }).toEqual({
+      cash: e.activePlayer.cash,
+      turnPhase: e.turnPhase,
+      pendingLand: e.pendingLand,
+      lastLandOutcome: e.snapshot().lastLandOutcome,
+      choices: e.choicesFor(),
+    });
   });
 });
 

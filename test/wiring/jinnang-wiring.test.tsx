@@ -10,7 +10,8 @@ import { useNetStore } from "@app/store/netStore";
 import { GameEngine, type GameCommand, type SeatConfig } from "@core/authority";
 import { loadMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
-import { giveJinnang } from "@core/planter";
+import { armHero, armPhase, giveJinnang, setJinnangUsedTags, setStamina } from "@core/planter";
+import { skillOptionId } from "@core/choices";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
@@ -33,8 +34,8 @@ let present: OrchestratorModule["present"];
 let createEngineSink: SinksModule["createEngineSink"];
 
 /** 接线控制器面(GameController 生产基类的最小子型 + resync 测试口;构造见 beforeAll)。 */
-type WiringController = GameControllerClass & { resync(): void };
-let newWiringController: (e: GameEngine) => WiringController;
+type WiringController = GameControllerClass & { resync(): void; completeCommand(): void };
+let newWiringController: (e: GameEngine, deferCommands: boolean) => WiringController;
 
 const MAP = loadMap(guanzhongData);
 const SEED = 67; // 锦囊族既定锚(react-jinnang/peek/self-target 三 spec 同源离线核算,头注第 2 步)
@@ -88,15 +89,19 @@ function mount(): HTMLElement {
 /** 种局→布场→注册控制器→基类 sync 灌 store→挂屏(每例开头同款一条龙)。
  *  writeEngine = 进程内引擎直写 + 重灌 store(与 e2e 种植件裸写形同语义的无桥同构,
  *  判词见模板头注;旧名 force 已随 #1303 退役,勿复用)。 */
-function startGame(plant: (e: GameEngine) => void): {
+function startGame(
+  plant: (e: GameEngine) => void,
+  deferCommands = false,
+): {
   el: HTMLElement;
   engine: GameEngine;
   writeEngine: (write: (e: GameEngine) => void) => void;
   snap: () => GameSnapshot;
+  completeCommand: () => void;
 } {
   const e = seedPlayingEngine();
   plant(e);
-  const c = newWiringController(e);
+  const c = newWiringController(e, deferCommands);
   setController(c);
   act(() => {
     c.resync();
@@ -112,6 +117,7 @@ function startGame(plant: (e: GameEngine) => void): {
       });
     },
     snap: () => useGameStore.getState().snapshot!,
+    completeCommand: () => act(() => c.completeCommand()),
   };
 }
 
@@ -178,7 +184,11 @@ beforeAll(async () => {
   // + 基类 sync 状态桥(模板同款;房间编排/传输/看门狗是层③领域不进来)。
   const Base = ctrlMod.GameController;
   class WiringControllerImpl extends Base {
-    constructor(private readonly e: GameEngine) {
+    private pendingCommand: GameCommand | null = null;
+    constructor(
+      private readonly e: GameEngine,
+      private readonly deferCommands: boolean,
+    ) {
       super();
     }
     override get engine(): GameEngine {
@@ -193,15 +203,29 @@ beforeAll(async () => {
     }
     protected override readonly hotSeat = true;
     override dispatchCommand(cmd: GameCommand): void {
+      if (this.deferCommands) {
+        // 传输边界分拍:与生产控制器同样先上 pending 锁,回包拍再执行真实命令。
+        this.pendingCommand = cmd;
+        this.pending = true;
+        this.sync();
+        return;
+      }
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
       this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
+    }
+    completeCommand(): void {
+      if (this.pendingCommand == null) throw new Error("接线测试:没有待回包命令");
+      this.e.submitCommand(this.pendingCommand);
+      this.pendingCommand = null;
+      this.pending = false;
+      this.sync();
     }
     // 测试侧重灌口(protected sync 的公开面;直写引擎后调)。
     resync(): void {
       this.sync();
     }
   }
-  newWiringController = (e) => new WiringControllerImpl(e);
+  newWiringController = (e, deferCommands) => new WiringControllerImpl(e, deferCommands);
 });
 
 beforeEach(() => {
@@ -227,6 +251,109 @@ afterAll(async () => {
   // 「window is not defined」——window 还在时让完这一拍再拆 happy-dom。
   await new Promise((r) => setTimeout(r, 0));
   await releaseHappyDom();
+});
+
+describe("手牌架内容与临时显隐", () => {
+  it("同一出牌窗遣散命令在途与回包都保留手动收架", async () => {
+    const { el, engine, snap, completeCommand } = startGame((e) => {
+      for (let seat = 0; seat < e.players.length; seat++) giveJinnang(e, seat, []);
+      giveJinnang(e, 0, ["横征暴敛"]);
+      armHero(e, 0, "caopi", ["fangzhu"]);
+      armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    }, true);
+    const window = () => [snap().phase, snap().turnPhase, snap().turnNumber, snap().activeIndex];
+    const before = window();
+    expect(snap().turnPhase).toBe("AwaitingJinnang");
+    click(q(el, TESTIDS.jinnangToggle)!);
+    expect(q(el, TESTIDS.jinnangRack) === null).toBe(true);
+    click(q(el, TESTIDS.pileHeroes)!);
+    await settle();
+    click(modalQ(TESTIDS.heroDismiss("caopi"))!);
+    click(modalQ(TESTIDS.heroDismiss("caopi"))!);
+    expect(useGameStore.getState().interactive).toBe(false);
+    expect(window()).toEqual(before);
+    expect(q(el, TESTIDS.jinnangRack) === null).toBe(true);
+    completeCommand();
+    expect(useGameStore.getState().interactive).toBe(true);
+    expect(engine.players[0].heroes).toEqual([]);
+    expect(window()).toEqual(before);
+    expect(q(el, TESTIDS.jinnangRack) === null).toBe(true);
+  });
+
+  it("内容变化即时对齐自动显隐,手动开收保留至回合或窗态边界,收架仍能应答", () => {
+    const { el, engine, writeEngine } = startGame((e) => {
+      for (let seat = 0; seat < e.players.length; seat++) giveJinnang(e, seat, []);
+      armPhase(e, { activeIndex: 0, turnPhase: "Roll" });
+    });
+    const rack = () => q(el, TESTIDS.jinnangRack);
+    const toggle = () => click(q(el, TESTIDS.jinnangToggle)!);
+    expect(q(el, TESTIDS.handZone) === null).toBe(true);
+    // 同一回合首次抽牌无需相位变化即可展开。
+    writeEngine((e) => {
+      expect(e.drawJinnang(0, 1)).toBe(1);
+    });
+    expect(rack() !== null).toBe(true);
+    writeEngine((e) => {
+      giveJinnang(e, 0, ["横征暴敛"]);
+      armPhase(e, { turnPhase: "AwaitingJinnang" });
+    });
+    click(q(el, TESTIDS.jinnangCard("横征暴敛"))!);
+    click(q(document, TESTIDS.actionbarPlay)!);
+    expect(engine.players[0].jinnangHand).toEqual([]);
+    expect(q(el, TESTIDS.handZone) === null).toBe(true);
+    // 空态手动入口保留;内容增减不覆盖玩家本次开/收。
+    toggle();
+    expect(rack() !== null).toBe(true);
+    writeEngine((e) => {
+      e.drawJinnang(0, 1);
+    });
+    writeEngine((e) => giveJinnang(e, 0, []));
+    expect(rack() !== null).toBe(true);
+    toggle();
+    writeEngine((e) => giveJinnang(e, 0, ["识破诡计"]));
+    expect(rack() === null).toBe(true);
+    writeEngine((e) => e.endTurn());
+    writeEngine((e) => armPhase(e, { activeIndex: 0, turnPhase: "Roll" }));
+    expect(rack() !== null).toBe(true); // 只有反应牌也算内容,新回合复位手动收。
+    writeEngine((e) => {
+      giveJinnang(e, 0, ["横征暴敛"]);
+      setJinnangUsedTags(e, ["攻"]);
+      armPhase(e, { turnPhase: "AwaitingJinnang" });
+    });
+    expect(q(el, TESTIDS.jinnangCard("横征暴敛"))!.getAttribute("aria-disabled")).toBe("true");
+    writeEngine((e) => giveJinnang(e, 0, []));
+    expect(rack() === null).toBe(true);
+    writeEngine((e) => armHero(e, 0, "zhangxingcai", ["leigu"]));
+    expect(q(el, TESTIDS.jinnangCard(skillOptionId("zhangxingcai", "leigu"))) !== null).toBe(true);
+    toggle();
+    writeEngine((e) => armPhase(e, { turnPhase: "Roll" }));
+    writeEngine((e) => armPhase(e, { turnPhase: "AwaitingJinnang" }));
+    expect(rack() !== null).toBe(true); // 新窗按当前主动技内容重新对齐。
+    // 反应横幅在手动收架后仍可“不用”,命令走真实反应窗。
+    writeEngine((e) => {
+      giveJinnang(e, 0, ["识破诡计"]);
+      giveJinnang(e, 1, ["横征暴敛"]);
+      setJinnangUsedTags(e, []);
+      armPhase(e, { activeIndex: 1, turnPhase: "AwaitingJinnang" });
+      e.submitCommand({ type: "useJinnang", cardId: "横征暴敛" });
+    });
+    toggle();
+    expect(q(document, TESTIDS.reactionBanner) !== null).toBe(true);
+    click(q(document, TESTIDS.reactionDecline)!);
+    expect(engine.pendingReaction).toBeNull();
+    // 无牌的触发技能询问只挂横幅,空架不影响应答通路。
+    writeEngine((e) => {
+      giveJinnang(e, 0, []);
+      armPhase(e, { activeIndex: 0, turnPhase: "Roll" });
+      armHero(e, 0, "caopi", ["fangzhu"]);
+      setStamina(e, 0, 30);
+      e.endTurn();
+    });
+    expect(q(el, TESTIDS.jinnangHand) === null).toBe(true);
+    expect(q(document, TESTIDS.skillChoiceBanner) !== null).toBe(true);
+    click(q(document, TESTIDS.skillChoiceDecline)!);
+    expect(engine.turnPhase).not.toBe("AwaitingSkillChoice");
+  });
 });
 
 describe("军情密探即时窥探弹层(自 react-jinnang-peek 迁入,#1315 批T1)", () => {

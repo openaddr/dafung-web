@@ -270,6 +270,40 @@ afterAll(async () => {
   await releaseHappyDom();
 });
 
+describe("城池待决策卷轴", () => {
+  it.each([
+    { kind: "PropertyAvailable" as const, action: "buy", scroll: T.buyScroll },
+    { kind: "OwnProperty" as const, action: "upgrade", scroll: T.upgradeScroll },
+  ])("金额表现清空后仍能通过%s卷轴完成城池决策", async ({ kind, action, scroll }) => {
+    const { el, engine, plant, snap } = startGame();
+    const tile = engine.board.tiles.find(
+      (t) => t.propertyId != null && engine.findOwner(t.propertyId) == null,
+    )!;
+    const propertyId = tile.propertyId!;
+    const price = engine.catalog.get(propertyId)!.purchasePrice;
+    plant({ kind: "setCash", seat: 0, cash: price + 1000 });
+    if (kind === "OwnProperty") plant({ kind: "grantProperty", seat: 0, propertyId, level: 0 });
+    plant({ kind: "armLanding", landing: { kind, propertyId } });
+    plant({ kind: "armPhase", turnPhase: "AwaitingDecision", activeIndex: 0 });
+    // 组件公共输入缝:金额表现允许独立更新,待决策载荷仍是引擎种出的真实上下文。
+    act(() => {
+      useGameStore.setState({
+        snapshot: { ...snap(), lastLandOutcomeKind: "Noop", lastLandOutcomeProperty: null },
+      });
+    });
+    await clock.advance(GHOST.frameMs);
+    expect(q(el, scroll) !== null).toBe(true);
+    const confirm = q(el, TESTIDS.actionButton(action))!;
+    expect(confirm.hasAttribute("disabled")).toBe(false);
+    click(confirm);
+    expect(snap().turnPhase).not.toBe("AwaitingDecision");
+    expect(snap().players[0].properties.find((h) => h.propertyId === propertyId)!.level).toBe(
+      kind === "OwnProperty" ? 1 : 0,
+    );
+    expect(snap().players[0].cash).toBe(kind === "OwnProperty" ? price + 1000 : 1000);
+  });
+});
+
 describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
   // ── ①先看后选拍板(react-scrolls 招贤例迁入)──
   // 断言面:tryRecruitHero 公共方法真掷候选(候选行=引擎真产物,非伪造 offeredHeroes,
