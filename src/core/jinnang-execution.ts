@@ -553,13 +553,12 @@ function fireHeroSkill(
 
 /** 火攻定向结算(#1388 T2,规格 #1386):对目标城(tileIndex 载荷)造成技表 damage 点
  *  火焰伤害,结算单点=defense.applyFireDamage(T1 交付,本域只消费不复制)。合法性
- *  (射程/等级/城主/冷却)单源目标段选项集(choices.heroSkillCityTargets 装配 +
+ *  (射程/城主/冷却)单源目标段选项集(choices.heroSkillCityTargets 装配 +
  *  resolveHeroSkill 提交复验),本函数只结算;空格/无主到达此处=目标门被绕过,响亮炸
  *  (零兜底)。
  *  战报=「主动技【火攻】」来源段风格,果分文案:demolished=城防降为 N 级 /
- *  absorbed=防御值降至 N(0 级都城打空=打空吸收)/ lost=失城「X」——lost 在火攻
- *  不可达(目标门要求等级>0,等级>0 城在单点内只会降级不归失城分支),到得了即目标门
- *  被绕过,当场炸(零兜底)。
+ *  absorbed=防御值降至 N(0 级都城打空=打空吸收)/ lost=城回无主(0 级非都城可指定,
+ *  防御归零后失城,#1493)。
  *  #457 现状拍板:城损时机(PropertyDemolished/Lost)只挂锦囊路调用侧,火攻技路
  *  不派,本票不翻转;降级/失城留痕(propertyChanges)由单点内照 ADR-0015 写。 */
 function fireBlastOnCity(
@@ -577,17 +576,17 @@ function fireBlastOnCity(
   if (victim == null)
     throw new Error(`火攻目标城 ${propId} 无主(无主城不受火焰伤害,目标门应已拦,状态机 bug)`);
   const cityName = g.board.at(tileIndex).name;
-  const outcome = applyFireDamage(g, victim, propId, damage);
-  if (outcome.kind === "lost")
-    throw new Error(`火攻结算出 lost(城 ${propId} 应为等级>0):目标门被绕过(状态机 bug)`);
   const h = findHolding(victim, propId);
-  if (h == null) throw new Error(`火攻结算后城 ${propId} 不在 ${victim.guohao} 名下(状态机 bug)`); // 零兜底
+  if (h == null) throw new Error(`火攻目标城 ${propId} 不在 ${victim.guohao} 名下(状态机 bug)`); // 零兜底
+  const outcome = applyFireDamage(g, victim, propId, damage);
   const resultTxt =
-    outcome.kind === "demolished"
-      ? `城防降为 ${h.level} 级`
-      : h.defense === 0
-        ? "防御值打空,火焰伤害被吸收"
-        : `防御值降至 ${h.defense}`;
+    outcome.kind === "lost"
+      ? "失守,城回无主"
+      : outcome.kind === "demolished"
+        ? `城防降为 ${h.level} 级`
+        : h.defense === 0
+          ? "防御值打空,火焰伤害被吸收"
+          : `防御值降至 ${h.defense}`;
   g.logEvent(
     "system",
     user.guohao,
@@ -890,8 +889,7 @@ export function executeJinnang(
  *  免城宣告归识破窗(jinnangVoided),此处不留痕。
  *  果分战报逐城一行(来源段「使用锦囊【火烧连营】」):demolished=城防降为 N 级 /
  *  lost=失「城名」回无主 / absorbed=防御值降至 N(0 级都城打空=打空吸收)——lost 与
- *  打空 absorbed 两果经火烧连营门可达(0 级非都城可烧毁、都城可降打空即停),与火攻
- *  技路(fireBlastOnCity,lost 不可达)不同。
+ *  打空 absorbed 两果均可达(0 级非都城可烧毁、都城可降打空即停),与火攻技路同口径。
  *  #457 口径延续:城损时机(PropertyDemolished/Lost)按果择一逐城派,absorbed 不派;
  *  降级/失城留痕(propertyChanges)由单点内照 ADR-0015 写。 */
 function fireWallStrike(

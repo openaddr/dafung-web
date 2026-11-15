@@ -278,8 +278,8 @@ export function cityTargetOptionId(tileIndex: number): string {
 }
 
 /** 火攻合法城清单(#1388 T2 城目标域,目标域谓词全局唯一单源):userSeat 视角下全部
- *  「距离 ≤ 技表 params.range(双向最短,board.distance,#1386)且城池等级>0 且城主为他人」
- *  的城。都城在域内合法(可降级,打空即停由 defense 单点管);无主城/己城/0 级城/射程外
+ *  「距离 ≤ 技表 params.range(双向最短,board.distance,#1386)且城主为他人」
+ *  的城,含 0 级城(#1493)。都城在域内合法(可降级,打空即停由 defense 单点管);无主城/己城/射程外
  *  一律不入选。choices 选项装配、目标段候选、bot 策略全回查本口,UI/bot 不复制谓词
  *  (ADR-0013)。确定性:座位序×持有序遍历,排序归消费方(bot 自带打分)。 */
 export interface HeroSkillCityTarget {
@@ -306,7 +306,6 @@ export function heroSkillCityTargets(
     const seat = e.players.indexOf(owner);
     if (seat === userSeat || owner.isBankrupt) continue;
     for (const h of owner.properties) {
-      if (h.level <= 0) continue; // 等级门:0 级城不可指定(打空即失的门不在此开)
       const tileIndex = tileIndexOfProperty(e.board, h.propertyId);
       const distance = e.board.distance(me.position, tileIndex);
       if (distance > range) continue; // 射程门
