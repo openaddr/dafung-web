@@ -15,6 +15,12 @@ installDebugHooks();
 // 名将池与客户端扩展面(动画/渲染)即全量;零包环境为空表,行为与无扩展完全一致。
 await loadInstalledExtensionPackages();
 
+// THROWAWAY #1401: 仅本原型分支存在；真实棋盘语境中的单次设计对照。
+if (import.meta.env.DEV && new URLSearchParams(location.search).get("prototype") === "bankruptcy") {
+  const { bootBankruptcyPrototype } = await import("./screens/game/scroll/BankruptcyPrototypeBoot");
+  await bootBankruptcyPrototype();
+}
+
 const rootEl = document.getElementById("app");
 if (!rootEl) throw new Error("#app 根元素缺失");
 

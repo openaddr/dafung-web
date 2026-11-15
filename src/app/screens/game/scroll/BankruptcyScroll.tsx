@@ -17,8 +17,9 @@ import type { SnapshotTreasure } from "@app/store/gameStore";
 import { TreasurePickModal } from "../TreasurePickModal";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
+import { BankruptcyPrototype } from "./BankruptcyPrototype";
 
-interface BankruptcyScrollProps {
+export interface BankruptcyScrollProps {
   /** 待清算玩家国号。 */
   guohao: string;
   /** 当前现金(算尚欠缺口;每笔变卖入账已含,随快照实时刷新)。 */
@@ -43,7 +44,17 @@ interface BankruptcyScrollProps {
   onCommand: (cmd: GameCommand) => void;
 }
 
-export function BankruptcyScroll({
+export function BankruptcyScroll(props: BankruptcyScrollProps) {
+  if (
+    import.meta.env.DEV &&
+    new URLSearchParams(location.search).get("prototype") === "bankruptcy"
+  ) {
+    return <BankruptcyPrototype {...props} />;
+  }
+  return <BankruptcyScrollProduction {...props} />;
+}
+
+function BankruptcyScrollProduction({
   guohao,
   cash,
   debtAmount,
