@@ -190,6 +190,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "gameOver":
       case "diceRolled":
       case "marchArrived":
+      case "landingResolved":
       case "capitalHalt":
       case "capitalSelected":
       case "propertyBought":

@@ -18,6 +18,7 @@
 //     模块结算点直呼,reason 用领域词
 //     短横 slug(供应/税/行情/机遇/横征/连环/天命/耗竭……开放词表,新来源即新 slug)。
 import type { GameEngine, GameCommand, VictoryReason } from "./authority";
+import type { LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
 import type { EncounterTier } from "./encounters";
 import type { MovePath } from "./board";
@@ -102,6 +103,17 @@ export interface MarchArrivedBody {
   kind: "marchArrived";
   tileIndex: number;
   path: MovePath;
+}
+/** 落格结算落定:机遇与固定事件效果落账后,权威宣告最终相位及决策载荷。
+ *  行军到达只负责落位,客户端不得在效果落账前推演购地/扩军/珍宝交涉。
+ *  招贤候选仍由既有 AwaitingHeroPick 校准同步,本事件只携落格公开事实。 */
+export interface LandingResolvedBody {
+  kind: "landingResolved";
+  turnPhase: "AwaitingDecision" | "AwaitingTreasureOwner" | "AwaitingHeroPick";
+  pendingLand: PendingLand | null;
+  pendingCityEvent: boolean;
+  treasureVisitor: { propertyId: string; ownerIdx: number } | null;
+  outcome: LandOutcomeSnapshot & { ownerSeat: number | null };
 }
 /** 都城驻跸(经过己都城必停;补给金额随后以 cashChanged reason="supply" 跟进)。
  *  path=截断到都城的行军路径(#385 同 marchArrived 口径)。 */
@@ -412,6 +424,7 @@ export type GameEventBody =
   | GameOverBody
   | DiceRolledBody
   | MarchArrivedBody
+  | LandingResolvedBody
   | CapitalHaltBody
   | CapitalSelectedBody
   | PropertyBoughtBody
@@ -466,6 +479,7 @@ export const GAME_EVENT_KINDS = [
   "gameOver",
   "diceRolled",
   "marchArrived",
+  "landingResolved",
   "capitalHalt",
   "capitalSelected",
   "propertyBought",
