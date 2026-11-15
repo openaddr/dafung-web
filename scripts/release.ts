@@ -1,236 +1,119 @@
-// 发版一条命令:出安卓安装包(APK)→ git tag → GitHub Releases(带 APK 资产)。
-// 用法:bun scripts/release.ts [--draft] [--dry-run]
-//   --draft   发布为草稿,网页核对后手动 publish
-//   --dry-run 只跑前置对账,不构建不发布
-// 前置:①主树运行(workspace 无 .git,git tag 通路不通);②@ 为空停靠且父=master@origin
-//   (树上内容=发布内容);③Android 环境四件套在位(缺了 tauri build 自行响亮报错,不兜底);
-//   ④gh 已登录(未登录 create 步自行红)。
-// 版本单源 package.json(CalVer):发版前先 bump version 走 PR 合入 master(AGENTS.md 规约)。
-// 防挤兑(2026-11-01 拍板,多会话并行):①tag 查重重号即红;②tmp/release.lock 原子锁,
-//   撞锁红字让位、持锁超 1h 视为被杀残锁可接管——触发时机与三闸全量口径见 how-to「发版时机」。
-// 签名现状(#1060 起):构建档位=release 优化档(.so 140→23.7MB,APK 154→27.6MB 实测),
-// 签名仍 debug keystore(zipalign+apksigner 已固化进本脚本)——同签名可装、同机可覆盖
-// 升级;正式签名未配,配好再换 keystore。出包配方见 docs/how-to/开发与测试.md「安卓出包」。
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import * as path from "node:path";
+// 唯一发布入口:固定提交 → arm64 APK → 签名/核验 → tag/GitHub Release。
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { buildApk, readApkConfig, withApkBuildLock } from "./android-apk";
 
-const APK_OUT = "src-tauri/gen/android/app/build/outputs/apk";
-const ASSET_DIR = "tmp/release";
+const REPO = "openaddr/dafung-web";
 
-function run(cmd: string[], inherit = false): { ok: boolean; out: string } {
-  const proc = Bun.spawnSync(
-    cmd,
-    inherit ? { stdout: "inherit", stderr: "inherit" } : { stdout: "pipe", stderr: "pipe" },
-  );
-  const out = inherit
-    ? ""
-    : `${proc.stdout?.toString() ?? ""}\n${proc.stderr?.toString() ?? ""}`.trim();
-  return { ok: proc.exitCode === 0, out };
-}
-
-function red(msg: string): never {
-  console.error(`[release] ${msg}`);
-  process.exit(1);
-}
-
-const args = process.argv.slice(2);
-const draft = args.includes("--draft");
-const dryRun = args.includes("--dry-run");
-const known = ["--draft", "--dry-run"];
-if (args.some((a) => !known.includes(a))) {
-  red(
-    `未知参数 ${args.filter((a) => !known.includes(a)).join(" ")}——用法:bun scripts/release.ts [--draft] [--dry-run]`,
-  );
-}
-
-// 1) 主树闸:发版要 git tag + 推 tag。
-if (!existsSync(".git")) red("请在主树运行:发版要 git tag + 推 tag,workspace 无 .git 走不通。");
-
-// 0) 先 fetch 把 master@origin 拉新——对旧基线打 tag = 发出旧代码。
-const fetched = run(["jj", "git", "fetch"]);
-if (!fetched.ok) red(`jj git fetch 失败:${fetched.out}`);
-
-// 2) 停靠位闸:@ 空、父=master@origin,树上内容才等于发布内容。
-const masterId = run(["jj", "log", "-r", "master@origin", "--no-graph", "-T", "commit_id"]).out;
-if (masterId.length !== 40) red(`master@origin 解析异常:${masterId}`);
-const atEmpty = run([
-  "jj",
-  "log",
-  "-r",
-  "@",
-  "--no-graph",
-  "-T",
-  'if(empty, "empty", "dirty")',
-]).out;
-const parentId = run(["jj", "log", "-r", "@-", "--no-graph", "-T", "commit_id"]).out;
-if (atEmpty !== "empty")
-  red("@ 非空——发布内容=树上内容,先清空 @(收账走 jj new master,残留先清掉)。");
-if (parentId !== masterId) {
-  red(
-    `@ 父(${parentId.slice(0, 9)})不是 master@origin(${masterId.slice(0, 9)})——先收账对齐基线(jj new master@origin)。`,
-  );
-}
-
-// 3) 版本与远端 tag 查重(版本号只能前进,重号即红)。
-const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
-const tag = `v${version}`;
-const remoteTag = run(["git", "ls-remote", "origin", `refs/tags/${tag}`]);
-if (!remoteTag.ok) red(`git ls-remote 失败:${remoteTag.out}`);
-if (remoteTag.out) red(`远端已有 ${tag}——先 bump package.json version 再发。`);
-console.log(
-  `[release] 发布目标 master@origin=${masterId.slice(0, 9)} tag=${tag}${draft ? " (draft)" : ""}${dryRun ? " (dry-run,到此为止)" : ""}`,
-);
-if (dryRun) process.exit(0);
-
-// 3.5) 发版锁(防并行会话挤兑出包):tmp/release.lock mkdir 原子锁(Git Bash 无 flock 的
-//    既有替代)。持锁超 1h 视为被杀残锁可接管——started-at 缺失/不可读同判,接管正是残锁
-//    的归宿而非吞错;exit handler 统一解锁(正常/失败路径都清,kill -9 才留残锁交给接管)。
-const LOCK_DIR = "tmp/release.lock";
-const STALE_MS = 60 * 60 * 1000;
-if (existsSync(LOCK_DIR)) {
-  let startedAt = 0;
-  try {
-    startedAt = Number(readFileSync(path.join(LOCK_DIR, "started-at"), "utf8"));
-  } catch {
-    startedAt = 0;
-  }
-  if (Date.now() - startedAt < STALE_MS) {
-    red(
-      `发版锁被占用(tmp/release.lock${startedAt ? `,起始 ${new Date(startedAt).toISOString()}` : ""})——另一会话发版进行中,本次变更滚入下一版勿抢;锁超 1h 视为残锁,删 tmp/release.lock 接管。`,
+function run(argv: string[]): string {
+  const result = Bun.spawnSync(argv, { stdout: "pipe", stderr: "pipe" });
+  if (result.exitCode !== 0)
+    throw new Error(
+      `${argv.join(" ")} 失败:\n${result.stdout.toString()}${result.stderr.toString()}`,
     );
-  }
-  console.log("[release] 发版锁超 1h 视为被杀残锁,接管。");
+  return result.stdout.toString().trim();
 }
-mkdirSync(LOCK_DIR, { recursive: true });
-writeFileSync(path.join(LOCK_DIR, "started-at"), String(Date.now()));
-process.on("exit", () => {
-  try {
-    rmSync(LOCK_DIR, { recursive: true, force: true });
-  } catch {
-    // exit handler 内不可抛(会吞退出码):解锁失败留残锁,1h 后自动可接管
+
+async function release(): Promise<void> {
+  const args = process.argv.slice(2);
+  let configPath: string | undefined;
+  const flags = new Set<string>();
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    if (arg === "--config" && configPath === undefined) {
+      configPath = args[++i];
+      if (!configPath || configPath.startsWith("--")) throw new Error("--config 缺少 JSON 路径");
+    } else if (["--draft", "--dry-run", "--build-only"].includes(arg) && !flags.has(arg)) {
+      flags.add(arg);
+    } else throw new Error(`未知或重复参数:${arg}`);
   }
+  if (!configPath)
+    throw new Error("用法:bun run release --config <本机 JSON> [--draft|--build-only] [--dry-run]");
+  if (flags.has("--draft") && flags.has("--build-only"))
+    throw new Error("--draft 与 --build-only 不能并用");
+  const config = readApkConfig(resolve(configPath));
+  const buildOnly = flags.has("--build-only");
+  if (!buildOnly) {
+    if (run(["jj", "workspace", "root"]) !== resolve(import.meta.dir, ".."))
+      throw new Error("请从发布入口所在仓库根目录运行");
+    if (run(["jj", "workspace", "root", "--name", "default"]) !== process.cwd())
+      throw new Error("正式发版只从主树空停靠运行");
+    run(["jj", "git", "fetch"]);
+  }
+  const commit = run(["jj", "log", "-r", "@-", "--no-graph", "-T", "commit_id"]);
+  if (run(["jj", "log", "-r", "@", "--no-graph", "-T", 'if(empty, "empty", "dirty")']) !== "empty")
+    throw new Error("@ 必须为空停靠;先 describe 固定源码,再 jj new 留出停靠层");
+  if (
+    !buildOnly &&
+    commit !== run(["jj", "log", "-r", "master@origin", "--no-graph", "-T", "commit_id"])
+  )
+    throw new Error("发布父提交不是最新 master@origin,先收账对齐");
+  const pkg = JSON.parse(run(["git", "show", `${commit}:package.json`])) as { version: string };
+  if (!/^\d{4}\.[1-9]\d?\.\d+$/.test(pkg.version)) throw new Error(`非法版本:${pkg.version}`);
+  const tag = `v${pkg.version}`;
+  const assertNewTag = () => {
+    if (run(["git", "ls-remote", "origin", `refs/tags/${tag}`]))
+      throw new Error(`远端已有 ${tag},先 bump package.json 并经 PR 合入`);
+    run(["gh", "auth", "status"]);
+  };
+  if (!buildOnly) assertNewTag();
+  console.log(`[release] commit=${commit} tag=${tag};仅构建/交付 arm64 APK`);
+  if (flags.has("--dry-run")) return;
+
+  await withApkBuildLock(config.buildRoot, commit, async () => {
+    if (!buildOnly) assertNewTag();
+    const out = resolve("tmp/release", commit);
+    mkdirSync(out, { recursive: true });
+    const report = buildApk(config, commit, tag, out);
+    if (!buildOnly) {
+      const localTag = Bun.spawnSync(["git", "rev-parse", "--verify", `refs/tags/${tag}^{commit}`]);
+      if (localTag.exitCode === 0 && localTag.stdout.toString().trim() !== commit)
+        throw new Error(`本地 ${tag} 指向其他提交,人工核对后处理`);
+      if (localTag.exitCode !== 0) run(["git", "tag", tag, commit]);
+      run(["git", "push", "origin", `refs/tags/${tag}`]);
+      const create = [
+        "gh",
+        "release",
+        "create",
+        tag,
+        report.apk,
+        "--repo",
+        REPO,
+        "--verify-tag",
+        "--generate-notes",
+        "--title",
+        tag,
+      ];
+      if (flags.has("--draft")) create.push("--draft");
+      run(create);
+      const remote = JSON.parse(run(["gh", "api", `repos/${REPO}/releases/tags/${tag}`])) as {
+        html_url: string;
+        assets: { name: string; size: number; digest: string; browser_download_url: string }[];
+      };
+      const [asset] = remote.assets;
+      if (
+        remote.assets.length !== 1 ||
+        !asset ||
+        asset.name !== `${tag}-aarch64.apk` ||
+        asset.size !== report.size ||
+        asset.digest !== `sha256:${report.sha256}`
+      )
+        throw new Error("远端 Release 资产或 SHA256 与本地 APK 不一致");
+      Object.assign(report, {
+        releaseUrl: remote.html_url,
+        downloadUrl: asset.browser_download_url,
+      });
+      console.log(`[release] ${asset.browser_download_url}`);
+    }
+    if (createHash("sha256").update(readFileSync(report.apk)).digest("hex") !== report.sha256)
+      throw new Error("交付前 APK 内容发生变化");
+    writeFileSync(resolve(out, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+    console.log(`[release] 完成:${report.apk};SHA256=${report.sha256}`);
+  });
+}
+
+release().catch((error: unknown) => {
+  console.error(`[release] ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
 });
-// 锁内重查 tag(拿锁前的查重结论会过期:并行发版可能刚把它发掉)
-const remoteTagRe = run(["git", "ls-remote", "origin", `refs/tags/${tag}`]);
-if (!remoteTagRe.ok) red(`git ls-remote 失败:${remoteTagRe.out}`);
-if (remoteTagRe.out)
-  red(`远端已有 ${tag}(拿锁前查重后被并行会话发掉)——bump package.json version 再发。`);
-
-// 4) 出包(release 优化档,#1060 发版政策切换:debug 档 .so 140MB→release 23.7MB,
-//    APK 154→27.6MB 实测)。产物目录名随 CLI 布局走(#894 实测 2.11.4 落 universal/
-//    而非目标名),按「唯一未签名 APK」定位不写死布局;包内 ABI 由 --target 过滤,
-//    断言纯度防 jniLibs 残挂混包。
-const build = run(["bunx", "tauri", "android", "build", "--target", "aarch64"], true);
-if (!build.ok) red("tauri android build 失败——环境四件套/上游报错看上方输出。");
-const found = [
-  ...new Bun.Glob("*/release/app-universal-release-unsigned.apk").scanSync({
-    cwd: APK_OUT,
-    onlyFiles: true,
-  }),
-];
-if (found.length !== 1) {
-  red(
-    `产物应恰有一个未签名 APK,实得 ${found.length} 个:${found.join(" ") || "(无)"}——布局切换期的陈旧产物先清掉再发。`,
-  );
-}
-const unsignedApk = `${APK_OUT}/${found[0]}`;
-const meta = JSON.parse(
-  readFileSync(`${path.dirname(unsignedApk)}/output-metadata.json`, "utf8"),
-) as {
-  elements?: { versionName?: string }[];
-};
-const apkVersion = meta.elements?.[0]?.versionName;
-if (apkVersion !== version) {
-  red(
-    `版本对账失败:APK versionName=${apkVersion} ≠ package.json ${version}——产物陈旧或 tauri.conf 引用链断,先排查。`,
-  );
-}
-
-// 4.5) 签名(release 档 gradle 不自动签):debug keystore 与历史装机件同源——
-//    同签名可装、同机可覆盖升级;zipalign→apksigner 固化进脚本,失败响亮红出。
-const buildTools = path.join(process.env.ANDROID_HOME ?? "", "build-tools");
-if (!existsSync(buildTools))
-  red(`ANDROID_HOME 未设或缺 build-tools(${buildTools})——签名工具不可达。`);
-const tool = (name: string): string => {
-  const candidates = readdirSync(buildTools)
-    .filter((d) => existsSync(path.join(buildTools, d, name)))
-    .sort((a, b) => {
-      const pa = a.split(".").map(Number);
-      const pb = b.split(".").map(Number);
-      return (
-        (pb[0] ?? 0) - (pa[0] ?? 0) || (pb[1] ?? 0) - (pa[1] ?? 0) || (pb[2] ?? 0) - (pa[2] ?? 0)
-      );
-    });
-  if (candidates[0] == null) red(`build-tools 下找不到 ${name}——SDK 安装不完整。`);
-  return path.join(buildTools, candidates[0], name);
-};
-const keystore = path.join(process.env.USERPROFILE ?? "", ".android", "debug.keystore");
-if (!existsSync(keystore)) red(`debug.keystore 不在(${keystore})——签名通路不可达。`);
-mkdirSync(ASSET_DIR, { recursive: true });
-const aligned = `${ASSET_DIR}/${tag}-aligned.apk`;
-if (!run([tool("zipalign.exe"), "-f", "4", unsignedApk, aligned]).ok) red("zipalign 失败。");
-const apksigner = tool("apksigner.bat");
-const apk = `${ASSET_DIR}/${tag}-aarch64.apk`;
-const signed = run([
-  "cmd",
-  "/c",
-  apksigner,
-  "sign",
-  "--ks",
-  keystore,
-  "--ks-key-alias",
-  "androiddebugkey",
-  "--ks-pass",
-  "pass:android",
-  "--key-pass",
-  "pass:android",
-  "--out",
-  apk,
-  aligned,
-]);
-if (!signed.ok) red(`apksigner 签名失败:${signed.out}`);
-rmSync(aligned); // 中间产物(对齐未签)不留盘
-const libEntries = run(["unzip", "-l", apk])
-  .out.split("\n")
-  .map((l) => l.trim().split(/\s+/).pop() ?? "")
-  .filter((p) => p.startsWith("lib/"));
-if (libEntries.length === 0 || !libEntries.every((p) => p.startsWith("lib/arm64-v8a/"))) {
-  const abis = [...new Set(libEntries.map((p) => p.split("/")[1]))].join(" ");
-  red(`包内 native 库非 arm64 单架构(${abis || "无 native 库"})——jniLibs 残挂陈旧 ABI,清掉重发。`);
-}
-
-// 5) tag + 推远端(幂等:同指已存在跳过;异指红出人工核对)。
-const localTag = run(["git", "rev-parse", "-q", "--verify", `refs/tags/${tag}^{commit}`]);
-if (localTag.ok && localTag.out !== masterId) {
-  red(
-    `本地 ${tag} 已存在且指向 ${localTag.out.slice(0, 9)} ≠ ${masterId.slice(0, 9)}——人工核对后删重打。`,
-  );
-}
-if (!localTag.ok && !run(["git", "tag", tag, masterId]).ok) red("git tag 失败。");
-if (!run(["git", "push", "origin", `refs/tags/${tag}`], true).ok) {
-  red("推 tag 失败——修好网络/权限重跑(已做步骤幂等跳过)。");
-}
-
-// 6) 发 Release(签名产物已在资产位;--generate-notes 按提交史生成 body)。
-mkdirSync(ASSET_DIR, { recursive: true });
-const asset = apk;
-const ghArgs = [
-  "gh",
-  "release",
-  "create",
-  tag,
-  asset,
-  "--verify-tag",
-  "--generate-notes",
-  "--title",
-  tag,
-];
-if (draft) ghArgs.push("--draft");
-const created = run(ghArgs, true);
-if (!created.ok)
-  red(
-    `gh release create 失败——若 Release 已存在,gh release view ${tag} 核对后手动补资产或删了重跑。`,
-  );
-console.log(
-  `[release] 完成:${tag} 已发布,资产 ${asset}(release 优化档,debug keystore 签名可装机);标题/notes 可 gh release edit 润色。`,
-);
