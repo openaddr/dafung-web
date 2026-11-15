@@ -202,6 +202,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "treasureTraded":
       case "treasureStolen":
       case "assetLiquidated":
+      case "bankruptcySettled":
       case "assetTransferred":
       case "heroRecruited":
       case "playerBankrupt":

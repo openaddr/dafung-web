@@ -1,6 +1,6 @@
 // 遣散域(#1147,spec #1144 拆票 C/五):免费主动遣散的机制单点——名册遣散命令
-// (dismissHero)的校验与结算。与破产变卖分流:cashHeroBankruptcy(bankruptcy.ts)是
-// 清算语境的「遣散换银 200 两」,本域是玩家主动的「遣散回池+折书」,免费、无声望代价。
+// (dismissHero)的校验与结算。玩家主动「遣散回池+折书」免费、无声望代价;
+// 清算期间禁止遣散,名将只能在实际破产后回池,不参与筹款。
 // 机制三件:槽移除(整槽弃,#785 同款——已授技与冷却账随槽俱弃,无孤儿键)+
 // recruitedHeroIds 划名回池(finalizeBankruptcy 同口径,再招=全新实例重掷授技)+
 // 已学技逐册折书(印书单源 makeSkillBook;每册 push 珍宝+战报一行+TreasureGained 时机
@@ -15,12 +15,13 @@ import { heroById } from "./heroes";
 import { foldSkillBookIntoTreasures } from "./roster";
 import { emitGameEvent } from "./game-events";
 
-/** 遣散一名麾下名将(#1147,免费主动遣散)。校验三道(违规 g.warn 留痕拒绝,与三变卖
+/** 遣散一名麾下名将(#1147,免费主动遣散)。校验四道(违规 g.warn 留痕拒绝,与变卖
  *  同款引擎硬闸风格,UI 永不裁决):
  *  ① 对局中(phase="Playing";Setup 选都期/终局不可遣散);
  *  ② 决策窗归行动者本人(自己回合随时可点;珍宝交涉 AwaitingTreasureOwner 等
  *     decisionOwner≠activeIndex 的他座决策窗拒绝——遣散是行动者本人的免费权);
- *  ③ 目标在麾下(空册/查无同径拒绝)。
+ *  ③ 非清算期(禁止遣散折书筹款);
+ *  ④ 目标在麾下(空册/查无同径拒绝)。
  * 结算序:槽移除+回池划名 → heroDismissed 事件 → 逐册折书(每册 push 珍宝+战报一行+
  * TreasureGained 派发)。执行者恒为 activePlayer:命令语义即「遣散我自己的将」,
  * 联机侧座位归属校验在房间编排层(applyCommandFromSeat,与一切命令同闸)。 */
@@ -31,6 +32,10 @@ export function dismissHero(g: GameEngine, heroId: string): void {
   }
   if (g.decisionOwner !== g.activeIndex) {
     g.warn("遣散:当前决策窗不归行动者本人(自己回合随时可点,他座决策窗除外)");
+    return;
+  }
+  if (g.turnPhase === "AwaitingBankruptcySettle") {
+    g.warn("遣散:清算期间不可主动遣散名将");
     return;
   }
   const p = g.activePlayer;

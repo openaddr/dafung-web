@@ -1,18 +1,6 @@
-// 组件收口:已收口——交易选宝/破产变卖共用,复用 PileShell→ui/dialog;二段式点选语义全在真 button 上(细则 docs/design/组件收口.md)
-// 交易选宝弹层(#362,spec #357 T5):城主交涉「公道买卖/坐地起价」选定后的选宝
-// 界面与破产变卖自救共用同一选择模式(视觉基准 proto/treasure/backpack.html 节三
-// 交易弹段)——PileShell 壳 + 装裱卡网格,点选=金描边上浮,价签随选中转「成交 · 至
-// N 两」(变卖恒「至 N 两」;坐地未选为双行「指导价/要价」,调用方 tagOf 给形);底部成交/变卖钮二段式防误触:第一段=预选态点亮
-// 「确认成交」,第二段=确认提交。选牌(可反悔)与成交(提交)分两段,替代旧
-// 「点牌名即成交」。
-// 协议零改:treasureId 原样进 resolveTreasureOwner / sellTreasureBankruptcy;拾取器
-// 是本地 UI 态,不是 ADR-0013 选项集(交涉三选仍在卷轴,两者不混)。
-// 卡格=真 <button> 包牌面(HandRack RackCard 同口径,交互语义不裸写 role)。
-// 矮横屏档语境行并入 footer(#833):844×390 首帧必须完整呈现一排「装裱卡+价签」,
-// 语境区按档换位——高档在体部顶(变卖进度 sticky 钉体部视口顶,点选/武装过程恒在),
-// 矮档并入 footer 槽(恒钉壳内下缘),体部让位 ~30-45px。分档走 JS 渲染而非 CSS
-// 双副本:context 由调用方注入且自带 testid(scroll-bankruptcy-pick-progress),
-// 双副本 = 重复 testid(strict mode 定位炸),故任一档只在场一份。
+// 组件收口:交易选宝沿用 PileShell→ui/dialog;二段式点选提交交涉命令。
+// 坐地起价与公道买卖共用装裱卡网格,点选=预选,两段确认后提交 treasureId。
+// 语境在矮横屏合入 footer,高档置于体部顶;任一档仅一份。
 import { useState, type ReactNode } from "react";
 import { useIsShortLandscape } from "@app/hooks/use-media-query";
 import { PileShell, PileZone } from "./PileModal";
@@ -22,15 +10,15 @@ import type { SnapshotTreasure } from "@app/store/gameStore";
 import "./pile-modal.css";
 import "./treasure-pick.css";
 
-/** 各流程的 testid 族(交涉=treasure*、破产=bankruptcy*;单源 scroll/testids.ts)。 */
+/** 交涉 testid 族(单源 scroll/testids.ts)。 */
 interface TreasurePickTestids {
   /** 弹层容器(DialogContent)。 */
   container: string;
   /** 珍宝卡格(点选=预选)。 */
   item: (treasureId: string) => string;
-  /** 成交/变卖钮(二段式)。 */
+  /** 成交钮(二段式)。 */
   confirm: string;
-  /** 底部返回钮(交涉=回模式选择步);不传=不渲染(变卖用右上 X/Esc 关层)。 */
+  /** 底部返回钮(回模式选择步);不传则不渲染。 */
   back?: string;
 }
 
@@ -39,23 +27,23 @@ interface TreasurePickTestids {
  *  理由见文件头注)。 */
 
 interface TreasurePickModalProps {
-  /** 题名(交涉=「公道买卖 · 选珍宝」随口径;破产=「变卖自救 · 变卖珍宝」)。 */
+  /** 题名(「公道买卖 · 选珍宝」等)。 */
   title: string;
-  /** 题名朱印小章单字(交/变)。 */
+  /** 题名朱印小章单字。 */
   seal: string;
   /** 副题行(语境一句)。 */
   sub: string;
-  /** 语境区(题名下、网格上):交涉=报价口径句;破产=已凑/债务进度条。 */
+  /** 语境区(题名下、网格上):报价口径句。 */
   context?: ReactNode;
   treasures: SnapshotTreasure[];
   /** 价签(随选中态):交涉未选=「指导价 N」/坐地双行「指导价+要价」小节,选中=「成交 ·
-   *  至 N 两」;变卖恒「至 N 两」。返回 ReactNode(字符串或双行小节)。 */
+   *  至 N 两」。返回 ReactNode(字符串或双行小节)。 */
   tagOf: (t: SnapshotTreasure, selected: boolean) => ReactNode;
   /** 底部结算预览句(选中才显示):「卖出 X · 入账 N 两 · 长安 +1 级」。 */
   summaryOf: (t: SnapshotTreasure) => string;
   /** 无预选时结算位的指引句。 */
   hint: string;
-  /** 成交/变卖钮基名(武装态加「确认」前缀)。 */
+  /** 成交钮基名(武装态加「确认」前缀)。 */
   confirmLabel: string;
   testids: TreasurePickTestids;
   /** 二段确认的提交(treasureId 原样,协议零改)。 */
@@ -106,9 +94,9 @@ export function TreasurePickModal({
               返回
             </button>
           )}
-          {/* ①矮横屏档语境行并入 footer(#833):交涉口径句并入钮行、变卖进度整行垫在
+          {/* ①矮横屏档语境行并入 footer(#833):交涉口径句并入钮行、语境整行垫在
               钮行上(footer 恒钉壳内下缘,点选/武装过程恒在);高档不渲染(体部顶副本
-              在场,变卖进度走 sticky 钉体部视口顶) */}
+              在场) */}
           {shortStage && context != null && (
             <div className="treasure-pick-foot-context">{context}</div>
           )}
@@ -136,8 +124,7 @@ export function TreasurePickModal({
         </div>
       }
     >
-      {/* 语境区分档在场(#833):高档在体部顶(变卖进度 sticky 钉视口顶,点选滚卡
-          恒在场);矮档不渲染(footer 副本接管),体部首帧让位给整排卡+价签 */}
+      {/* 语境区分档在场(#833):高档在体部顶;矮档不渲染(footer 副本接管),体部首帧让位给整排卡+价签 */}
       {!shortStage && context}
       <PileZone>待选 · {treasures.length} 件</PileZone>
       <div className="pile-grid">

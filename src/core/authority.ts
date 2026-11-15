@@ -57,16 +57,15 @@ import {
   settleEncounter,
 } from "./encounter-flow";
 // 破产清算+交割托管域(#321,ADR-0019):escrow 交割/退回、付款或清算、债务留痕结算、
-// 破产善后与凑足即止硬守卫、三变卖与清算确认在 bankruptcy.ts,壳内同名方法薄委托转发;
+// 破产善后、整批出售并清偿与认破产在 bankruptcy.ts,壳内同名方法薄委托转发;
 // 与 economy.ts 分层(清算流程≠经济交易原语)。
 import {
-  cashHeroBankruptcy,
+  declareBankruptcy,
   confirmBankruptcySettle,
+  type BankruptcyAsset,
   deliverEscrow,
   payOrLiquidate,
   returnEscrowToSeller,
-  sellPropertyBankruptcy,
-  sellTreasureBankruptcy,
 } from "./bankruptcy";
 // 珍宝+城主交涉域(#322,ADR-0019):抽宝拼点(珍宝城落格固定事件位,#825)、
 // 城主交涉(escrow 托管)在 treasure-flow.ts,壳内同名方法薄委托转发;与数据表
@@ -102,7 +101,7 @@ import {
 // 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
 import { tryRecruitHero, resolveHeroPick, type HeroOffer } from "./recruitment";
 // 遣散域(#1147,ADR-0019 委托式拆分):免费主动遣散(槽移除/回池划名/已学技折书)在
-// hero-dismiss.ts,壳内薄委托;与破产变卖 cashHeroBankruptcy 分流(清算换银 ≠ 免费遣散)。
+// hero-dismiss.ts,壳内薄委托;清算期间禁用。
 import { dismissHero } from "./hero-dismiss";
 // 声望域(#121,ADR-0019,#384 自壳迁入):声望落账唯一口在 reputation.ts。
 import { addReputation } from "./reputation";
@@ -185,14 +184,12 @@ export type GameCommand =
         | { type: "premium"; treasureId: string }
         | { type: "skip" };
     }
-  | { type: "sellTreasureBankruptcy"; treasureId: string }
-  | { type: "sellPropertyBankruptcy"; propId: string }
-  | { type: "cashHeroBankruptcy"; heroId: string }
-  | { type: "confirmBankruptcySettle" }
+  | { type: "declareBankruptcy" }
+  | { type: "confirmBankruptcySettle"; assets: BankruptcyAsset[] }
   | { type: "useJinnang"; cardId: string | null; targets?: number[]; cancel?: boolean } // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段);cancel=作罢(保留牌)
   | { type: "useHeroSkill"; heroId: string; skillId: string; targets?: number[]; cancel?: boolean } // 名将主动技(#188 档 3;#817 携实例):heroId+skillId=麾下实例定位对(选项 id 拼接单源 choices.skillOptionId),发动直落本实例;targets=目标座位(目标段);cancel=作罢(回卡牌段)
   | { type: "useBookSkill"; treasureId: string; heroId: string } // 用书学技(#1146):treasureId=珍宝位技能书实例,heroId=可学者(skillBookLearners 槽位序单源);技 id 随书派生不另行携带,书用后消耗
-  | { type: "dismissHero"; heroId: string } // 遣散(#1147):免费主动遣散——槽移除+回池划名+已学技逐册折书;自己回合随时可点(他座决策窗除外),与破产变卖 cashHeroBankruptcy 分流
+  | { type: "dismissHero"; heroId: string } // 遣散(#1147):免费主动遣散——槽移除+回池划名+已学技逐册折书;自己回合随时可点(他座决策窗除外),清算期间禁用
   // 反应窗应答(#281,ADR-0017):被询问座位对当前反应窗表态。seat 必须显式携带——反应窗
   // 天然多属主,decisionOwner 归属不适用(pickCapital 同款:seat 随命令过网/进日志,
   // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
@@ -832,10 +829,9 @@ export class GameEngine {
 
   // ──────────────── 破产清算(变卖资产自救)+ 交割托管(#321,ADR-0019)────────────────
   // 域逻辑在 bankruptcy.ts(#321):escrow 交割/退回(deliverEscrow/returnEscrowToSeller)、
-  // 付款或清算(payOrLiquidate)、债务结算留痕(settleDebtTraced)、可变卖资产判定
-  // (hasMarketableAssets)、破产善后(finalizeBankruptcy)、凑足即止硬守卫
-  // (assertStillOwing)、三变卖(sellTreasure/sellProperty/cashHero)与清算确认
-  // (confirmBankruptcySettle)均为自由函数,首参接引擎实例;与 economy.ts 分层(清算
+  // 付款或清算(payOrLiquidate)、破产资产留痕(seizeBankruptAssetsTraced)、
+  // 破产善后(finalizeBankruptcy)、整批出售并清偿(confirmBankruptcySettle)与认破产
+  // (declareBankruptcy)均为自由函数,首参接引擎实例;与 economy.ts 分层(清算
   // 流程≠经济交易原语)。壳内仅留同名方法薄委托:公共五入口(UI/bot/联机 +
   // encounter-flow 经 g.payOrLiquidate 消费)+ escrow 交割/退回两步(去私有化:
   // resolveTreasureOwner 壳内消费、confirmBankruptcySettle 域内直调)。
@@ -851,14 +847,10 @@ export class GameEngine {
     returnEscrowToSeller(this);
   }
 
-  /** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。
+  /** 付款或触发清算:现金够即扣款("ok"),不足统一进入 AwaitingBankruptcySettle("liquidating")。
    *  薄委托 → bankruptcy.payOrLiquidate(#320/#321 去私有化 ADR-0019 条款 3:机遇域
    *  encounter-flow.ts 效果结算直调)。 */
-  payOrLiquidate(
-    mover: Player,
-    creditor: Player | null,
-    amount: number,
-  ): "ok" | "liquidating" | "bankrupt" {
+  payOrLiquidate(mover: Player, creditor: Player | null, amount: number): "ok" | "liquidating" {
     return payOrLiquidate(this, mover, creditor, amount);
   }
 
@@ -869,24 +861,14 @@ export class GameEngine {
     return tileIndexOfProperty(this.board, propertyId);
   }
 
-  /** 变卖珍宝抵债(命令):薄委托 → bankruptcy.sellTreasureBankruptcy。 */
-  sellTreasureBankruptcy(treasureId: string): void {
-    sellTreasureBankruptcy(this, treasureId);
+  /** 明确认破产(命令):薄委托 → bankruptcy.declareBankruptcy。 */
+  declareBankruptcy(): void {
+    declareBankruptcy(this);
   }
 
-  /** 变卖城池抵债(命令):薄委托 → bankruptcy.sellPropertyBankruptcy。 */
-  sellPropertyBankruptcy(propId: string): void {
-    sellPropertyBankruptcy(this, propId);
-  }
-
-  /** 遣散名将换银(命令):薄委托 → bankruptcy.cashHeroBankruptcy。 */
-  cashHeroBankruptcy(heroId: string): void {
-    cashHeroBankruptcy(this, heroId);
-  }
-
-  /** 清算确认(命令):凑足清偿/变卖殆尽破产,薄委托 → bankruptcy.confirmBankruptcySettle。 */
-  confirmBankruptcySettle(): void {
-    confirmBankruptcySettle(this);
+  /** 整批变卖并清偿(命令):完整校验后执行,薄委托 → bankruptcy.confirmBankruptcySettle。 */
+  confirmBankruptcySettle(assets: BankruptcyAsset[]): void {
+    confirmBankruptcySettle(this, assets);
   }
 
   // ──────────────────────────── 命令接口(联机预留) ────────────────────────────
@@ -934,14 +916,10 @@ export class GameEngine {
         return this.resolveEncounterChoice(cmd.index);
       case "resolveTreasureOwner":
         return this.resolveTreasureOwner(cmd.action);
-      case "sellTreasureBankruptcy":
-        return this.sellTreasureBankruptcy(cmd.treasureId);
-      case "sellPropertyBankruptcy":
-        return this.sellPropertyBankruptcy(cmd.propId);
-      case "cashHeroBankruptcy":
-        return this.cashHeroBankruptcy(cmd.heroId);
+      case "declareBankruptcy":
+        return this.declareBankruptcy();
       case "confirmBankruptcySettle":
-        return this.confirmBankruptcySettle();
+        return this.confirmBankruptcySettle(cmd.assets);
       case "respondSkillChoice": // 「你可」应答(#1377):决策者=挂问属主=本相位 decisionOwner
         return this.respondSkillChoice(cmd.seat, cmd.use, cmd.targetSeat);
       case "useJinnang":
@@ -1200,7 +1178,7 @@ export class GameEngine {
     resolveBookSkill(this, treasureId, heroId);
   }
 
-  /** 遣散名将(#1147,免费主动遣散,区别于破产变卖 cashHeroBankruptcy):薄委托 →
+  /** 遣散名将(#1147,免费主动遣散,清算期间不可用):薄委托 →
    *  hero-dismiss.dismissHero(校验/槽移除/回池划名/折书机制详注在该处)。 */
   dismissHero(heroId: string): void {
     dismissHero(this, heroId);

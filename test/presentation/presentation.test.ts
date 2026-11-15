@@ -23,6 +23,7 @@ import {
 } from "../../src/app/fx/presentation";
 import { testEngine, armHero } from "@core/testing";
 import { HEROES } from "@core/heroes";
+import { giveTreasure, setCash } from "@core/planter";
 
 const MAP = loadMap(guanzhongData);
 
@@ -235,22 +236,31 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     expect(ks).not.toContain("sealStamped"); // 扩军不盖章(「据」章是买城的)
   });
 
-  it("破产清算:变卖批出所得浮字;确认批 assetTransferred → 逐城易主宣告(#385 缺口闭合)", () => {
+  it("破产清算:批量售出带所得浮字;认破产逐城易主并播出局仪式", () => {
+    const rescued = makeEngine(1);
+    finishSetup(rescued);
+    const rescuedPlayer = rescued.activePlayer;
+    setCash(rescued, rescued.activeIndex, 0);
+    giveTreasure(rescued, rescued.activeIndex, [
+      ...rescuedPlayer.treasures,
+      { id: "t1", name: "宝", level: 5 },
+    ]);
+    rescued.payOrLiquidate(rescuedPlayer, null, 500);
+    const sellEvents = stepEvents(rescued, () =>
+      rescued.submitCommand({
+        type: "confirmBankruptcySettle",
+        assets: [{ kind: "treasure", id: "t1" }],
+      }),
+    );
+    expect(sellEvents.some((ev) => ev.kind === "sound" && ev.event === "coin")).toBe(true);
+    expect(kinds(sellEvents)).toContain("cashDelta");
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
     const capTile = e.board.at(p.capitalIndex);
     p.cash = 0;
-    p.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" });
-    e.payOrLiquidate(p, null, 500); // 公共清算入口
-    if (e.turnPhase !== "AwaitingBankruptcySettle") return; // 未入清算相位(理论不可达)才空转
-    const sellEvents = stepEvents(e, () =>
-      e.submitCommand({ type: "sellTreasureBankruptcy", treasureId: "t1" }),
-    );
-    // 变卖批:assetLiquidated(treasure) → 所得浮字(正收入,铜钱声缀首)
-    expect(sellEvents.some((ev) => ev.kind === "sound" && ev.event === "coin")).toBe(true);
-    expect(kinds(sellEvents)).toContain("cashDelta");
-    const settleEvents = stepEvents(e, () => e.submitCommand({ type: "confirmBankruptcySettle" }));
+    e.payOrLiquidate(p, null, 500);
+    const settleEvents = stepEvents(e, () => e.submitCommand({ type: "declareBankruptcy" }));
     expect(p.isBankrupt).toBe(true);
     // 破产批:清算资产逐城易主(#385)→ 易主宣告(都城回无主,归属色=null);
     // playerBankrupt → bankrupt 音;末位独存即终局,gameOver → victory 压轴。

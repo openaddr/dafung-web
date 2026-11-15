@@ -13,7 +13,7 @@
 //     产出事件。词汇表未登记的时机(BeforeMarch/PassedPlayer 等前置钩子与高频途经点)
 //     不产出;新增事件种类优先在此表加一行(加时机三步的最后一步顺带落地)。
 //  2. 显式产出(emitGameEvent):无时机挂点的转移(行军落格/反应窗开合与识破/机遇
-//     触发/选都建城/三变卖/交割/金钱结算,以及 #384 的名将被动技击发/主动技发动/
+//     触发/选都建城/两类变卖/交割/金钱结算,以及 #384 的名将被动技击发/主动技发动/
 //     抽锦囊进手/声望变更/体力变更/跳过回合)在各域
 //     模块结算点直呼,reason 用领域词
 //     短横 slug(供应/税/行情/机遇/横征/连环/天命/耗竭……开放词表,新来源即新 slug)。
@@ -36,10 +36,8 @@ export const CMD_BRIEF: Record<GameCommand["type"], string> = {
   resolveHeroPick: "招贤",
   resolveEncounterChoice: "机遇抉择",
   resolveTreasureOwner: "珍宝交涉",
-  sellTreasureBankruptcy: "变卖珍宝",
-  sellPropertyBankruptcy: "变卖城池",
-  cashHeroBankruptcy: "遣散名将",
-  confirmBankruptcySettle: "清算确认",
+  declareBankruptcy: "认破产",
+  confirmBankruptcySettle: "出售并清偿",
   useJinnang: "用锦囊",
   useHeroSkill: "出技",
   useBookSkill: "用书学技",
@@ -183,11 +181,17 @@ export interface TreasureStolenBody {
   treasureId: string;
   treasureName: string;
 }
-/** 破产变卖自救(三变卖命令成交尾;asset=变卖物,amount=所得)。 */
+/** 破产批量自救(每件资产成交尾;asset=变卖物,amount=所得)。 */
 export interface AssetLiquidatedBody {
   kind: "assetLiquidated";
-  asset: { kind: "treasure" | "property" | "hero"; id: string };
+  asset: { kind: "treasure" | "property"; id: string };
   amount: number;
+}
+/** 批量清偿完成:交割与现金技能结算后的余额,seat=债务人;无债主则 creditor=null。 */
+export interface BankruptcySettledBody {
+  kind: "bankruptcySettled";
+  cashAfter: number;
+  creditor: { seat: number; cashAfter: number } | null;
 }
 /** 破产清算资产逐城易主(#385 缺口 2):settleDebt 破产转移的每处城池一条——
  *  toSeat=承让方座位(债主接管),null=无债主回无主/销毁;易主宣告由 fx 据此产出。 */
@@ -420,6 +424,7 @@ export type GameEventBody =
   | TreasureTradedBody
   | TreasureStolenBody
   | AssetLiquidatedBody
+  | BankruptcySettledBody
   | AssetTransferredBody
   | HeroRecruitedBody
   | PlayerBankruptBody
@@ -473,6 +478,7 @@ export const GAME_EVENT_KINDS = [
   "treasureTraded",
   "treasureStolen",
   "assetLiquidated",
+  "bankruptcySettled",
   "assetTransferred",
   "heroRecruited",
   "playerBankrupt",

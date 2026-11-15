@@ -127,7 +127,7 @@ export function resolveTreasureOwner(
   }
 
   // 先付款后交货:珍宝进交割托管区,买家付清价款(可能经破产清算变卖其他资产自救)后才交割。
-  // 托管中的珍宝不在买家 treasures 里 → 不可被 sellTreasureBankruptcy 变卖抵债(封堵套利);
+  // 托管中的珍宝不在买家 treasures 里 → 不可纳入批量清偿的可变卖资产(封堵套利);
   // 买家最终破产时,托管珍宝退回卖家。
   g.escrowTreasure = {
     treasure,
@@ -135,47 +135,38 @@ export function resolveTreasureOwner(
     sellerIdx: tv.ownerIdx,
     price,
   };
-  const cashBefore = mover.cash; // 破产扫账锚点:settleDebt 破产支路把余现金尽数过手卖家,实付≠成交价
   const r = g.payOrLiquidate(mover, owner, price);
   if (r === "liquidating") return; // 清算自救:escrow 挂起,confirmBankruptcySettle 里交割/记账
-  const bankrupt = r === "bankrupt";
-  if (bankrupt) g.returnEscrowToSeller(); // 买家破产:珍宝退回卖家
-  else g.deliverEscrow(); // 付款到账:交货
-  // 交割银两浮字由 treasureTraded 事件在 fx 面派生(买家付/卖家收,锚各自位置);
-  // 破产路实付=余现金扫账(非成交价),成交价浮字反而是错账,死写删除(#719)
+  g.deliverEscrow(); // 付款到账:交货;清算中的认破产由 declareBankruptcy 退宝
+  // 直付交割银两浮字由 treasureTraded 事件在 fx 面派生(买家付/卖家收)。
   if (price > 0) g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: price }); // 时机·CashLost:被动失银(珍宝交涉付款,访客不可拒)
   g.lastLandOutcome = {
     kind: "TreasureTrade",
     property: def,
     owner,
     amount: price,
-    causedBankruptcy: bankrupt,
+    causedBankruptcy: false,
   };
-  // 双向记账(#617):amount 只记现金实收付——直付=成交价;破产=余现金扫账(非成交价,
-  // detail price 仍是谈定价)。卖家行留成交痕(+实收),买家行 treasureBuy 留付款痕(-实付),
-  // 替换原「卖家名下单行 -price」把卖方收入记负的错账。
-  const cashMoved = bankrupt ? cashBefore : price;
+  // 直付双向记账(#617):卖家 +price,买家 -price;清算挂起的交割或退宝由清算域记账。
   const kindKey = action.type === "fair" ? "treasureFair" : "treasurePremium";
   const verb = action.type === "fair" ? "公道买卖" : "坐地起价";
-  const bankruptSuffix = bankrupt ? " → 破产" : "";
-  // #617:实收=0 不挂(iff 不变量另一半)——买家余现金为 0 的破产成交零现金过手,两行
-  // detail 照旧(bankrupt=true)但 amount 缺省,不写 0/-0。
+  // 实收为 0 不挂 amount,不写 0/-0。
   g.logEvent(
     "trade",
     owner.guohao,
-    `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankruptSuffix}`,
-    `${kindKey} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`,
-    cashMoved > 0 ? cashMoved : undefined,
+    `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}`,
+    `${kindKey} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=false`,
+    price > 0 ? price : undefined,
   );
   g.logEvent(
     "trade",
     mover.guohao,
-    `${mover.guohao} 付 ${formatMoney(cashMoved)} 购「${treasure.name}」${bankruptSuffix}`,
-    `treasureBuy buyer=${mover.id} seller=${owner.id} treasure=${treasure.id} price=${price} bankrupt=${bankrupt}`,
-    cashMoved > 0 ? -cashMoved : undefined,
+    `${mover.guohao} 付 ${formatMoney(price)} 购「${treasure.name}」`,
+    `treasureBuy buyer=${mover.id} seller=${owner.id} treasure=${treasure.id} price=${price} bankrupt=false`,
+    price > 0 ? -price : undefined,
   );
   g.treasureVisitor = null;
-  // 两个终端同一收口:付款破产与交涉成交都直接结束回合(探宝已在落格固定事件位先行,
+  // 直付成交结束回合(探宝已在落格固定事件位先行,
   // #825 迁移:链中清算/破产不再抑制探宝——它先于本交涉已结算;链尾探宝钩子已拆除)
   g.endTurn();
 }

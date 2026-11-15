@@ -81,7 +81,13 @@ export function settleDebt(player: Player, creditor: Player | null, amount: numb
     if (creditor) creditor.cash += amount;
     return false;
   }
-  // 现金不足:先掏空现金给债主,然后破产转移资产
+  seizeBankruptAssets(player, creditor);
+  return true;
+}
+
+/** 实际破产的资产处置:余现金整扫债主,城池与珍宝转债主;无债主则归银行/销毁。
+ *  清算中明确认破产也使用此口,不受玩家现金是否足额影响。名将回池由清算域善后。 */
+export function seizeBankruptAssets(player: Player, creditor: Player | null): void {
   if (creditor) creditor.cash += player.cash;
   player.cash = 0;
   if (creditor) {
@@ -92,5 +98,4 @@ export function settleDebt(player: Player, creditor: Player | null, amount: numb
   player.properties = [];
   player.treasures = [];
   player.isBankrupt = true;
-  return true;
 }

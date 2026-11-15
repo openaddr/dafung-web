@@ -1,47 +1,43 @@
-// 破产清算卷轴:对照旧 showBankruptcyScroll。
-// 卖珍宝(指导价)/卖非都城城(当前等级变卖价 = valueByLevel[level],与引擎入账同一函数)/
-// 遣名将(每名 2 两)→ 每卖一件引擎加现金,pendingDebt 固定不变,快照刷新后「尚欠 = 债务 − 现金」
-// 实时缩水;"结算"发 confirmBankruptcySettle。
-// #60:展示价曾误用购入价(40%),与实际入账(valueByLevel)口径分裂 → 展示与入账必须同一函数。
-// #94:「结算」分两态——仍欠(owe>0)时点结算=引擎 settleDebt+finalizeBankruptcy 破产出局,
-// 降为警示次级并明说后果;凑足(owe===0)升为主行动墨钮(视觉重做 v2:金不作按钮底),加一次性脉冲反馈达成。
-// #362:变卖珍宝接入选宝弹层(装裱卡点选+二段式变卖,TreasurePickModal 同交涉款),
-// 标题「变卖自救」语义保留;弹层带已凑/债务进度(凑足即止由引擎 assertStillOwing 硬拒绝,
-// 不靠 UI 自觉);卖城/遣将/确认仍在卷轴原位。
-import { useEffect, useState } from "react";
+// 组件收口:BannerShell 沿用焦点/拖动语义;预选用 Base UI Toggle,数量与翻页用 Button。
+// 预选只在本组件保存;最终将按加选顺序排列的逐件明细交权威一次出售并清偿。
+import { useContext, useState } from "react";
+import { Button } from "@base-ui/react/button";
+import { Toggle } from "@base-ui/react/toggle";
 import type { GameCommand } from "@core/authority";
-import { guidePriceOf } from "@core/treasures";
+import type { BankruptcyAsset } from "@core/bankruptcy";
+import { guidePriceOf, SKILL_BOOK_ID_PREFIX } from "@core/treasures";
 import { formatMoney } from "@core/money";
-import { Motion } from "@core/theme";
 import type { SnapshotTreasure } from "@app/store/gameStore";
-import { TreasurePickModal } from "../TreasurePickModal";
-import { BannerShell, BannerButton } from "./BannerShell";
+import { treasureImagePath } from "@app/components/card/jinnang-face-data";
+import { cn } from "@app/utils/cn";
+import { Sym } from "@app/screens/shared/Sym";
+import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
+import { BannerGhostContext, BannerShell, BannerButton } from "./BannerShell";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 interface BankruptcyScrollProps {
-  /** 待清算玩家国号。 */
   guohao: string;
-  /** 当前现金(算尚欠缺口;每笔变卖入账已含,随快照实时刷新)。 */
   cash: number;
-  /** 债务总额(pendingDebt.amount,清算期固定)。 */
   debtAmount: number;
-  /** 可变卖珍宝(快照展示子集;卖价由 level 经 guidePriceOf 推导,与引擎同函数)。 */
   treasures: SnapshotTreasure[];
-  /** 可卖城(变卖价 sellPrice 由调用方经 economy.sellValueOf 计算,与引擎入账同源)。
-   *  都城已由调用方剔除(旧版同样跳过 capitalIndex)。 */
-  sellableProperties: {
-    propId: string;
-    name: string;
-    /** 变卖入账(= valueByLevel[level],引擎 sellPropertyBankruptcy 同一函数算出)。 */
-    sellPrice: number;
-    /** 购入价(仅用于折价小字对照,不再作为展示价)。 */
-    purchasePrice: number;
-    level: number;
-  }[];
-  /** 可遣散名将(每名 200)。 */
-  heroes: { id: string; name: string }[];
+  /** 调用方排除都城,变卖价与引擎共用 sellValueOf。 */
+  sellableProperties: { propId: string; name: string; sellPrice: number; level: number }[];
   onCommand: (cmd: GameCommand) => void;
 }
+
+interface SaleGroup {
+  key: string;
+  kind: BankruptcyAsset["kind"];
+  ids: string[];
+  name: string;
+  price: number;
+  level: number;
+  image: string | undefined;
+}
+
+type SelectedAsset = BankruptcyAsset & { group: string; price: number };
+const PAGE_SIZE = 6;
 
 export function BankruptcyScroll({
   guohao,
@@ -49,210 +45,246 @@ export function BankruptcyScroll({
   debtAmount,
   treasures,
   sellableProperties,
-  heroes,
   onCommand,
 }: BankruptcyScrollProps) {
+  const [selected, setSelected] = useState<SelectedAsset[]>([]);
+  const [page, setPage] = useState(0);
+  const [confirmingBankruptcy, setConfirmingBankruptcy] = useState(false);
+  const isGhost = useContext(BannerGhostContext);
+  const treasureGroups = new Map<string, SaleGroup>();
+  for (const t of treasures) {
+    // 普通珍宝=目录 id + 牌堆序号;同技多册技能书共用 id,不能用 Set 去重实物。
+    const id = t.id.startsWith(SKILL_BOOK_ID_PREFIX) ? t.id : t.id.replace(/-\d+$/u, "");
+    const existing = treasureGroups.get(id);
+    if (existing) existing.ids.push(t.id);
+    else {
+      treasureGroups.set(id, {
+        key: `treasure:${id}`,
+        kind: "treasure",
+        ids: [t.id],
+        name: t.name,
+        price: guidePriceOf(t.level),
+        level: t.level,
+        image: treasureImagePath(t.id),
+      });
+    }
+  }
+  const groups: SaleGroup[] = [
+    ...treasureGroups.values(),
+    ...sellableProperties.map((p) => ({
+      key: `property:${p.propId}`,
+      kind: "property" as const,
+      ids: [p.propId],
+      name: p.name,
+      price: p.sellPrice,
+      level: p.level,
+      image: undefined,
+    })),
+  ];
   const owe = Math.max(0, debtAmount - cash);
-  const settled = owe === 0;
-  // #362 变卖珍宝选宝弹层开合(本地 UI 态;售出即收层,清单随快照刷新重开点下一件)
-  const [pickOpen, setPickOpen] = useState(false);
-  /* ── #94 凑足达成的一拍脉冲 ──
-     为什么不用 animation 类:项目惯例 keyframes 都住在领域 css(board/fx/scroll/victory),
-     没有通用脉冲帧可引用,也不为此改 banner.css → 用 transition transform 一拍替代:
-     达成瞬间 scale-110,--dur-med(250ms)后回落,一次性不循环。
-     why 一次性成立:清算期现金只增不减(凑足后引擎 assertStillOwing 硬拒绝再卖),
-     settled 单调翻真一次,pulse 自然只播一遍。 */
-  const [pulsing, setPulsing] = useState(false);
-  useEffect(() => {
-    if (!settled) return;
-    setPulsing(true);
-    const t = window.setTimeout(() => setPulsing(false), Motion.dur.med); // 同 --dur-med(Motion 单源,#117 评审收口)
-    return () => window.clearTimeout(t);
-  }, [settled]);
-
-  /* ── W4a → #729 归一:自搓「结算钉底」退役 ──
-     破产资产可能 20+ 件,旧平铺曾把「结算」顶出屏外——当时的解法是三组各自
-     max-h-56 内滚 + 卷轴内自搓钉底结算行;#729 壳成三段式后归一:资产三组列表归
-     正文井(壳体限高链内滚,不再自设 max-h),结算行(已凑/债务/尚欠 + 进度条)
-     与结算钮迁壳 footer 槽钉底,任何资产量下都可达,横幅系一个语法。 */
-  const hasAny = treasures.length > 0 || sellableProperties.length > 0 || heroes.length > 0;
+  const selectedValue = selected.reduce((sum, asset) => sum + asset.price, 0);
+  const enough = selectedValue >= owe;
+  const totalValue = groups.reduce((sum, group) => sum + group.price * group.ids.length, 0);
+  const pageCount = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  const groupId = (group: SaleGroup) => group.key.slice(group.kind.length + 1);
+  const add = (group: SaleGroup, quantity: number) => {
+    setSelected([
+      ...selected,
+      {
+        kind: group.kind,
+        id: group.ids[quantity],
+        group: group.key,
+        price: group.price,
+      },
+    ]);
+  };
+  const decrease = (group: SaleGroup) => {
+    // 只撤回本组最后加选的一件,保留其他组与剩余实物的顺序。
+    const index = selected.map((asset) => asset.group).lastIndexOf(group.key);
+    setSelected(selected.filter((_, i) => i !== index));
+  };
   return (
     <>
       <BannerShell
         title={`${guohao}·变卖自救`}
         testid={T.bankruptcyScroll}
+        wide
+        fixedBody
+        className="bankruptcy-shell"
         footer={
-          <div className="flex flex-col gap-2">
-            {/* W2-包D(审计 A2)+ #362:进度条数值伴随——「已凑/债务/尚欠」三数同窗
-              (backpack .bkr-owe 句式),与变卖钮上的「+」金额互为对照。 */}
+          <div className="bankruptcy-footer">
             <div
+              className="bankruptcy-totals"
               data-testid={T.bankruptcyProgress}
-              className="text-right text-xs text-paper-dim tabular-nums"
+              aria-live="polite"
             >
-              已凑 {formatMoney(cash)} / 债务 {formatMoney(debtAmount)} · 尚欠 {formatMoney(owe)}
+              <div>
+                <span>已选</span>
+                <strong>{formatMoney(selectedValue)}</strong>
+              </div>
+              <div data-enough={enough || undefined}>
+                <span>{enough ? "超出" : "还差"}</span>
+                <strong>{formatMoney(Math.abs(owe - selectedValue))}</strong>
+              </div>
             </div>
-            {/* #94 清偿进度条:进度 = 已凑/债务(payOrLiquidate 仅在 cash<amount 时进清算,
-              pendingDebt.amount 恒 >0,直接除不设防);宽度走动效 token --dur-med/--ease-out,
-              每卖一笔随快照实时涨,凑足时正好满格呼应墨钮。 */}
-            <div className="h-1.5 overflow-hidden rounded-full border border-gold/30 bg-paper-lo">
-              <div
-                className="h-full rounded-full bg-money"
-                style={{
-                  width: `${((debtAmount - owe) / debtAmount) * 100}%`,
-                  transition: "width var(--dur-med) var(--ease-out)",
-                }}
-              />
-            </div>
-            {/* #94 两态:owe>0=警示次级(此时结算=引擎 finalizeBankruptcy 毁局,须红字说破);
-              owe===0=主行动墨钮,外层 span 承载一拍脉冲(BannerButton 不吃自定义类)。 */}
-            <div className="flex justify-center">
-              {settled ? (
-                <span
-                  className={
-                    "inline-block transition-transform duration-[var(--dur-med)] ease-[var(--ease-out)] " +
-                    (pulsing ? "scale-110" : "scale-100")
-                  }
-                >
-                  <BannerButton
-                    primary
-                    testid={T.bankruptcyConfirm}
-                    onClick={() => onCommand({ type: "confirmBankruptcySettle" })}
-                  >
-                    结算 · 凑足!免破产
-                  </BannerButton>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  data-testid={T.bankruptcyConfirm}
-                  title="现金仍低于债务,此时结算即破产出局"
-                  onClick={() => onCommand({ type: "confirmBankruptcySettle" })}
-                  className="cursor-pointer rounded border border-danger/70 bg-transparent px-4 py-2 font-brush text-base text-danger transition-colors hover:bg-danger/10"
-                >
-                  {hasAny ? "结算 · 仍欠 " : "结算(无资产可卖)· 仍欠 "}
-                  {formatMoney(owe)},认破产
-                </button>
-              )}
+            <div className="bankruptcy-actions">
+              <BannerButton
+                testid={T.bankruptcyDeclare}
+                onClick={() => setConfirmingBankruptcy(true)}
+              >
+                认破产
+              </BannerButton>
+              <BannerButton
+                primary
+                disabled={!enough}
+                testid={T.bankruptcyConfirm}
+                onClick={() =>
+                  onCommand({
+                    type: "confirmBankruptcySettle",
+                    assets: selected.map(({ kind, id }) => ({ kind, id })),
+                  })
+                }
+              >
+                出售并清偿
+              </BannerButton>
             </div>
           </div>
         }
       >
-        <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-paper-dim">
-          {settled
-            ? "现金已凑足债务!点「结算」清偿,转危为安。"
-            : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名将每名 200 两)。`}
-        </p>
-        <div className="flex flex-col gap-2">
-          <section>
-            <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-paper-dim">
-              <i>宝</i>
-              <span>珍宝</span>
-            </h4>
-            <div className="flex flex-wrap content-start justify-center gap-2">
-              {/* #362:裸卖钮退役,点入口开选宝弹层(装裱卡点选+二段式变卖,同交涉款) */}
-              {treasures.length > 0 ? (
-                <BannerButton
-                  testid={T.bankruptcySellTreasureOpen}
-                  onClick={() => setPickOpen(true)}
-                  title="装裱卡点选,二段式变卖"
-                >
-                  变卖珍宝 · {treasures.length} 件
-                </BannerButton>
-              ) : (
-                <span className="text-xs text-paper-dim">无</span>
+        <div className="bankruptcy-inventory">
+          <div className="bankruptcy-catalog-head">
+            <div data-testid={T.bankruptcyDebt} className="bankruptcy-account">
+              <span>
+                现钱 {formatMoney(cash)} · 债务 {formatMoney(debtAmount)}
+              </span>
+              {groups.length > 0 && totalValue < owe && (
+                <small>全部变卖仍差 {formatMoney(owe - totalValue)},可查看资产或认破产。</small>
               )}
             </div>
-          </section>
-          <section>
-            <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-paper-dim">
-              <i>城</i>
-              <span>城池</span>
-            </h4>
-            <div className="flex flex-wrap content-start justify-center gap-2">
-              {sellableProperties.map((p) => (
-                <BannerButton
-                  key={p.propId}
-                  testid={T.bankruptcySellProp(p.propId)}
-                  onClick={() => onCommand({ type: "sellPropertyBankruptcy", propId: p.propId })}
-                >
-                  <span className="inline-flex flex-col items-center gap-0.5">
-                    <span>
-                      卖城·{p.name} +{formatMoney(p.sellPrice)}
-                    </span>
-                    {/* #60:标价与购入价有落差时不静默——小字说明折价原因(Lv 越低折越多,
-                      经济 v2:valueByLevel = 购价×[40/60/85/120]% 按等级),玩家可理解。 */}
-                    {p.sellPrice < p.purchasePrice && (
-                      <span className="font-deco text-[10px] leading-none text-paper-dim">
-                        购入{formatMoney(p.purchasePrice)}·Lv.{p.level} 变卖折价
-                      </span>
+            <div className="bankruptcy-pages">
+              <Button
+                aria-label="上一页"
+                data-testid={T.bankruptcyPrevious}
+                disabled={page === 0 || isGhost}
+                onClick={() => setPage(page - 1)}
+              >
+                <Sym name="back" size={16} />
+              </Button>
+              <span data-testid={T.bankruptcyPage}>
+                {page + 1} / {pageCount}
+              </span>
+              <Button
+                aria-label="下一页"
+                data-testid={T.bankruptcyNext}
+                disabled={page + 1 === pageCount || isGhost}
+                onClick={() => setPage(page + 1)}
+              >
+                <Sym name="back" size={16} />
+              </Button>
+            </div>
+          </div>
+          {groups.length === 0 ? (
+            <div className="bankruptcy-empty">
+              <SealEmpty char="无" note="没有可变卖珍宝或非都城城池" title="没有可变卖资产" />
+              <p>名将不能变卖,认破产需再次确认。</p>
+            </div>
+          ) : (
+            <div className="bankruptcy-grid">
+              {groups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((group) => {
+                const quantity = selected.filter((asset) => asset.group === group.key).length;
+                const id = groupId(group);
+                const duplicate = group.ids.length > 1;
+                const art = group.image ? (
+                  <img src={group.image} alt="" className="bankruptcy-art" />
+                ) : (
+                  <svg
+                    className="bankruptcy-art"
+                    viewBox="0 0 40 48"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    aria-hidden="true"
+                  >
+                    {group.kind === "property" ? (
+                      <path d="M3 21 20 8l17 13H3Zm4 0v22h26V21M3 43h34M16 43V29h8v14M11 26v5m18-5v5M12 15V8h16v7" />
+                    ) : (
+                      <path d="M8 4h25v40H8V4Zm5 0v40M5 10h7M5 20h7M5 30h7M19 13h9m-9 8h9m-9 8h9" />
                     )}
-                  </span>
-                </BannerButton>
-              ))}
-              {sellableProperties.length === 0 && (
-                <span className="text-xs text-paper-dim">无</span>
-              )}
+                  </svg>
+                );
+                const contents = (
+                  <>
+                    {art}
+                    <span className="bankruptcy-asset-copy">
+                      <span className="bankruptcy-asset-name">{group.name}</span>
+                      <span className="bankruptcy-asset-price">
+                        {formatMoney(group.price)}
+                        {duplicate && <small>/件</small>}
+                      </span>
+                      {group.kind === "property" && <small>Lv.{group.level}</small>}
+                    </span>
+                  </>
+                );
+                return duplicate ? (
+                  <div
+                    key={group.key}
+                    data-testid={T.bankruptcyAsset(group.kind, id)}
+                    data-selected={quantity > 0 || undefined}
+                    className="bankruptcy-asset bankruptcy-duplicate"
+                  >
+                    {contents}
+                    <span className="bankruptcy-stock">共{group.ids.length}件</span>
+                    <div className="bankruptcy-stepper" aria-label={`${group.name}数量`}>
+                      <Button
+                        aria-label={`减少${group.name}`}
+                        data-testid={T.bankruptcyDecrease(id)}
+                        disabled={quantity === 0 || isGhost}
+                        onClick={() => decrease(group)}
+                      >
+                        −
+                      </Button>
+                      <output data-testid={T.bankruptcyQuantity(id)}>{quantity}</output>
+                      <Button
+                        aria-label={`增加${group.name}`}
+                        data-testid={T.bankruptcyIncrease(id)}
+                        disabled={enough || quantity === group.ids.length || isGhost}
+                        onClick={() => add(group, quantity)}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Toggle
+                    key={group.key}
+                    data-testid={T.bankruptcyAsset(group.kind, id)}
+                    pressed={quantity > 0}
+                    disabled={(enough && quantity === 0) || isGhost}
+                    onPressedChange={(pressed) => (pressed ? add(group, 0) : decrease(group))}
+                    className={cn("bankruptcy-asset", quantity > 0 && "bankruptcy-selected")}
+                  >
+                    {contents}
+                  </Toggle>
+                );
+              })}
             </div>
-          </section>
-          <section>
-            <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-paper-dim">
-              <i>贤</i>
-              <span>名将</span>
-            </h4>
-            <div className="flex flex-wrap content-start justify-center gap-2">
-              {heroes.map((h) => (
-                <BannerButton
-                  key={h.id}
-                  testid={T.bankruptcySellHero(h.id)}
-                  onClick={() => onCommand({ type: "cashHeroBankruptcy", heroId: h.id })}
-                >
-                  遣·{h.name} +{formatMoney(200)}
-                </BannerButton>
-              ))}
-              {heroes.length === 0 && <span className="text-xs text-paper-dim">无</span>}
-            </div>
-          </section>
+          )}
         </div>
       </BannerShell>
-      {/* #362 变卖珍宝选宝弹层:同交涉款选择模式;进度区=已凑/债务(cap 100%,
-          与卷轴进度条同一算式),凑足后再卖由引擎 assertStillOwing 硬拒绝。 */}
-      {pickOpen && treasures.length > 0 && (
-        <TreasurePickModal
-          title="变卖自救 · 变卖珍宝"
-          seal="变"
-          sub={`${guohao} · 按指导价变卖入账`}
-          context={
-            <div className="treasure-pick-progress" data-testid={T.bankruptcyPickProgress}>
-              <div className="treasure-pick-owe">
-                已凑 <i>{formatMoney(cash)}</i> / 债务 {formatMoney(debtAmount)} · 尚欠{" "}
-                <b>{formatMoney(owe)}</b>
-              </div>
-              <div className="treasure-pick-bar" aria-hidden="true">
-                {/* scaleX 比例承进度(transform 走合成器,transition 见 treasure-pick.css) */}
-                <i
-                  style={{
-                    transform: `scaleX(${Math.max(0, Math.min(1, (debtAmount - owe) / debtAmount))})`,
-                  }}
-                />
-              </div>
-            </div>
-          }
-          treasures={treasures}
-          tagOf={(t) => `至 ${formatMoney(guidePriceOf(t.level))}`}
-          summaryOf={(t) => `变卖 ${t.name} · 入账 ${formatMoney(guidePriceOf(t.level))}`}
-          hint="点选要变卖的珍宝"
-          confirmLabel="变卖"
-          testids={{
-            container: T.bankruptcyTreasurePick,
-            item: T.bankruptcySellTreasure,
-            confirm: T.bankruptcySellTreasureConfirm,
+      {confirmingBankruptcy && (
+        <ConfirmDialog
+          danger
+          title="确认认破产?"
+          confirmLabel="确认认破产"
+          cancelLabel="返回清算"
+          onCancel={() => setConfirmingBankruptcy(false)}
+          onConfirm={() => {
+            setConfirmingBankruptcy(false);
+            onCommand({ type: "declareBankruptcy" });
           }}
-          onConfirm={(treasureId) => {
-            onCommand({ type: "sellTreasureBankruptcy", treasureId });
-            setPickOpen(false); // 售出即收层:清单随快照刷新,重开点下一件
-          }}
-          onClose={() => setPickOpen(false)}
-        />
+        >
+          认破产后立即出局。现金、城池与珍宝按债主关系清算,名将回招贤池,不换银也不折书。
+        </ConfirmDialog>
       )}
     </>
   );

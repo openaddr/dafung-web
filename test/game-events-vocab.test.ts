@@ -302,7 +302,8 @@ describe("事件流(#384):跳过回合 turnSkipped 与破产债主 creditorSeat"
     mover1.cash = 50;
     mover1.properties = []; // 仅都城不可变卖 → 无可变卖资产
     beginGameEventBatch(e1);
-    expect(e1.payOrLiquidate(mover1, null, 200)).toBe("bankrupt");
+    expect(e1.payOrLiquidate(mover1, null, 200)).toBe("liquidating");
+    e1.declareBankruptcy();
     expect(e1.snapshot().events[0]).toMatchObject({
       kind: "playerBankrupt",
       seat: e1.players.indexOf(mover1),
@@ -316,7 +317,8 @@ describe("事件流(#384):跳过回合 turnSkipped 与破产债主 creditorSeat"
     mover2.cash = 50;
     mover2.properties = [];
     beginGameEventBatch(e2);
-    expect(e2.payOrLiquidate(mover2, e2.players[creditorSeat], 200)).toBe("bankrupt");
+    expect(e2.payOrLiquidate(mover2, e2.players[creditorSeat], 200)).toBe("liquidating");
+    e2.declareBankruptcy();
     expect(e2.snapshot().events[0]).toMatchObject({
       kind: "playerBankrupt",
       seat: e2.players.indexOf(mover2),
@@ -385,9 +387,10 @@ describe("事件流(#385 缺口 2):破产清算逐城易主 assetTransferred", (
     const capPropId = e.board.at(mover.capitalIndex).propertyId!;
     mover.cash = 50; // 仅都城在手(无可变卖资产)→ 直落破产,清算把都城转债主
     beginGameEventBatch(e);
-    expect(e.payOrLiquidate(mover, e.players[creditorSeat], 200)).toBe("bankrupt");
+    expect(e.payOrLiquidate(mover, e.players[creditorSeat], 200)).toBe("liquidating");
+    e.declareBankruptcy();
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["assetTransferred", "playerBankrupt"]);
+    expect(kinds(events)).toEqual(["assetTransferred", "playerBankrupt", "turnEnded", "gameOver"]);
     expect(events[0]).toMatchObject({
       kind: "assetTransferred",
       seat,

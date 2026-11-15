@@ -193,6 +193,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "treasureTraded", buyerSeat: 0, sellerSeat: 1, treasureId: "golden-seal-1", price: 900 },
   { kind: "treasureStolen", victimSeat: 1, treasureId: "golden-seal-1", treasureName: "传国玉玺" },
   { kind: "assetLiquidated", asset: { kind: "treasure", id: "golden-seal-1" }, amount: 800 },
+  { kind: "bankruptcySettled", cashAfter: 300, creditor: { seat: 1, cashAfter: 1200 } },
   { kind: "assetTransferred", propertyId: "changangan", toSeat: 2 },
   { kind: "heroRecruited", heroId: "guanyu", skillIds: ["wusheng"] },
   { kind: "playerBankrupt", creditorSeat: 1 },

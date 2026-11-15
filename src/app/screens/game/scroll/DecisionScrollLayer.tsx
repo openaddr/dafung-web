@@ -12,7 +12,6 @@ import type { GameCommand } from "@core/authority";
 import { formatMoney } from "@core/money";
 import { sellValueOf, type CityTier } from "@core/economy";
 import { tileIndexOfProperty } from "@core/board";
-import { heroById } from "@core/heroes";
 import { Theme } from "@core/theme";
 import { useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
@@ -176,6 +175,7 @@ export function DecisionScrollLayer({
           : null;
       return (
         <BankruptcyScroll
+          key={`${viewSeat}:${snapshot.turnNumber}`}
           guohao={me.guohao}
           cash={me.cash}
           debtAmount={snapshot.pendingDebt.amount}
@@ -188,19 +188,16 @@ export function DecisionScrollLayer({
               // 勿混用;缺城=数据 bug 炸出,不回退 id 冒充城名——零兜底)
               const tileIndex = tileIndexOfProperty(board, h.propertyId);
               // #60:展示价与引擎入账同一口径——economy.sellValueOf(def, level),即引擎
-              // sellPropertyBankruptcy 的入账函数(不再用购入价,那正是展示 40 实得 16 的根因)。
+              // 批量清偿的逐城入账函数。
               // 零兜底:catalog 缺该城 = 数据 bug,非空断言让其抛。
               const def = catalog.get(h.propertyId)!;
               return {
                 propId: h.propertyId,
                 name: board.at(tileIndex).name,
                 sellPrice: sellValueOf(def, h.level),
-                purchasePrice: def.purchasePrice,
                 level: h.level,
               };
             })}
-          // 麾下槽位原生读(#786):名按 heroId 回查名将表单源,送将清单形状不变
-          heroes={me.heroes.map((slot) => ({ id: slot.heroId, name: heroById(slot.heroId).name }))}
           onCommand={dispatch}
         />
       );

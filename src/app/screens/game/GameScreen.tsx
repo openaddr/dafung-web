@@ -812,7 +812,10 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
           }}
           dismissReady={
             // 遣散窗口:本地决策+对局中+自己回合
-            interactive && snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat
+            interactive &&
+            snapshot.phase === "Playing" &&
+            snapshot.activeIndex === selfSeat &&
+            snapshot.turnPhase !== "AwaitingBankruptcySettle"
           }
           onDismiss={(heroId) => {
             getAudio().play("stamp");

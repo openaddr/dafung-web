@@ -15,6 +15,7 @@ import { HEROES } from "@core/heroes";
 import { makeSkillBook, SKILL_BOOK_ID_PREFIX } from "@core/treasures";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
 import { dismissHero } from "@core/hero-dismiss";
+import { armHero as plantHero, setCash } from "@core/planter";
 
 // ── fixture 图:20 城全城池(同 skill-book.test 制式)──
 function cityTile(i: number, name: string, extra: Record<string, unknown> = {}) {
@@ -100,7 +101,7 @@ describe("遣散主链(#1147)", () => {
 
     expect(me.heroes.length).toBe(0); // 槽移除(冷却账随槽俱弃,无孤儿键)
     expect(e.recruitedHeroIds.has("zhouyu")).toBe(false); // 回池划名(破产释放同口径)
-    expect(me.cash).toBe(cash0); // 免费(无声望/银两代价;与破产变卖 200 两分流)
+    expect(me.cash).toBe(cash0); // 免费(无声望/银两代价)
     // 已学技逐册折书:两技两册,id=skillbook-<skillId>(同 id 复用,无流水号)
     const books = me.treasures.slice(treasures0);
     expect(books.map((b) => b.id)).toEqual([
@@ -201,6 +202,25 @@ describe("遣散回池再招(#1147)", () => {
 
 // ────────────────────────── 校验:目标与回合 ──────────────────────────
 describe("遣散校验(#1147)", () => {
+  it("清算中禁止主动遣散,不折书也不触发得宝技能筹款", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const seat = e.activeIndex;
+    const me = e.activePlayer;
+    plantHero(e, seat, "zhouyu", ["jixing"]);
+    plantHero(e, seat, "mizhu", ["delongwangshu"]);
+    setCash(e, seat, 20);
+    e.payOrLiquidate(me, null, 200);
+
+    e.submitCommand({ type: "dismissHero", heroId: "zhouyu" });
+
+    expect(me.heroes.map((slot) => slot.heroId)).toEqual(["zhouyu", "mizhu"]);
+    expect(me.treasures).toEqual([]);
+    expect(me.cash).toBe(20);
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    expect(e.snapshot().events.some((ev) => ev.kind === "heroDismissed")).toBe(false);
+  });
+
   it("目标不在麾下(含空册):拒绝,零状态变更", () => {
     const e = makeEngine(7);
     finishSetup(e);

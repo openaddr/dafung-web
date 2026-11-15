@@ -37,16 +37,17 @@ export const SCROLL_TESTIDS = {
   bankruptcyScroll: "scroll-bankruptcy",
   bankruptcyDebt: "scroll-bankruptcy-debt",
   bankruptcyProgress: "scroll-bankruptcy-progress",
-  // ── 破产变卖选宝(#362):卷轴内入口钮 + 点选弹层(已凑/债务进度)+ 二段式变卖钮 ──
-  bankruptcySellTreasureOpen: "scroll-bankruptcy-sell-treasure-open",
-  bankruptcySellTreasure: (treasureId: string) =>
-    `scroll-bankruptcy-sell-treasure-${treasureId}` as const,
-  bankruptcySellTreasureConfirm: "scroll-bankruptcy-sell-treasure-confirm",
-  bankruptcyTreasurePick: "scroll-bankruptcy-treasure-pick",
-  bankruptcyPickProgress: "scroll-bankruptcy-pick-progress",
-  bankruptcySellProp: (propId: string) => `scroll-bankruptcy-sell-prop-${propId}` as const,
-  bankruptcySellHero: (heroId: string) => `scroll-bankruptcy-sell-hero-${heroId}` as const,
+  // ── 清算预选:同种归组、逐件数量及分页,最终只提交一次清偿 ──
+  bankruptcyAsset: (kind: "treasure" | "property", id: string) =>
+    `scroll-bankruptcy-${kind}-${id}` as const,
+  bankruptcyIncrease: (id: string) => `scroll-bankruptcy-increase-${id}` as const,
+  bankruptcyDecrease: (id: string) => `scroll-bankruptcy-decrease-${id}` as const,
+  bankruptcyQuantity: (id: string) => `scroll-bankruptcy-quantity-${id}` as const,
+  bankruptcyPage: "scroll-bankruptcy-page",
+  bankruptcyPrevious: "scroll-bankruptcy-previous",
+  bankruptcyNext: "scroll-bankruptcy-next",
   bankruptcyConfirm: "scroll-bankruptcy-confirm",
+  bankruptcyDeclare: "scroll-bankruptcy-declare",
 
   confirmDialog: "scroll-confirm",
   confirmOk: "scroll-confirm-ok",

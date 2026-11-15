@@ -942,7 +942,7 @@ describe("破产清手(#198):手牌入弃牌堆,15 张守恒", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
-    p.cash = 0; // 无现金、无珍宝/名将/非都城城 → 无可变卖资产,欠款即直接破产
+    p.cash = 0; // 无现金、无珍宝/名将/非都城城 → 无可变卖资产,欠款后等待确认破产
     // 从牌库顶挪一张进他手牌(守恒口径:牌只在这三处)
     const card = e.jinnangDeck.pop()!;
     e.jinnangDeckCount = e.jinnangDeck.length;
@@ -954,7 +954,8 @@ describe("破产清手(#198):手牌入弃牌堆,15 张守恒", () => {
       hands: e.players.filter((x) => !x.isBankrupt).reduce((s, x) => s + x.jinnangHand.length, 0),
     });
     const before = total();
-    e.payOrLiquidate(p, null, 200); // 欠 200,现金 0 → 直接破产
+    e.payOrLiquidate(p, null, 200); // 欠 200,现金 0 → 清算挂债
+    e.declareBankruptcy();
     expect(p.isBankrupt).toBe(true);
     expect(p.jinnangHand).toEqual([]);
     expect(p.jinnangHandCount).toBe(0);

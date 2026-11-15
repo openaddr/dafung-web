@@ -12,6 +12,7 @@ import { HEROES } from "@core/heroes";
 import { capitalSupplyOf } from "@core/movement-flow";
 import { fullDefenseOf } from "@core/defense";
 import { beginGameEventBatch } from "@core/game-events";
+import { armPhase } from "@core/planter";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import {
   ENCOUNTERS,
@@ -513,7 +514,7 @@ describe("机遇引擎行为", () => {
             e.resolveEncounterChoice(Math.max(0, avail));
           } else if (e.turnPhase === "AwaitingTreasureOwner")
             e.resolveTreasureOwner({ type: "skip" });
-          else if (e.turnPhase === "AwaitingBankruptcySettle") e.confirmBankruptcySettle();
+          else if (e.turnPhase === "AwaitingBankruptcySettle") e.declareBankruptcy();
           else break;
         }
       }
@@ -1691,8 +1692,10 @@ describe("#1153 机遇章(P2 跨事件标记):setsFlags 写点与章闸", () => 
 
     mover.encounterFlags = ["元直荐书"];
     mover.cash = 10;
-    mover.properties = []; // 无产可清算 → 破产
+    mover.properties = []; // 无产可清算,先回到该玩家语境再确认
+    armPhase(e, { activeIndex: e.players.indexOf(mover) });
     e.payOrLiquidate(mover, null, 150);
+    e.declareBankruptcy();
     expect(mover.isBankrupt).toBe(true);
     expect(mover.encounterFlags).toContain("元直荐书");
   });
