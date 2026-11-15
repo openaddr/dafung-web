@@ -296,6 +296,7 @@ export const CALIBRATION_WINDOWS: ReadonlySet<TurnPhase> = new Set([
   "AwaitingHeroPick",
   "AwaitingEncounter",
   "AwaitingBankruptcySettle",
+  "AwaitingSkillChoice", // 待决队列仅随校准摘要水合,开窗/续问/闭沿共用本登记。
 ]);
 /** 节点事件校准(#388):批内出现即全量。牌库洗牌两处:开局 finishSetup(buildJinnangDeck)
  *  随 gameStarted 批覆盖;中途弃牌堆洗回(jinnangReshuffled)随批触发全量——洗后牌序

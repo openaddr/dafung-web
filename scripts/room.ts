@@ -12,7 +12,7 @@
 // bot-driver.ts(纯搬)、看门狗 watchdogs.ts(三组收敛为通用工厂);registry 经 ops
 // 对象注入宿主操作面,投影消费方直引 seat-projection.ts(不留再导出转接层)。
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
-import type { GameCommand, GameEngine, SeatConfig } from "../src/core/authority";
+import type { GameCommand, GameEngine, SeatConfig, TurnPhase } from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
 import type { EncounterSwitch } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
@@ -22,10 +22,17 @@ import type { RoomPersistence } from "./room-persistence";
 import { createEngine, engineFromRecord } from "./room-record";
 import type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 import { EventBatchChannel } from "./event-batch";
-import { assembleDownlinkShot } from "./seat-projection";
+import {
+  assembleDownlinkShot,
+  CALIBRATION_BACKED_KINDS,
+  CALIBRATION_EVENT_KINDS,
+  CALIBRATION_WINDOWS,
+  lobbyView,
+} from "./seat-projection";
 // wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
-// assembleDownlinkShot 单口(#431,内用 wire 构造函数),本模块不再直呼 wire——
-// 双写退役(形状/封装只有一份),本模块只管排空与节流后的发送。
+// assembleDownlinkShot 单口(#431,内用 wire 构造函数);元数据指纹仅复用 wire 序列化。
+// 本模块只管排空、校准判定与节流后的发送。
+import { encodeDownlink } from "./wire";
 import {
   decisionSeatOf,
   driveBots as driveBotsSession,
@@ -138,7 +145,7 @@ const CODE_LEN = 4;
 // (ADR-0007 不变量保持:WS 句柄与内存双工端点在此同一视图,本模块仍零 WS 依赖)。
 // 联机通路零改动:server.ts 自持 WS + broadcast/flush,不经本节;单机(src/app 进程内
 // 房间)经 connectSeat 挂上 MemorySocket 的宿主端点,编排每次可见变化经 onUpdate →
-// transportBroadcast 合并成一拍下行——事件批消息先行(因果在前)、整房摘要随后
+// transportBroadcast 合并成一拍下行——事件批消息先行(因果在前)、校准摘要随后
 // (形状/封装收口 wire.ts #429,单源;消费端为折叠/直译的既有接收面)。
 export interface SeatEndpoint {
   /** 座位归属(入座即绑定;token 鉴权在 connectSeat 入口)。 */
@@ -234,6 +241,10 @@ export class RoomRegistry {
   /** 事件批累积/去重/排空/合并拍归共享通道(#411,scripts/event-batch.ts)——
    *  与 server.ts 联机通路同一份批语义,双端行为零变化。 */
   private readonly batches = new EventBatchChannel();
+  /** 上次下行的结算相位,用于检测共享校准窗退出沿。 */
+  private readonly settledTurnPhase = new Map<string, TurnPhase | null>();
+  /** 非校准拍按房间字段差异发送 lobby 元数据,与服务器同口径。 */
+  private readonly lastRoomMeta = new Map<string, string>();
 
   constructor(
     persistence: RoomPersistence,
@@ -585,6 +596,8 @@ export class RoomRegistry {
     // 传输面残表一并清(#397):端点/在途累积批/已排定的 flush 定时器随房同撤
     // (#411:批三表与定时器清理归共享通道 dispose)
     this.batches.dispose(id);
+    this.settledTurnPhase.delete(id);
+    this.lastRoomMeta.delete(id);
     this.seatEndpoints.delete(id);
     this.rooms.delete(id);
     this.persistence.remove(id);
@@ -731,6 +744,11 @@ export class RoomRegistry {
     // 首连整房摘要(#431 装配单口):batch=[] 纯摘要拍;viewerSeat=null = 单机显式
     // god-view(本机单真人无跨设备泄密面,唯一合法退化口)。
     ep.send(assembleDownlinkShot(room, this.transportOnlineSeats(roomId), null, [], true).snapshot);
+    this.settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
+    this.lastRoomMeta.set(
+      roomId,
+      encodeDownlink(lobbyView(room, this.transportOnlineSeats(roomId))),
+    );
     return room;
   }
 
@@ -760,15 +778,10 @@ export class RoomRegistry {
     this.batches.schedule(roomId, () => this.flushTransport(roomId));
   }
 
-  /** 单拍下行装配单口(#431):①事件批消息(因果在前,空批不发)→ ②整房摘要,
-   *  经 seat-projection assembleDownlinkShot 一次配齐——viewerSeat=null = 单机显式
-   *  god-view 退化(ADR-0020 决策 2 的显式退化口:本机单真人无跨设备泄密面;将来
-   *  观战/回放类消费面复用本装配,传座位默认拿裁剪流),消息形状/封装同收 wire.ts
-   *  构造函数(#429);②的判定在单机退化为恒发(withSnapshot=true)——内存直连无
-   *  带宽约束,ADR-0020 决策 3 的关键节点校准每拍天然覆盖,折叠漂移零存活窗口
-   *  (单机客户端状态另有内存直读,见 controllers/local.ts)。批排空幂等(#411
-   *  共享通道):重复 flush 袋空不发 events。 */
-  private flushTransport(roomId: string): void {
+  /** 自动下行复用 server.ts 的校准窗/节点/闭沿口径;事件先发、校准摘要随后。
+   *  共享触发登记由 seat-projection 的 CALIBRATION_* 提供。
+   *  异常终局通过 forceSnapshot 立即发完整状态。 */
+  private flushTransport(roomId: string, forceSnapshot = false): void {
     const room = this.rooms.get(roomId);
     const eps = this.seatEndpoints.get(roomId);
     if (!room || !eps || eps.size === 0) {
@@ -776,17 +789,41 @@ export class RoomRegistry {
       return;
     }
     const events = this.batches.drain(roomId);
-    const shot = assembleDownlinkShot(
-      room,
-      this.transportOnlineSeats(roomId),
-      null,
-      events ?? [],
-      true,
-    );
+    const e = room.engine;
+    const settled = e?.turnPhase ?? null;
+    const prev = this.settledTurnPhase.get(roomId) ?? null;
+    this.settledTurnPhase.set(roomId, settled);
+    const batch = events ?? [];
+    const closeEdgeBatch =
+      batch.length === 0 || batch.some((event) => CALIBRATION_BACKED_KINDS.has(event.kind));
+    const calibrate =
+      e != null &&
+      (e.phase === "Setup" ||
+        batch.some((event) => CALIBRATION_EVENT_KINDS.has(event.kind)) ||
+        (settled != null && CALIBRATION_WINDOWS.has(settled)) ||
+        (prev != null && CALIBRATION_WINDOWS.has(prev) && closeEdgeBatch));
+    const withSnapshot = forceSnapshot || calibrate;
+    const online = this.transportOnlineSeats(roomId);
+    const shot = withSnapshot
+      ? assembleDownlinkShot(room, online, null, batch, true)
+      : assembleDownlinkShot(room, online, null, batch, false);
     if (shot.events != null) {
       for (const ep of eps.values()) if (ep.open) ep.send(shot.events);
     }
-    for (const ep of eps.values()) if (ep.open) ep.send(shot.snapshot);
+    const metaJson = encodeDownlink(lobbyView(room, online));
+    if (shot.snapshot != null) {
+      for (const ep of eps.values()) if (ep.open) ep.send(shot.snapshot);
+      this.lastRoomMeta.set(roomId, metaJson);
+    } else if (this.lastRoomMeta.get(roomId) !== metaJson) {
+      this.lastRoomMeta.set(roomId, metaJson);
+      for (const ep of eps.values()) if (ep.open) ep.send(metaJson);
+    }
+  }
+
+  /** 时钟挂死的异常终局立即下行,不等待已失效的驱动节拍。 */
+  flushTransportNow(roomId: string): void {
+    this.batches.accumulate(roomId, this.rooms.get(roomId)?.engine?.gameEvents);
+    this.flushTransport(roomId, true);
   }
 
   // ──────────────────────────── host 移交(ADR-0002)────────────────────────────

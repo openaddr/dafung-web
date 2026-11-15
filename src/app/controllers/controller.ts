@@ -48,9 +48,9 @@ export abstract class GameController {
    *  {type:"pickCapital"} 上行(单机=内存双工、联机=WS),校验在房间编排。 */
   setupPickCapital(_tileIndex: number): void {}
 
-  /** 是否支持托管(联机 = true:服务器 bot 代打;单机也支持:本地 bot 代打)。 */
+  /** 是否支持托管:由各模式的房间权威驱动 bot 代打。 */
   autopilotSupported = false;
-  /** 托管生效态(UI「托管中」回读;基类默认关,子类覆写:联机=seats 广播回读,单机=本地标记)。 */
+  /** 托管生效态:子类从房间座位下行状态回读,供 UI 显示「托管中」。 */
   get autoPilotOn(): boolean {
     return false;
   }

@@ -228,10 +228,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
   // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/加入/建房共用基类,只改尺寸)
   const btnBase =
-    "rounded border px-4 py-2 font-deco text-paper cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
-  // A5:「返回首页」含「回」——XiaoWei 离线镜像缺字形已剔出 fonts.css(回退楷体),deco 下即混排;
-  // 返回类按钮字族落 wenkai(混排红线)。btnBase 单源替换,免抄两份基类。
-  const backBase = btnBase.replace("font-deco", "font-wenkai");
+    "rounded border px-4 py-2 font-brush text-paper cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
   // R3-B11(#83):输入框与 Stepper(h-10)/按钮等高——建房排三控件同高,「诸侯数/目标身价」不再错位
   const inputBase = "h-10 rounded border border-paper/30 bg-bg px-2 py-2 font-deco text-paper";
 
@@ -322,7 +319,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             size={12}
             className="mr-1.5 inline-block transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-open:rotate-180"
           />
-          高级(服务器地址)
+          <span className="font-brush">高级</span>(服务器地址)
         </span>
         {/* #559:探活状态点(挂载定性一次;checking 不渲染)。收起也常驻 summary 可见。 */}
         {serverAlive !== "checking" && (
@@ -423,7 +420,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // #494 一键重进:断线/刷新丢局后免凭记忆重输——凭 LAST_ROOM_KEY 直接入座
   // (走 joinRoom 同一路径;房间已不存在时 error hint 按 5s TTL 显式报错,不静默)。
   // #766:升主行动(墨钮语义、触达 ≥44),与低频「返回首页」笺钮拉开权重;
-  // label 含房码(动态文案),字族走 wenkai(混排红线,同 backBase);
+  // 操作标签走 brush,上次房间与房码单独保留阅读字族;
   // busy 期钮面直陈「处理中…」(原静态 label 灰而不知因,触屏不可见 title 的场景之一)。
   const rejoinBtn = lastRoom ? (
     <button
@@ -434,15 +431,21 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           await controller!.joinRoom(lastRoom, localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined);
         });
       }}
-      className={backBase + " ink-btn min-h-[44px] w-full"}
+      className={btnBase + " ink-btn min-h-[44px] w-full"}
     >
-      {busy ? "处理中…" : `上次房间 ${lastRoom} · 一键重进`}
+      {busy ? (
+        "处理中…"
+      ) : (
+        <>
+          <span className="font-wenkai">上次房间 {lastRoom}</span> · 一键重进
+        </>
+      )}
     </button>
   ) : null;
 
   // 返回首页(低频退路):笺钮次级语义(#766 与重进主钮拉开权重),触达 ≥40
   const backBtn = (
-    <button onClick={onExit} className={backBase + " note-btn self-start text-sm min-h-[40px]"}>
+    <button onClick={onExit} className={btnBase + " note-btn self-start text-sm min-h-[40px]"}>
       返回首页
     </button>
   );
@@ -458,7 +461,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         className="lobby-safe flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6"
       >
         <h1 className="font-title text-3xl text-paper tracking-widest">房主已解散房间</h1>
-        <button data-testid={LID.back} onClick={onExit} className={backBase + " ink-btn"}>
+        <button data-testid={LID.back} onClick={onExit} className={btnBase + " ink-btn"}>
           返回首页
         </button>
       </div>

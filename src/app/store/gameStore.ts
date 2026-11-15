@@ -21,8 +21,8 @@ export type SnapshotPlayer = CoreSnapshotPlayer;
  *  断言成含价字段的完整 TreasureDef。 */
 export type SnapshotTreasure = SnapshotPlayer["treasures"][number];
 
-/** store 持有的快照 = core 快照本体(零派生):单机 syncFromEngine 直灌,联机
- *  snapshot 消息同构直灌。 */
+/** store 持有的快照 = core 快照本体(零派生):单机/联机控制器均从协议水合副本
+ *  经 syncFromEngine 写入。 */
 export type GameSnapshot = CoreGameSnapshot;
 
 // ──────────────────────────── engine 引用管理 ────────────────────────────
@@ -30,18 +30,18 @@ export type GameSnapshot = CoreGameSnapshot;
 // ① 不序列化——zustand state 若混入 engine,DevTools/persist/浅比较全被污染;
 // ② 不订阅——React 只该对"可渲染的数据"重渲,对实例本身不感兴趣;
 // ③ 全局唯一——同一时刻只存在一局,模块级单例最干净(比藏在 store 的
-//    non-reactive 字段好:不占用 store 类型,控制器/调试钩子可直接导入读写)。
+//    non-reactive 字段好:不占用 store 类型,控制器可直接导入绑定)。
 let currentEngine: GameEngine | null = null;
 
 // 唯一提示过期定时器,由 pushHint/reset 清理。
 let gameHintTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** 取当前引擎实例(无对局时 null)。控制器与调试钩子用它做命令入口。 */
+/** 取当前引擎实例(无对局时 null)。供 UI 派生读取;对局命令由控制器上行。 */
 export function getEngine(): GameEngine | null {
   return currentEngine;
 }
 
-/** 绑定新引擎(单机开局 / 联机换图重建占位引擎时调用)。 */
+/** 绑定客户端水合副本(单机开局 / 联机换图重建时调用)。 */
 export function setEngine(engine: GameEngine | null): void {
   currentEngine = engine;
 }
