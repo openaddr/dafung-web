@@ -40,9 +40,9 @@
     "tauri": "tauri",
     "tauri:desktop": "tauri dev",
     "tauri:android:dev": "tauri android dev",
-    "tauri:android:build": "tauri android build",
+    "apk": "bun scripts/command-log.ts -- bun scripts/release.ts --build-only",
     "test:apk": "bun scripts/apk-smoke.ts",
-    "release": "bun scripts/release.ts",
+    "release": "bun scripts/command-log.ts -- bun scripts/release.ts",
     "gen:theme": "bun scripts/generate-theme-tokens.ts",
     "check:test-boundaries": "bun scripts/check-test-boundaries.ts"
   },

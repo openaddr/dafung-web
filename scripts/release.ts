@@ -1,7 +1,8 @@
 // 唯一发布入口:固定提交 → arm64 APK → 签名/核验 → tag/GitHub Release。
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { buildApk, readApkConfig, withApkBuildLock } from "./android-apk";
 
 const REPO = "openaddr/dafung-web";
@@ -17,22 +18,15 @@ function run(argv: string[]): string {
 
 async function release(): Promise<void> {
   const args = process.argv.slice(2);
-  let configPath: string | undefined;
   const flags = new Set<string>();
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i]!;
-    if (arg === "--config" && configPath === undefined) {
-      configPath = args[++i];
-      if (!configPath || configPath.startsWith("--")) throw new Error("--config 缺少 JSON 路径");
-    } else if (["--draft", "--dry-run", "--build-only"].includes(arg) && !flags.has(arg)) {
+  for (const arg of args) {
+    if (["--draft", "--dry-run", "--build-only"].includes(arg) && !flags.has(arg)) {
       flags.add(arg);
     } else throw new Error(`未知或重复参数:${arg}`);
   }
-  if (!configPath)
-    throw new Error("用法:bun run release --config <本机 JSON> [--draft|--build-only] [--dry-run]");
   if (flags.has("--draft") && flags.has("--build-only"))
     throw new Error("--draft 与 --build-only 不能并用");
-  const config = readApkConfig(resolve(configPath));
+  const config = readApkConfig(join(homedir(), ".config", "dafung-web", "apk.json"));
   const buildOnly = flags.has("--build-only");
   if (!buildOnly) {
     if (run(["jj", "workspace", "root"]) !== resolve(import.meta.dir, ".."))
