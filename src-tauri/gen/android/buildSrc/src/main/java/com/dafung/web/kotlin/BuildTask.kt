@@ -1,5 +1,4 @@
 import java.io.File
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.logging.LogLevel
@@ -16,32 +15,7 @@ open class BuildTask : DefaultTask() {
 
     @TaskAction
     fun assemble() {
-        val executable = """npm""";
-        try {
-            runTauriCli(executable)
-        } catch (e: Exception) {
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                // Try different Windows-specific extensions
-                val fallbacks = listOf(
-                    "$executable.exe",
-                    "$executable.cmd",
-                    "$executable.bat",
-                )
-                
-                var lastException: Exception = e
-                for (fallback in fallbacks) {
-                    try {
-                        runTauriCli(fallback)
-                        return
-                    } catch (fallbackException: Exception) {
-                        lastException = fallbackException
-                    }
-                }
-                throw lastException
-            } else {
-                throw e;
-            }
-        }
+        runTauriCli("npm")
     }
 
     fun runTauriCli(executable: String) {
