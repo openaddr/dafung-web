@@ -1,6 +1,6 @@
 // THROWAWAY #1401: 三种变卖自救信息层级；现役对局路径 ?prototype=bankruptcy&variant=A/B/C。
 // 仅内存演示；共享事实/叶子组件，三版各自决定布局。候选尚未由用户拍板。
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@base-ui/react/button";
 import { formatMoney } from "@core/money";
 import { guidePriceOf } from "@core/treasures";
@@ -8,13 +8,14 @@ import { TreasurePickModal } from "../TreasurePickModal";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { BannerShell } from "./BannerShell";
 import type { BankruptcyScrollProps } from "./BankruptcyScroll";
+import { previewBankruptcyBackdrop } from "./BankruptcyPrototypeBoot";
 import "./bankruptcy-prototype.css";
 
 const variants = ["A", "B", "C"] as const;
 const names = { A: "缺口主位", B: "债务与资产并排", C: "变卖动作主位" };
 const scenarios = ["正常缺口", "较大缺口", "部分为空", "一笔变卖后", "已凑足"];
 type Variant = (typeof variants)[number];
-type AssetState = Pick<
+export type AssetState = Pick<
   BankruptcyScrollProps,
   "cash" | "debtAmount" | "treasures" | "sellableProperties" | "heroes"
 >;
@@ -265,6 +266,7 @@ export function VariantC({ m }: { m: Model }) {
 }
 
 export function BankruptcyPrototype(props: BankruptcyScrollProps) {
+  const base = useRef(props);
   const initial = new URLSearchParams(location.search).get("variant");
   if (initial !== "A" && initial !== "B" && initial !== "C")
     throw new Error("原型需指定 variant=A/B/C");
@@ -279,6 +281,7 @@ export function BankruptcyPrototype(props: BankruptcyScrollProps) {
     throw new Error("scenario 需为 0–4");
   const [scenario, setScenario] = useState(initialScenario);
   const [state, setState] = useState<AssetState>(() => stateAt(props, initialScenario));
+  useEffect(() => previewBankruptcyBackdrop(state), [state]);
   const [feedback, setFeedback] = useState(() => feedbackAt(initialScenario));
   const [pickOpen, setPickOpen] = useState(false);
   const owe = Math.max(0, state.debtAmount - state.cash);
@@ -310,7 +313,7 @@ export function BankruptcyPrototype(props: BankruptcyScrollProps) {
     const next = (scenario + 1) % scenarios.length;
     setScenario(next);
     setPickOpen(false);
-    setState(stateAt(props, next));
+    setState(stateAt(base.current, next));
     setFeedback(feedbackAt(next));
     const url = new URL(location.href);
     url.searchParams.set("scenario", String(next));
