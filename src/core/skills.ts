@@ -45,7 +45,7 @@ export interface ActiveSkillDef {
   desc: string; // 卷轴文案(效果自证,与结算互证)
   /** 目标域:none=无目标(发动即结算);other=一名其他存活玩家;any=任一存活玩家(含自己);
    *  city=一座合法城(#1388 T2 城目标域:候选=合法城清单,谓词单源 choices.heroSkillCityTargets
-   *  ——距离 ≤ params.range 且城池等级>0 且城主为他人;提交通道=目标城 tileIndex)。 */
+   *  ——距离 ≤ params.range 且城主为他人,含 0 级城;提交通道=目标城 tileIndex)。 */
   target: "none" | "other" | "any" | "city";
   /** 结算路径(游戏内唯一定义处):fireBlast=对目标城造成 params.damage 点火焰伤害
    *  (结算单点 defense.applyFireDamage,#1388;#1389 起火烧连营锦囊路同走该单点);
@@ -275,9 +275,9 @@ export const SKILLS: SkillDef[] = [
     name: "火攻",
     cooldown: 5,
     // #1388 T2 定向化(规格 #1386 定稿文案):城目标域,目标域谓词单源
-    // choices.heroSkillCityTargets(距离 ≤ range 且城池等级>0 且城主为他人);
+    // choices.heroSkillCityTargets(距离 ≤ range 且城主为他人,含 0 级城,#1493);
     // 结算单点 defense.applyFireDamage(1 点火焰伤害,#1386/#1387 防御值系统)。
-    desc: "指定一座距离你5格以内、城防等级>0、其他诸侯的城池,对其造成1点火焰伤害。",
+    desc: "指定一座距离你5格以内、其他诸侯的城池(含0级),对其造成1点火焰伤害。0级非都城防御值归零后失城。",
     target: "city",
     kind: "fireBlast",
     params: { range: 5, damage: 1 },
