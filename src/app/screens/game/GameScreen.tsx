@@ -209,12 +209,8 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   // 游标越过总数 = 日志账本已换(换图重开一类):旧游标作废,现有条目全量记未读。
   // 这是游标语义本身(日志只增,变短即新账本),非容错分支。
   const warUnread = warReadCount > warTotal ? warTotal : warTotal - warReadCount;
-  // 回合/窗态变化时同步显隐:我的回合或决策窗在场则展开,其余收起。
-  // 沿间允许锦囊钮临时切换;下次回合/窗态变化重新对齐。
-  const [rackHidden, setRackHidden] = useState(false);
-  // 回调引用稳定化:settings/锦囊钮弹层族 memo 的前提——闭包体内
-  // 经 getState 取当下值,不捕获渲染拍 snapshot,引用恒定。
-  const toggleRackHidden = useCallback(() => setRackHidden((v) => !v), []);
+  // null=随内容自动显隐;手动开/收只保持至下一次回合或决策窗边界。
+  const [rackManualHidden, setRackManualHidden] = useState<boolean | null>(null);
   // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
   // onTileClick 相位路由 + 详情/定都确认时序。
   const { offeredCapitals, selectableTiles, onTileClick, tileDetail } = useCapitalPick({
@@ -222,11 +218,11 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   });
 
   // 出牌窗:本件持有选牌/目标态,interactive 由控制器判定,choices 须含 pass/cancel。
-  const junshiUp =
-    interactive &&
+  const junshiWindowUp =
     snapshot.phase === "Playing" &&
     snapshot.turnPhase === "AwaitingJinnang" &&
     snapshot.choices.some((o) => o.id === "pass" || o.id === "cancel");
+  const junshiUp = interactive && junshiWindowUp;
   // 目标段二态载荷(pendingJinnang=锦囊选人 / pendingSkill=技选人,引擎字段单源)。
   const junshiPendingCard = junshiUp ? snapshot.pendingJinnang : null;
   const junshiPendingSkill = junshiUp ? snapshot.pendingSkill : null;
@@ -531,9 +527,10 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   // 显式携带,反应窗同款 selfSeat 通路)。非属主座位零渲染(公开信息=战报行);
   // bot/托管座位由驱动链代答,不进窗态。快照 canonicalization:相位在窗而队列键
   // 缺席 = 状态机 bug,`!` 直取当场炸出(零兜底,同 pendingReaction 口径)。
-  const skillUp =
-    interactive && snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingSkillChoice";
-  const skillPending = skillUp ? snapshot.pendingSkillChoices![0] : null;
+  const skillWindowUp =
+    snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingSkillChoice";
+  const skillUp = interactive && skillWindowUp;
+  const skillPending = skillWindowUp ? snapshot.pendingSkillChoices![0] : null;
   // 技定义按 id 查询 core/skills;choices 挂问时已保证触发技,非法 id 在 skillById 暴露。
   const skillDef = skillPending != null ? skillById(skillPending.skillId) : null;
   // 问身份(队列续问时区分前后两问:选中目标随问清空,组件 key 同源此串)。
@@ -593,18 +590,33 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
       />
     ) : null;
 
-  // ── 显隐规则同步(回合联动+决策保底):rackHidden 被「回合/窗态沿」重同步,
-  // 沿与沿之间锦囊钮 toggle 随便改(手动临时开/收,下一道沿重新对齐)──
-  // 亮沿=我的回合开始(activeIndex 回 selfSeat)/ 任何窗态开场(出牌窗 junshiUp、
-  // 反应窗 reactBanner 由无到有)——决策保底,「决策通路不被收走」由通路本身
-  // 保证(出牌窗=动作条、反应窗=横幅),同步只管「看得见架」;收沿=回合交出
-  // (activeIndex 离席)/ 窗态收场且不在我的回合——决策毕,架撤。dep-array effect
-  // 一枚管四沿(清空重选同款手法;布尔组合幂等,沿间不重跑)。
+  // 自动状态实时随内容变化;灰置锦囊仍算有内容,主动技只计实际在架的卡牌段选项。
+  // 反应/技能横幅独立保留应答通路,空架或手动收架时照挂 banner-only。
   const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
   const windowUp = junshiUp || reactBanner != null || skillBanner != null;
+  const hasRackContent = selfPlayer.jinnangHand.length > 0 || junshiOptions.some(isSkillOption);
+  const autoRackHidden = !((myTurnUp || windowUp) && hasRackContent);
+  const rackHidden = rackManualHidden === null ? autoRackHidden : rackManualHidden;
+  const toggleRackHidden = useCallback(
+    () => setRackManualHidden((manual) => !(manual === null ? autoRackHidden : manual)),
+    [autoRackHidden],
+  );
+  const rackJunshiWindowUp = junshiWindowUp && snapshot.decisionOwner === selfSeat;
+  const rackReactionSeq = reactionUp ? reactionSeq : null;
+  const rackSkillQuestionId =
+    skillWindowUp && snapshot.decisionOwner === selfSeat ? skillQuestionId : null;
+  // 只在回合/本座实际窗态边界撤销手动控制;命令在途的交互锁不算关窗。
   useEffect(() => {
-    setRackHidden(!(myTurnUp || windowUp));
-  }, [myTurnUp, windowUp]);
+    setRackManualHidden(null);
+  }, [
+    selfSeat,
+    snapshot.phase,
+    snapshot.activeIndex,
+    snapshot.turnNumber,
+    rackJunshiWindowUp,
+    rackReactionSeq,
+    rackSkillQuestionId,
+  ]);
   // 窗态+收起的两处派生(呼吸金光/banner-only 形态,消费点见下渲染段):一次推导。
   const rackBreathe = rackHidden && windowUp;
   const rackBannerOnly = rackHidden && (reactBanner != null || skillBanner != null);
@@ -741,8 +753,8 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
           }
         />
         {/* 底缘透明手牌区:签面驻左端 + 手牌架。
-          显隐=回合联动+决策保底(亮=我的回合∪决策窗在场∪手动临时开,规则同步
-          见 rackHidden 声明处)。挂载条件 `!rackHidden || 横幅窗在场`(反应窗/
+          有内容时按回合/窗态自动展开,手动开/收保留至下次边界。
+          挂载条件 `!rackHidden || 横幅窗在场`(反应窗/
           「你可」触发卡):纯收起整区卸载(签面随之,卸载零占位,战斗区
           最大化);收起时若横幅窗在场,区壳仍挂载以宿主横幅(banner-only 形态,
           签面/牌行不挂,横幅失去架体依托后贴底下移)。 */}

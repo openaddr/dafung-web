@@ -245,44 +245,38 @@ export function DecisionScrollLayer({
       const tp = snapshot.turnPhase;
       if (tp === "AwaitingDecision") {
         const p = players[snapshot.activeIndex];
-        const def = snapshot.lastLandOutcomeProperty
-          ? catalog.get(snapshot.lastLandOutcomeProperty)
-          : null;
-        if (def) {
-          // 城名/地域:反查单源 core/board tileIndexOfProperty(MapTile.id 与 propertyId
-          // 非同源,勿混用;缺城=数据 bug 炸出)
-          const tile = board.at(tileIndexOfProperty(board, def.id));
-          if (snapshot.lastLandOutcomeKind === "PropertyAvailable") {
-            return (
-              <BuyDecisionScroll
-                tileName={tile.name}
-                groupLabel={groupLineLabel(def.group)}
-                tierLabel={tierLineLabel(def.tier)}
-                property={def}
-                cash={p.cash}
-                choices={snapshot.choices}
-                onCommand={dispatch}
-              />
-            );
-          }
-          if (snapshot.lastLandOutcomeKind === "OwnProperty") {
-            return (
-              <UpgradeDecisionScroll
-                tileName={tile.name}
-                tierLabel={tierLineLabel(def.tier)}
-                level={p.properties.find((x) => x.propertyId === def.id)?.level ?? 1}
-                property={def}
-                isCapital={
-                  p.capitalIndex !== null &&
-                  p.capitalIndex !== undefined &&
-                  board.at(p.capitalIndex).propertyId === def.id
-                }
-                choices={snapshot.choices}
-                onCommand={dispatch}
-              />
-            );
-          }
+        const pending = snapshot.pendingLand;
+        if (pending == null) throw new Error("购地/扩军卷轴:AwaitingDecision 缺 pendingLand");
+        const def = catalog.get(pending.propertyId);
+        if (def == null) throw new Error(`购地/扩军卷轴:目录无城池 ${pending.propertyId}`);
+        // 决策入口只读 pendingLand;落格金额等表现信息不参与路由。
+        const tile = board.at(tileIndexOfProperty(board, def.id));
+        if (pending.kind === "PropertyAvailable") {
+          return (
+            <BuyDecisionScroll
+              tileName={tile.name}
+              groupLabel={groupLineLabel(def.group)}
+              tierLabel={tierLineLabel(def.tier)}
+              property={def}
+              cash={p.cash}
+              choices={snapshot.choices}
+              onCommand={dispatch}
+            />
+          );
         }
+        const holding = p.properties.find((x) => x.propertyId === def.id);
+        if (holding == null) throw new Error(`扩军卷轴:决策方未持有城池 ${def.id}`);
+        return (
+          <UpgradeDecisionScroll
+            tileName={tile.name}
+            tierLabel={tierLineLabel(def.tier)}
+            level={holding.level}
+            property={def}
+            isCapital={p.capitalIndex >= 0 && board.at(p.capitalIndex).propertyId === def.id}
+            choices={snapshot.choices}
+            onCommand={dispatch}
+          />
+        );
       }
     }
 

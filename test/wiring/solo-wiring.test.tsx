@@ -226,10 +226,10 @@ describe("单机决策接线(自 react-solo 迁入,#1318 批T4)", () => {
     const pid = tile.propertyId;
     const price = engine.catalog.get(pid)!.purchasePrice;
     plant({ kind: "setCash", seat: 0, cash: price + 1000 });
-    // 钉相位+行动方到人类(armPhase #1301)+ 落格询问载荷(armLanding #1303,
-    // 决策上下文与表现投影一体置值)
-    plant({ kind: "armPhase", turnPhase: "AwaitingDecision", activeIndex: 0 });
+    // 先备落格询问载荷(armLanding #1303,决策上下文与表现投影一体置值),
+    // 再钉相位+行动方到人类(armPhase #1301),避免中间渲染决策载荷缺失的非法态。
     plant({ kind: "armLanding", landing: { kind: "PropertyAvailable", propertyId: pid } });
+    plant({ kind: "armPhase", turnPhase: "AwaitingDecision", activeIndex: 0 });
     // 轮到即自动弹(交互重构:决策一律走卷轴)
     const scroll = q(el, SCROLL_TESTIDS.buyScroll);
     if (scroll == null) throw new Error("接线测试:购地卷轴未挂载(AwaitingDecision 接线断)");
