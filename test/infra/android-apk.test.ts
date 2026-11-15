@@ -1,6 +1,7 @@
 // 守发布缓存的源码身份与独占性;不拉起原生构建,成本为本地 git 临时仓库。
 import { afterEach, expect, test } from "bun:test";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -111,4 +112,15 @@ test("缓存源码可以从目录改为文件,再从文件改为目录", () => {
   writeFileSync(join(f.repo, "shape/new.txt"), "new child");
   syncApkSource(f.commit(), f.cache, f.repo);
   expect(readFileSync(join(f.cache, "shape/new.txt"), "utf8")).toBe("new child");
+});
+
+test("固定源码中的 Gradle 启动脚本同步后可直接在 Linux 执行", () => {
+  const f = fixture();
+  const wrapper = join(f.repo, "gradlew");
+  writeFileSync(wrapper, "#!/bin/sh\nprintf 'gradle-ready'\n");
+  chmodSync(wrapper, 0o755);
+  syncApkSource(f.commit(), f.cache, f.repo);
+  const result = Bun.spawnSync([join(f.cache, "gradlew")], { cwd: f.cache });
+  expect(result.exitCode).toBe(0);
+  expect(result.stdout.toString()).toBe("gradle-ready");
 });

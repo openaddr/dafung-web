@@ -1,6 +1,7 @@
-// WSL 调度 Windows Android 工具链;Windows 是构建宿主,产物仅 APK。
+// Linux 原生 Android 工具链;源码、依赖和编译缓存均留在 Linux 文件系统。
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -8,13 +9,13 @@ import {
   readdirSync,
   rmdirSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
 export interface ApkConfig {
   buildRoot: string;
-  cmd: string;
   bun: string;
   nodeDir: string;
   cargoDir: string;
@@ -39,7 +40,6 @@ export function readApkConfig(file: string): ApkConfig {
     throw new Error("APK 配置必须是 JSON 对象");
   const fields = [
     "buildRoot",
-    "cmd",
     "bun",
     "nodeDir",
     "cargoDir",
@@ -61,11 +61,9 @@ export function readApkConfig(file: string): ApkConfig {
   for (const field of Object.keys(data))
     if (!fields.includes(field)) throw new Error(`未知 APK 配置:${field}`);
   const config = data as ApkConfig;
-  if (!isAbsolute(config.buildRoot) || !config.buildRoot.startsWith("/mnt/"))
-    throw new Error("buildRoot 必须是 WSL 下 Windows 磁盘的绝对路径");
-  config.buildRoot = resolve(config.buildRoot);
+  if (process.platform !== "linux") throw new Error("APK 构建需要 Linux 工具链");
   for (const field of [
-    "cmd",
+    "buildRoot",
     "bun",
     "nodeDir",
     "cargoDir",
@@ -74,9 +72,12 @@ export function readApkConfig(file: string): ApkConfig {
     "ndkHome",
     "keystore",
   ] as const) {
-    if (!/^[A-Za-z]:\\/.test(config[field])) throw new Error(`${field} 必须是 Windows 绝对路径`);
-    const local = checked(["wslpath", "-u", config[field]], process.cwd()).toString().trim();
-    if (!existsSync(local)) throw new Error(`${field} 不存在:${config[field]}`);
+    if (!isAbsolute(config[field])) throw new Error(`${field} 必须是 Linux 绝对路径`);
+    config[field] = resolve(config[field]);
+    if (config[field].startsWith("/mnt/"))
+      throw new Error(`${field} 必须放在 Linux 文件系统,不能使用 Windows 挂载目录`);
+    if (field !== "buildRoot" && !existsSync(config[field]))
+      throw new Error(`${field} 不存在:${config[field]}`);
   }
   if (!/^\d+\.\d+\.\d+$/.test(config.buildToolsVersion))
     throw new Error("buildToolsVersion 必须显式指定 SDK 版本");
@@ -108,6 +109,7 @@ export async function withApkBuildLock<T>(
 interface SourceFile {
   path: string;
   oid: string;
+  mode: number;
 }
 const SOURCE_MARKER = ".dafung-apk-source.json";
 
@@ -129,7 +131,7 @@ function sourceFiles(commit: string, repo: string): SourceFile[] {
         file.startsWith("/")
       )
         throw new Error(`不支持的源码条目:${row}`);
-      return { path: file, oid };
+      return { path: file, oid, mode: Number.parseInt(mode!.slice(-3), 8) };
     });
 }
 
@@ -184,6 +186,8 @@ export function assertApkSource(commit: string, root: string, repo = process.cwd
   visit("");
   if (unexpected.length) throw new Error(`APK 缓存含非提交输入:\n${unexpected.join("\n")}`);
   for (const entry of files) {
+    if ((statSync(join(root, entry.path)).mode & 0o777) !== entry.mode)
+      throw new Error(`构建源码权限偏离 ${commit}:${entry.path}`);
     const bytes = readFileSync(join(root, entry.path));
     const oid = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
     if (oid !== entry.oid) throw new Error(`构建源码偏离 ${commit}:${entry.path}`);
@@ -230,29 +234,20 @@ export function syncApkSource(commit: string, root: string, repo = process.cwd()
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, bytes);
     }
+    if ((statSync(file).mode & 0o777) !== entry.mode) chmodSync(file, entry.mode);
     offset = end + size + 2;
   }
   assertApkSource(commit, root, repo);
   writeFileSync(marker, JSON.stringify({ commit }));
 }
 
-// CMD 路径保留空格;拒绝引号、换行和百分号展开,不把配置解释为命令。
-const cmdWord = (value: string) => {
-  if (/["%\r\n]/.test(value)) throw new Error(`CMD 参数含不支持的展开字符:${value}`);
-  return `"${value}"`;
-};
-
 export function buildApk(config: ApkConfig, commit: string, tag: string, out: string) {
   const startedAt = new Date().toISOString();
   const root = config.buildRoot;
   syncApkSource(commit, root);
-  const nativeRoot = checked(["wslpath", "-w", root], process.cwd()).toString().trim();
-  const windows = (relative: string) => `${nativeRoot}\\${relative.replaceAll("/", "\\")}`;
-  const native = (value: string) =>
-    checked(["wslpath", "-u", value], process.cwd()).toString().trim();
-  const tools = `${config.androidHome}\\build-tools\\${config.buildToolsVersion}`;
-  for (const name of ["zipalign.exe", "apksigner.bat", "aapt.exe"])
-    if (!existsSync(native(`${tools}\\${name}`))) throw new Error(`SDK 工具不存在:${name}`);
+  const tools = join(config.androidHome, "build-tools", config.buildToolsVersion);
+  for (const name of ["zipalign", "apksigner", "aapt"])
+    if (!existsSync(join(tools, name))) throw new Error(`SDK 工具不存在:${name}`);
   const generated = "src-tauri/gen/android/app";
   for (const relative of [
     `${generated}/build/outputs/apk`,
@@ -265,83 +260,80 @@ export function buildApk(config: ApkConfig, commit: string, tag: string, out: st
   }
   mkdirSync(join(root, "tmp/apk-output"), { recursive: true });
   const apkName = `${tag}-aarch64.apk`;
-  const unsigned = `${generated}/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`;
-  const aligned = "tmp/apk-output/aligned.apk";
-  const signed = `tmp/apk-output/${apkName}`;
-  const command = (label: string, argv: string[], output?: string) =>
-    `echo [apk] ${label}\r\n${argv[0]!.endsWith(".bat") ? "call " : ""}${argv.map(cmdWord).join(" ")}${output ? ` > ${cmdWord(windows(output))}` : ""}\r\nif errorlevel 1 exit /b %errorlevel%`;
-  const toolPath = [
-    config.cargoDir,
-    config.bun.slice(0, config.bun.lastIndexOf("\\")),
-    config.nodeDir,
-    `${config.javaHome}\\bin`,
-    `${config.androidHome}\\platform-tools`,
-  ].join(";");
-  cmdWord(toolPath);
-  const script = [
-    "@echo off",
-    "setlocal DisableDelayedExpansion",
-    `cd /d ${cmdWord(nativeRoot)}`,
-    `set ${cmdWord(`JAVA_HOME=${config.javaHome}`)}`,
-    `set ${cmdWord(`ANDROID_HOME=${config.androidHome}`)}`,
-    `set ${cmdWord(`NDK_HOME=${config.ndkHome}`)}`,
-    `set ${cmdWord(`ANDROID_NDK_HOME=${config.ndkHome}`)}`,
-    'set "GRADLE_OPTS=-Dorg.gradle.daemon=false"',
-    `set "PATH=${toolPath};%PATH%"`,
-    command("install", [config.bun, "install", "--frozen-lockfile"]),
-    command("build APK", [
-      config.bun,
-      "x",
-      "tauri",
-      "android",
-      "build",
-      "--apk",
-      "--target",
-      "aarch64",
-      "--ci",
-    ]),
-    command("zipalign", [`${tools}\\zipalign.exe`, "-f", "4", windows(unsigned), windows(aligned)]),
-    command("sign", [
-      `${tools}\\apksigner.bat`,
-      "sign",
-      "--ks",
-      config.keystore,
-      "--ks-key-alias",
-      "androiddebugkey",
-      "--ks-pass",
-      "pass:android",
-      "--key-pass",
-      "pass:android",
-      "--out",
-      windows(signed),
-      windows(aligned),
-    ]),
-    command(
-      "verify signature",
-      [`${tools}\\apksigner.bat`, "verify", "--verbose", "--print-certs", windows(signed)],
-      "tmp/apk-output/signature.txt",
-    ),
-    command(
-      "inspect package",
-      [`${tools}\\aapt.exe`, "dump", "badging", windows(signed)],
-      "tmp/apk-output/badging.txt",
-    ),
-    "exit /b 0",
-  ];
-  const driver = "tmp/apk-output/build.cmd";
-  writeFileSync(join(root, driver), script.join("\r\n") + "\r\n");
-  const processResult = Bun.spawnSync([native(config.cmd), "/d", "/v:off", "/c", windows(driver)], {
-    cwd: root,
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  if (processResult.exitCode !== 0)
-    throw new Error(`Android 构建或签名失败:${processResult.exitCode}`);
-  assertApkSource(commit, root);
-  const badging = readFileSync(join(root, "tmp/apk-output/badging.txt"), "utf8").replace(
-    /^\uFEFF/,
-    "",
+  const unsigned = join(
+    root,
+    generated,
+    "build/outputs/apk/universal/release/app-universal-release-unsigned.apk",
   );
+  const aligned = join(root, "tmp/apk-output/aligned.apk");
+  const signed = join(root, "tmp/apk-output", apkName);
+  const env = {
+    ...process.env,
+    JAVA_HOME: config.javaHome,
+    ANDROID_HOME: config.androidHome,
+    NDK_HOME: config.ndkHome,
+    ANDROID_NDK_HOME: config.ndkHome,
+    GRADLE_OPTS: "-Dorg.gradle.daemon=false",
+    PATH: [
+      config.cargoDir,
+      dirname(config.bun),
+      config.nodeDir,
+      join(config.javaHome, "bin"),
+      join(config.androidHome, "platform-tools"),
+      process.env.PATH,
+    ].join(":"),
+  };
+  const command = (label: string, argv: string[], output?: string) => {
+    console.log(`[apk] ${label}`);
+    const result = Bun.spawnSync(argv, {
+      cwd: root,
+      env,
+      stdout: output ? "pipe" : "inherit",
+      stderr: "inherit",
+    });
+    if (result.exitCode !== 0) throw new Error(`${label} 失败:${result.exitCode}`);
+    if (output) writeFileSync(join(root, output), result.stdout!);
+  };
+  command("安装依赖", [config.bun, "install", "--frozen-lockfile"]);
+  command("构建 APK", [
+    config.bun,
+    "x",
+    "tauri",
+    "android",
+    "build",
+    "--apk",
+    "--target",
+    "aarch64",
+    "--ci",
+  ]);
+  command("对齐 APK", [join(tools, "zipalign"), "-f", "4", unsigned, aligned]);
+  command("签名", [
+    join(tools, "apksigner"),
+    "sign",
+    "--ks",
+    config.keystore,
+    "--ks-key-alias",
+    "androiddebugkey",
+    "--ks-pass",
+    "pass:android",
+    "--key-pass",
+    "pass:android",
+    "--out",
+    signed,
+    aligned,
+  ]);
+  command(
+    "验证签名",
+    [join(tools, "apksigner"), "verify", "--verbose", "--print-certs", signed],
+    "tmp/apk-output/signature.txt",
+  );
+  command(
+    "核对包信息",
+    [join(tools, "aapt"), "dump", "badging", signed],
+    "tmp/apk-output/badging.txt",
+  );
+  assertApkSource(commit, root);
+  const badging = readFileSync(join(root, "tmp/apk-output/badging.txt"), "utf8");
   const { version } = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
     version: string;
   };
@@ -361,12 +353,13 @@ export function buildApk(config: ApkConfig, commit: string, tag: string, out: st
   if (certificate[1] !== config.certificateSha256)
     throw new Error("APK 签名证书与既有发布身份不一致");
   const apk = join(out, apkName);
-  copyFileSync(join(root, signed), apk);
+  copyFileSync(signed, apk);
   copyFileSync(join(root, "tmp/apk-output/signature.txt"), join(out, "signature.txt"));
   copyFileSync(join(root, "tmp/apk-output/badging.txt"), join(out, "badging.txt"));
   const bytes = readFileSync(apk);
   const report = {
     commit,
+    host: process.platform,
     version,
     identifier,
     apk,
