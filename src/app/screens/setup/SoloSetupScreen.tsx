@@ -156,7 +156,7 @@ export function SoloSetupScreen({
 
   // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/起兵共用基类,只改尺寸)
   // S2(#751/#742):返回/起兵触达提档——次级钮 ≥40、主行动墨钮 ≥44(DESIGN §4.7 口径)
-  const btnBase = "rounded border px-4 py-2 font-deco text-paper cursor-pointer transition-colors";
+  const btnBase = "rounded border px-4 py-2 font-brush text-paper cursor-pointer transition-colors";
 
   // ── 构块化 JSX(两档共用件;#751/S1 矮横屏双列重排把同一批块重排进两列,
   //    testid 契约零变化:座位行/输入/字盘/起兵全部原样)──
@@ -203,7 +203,7 @@ export function SoloSetupScreen({
           aria-pressed={guohao === ch}
           onClick={() => setGuohao(ch)}
           className={
-            "su-pool-btn font-deco cursor-pointer transition-colors " +
+            "su-pool-btn font-brush cursor-pointer transition-colors " +
             (guohao === ch
               ? "border-gold-deep seal-gold"
               : "border-paper/25 bg-bg/60 text-paper-dim hover:border-gold/60 hover:text-paper")
@@ -345,12 +345,15 @@ export function SoloSetupScreen({
             label: isShortLandscape ? (
               <span className="whitespace-nowrap">
                 {TARGET_LABEL[t]}
-                <span className="text-[11px] font-normal opacity-80"> {formatMoney(t)}</span>
+                <span className="font-deco text-[11px] font-normal opacity-80">
+                  {" "}
+                  {formatMoney(t)}
+                </span>
               </span>
             ) : (
               <span className="flex flex-col items-center leading-tight">
                 <span>{TARGET_LABEL[t]}</span>
-                <span className="text-xs font-normal opacity-80">{formatMoney(t)}</span>
+                <span className="font-deco text-xs font-normal opacity-80">{formatMoney(t)}</span>
               </span>
             ),
           }))}
@@ -365,14 +368,14 @@ export function SoloSetupScreen({
       >
         {/* W2-包A:原生 marker 重置(list-none + ::-webkit-details-marker);箭头用 Sym,
           group-open 旋转半圈,时长走 --dur token(红线3);机遇区是 #125 新文案,
-          字族落 wenkai(XiaoWei 空芯字形风险,新文案禁用) */}
+          操作短名走 brush,解释文字保留 wenkai */}
         <summary className="list-none cursor-pointer select-none px-2 py-1.5 font-wenkai text-sm text-paper [&::-webkit-details-marker]:hidden">
           <Sym
             name="expand"
             size={12}
             className="mr-1.5 inline-block transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-open:rotate-180"
           />
-          机遇(落格触发事件)
+          <span className="font-brush">机遇</span>(落格触发事件)
         </summary>
         <div className="flex flex-col gap-2 px-2 pb-2">
           <label className="flex cursor-pointer items-center gap-2 font-wenkai text-sm text-paper">
@@ -382,7 +385,9 @@ export function SoloSetupScreen({
               checked={encounter}
               onCheckedChange={(checked) => setEncounter(checked === true)}
             />
-            机遇必出(每次落格触发一条)
+            <span>
+              <span className="font-brush">机遇必出</span>(每次落格触发一条)
+            </span>
           </label>
           <p className="font-wenkai text-xs text-paper-dim">
             {`默认:机遇${encounterDefaults ? "开" : "关"}。机遇必出:开启后每次落格先出一条机遇;好运/中性/霉运三档概率随声望拉锯(softmax),不做手工配置。仅对本局生效。`}
@@ -403,7 +408,7 @@ export function SoloSetupScreen({
       <button
         type="button"
         onClick={() => setShowMapSelect(true)}
-        className="note-btn rounded-[3px] px-2.5 min-h-[40px] font-wenkai text-xs cursor-pointer transition-colors"
+        className="note-btn rounded-[3px] px-2.5 min-h-[40px] font-brush text-xs cursor-pointer transition-colors"
       >
         更换
       </button>
