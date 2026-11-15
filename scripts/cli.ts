@@ -223,7 +223,8 @@ function main(): void {
               roll: "行军(rollAndMove)",
               "buy | upgrade | skip": "购地/扩军/跳过(AwaitingDecision)",
               "fair <id> | premium <id> | tskip": "公道买卖/坐地起价/跳过(AwaitingTreasureOwner)",
-              confirm: "破产清算结算(AwaitingBankruptcySettle)",
+              "cmd <json> 清算示例":
+                '{"type":"confirmBankruptcySettle","assets":[{"kind":"treasure","id":"<id>"}]} / {"type":"declareBankruptcy"}',
               "cmd <json>": "任意 GameCommand(JSON 字符串)",
               status: "当前状态摘要 + prompt + choices + reaction",
               "log [n]": "最近 n 条战报(默认 20)",
@@ -409,18 +410,6 @@ function main(): void {
         console.log(
           JSON.stringify(
             { ok: r.ok, reason: r.reason, command: "tskip", ...statusOf(engine) },
-            null,
-            2,
-          ),
-        );
-        return;
-      }
-      case "confirm": {
-        const r = submitCmd(engine, { type: "confirmBankruptcySettle" });
-        saveEngineAt(path, engine, config);
-        console.log(
-          JSON.stringify(
-            { ok: r.ok, reason: r.reason, command: "confirm", ...statusOf(engine) },
             null,
             2,
           ),

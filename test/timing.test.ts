@@ -69,7 +69,7 @@ function autoResolve(e: GameEngine) {
     if (e.turnPhase === "AwaitingDecision") e.endDecision();
     else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(1); // 选跳过位之外的第 2 项,避免招入名将干扰断言
     else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
-    else if (e.turnPhase === "AwaitingBankruptcySettle") e.confirmBankruptcySettle();
+    else if (e.turnPhase === "AwaitingBankruptcySettle") e.declareBankruptcy();
     else break;
   }
 }
@@ -1020,10 +1020,11 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
       defense: 5,
     });
     e.players[ownerSeat].treasures.push({ id: "trade-t", name: "退宝测试宝", level: 1 });
-    e.players[visitorSeat].cash = 0; // 买家无现金且无可变卖资产(仅都城)→ 直接破产
+    e.players[visitorSeat].cash = 0; // 买家无现金且无可变卖资产(仅都城)→ 清算确认
     const entries = recordMomentCtx(e);
     landActiveOn(e, tile.index);
     e.resolveTreasureOwner({ type: "fair", treasureId: "trade-t" });
+    e.declareBankruptcy();
     for (const m of ["TreasureSold", "TradeSettled", "CashGained", "TreasureGained"] as const)
       expect(entries.filter((x) => x.moment === m)).toHaveLength(0); // 未成交:不派发
     expect(entries.filter((x) => x.moment === "PlayerBankrupt").map((x) => x.ctx.subject)).toEqual([
@@ -1061,8 +1062,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     expect(e.turnPhase).toBe("AwaitingTreasureOwner");
     e.resolveTreasureOwner({ type: "fair", treasureId: "escrow-t" });
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle"); // 进清算,escrow 挂起
-    e.sellTreasureBankruptcy("self-t"); // +600 凑足
-    e.confirmBankruptcySettle(); // 清偿 → 交割
+    e.confirmBankruptcySettle([{ kind: "treasure", id: "self-t" }]); // 清偿 → 交割
     expect(e.escrowTreasure).toBeNull(); // 已交割
     expect(e.players[visitorSeat].treasures.some((t) => t.id === "escrow-t")).toBe(true);
     expect(e.players[ownerSeat].cash).toBe(ownerCash0 + price); // 卖家恰收一次价款
@@ -1136,7 +1136,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: null };
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
-    e.confirmBankruptcySettle();
+    e.declareBankruptcy();
     expect(entries.filter((x) => x.moment === "PlayerBankrupt").map((x) => x.ctx)).toEqual([
       { subject: e.players.indexOf(mover), creditorSeat: null }, // #384:债主座位随派发点入事件(null=归银行)
     ]);
@@ -1163,8 +1163,10 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: null };
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
-    e.sellTreasureBankruptcy("bk-t");
-    e.sellPropertyBankruptcy(extraDef.id);
+    e.confirmBankruptcySettle([
+      { kind: "treasure", id: "bk-t" },
+      { kind: "property", id: extraDef.id },
+    ]);
     const settle = entries.filter((x) => x.moment === "BankruptcySettle");
     const propGain = extraDef.valueByLevel[0];
     expect(settle.map((x) => x.ctx)).toEqual([
@@ -1173,27 +1175,8 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     ]);
     const sold = entries.filter((x) => x.moment === "TreasureSold").map((x) => x.ctx);
     expect(sold).toEqual([{ subject: e.players.indexOf(mover), treasureId: "bk-t", amount: 100 }]); // 破产变卖也走 TreasureSold
-    e.confirmBankruptcySettle();
     expect(mover.isBankrupt).toBe(false); // 凑足自救
     expect(e.turnPhase as string).toBe("Roll"); // 对局继续(轮到下一位)
-  });
-
-  it("BankruptcySettle:遣散名将成功尾派发(ctx.amount=200)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    mover.cash = 0;
-    armHero(e, mover, heroWith([], "bk-hero")); // 名将换银 200 恰好抵债
-    const entries = recordMomentCtx(e);
-    e.pendingDebt = { amount: 200, creditor: null };
-    testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
-    e.cashHeroBankruptcy("bk-hero");
-    expect(entries.filter((x) => x.moment === "BankruptcySettle").map((x) => x.ctx)).toEqual([
-      { subject: e.players.indexOf(mover), amount: 200 },
-    ]);
-    e.confirmBankruptcySettle();
-    expect(mover.isBankrupt).toBe(false); // 200 恰清偿
-    expect(mover.cash).toBe(0);
   });
 });
 
@@ -1725,7 +1708,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: e.players[creditorSeat] };
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
-    e.confirmBankruptcySettle();
+    e.declareBankruptcy();
     expect(mover.isBankrupt).toBe(true);
     expect(entries.filter((x) => x.moment === "AssetsSeized").map((x) => x.ctx)).toEqual([
       { subject: creditorSeat, creditorSeat, cities: citiesSeized, treasureCount: 1 },
@@ -1744,7 +1727,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const entries2 = recordMomentCtx(e2);
     e2.pendingDebt = { amount: 200, creditor: null };
     testEngine(e2).forceTurnPhase("AwaitingBankruptcySettle");
-    e2.confirmBankruptcySettle();
+    e2.declareBankruptcy();
     expect(entries2.filter((x) => x.moment === "PlayerBankrupt")).toHaveLength(1);
     expect(entries2.filter((x) => x.moment === "AssetsSeized")).toHaveLength(0);
   });

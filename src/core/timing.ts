@@ -115,12 +115,12 @@ export type GameMoment =
   // ── 破产与终局结算 ──
   /** 玩家破产出局:finalizeBankruptcy 尾(名将已释放、资产已转债主)。subject = 破产者。 */
   | "PlayerBankrupt"
-  /** 破产资产被收走(#457):settleDebtTraced 破产终局一次派发(不逐件——珍宝在
+  /** 破产资产被收走(#457):seizeBankruptAssetsTraced 破产终局一次派发(不逐件——珍宝在
    *  economy.settleDebt 内转移、名将是释放非转移),与 PlayerBankrupt(破产者视角)成对,
    *  本时机 = 债主视角;无债主(归银行/销毁)不派。ctx.creditorSeat = 债主(= subject),
    *  ctx.cities = 被收走的城 id 列表,ctx.treasureCount = 被收走的珍宝件数。subject = 债主。 */
   | "AssetsSeized"
-  /** 破产每笔变卖后:变卖珍宝/变卖城池/遣散名将三个命令成功尾(变卖自救进行中,结局未定)。
+  /** 破产每笔变卖后:变卖珍宝/变卖城池两个命令成功尾(变卖自救进行中,结局未定)。
    *  ctx.amount = 变卖所得。subject = 变卖者。 */
   | "BankruptcySettle"
   // ── 反应窗挂点(#281,ADR-0017)──

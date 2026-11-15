@@ -341,9 +341,10 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
     mover.properties = []; // 仅都城不可变卖 → 无可变卖资产
     beginGameEventBatch(e);
     const r = e.payOrLiquidate(mover, null, 200);
-    expect(r).toBe("bankrupt");
+    expect(r).toBe("liquidating");
+    e.declareBankruptcy();
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["playerBankrupt"]);
+    expect(kinds(events)).toEqual(["playerBankrupt", "turnEnded", "gameOver"]);
     expect(events[0]).toMatchObject({ kind: "playerBankrupt", seat: e.players.indexOf(mover) });
     expect(mover.isBankrupt).toBe(true);
   });

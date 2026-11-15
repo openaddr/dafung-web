@@ -1,14 +1,22 @@
 import { describe, it, expect, afterEach } from "bun:test";
 import { GameEngine } from "@core/authority";
+import type { BankruptcyAsset } from "@core/bankruptcy";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
+import { botAct } from "@core/bot";
 import type { Player } from "@core/model";
 import { sellValueOf } from "@core/economy";
-import { guidePriceOf } from "@core/treasures";
-import { HEROES, heroById } from "@core/heroes";
+import { HEROES } from "@core/heroes";
 import type { EncounterDef } from "@core/encounters";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import { armHero, sweepTestHeroes } from "@core/testing";
+import {
+  armHero as plantHero,
+  armPhase,
+  giveTreasure,
+  grantProperty,
+  setCash,
+} from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
@@ -52,7 +60,7 @@ function finishSetup(e: GameEngine) {
 }
 
 function hero(id: string, name: string) {
-  // 换银布场:名将只作 200 两资产计价,技能从不派发(无行军/时机)→ 空池即可
+  // 清算保留名将布场:本组不测试技能,空池隔离其余时机。
   return {
     id,
     name,
@@ -64,22 +72,75 @@ function hero(id: string, name: string) {
 
 /** 给玩家塞一座非都城的可变卖城(catalog 里 valueByLevel 齐全的普通城),返回其 Lv.0 变卖价。 */
 function giveSellableCity(e: GameEngine, p: Player): { propId: string; lv0Value: number } {
-  const capProp = e.board.at(p.capitalIndex)?.propertyId!;
-  const tile = e.board.tiles.find(
-    (t) => !!t.propertyId && t.propertyId !== capProp && e.catalog.get(t.propertyId) != null,
-  )!;
+  const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) === null)!;
   const def = e.catalog.get(tile.propertyId!)!;
-  p.properties.push({
-    propertyId: def.id,
-    group: def.group,
-    level: 0,
-    maxLevel: def.maxLevel,
-    defense: 5,
-  });
+  grantProperty(e, e.players.indexOf(p), def.id, 0);
   return { propId: def.id, lv0Value: def.valueByLevel[0] };
 }
 
 describe("破产清算", () => {
+  it("批量清偿消费同标识技能书的真实数量,末件超额保留现金且重复提交不再成交", () => {
+    const e = makeEngine();
+    finishSetup(e);
+    const seat = e.activeIndex;
+    const p = e.activePlayer;
+    setCash(e, seat, 20);
+    giveTreasure(e, seat, [
+      { id: "skill-book-jixing", name: "急行", level: 1 },
+      { id: "skill-book-jixing", name: "急行", level: 1 },
+      { id: "kept", name: "留存", level: 2 },
+    ]);
+    e.payOrLiquidate(p, null, 200);
+
+    const command = {
+      type: "confirmBankruptcySettle" as const,
+      assets: [
+        { kind: "treasure" as const, id: "skill-book-jixing" },
+        { kind: "treasure" as const, id: "skill-book-jixing" },
+      ],
+    };
+    e.submitCommand(command);
+
+    expect(p.cash).toBe(20);
+    expect(p.treasures.map((t) => t.id)).toEqual(["kept"]);
+    expect(e.pendingDebt).toBeNull();
+    expect(e.snapshot().events.filter((event) => event.kind === "assetLiquidated")).toHaveLength(2);
+    e.submitCommand(command);
+    expect(p.cash).toBe(20);
+    expect(p.treasures.map((t) => t.id)).toEqual(["kept"]);
+  });
+
+  for (const scenario of [
+    { name: "无可卖资产", level: null, bankrupt: true, cash: 0 },
+    { name: "资产不足", level: 1, bankrupt: true, cash: 0 },
+    { name: "珍宝足以自救", level: 5, bankrupt: false, cash: 400 },
+  ]) {
+    it(`bot ${scenario.name}:只卖合法资产并完成清偿或认破产,名将不换银`, () => {
+      const e = makeEngine(1);
+      finishSetup(e);
+      const p = e.activePlayer;
+      plantHero(e, e.activeIndex, "zhouyu", ["jixing"]);
+      setCash(e, e.activeIndex, 0);
+      giveTreasure(
+        e,
+        e.activeIndex,
+        scenario.level === null ? [] : [{ id: "funds", name: "筹款宝", level: scenario.level }],
+      );
+      e.payOrLiquidate(p, null, 200);
+
+      botAct(e);
+
+      expect(p.isBankrupt).toBe(scenario.bankrupt);
+      expect(p.cash).toBe(scenario.cash);
+      expect(p.heroes.map((slot) => slot.heroId)).toEqual(scenario.bankrupt ? [] : ["zhouyu"]);
+      expect(e.pendingDebt).toBeNull();
+      expect(e.turnPhase).not.toBe("AwaitingBankruptcySettle");
+      if (scenario.bankrupt) {
+        expect(e.snapshot().events.some((event) => event.kind === "assetLiquidated")).toBe(false);
+      }
+    });
+  }
+
   it("现金不足但有珍宝 → 进入清算;卖珍宝凑够 → 免破产继续", () => {
     const e = makeEngine(1);
     finishSetup(e);
@@ -90,82 +151,70 @@ describe("破产清算", () => {
     expect(r).toBe("liquidating");
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
     expect(e.pendingDebt?.amount).toBe(200);
-    e.sellTreasureBankruptcy("t1"); // 卖宝 +600 → cash 700
-    expect(p.cash).toBe(700);
-    e.confirmBankruptcySettle(); // 凑够 → 扣 200
+    e.confirmBankruptcySettle([{ kind: "treasure", id: "t1" }]); // +600 后清偿 200
     expect(p.cash).toBe(500);
     expect(p.isBankrupt).toBe(false);
   });
 
-  it("无资产可清(仅都城)→ 直接破产", () => {
+  it("无资产可清(仅都城)仍先进入清算,不会自动出局", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
-    p.cash = 50;
+    setCash(e, e.activeIndex, 50);
     // 选都后只有都城(不可卖)+ 无珍宝/名将
     const r = e.payOrLiquidate(p, null, 200);
-    expect(r).toBe("bankrupt");
-    expect(p.isBankrupt).toBe(true);
+    expect(r).toBe("liquidating");
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    expect(e.pendingDebt?.amount).toBe(200);
+    expect(p.isBankrupt).toBe(false);
   });
 
-  it("清算卖光仍不足 → 破产", () => {
+  it("清偿不足时拒绝结算,明确认破产后才出局", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
     p.cash = 0;
     p.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" }); // 指导价 100
     e.payOrLiquidate(p, null, 500); // 欠 500,宝仅 100
-    e.sellTreasureBankruptcy("t1"); // +100 → cash 100
-    e.confirmBankruptcySettle(); // 仍不足 → 破产
+    e.confirmBankruptcySettle([{ kind: "treasure", id: "t1" }]);
+    expect(p.cash).toBe(0);
+    expect(p.treasures.map((t) => t.id)).toEqual(["t1"]);
+    expect(p.isBankrupt).toBe(false);
+    expect(e.pendingDebt?.amount).toBe(500);
+    e.submitCommand({ type: "declareBankruptcy" });
     expect(p.isBankrupt).toBe(true);
   });
 
-  it("名将换银 200 + 释放回招贤池", () => {
+  it("可卖资产足额仍可明确认破产,剩余资产清算且名将回池,不换银或折书", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
-    p.cash = 0;
-    armHero(e, p, hero("zhouyu", "周瑜"));
-    e.payOrLiquidate(p, null, 150); // 欠 150,有名将 → 清算
-    e.cashHeroBankruptcy("zhouyu"); // +200,释放
-    expect(p.cash).toBe(200);
-    expect(p.heroes.length).toBe(0);
-    e.confirmBankruptcySettle(); // 凑够 → 扣 150
-    expect(p.cash).toBe(50);
-    expect(p.isBankrupt).toBe(false);
+    const seat = e.activeIndex;
+    e.tryRecruitHero(p);
+    e.resolveHeroPick(0);
+    const heroId = p.heroes[0].heroId;
+    expect(e.recruitedHeroIds.has(heroId)).toBe(true);
+    armPhase(e, { activeIndex: seat, turnPhase: "Roll" });
+    setCash(e, seat, 0);
+    giveTreasure(e, seat, [
+      { id: "funds", name: "自救宝", level: 5 },
+      { id: "kept", name: "余宝", level: 2 },
+    ]);
+    e.payOrLiquidate(p, null, 150);
+    expect(p.heroes.map((slot) => slot.heroId)).toEqual([heroId]);
+
+    e.submitCommand({ type: "declareBankruptcy" });
+
+    expect(p.isBankrupt).toBe(true);
+    expect(p.cash).toBe(0);
+    expect(p.treasures).toEqual([]);
+    expect(p.properties).toEqual([]);
+    expect(p.heroes).toEqual([]);
+    expect(e.recruitedHeroIds.has(heroId)).toBe(false);
+    expect(e.pendingDebt).toBeNull();
   });
 
-  it("遣散整槽弃(#785):已授技与槽内冷却账随槽俱弃、回池无孤儿键;再招重掷新槽(#787)", () => {
-    for (let seed = 1; seed <= 20; seed++) {
-      const e = makeEngine(seed);
-      finishSetup(e);
-      const p = e.activePlayer;
-      p.cash = 0;
-      armHero(e, p, hero("zhouyu", "周瑜"), ["jixing"]); // 显式授技布场(非整池,验「随槽俱弃」)
-      e.recruitedHeroIds.add("zhouyu"); // 名将在招贤池台账(与真实招募同态)
-      p.heroes[0].lastFired["jixing"] = 5; // 槽内冷却账残值
-      e.payOrLiquidate(p, null, 150);
-      e.cashHeroBankruptcy("zhouyu");
-      expect(p.heroes.length).toBe(0); // 整槽弃
-      expect(e.recruitedHeroIds.has("zhouyu")).toBe(false); // 回池:台账无孤儿键
-      e.tryRecruitHero(p);
-      if (e.turnPhase !== "AwaitingHeroPick") continue;
-      const idx = e.offeredHeroes.findIndex((h) => h.def.id === "zhouyu");
-      if (idx < 0) continue; // 三选一未含周瑜:换 seed(回池后 3/4 中,20 seed 必中)
-      const offer = e.offeredHeroes[idx]!;
-      e.resolveHeroPick(idx);
-      // 再招重掷(#787):授技=候选行预掷子集(≥1、池内),冷却账清零;遣散不保留旧授技
-      expect(p.heroes).toEqual([
-        { heroId: "zhouyu", skillIds: offer.skillIds, lastFired: {}, marks: {} }, // marks(#1377):标记感知构造
-      ]);
-      expect(offer.skillIds.length).toBeGreaterThanOrEqual(1);
-      expect(offer.skillIds.every((id) => heroById("zhouyu").skillPool.includes(id))).toBe(true);
-      return;
-    }
-    throw new Error("测试场景无效:20 个种子均未让周瑜回到招贤候选");
-  });
-
-  it("都城不可变卖(清算时 sellPropertyBankruptcy 拒绝)", () => {
+  it("批量清偿禁止变卖都城", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
@@ -174,36 +223,51 @@ describe("破产清算", () => {
     p.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" }); // 有珍宝才能进清算
     e.payOrLiquidate(p, null, 99999);
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
-    e.sellPropertyBankruptcy(capProp); // 都城 → 拒绝(warn,不变)
+    e.confirmBankruptcySettle([{ kind: "property", id: capProp }]);
     expect(p.properties.some((h) => h.propertyId === capProp)).toBe(true); // 都城仍在
     expect(p.cash).toBe(0); // 没卖成都城
   });
 
-  it("凑足即止:自救达标(现金≥债务)后,三类变卖命令一律被引擎硬拒绝", () => {
-    const e = makeEngine(1);
+  it("混合批次先完整校验:数量不足、非法资产、欠额和足额后多选均无部分成交", () => {
+    const e = makeEngine();
     finishSetup(e);
     const p = e.activePlayer;
-    p.cash = 0;
-    p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600
-    armHero(e, p, hero("zhouyu", "周瑜"));
-    armHero(e, p, hero("zhugeliang", "诸葛亮"));
+    const seat = e.activeIndex;
+    setCash(e, seat, 20);
+    giveTreasure(e, seat, [
+      { id: "book", name: "技能书", level: 1 },
+      { id: "book", name: "技能书", level: 1 },
+      { id: "kept", name: "余宝", level: 2 },
+    ]);
     const city = giveSellableCity(e, p);
-    e.payOrLiquidate(p, null, 150); // 欠 150
-    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
-    e.cashHeroBankruptcy("zhouyu"); // +200 → cash 200 ≥ 150,自救达标
-    expect(p.cash).toBe(200);
-    // 达标后珍宝/城/名将三类守卫一致:一律拒绝,资产原封不动
-    e.sellTreasureBankruptcy("t1");
-    e.sellPropertyBankruptcy(city.propId);
-    e.cashHeroBankruptcy("zhugeliang");
-    expect(p.cash).toBe(200);
-    expect(p.treasures.map((t) => t.id)).toEqual(["t1"]);
-    expect(p.properties.some((h) => h.propertyId === city.propId)).toBe(true);
-    expect(p.heroes.map((h) => h.heroId)).toEqual(["zhugeliang"]);
-    expect(e.log.some((l) => l.brief.includes("已凑足债务,不可再卖"))).toBe(true); // 明确 reason 进日志
-    e.confirmBankruptcySettle(); // 确认结算语义不变:照常清偿 150
-    expect(p.cash).toBe(50);
-    expect(p.isBankrupt).toBe(false);
+    const capital = e.board.at(p.capitalIndex).propertyId!;
+    const foreign = e.board.at(e.players.find((q) => q !== p)!.capitalIndex).propertyId!;
+    const book = { kind: "treasure" as const, id: "book" };
+    const property = { kind: "property" as const, id: city.propId };
+    const debt = 20 + 200 + city.lv0Value;
+    e.payOrLiquidate(p, null, debt);
+    const holdings = structuredClone(p.properties);
+    for (const assets of [
+      [book],
+      [book, book, book, property],
+      [book, { kind: "property" as const, id: capital }],
+      [book, { kind: "property" as const, id: foreign }],
+      [book, property, property],
+      [book, book, { kind: "hero", id: city.propId } as unknown as BankruptcyAsset],
+      [book, book, property, { kind: "treasure" as const, id: "kept" }],
+    ]) {
+      e.submitCommand({ type: "confirmBankruptcySettle", assets });
+      expect(p.cash).toBe(20);
+      expect(p.treasures.map((t) => t.id)).toEqual(["book", "book", "kept"]);
+      expect(p.properties).toEqual(holdings);
+      expect(e.pendingDebt!.amount).toBe(debt);
+      expect(e.snapshot().events.some((event) => event.kind === "assetLiquidated")).toBe(false);
+    }
+    e.submitCommand({ type: "confirmBankruptcySettle", assets: [book, book, property] });
+    expect(p.cash).toBe(0);
+    expect(p.treasures.map((t) => t.id)).toEqual(["kept"]);
+    expect(p.properties.some((h) => h.propertyId === city.propId)).toBe(false);
+    expect(e.pendingDebt).toBeNull();
   });
 
   it("恰好差 1 分时卖最便宜的仍允许(单笔可超额凑足),凑足后立刻封死", () => {
@@ -216,12 +280,8 @@ describe("破产清算", () => {
       { id: "pricey", name: "玉玺", level: 10, count: 1, desc: "" }, // 指导价 3000
     );
     e.payOrLiquidate(p, null, 500); // 欠 500,cash 499,差 1 分
-    e.sellTreasureBankruptcy("cheap"); // 仍欠 1 分 → 卖最便宜的允许(卖出即凑足)
-    expect(p.cash).toBe(599);
-    e.sellTreasureBankruptcy("pricey"); // 已达标 → 拒绝
-    expect(p.cash).toBe(599);
+    e.confirmBankruptcySettle([{ kind: "treasure", id: "cheap" }]);
     expect(p.treasures.map((t) => t.id)).toEqual(["pricey"]);
-    e.confirmBankruptcySettle();
     expect(p.cash).toBe(99); // 599 − 500
     expect(p.isBankrupt).toBe(false);
   });
@@ -233,8 +293,7 @@ describe("破产清算", () => {
     p.cash = 100;
     p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" });
     e.payOrLiquidate(p, null, 200);
-    e.sellTreasureBankruptcy("t1"); // +600 → 700
-    e.confirmBankruptcySettle();
+    e.confirmBankruptcySettle([{ kind: "treasure", id: "t1" }]);
     expect(e.pendingDebt).toBeNull();
     expect(e.escrowTreasure).toBeNull();
     expect(e.treasureVisitor).toBeNull();
@@ -253,9 +312,8 @@ describe("破产清算", () => {
     const p = e.activePlayer;
     p.cash = 0;
     armHero(e, p, hero("zhouyu", "周瑜"));
-    e.payOrLiquidate(p, null, 500); // 欠 500,仅有名将(+200)可卖
-    e.cashHeroBankruptcy("zhouyu"); // +200,仍差 300
-    e.confirmBankruptcySettle(); // 凑不够 → 破产出局
+    e.payOrLiquidate(p, null, 500); // 仅有名将,无可卖资产仍进入清算
+    e.declareBankruptcy();
     expect(p.isBankrupt).toBe(true);
     expect(e.pendingDebt).toBeNull();
     expect(e.turnPhase).toBe("Roll"); // 3 人在局,游戏未结束
@@ -264,35 +322,6 @@ describe("破产清算", () => {
 });
 
 describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
-  /** 卷轴展示价的 UI 口径(DecisionScrollLayer/BankruptcyScroll 与引擎共用的纯函数):
-   *  珍宝 = guidePriceOf(level),城 = sellValueOf(def, level),名将 = 200。
-   *  本组断言:引擎三变卖命令的实际入账 === 同一批纯函数的输出(展示 ≠ 入账即红)。 */
-  it("三类变卖入账 = UI 展示价(同一纯函数),城按 valueByLevel 而非购入价", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    p.cash = 0;
-    p.treasures.push({ id: "t1", name: "宝", level: 7, count: 1, desc: "" }); // 指导价 = guidePriceOf(7)
-    const city = giveSellableCity(e, p);
-    const def = e.catalog.get(city.propId)!;
-    armHero(e, p, hero("zhouyu", "周瑜"));
-    e.payOrLiquidate(p, null, 999999); // 巨债:确保三笔变卖都还被允许
-
-    // 珍宝:入账 === 展示(guidePriceOf(level))
-    e.sellTreasureBankruptcy("t1");
-    expect(p.cash).toBe(guidePriceOf(7));
-
-    // 城:入账 === 展示(sellValueOf(def, level) = valueByLevel[level]);Lv.0 是折价 ≠ 购入价
-    e.sellPropertyBankruptcy(city.propId);
-    expect(p.cash).toBe(guidePriceOf(7) + sellValueOf(def, 0));
-    expect(sellValueOf(def, 0)).toBe(def.valueByLevel[0]);
-    expect(sellValueOf(def, 0)).not.toBe(def.purchasePrice); // Lv.0 变卖折价(经济 v3:60%),展示不再标购入价
-
-    // 名将:入账 === 展示(200)
-    e.cashHeroBankruptcy("zhouyu");
-    expect(p.cash).toBe(guidePriceOf(7) + sellValueOf(def, 0) + 200);
-  });
-
   it("卖一座城恰好清债:按展示价(Lv.0 变卖价)入账后尚欠归零,免破产", () => {
     const e = makeEngine(1);
     finishSetup(e);
@@ -304,41 +333,10 @@ describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
     // 尚欠(卷轴口径)= max(0, debt − cash)
     expect(Math.max(0, e.pendingDebt!.amount - p.cash)).toBe(price);
-    e.sellPropertyBankruptcy(city.propId); // +price(恰为展示价)→ cash === debt
-    expect(p.cash).toBe(price);
-    expect(Math.max(0, e.pendingDebt!.amount - p.cash)).toBe(0); // 尚欠刷新为 0
-    e.confirmBankruptcySettle();
+    e.confirmBankruptcySettle([{ kind: "property", id: city.propId }]);
     expect(p.cash).toBe(0); // 恰好清偿,无隐藏扣减
     expect(p.isBankrupt).toBe(false);
     expect(e.pendingDebt).toBeNull();
-  });
-
-  it("尚欠随每笔变卖实时刷新(快照口径:owe = max(0, pendingDebt.amount − 快照 cash)),debt 本身不变", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    p.cash = 0;
-    p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600
-    const city = giveSellableCity(e, p);
-    const cityPrice = sellValueOf(e.catalog.get(city.propId)!, 0);
-    const debt = guidePriceOf(5) + cityPrice;
-    e.payOrLiquidate(p, null, debt);
-    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
-
-    const oweOf = () => {
-      const s = e.snapshot();
-      const me = s.players[s.activeIndex];
-      expect(s.pendingDebt?.amount).toBe(debt); // 债务额清算期固定,不随变卖缩水
-      return Math.max(0, s.pendingDebt!.amount - me.cash);
-    };
-    expect(oweOf()).toBe(debt); // 未卖:欠全额
-    e.sellTreasureBankruptcy("t1"); // +600
-    expect(oweOf()).toBe(cityPrice); // 尚欠实时缩水
-    e.sellPropertyBankruptcy(city.propId); // +cityPrice
-    expect(oweOf()).toBe(0); // 凑足即 0(封顶,不为负)
-    e.confirmBankruptcySettle();
-    expect(p.cash).toBe(0); // 全额清偿,无其他扣减
-    expect(p.isBankrupt).toBe(false);
   });
 });
 
@@ -358,8 +356,7 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
     p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600
     const r = e.payOrLiquidate(p, null, 200);
     expect(r).toBe("liquidating");
-    e.sellTreasureBankruptcy("t1"); // +600 → cash 700
-    e.confirmBankruptcySettle(); // 实付 200 清偿
+    e.confirmBankruptcySettle([{ kind: "treasure", id: "t1" }]); // 实付 200 清偿
     expect(p.cash).toBe(500);
     expect(p.isBankrupt).toBe(false);
     expect(caopi.cash).toBe(caopiCash0 + 50); // 与现金直付同口径:渔利恰一次
@@ -446,8 +443,7 @@ describe("收款派发下沉(#455 A3+A5):直付/清偿收款点派 CashGained(�
     const creditorCash0 = creditor.cash;
     const entries = recordCashMoments(e);
     expect(e.payOrLiquidate(p, creditor, 200)).toBe("liquidating");
-    e.sellTreasureBankruptcy("t1"); // +600 → 凑足
-    e.confirmBankruptcySettle(); // 实付 200 清偿 → 债主收款
+    e.confirmBankruptcySettle([{ kind: "treasure", id: "t1" }]); // 实付 200 清偿 → 债主收款
     expect(p.cash).toBe(500);
     expect(creditor.cash).toBe(creditorCash0 + 200); // 收款方恰一派(清算路不再经 deliverEscrow 补派)
     expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([

@@ -451,7 +451,7 @@ export function extractBatchEvents(
         break;
       }
       case "assetLiquidated": {
-        // 破产三变卖:所得浮字;变卖城池=回无主,补易主宣告(旧留痕通道的易主维度)
+        // 破产批量变卖:所得浮字;变卖城池=回无主,补易主宣告(旧留痕通道的易主维度)
         const seat = eventSeat(engine, ev);
         events_.push(cashFloater(engine, seat, ev.amount, false));
         if (ev.asset.kind === "property")

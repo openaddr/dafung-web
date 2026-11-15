@@ -281,7 +281,12 @@ export const EVENT_TIERS = {
   assetLiquidated: {
     fold: "must-fold",
     fx: "presented",
-    why: "三变卖:现金+所得+变卖物出册;遣散名将释放回招贤池;表现=所得浮字(变卖城池另产回无主宣告)",
+    why: "批量变卖珍宝与非都城城池:逐件现金+所得,城池出册(珍宝由 treasureSold 唯一出册);表现=所得浮字(变卖城池另产回无主宣告)",
+  },
+  bankruptcySettled: {
+    fold: "must-fold",
+    fx: "silent",
+    why: "清偿完成:清待偿债务与交涉,按交割及现金技能结算后的绝对余额落双方现金,避免与 treasureTraded 重复计款",
   },
 } as const satisfies {
   readonly [K in GameEventBody["kind"]]: EventTier;

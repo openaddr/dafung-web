@@ -114,7 +114,7 @@ function autoResolve(e: GameEngine) {
     if (e.turnPhase === "AwaitingDecision") e.endDecision();
     else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(0);
     else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
-    else if (e.turnPhase === "AwaitingBankruptcySettle") e.confirmBankruptcySettle();
+    else if (e.turnPhase === "AwaitingBankruptcySettle") e.declareBankruptcy();
     else break;
   }
 }

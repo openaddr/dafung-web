@@ -18,6 +18,8 @@ import { guidePriceOf, isSkillBook } from "./treasures";
 import { skillBookLearners } from "./roster";
 import { beginGameEventBatch } from "./game-events";
 import { STAMINA_CASH_RATE } from "./constants";
+import type { BankruptcyAsset } from "./bankruptcy";
+import { sellValueOf } from "./economy";
 
 /** bot 可驱动的回合相位正典(bot-driver/cli/whole-game 等消费方 import 此常量,禁再各自抄副本)。
  *  契约:除 AwaitingReaction 外各相位 botAct switch 直驱;AwaitingReaction 特判——bot
@@ -650,28 +652,25 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingBankruptcySettle": {
-      // bot 清算:卖资产到够(优先名将→低珍宝→城,排除都城),再 confirm
+      // 先拟完整计划(低珍宝→非都城城池);不足时直接认破产,不会先部分变卖。
       const p = engine.activePlayer;
       const debt = engine.pendingDebt!;
       const cap = engine.board.at(p.capitalIndex)?.propertyId;
-      while (p.cash < debt.amount) {
-        if (p.heroes.length) {
-          engine.cashHeroBankruptcy(p.heroes[0].heroId);
-          continue;
-        }
-        if (p.treasures.length) {
-          const low = [...p.treasures].sort((a, b) => a.level - b.level)[0];
-          engine.sellTreasureBankruptcy(low.id);
-          continue;
-        }
-        const sellable = p.properties.find((h) => h.propertyId !== cap);
-        if (sellable) {
-          engine.sellPropertyBankruptcy(sellable.propertyId);
-          continue;
-        }
-        break;
+      const assets: BankruptcyAsset[] = [];
+      let proceeds = p.cash;
+      for (const treasure of [...p.treasures].sort((a, b) => a.level - b.level)) {
+        if (proceeds >= debt.amount) break;
+        assets.push({ kind: "treasure", id: treasure.id });
+        proceeds += guidePriceOf(treasure.level);
       }
-      engine.confirmBankruptcySettle();
+      for (const holding of p.properties) {
+        if (proceeds >= debt.amount) break;
+        if (holding.propertyId === cap) continue;
+        assets.push({ kind: "property", id: holding.propertyId });
+        proceeds += sellValueOf(engine.catalog.get(holding.propertyId)!, holding.level);
+      }
+      if (proceeds >= debt.amount) engine.confirmBankruptcySettle(assets);
+      else engine.declareBankruptcy();
       break;
     }
 

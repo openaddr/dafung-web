@@ -56,7 +56,8 @@
 //                 skipTurns+1(耗竭善后标记侧)
 //   破产族        playerBankrupt → isBankrupt/capitalIndex=-1/名将释放回池/锦囊清手入弃堆
 //                 (现金清零/债主收款/珍宝转债主 = 破产清算强制全量节点,不折);
-//                 assetLiquidated → 现金+amount + 变卖物出册
+//                 assetLiquidated → 现金+amount + 变卖城池出册(珍宝由 treasureSold 出册)
+//                 bankruptcySettled → 清债/交涉 + 双方现金置为技能结算后的最终余额
 //   跳过族        turnSkipped → skipTurns-1(消费侧);jinnangInflicted → 目标 skipTurns+1
 //                 (缓兵之计标记侧)
 //   机遇族        encounterTriggered → lastLandOutcome=Noop + 抉择型置 AwaitingEncounter +
@@ -196,8 +197,6 @@ interface FoldCtx {
   /** 开局批旗标:gameStarted 与开局首个 turnStarted 同批(finishSetup),此时 turnNumber
    *  取事件首部本值(引擎开局即置 1,非「派发后 +1」路径)。 */
   sawGameStart: boolean;
-  /** 批内已破产座位:落格表现态 causedBankruptcy 相邻判定(商市行情/机遇付款)。 */
-  bankruptSeats: Set<number>;
   /** 批内锦囊宣布锚点(后写覆盖):reactionOpened 的 targetSeats 同源回溯(宣布与开窗
    *  同一结算)。游标形状单源 core/event-tiers(AnnounceCursor,与 fx 提取器跨批游标
    *  同型,各自实例化)。 */
@@ -273,7 +272,6 @@ function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): 
 export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[]): void {
   const ctx: FoldCtx = {
     sawGameStart: false,
-    bankruptSeats: new Set<number>(),
     lastAnnounce: null,
     closedWindow: null,
     consumedAnswers: new Set<ReactionAnswer>(),
@@ -453,8 +451,14 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         break;
       case "treasureSold": {
         const seller = foldTarget(engine, ev);
-        const idx = seller.treasures.findIndex((t) => t.id === ev.treasureId);
-        if (idx >= 0) seller.treasures.splice(idx, 1); // 查无 = 窃玉缺口级联(文件头)
+        const escrow = engine.escrowTreasure;
+        // 托管实物在挂债时已经出册;交割的售宝事件不能再消费卖家的同标识余册。
+        const soldFromEscrow =
+          escrow !== null && escrow.sellerIdx === ev.seat && escrow.treasure.id === ev.treasureId;
+        if (!soldFromEscrow) {
+          const idx = seller.treasures.findIndex((t) => t.id === ev.treasureId);
+          if (idx >= 0) seller.treasures.splice(idx, 1); // 查无 = 窃玉缺口级联(文件头)
+        }
         // 银两不走本事件:交割价随 treasureTraded 折(卖家+价),破产变卖所得随
         // assetLiquidated 折——此处只做出册,防双计
         break;
@@ -469,25 +473,12 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       // ── 金钱族 ──
       case "cashChanged": {
         const p = foldTarget(engine, ev);
-        // 破产扫账平记对齐(#652):引擎破产支路先经 settleDebt 把现金整扫归零,随后
-        // 商市/机遇结算仍平记整额负 delta(浮字同口径,movement-flow/encounter-flow
-        // 破产支路)——该 delta 是表现宣告,非状态转移(引擎不再动账;PlayerBankrupt
-        // 时机技能只动属主且破产者不触发,该点引擎真值恒为 0)。批序恒 playerBankrupt
-        // 先于平记(finalizeBankruptcy 派发时机同步产事件,先于调用方的 cashChanged),
-        // 故锚 = ctx.bankruptSeats:锚在 → 落 0 即对齐引擎真值,非兜底钳位;锚不在而
-        // 穿零 = 锁步折叠下不存在的副本漂移,契约违反当场炸出(渲染端 formatMoney
-        // 负数契约才不致被折叠中间态击穿)。
         const next = p.cash + ev.delta;
-        if (next < 0) {
-          const seat = seatNo(engine, p);
-          if (!ctx.bankruptSeats.has(seat))
-            throw new Error(
-              `折叠投影:cashChanged ${ev.delta} 使座位 ${seat} 现金穿零且本批无破产锚(副本漂移,契约违反)`,
-            );
-          p.cash = 0;
-        } else {
-          p.cash = next; // 被动结算逐条累加(delta 带符号;主动支出随领域事件折)
-        }
+        if (next < 0)
+          throw new Error(
+            `折叠投影:cashChanged ${ev.delta} 使座位 ${seatNo(engine, p)} 现金穿零(副本漂移,契约违反)`,
+          );
+        p.cash = next; // 清算挂起不产整额扣款,实际破产扫账由强制全量节点同步。
         // 落格表现态相邻回填(引擎结算序:落格置态 → 经济动账 → 回填金额/破产标记):
         const outcome = engine.lastLandOutcome;
         if (ev.reason === "supply" && outcome?.kind === "OwnProperty" && outcome.resupply == null)
@@ -495,7 +486,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         if (ev.reason === "stock")
           engine.lastLandOutcome = {
             kind: "Noop",
-            causedBankruptcy: ctx.bankruptSeats.has(seatNo(engine, p)),
+            causedBankruptcy: false,
           };
         break;
       }
@@ -758,7 +749,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       // ── 破产族 ──
       case "playerBankrupt": {
         const p = foldTarget(engine, ev);
-        ctx.bankruptSeats.add(seatNo(engine, p));
         p.isBankrupt = true;
         p.capitalIndex = -1; // 善后清都城(资产已随 assetTransferred 逐城折)
         for (const slot of p.heroes) engine.recruitedHeroIds.delete(slot.heroId); // 整槽释放回招贤池
@@ -774,18 +764,20 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "assetLiquidated": {
         const p = foldTarget(engine, ev);
         p.cash += ev.amount; // 变卖所得随事件折(无 cashChanged,判定表 cash 行)
-        if (ev.asset.kind === "treasure") {
-          const idx = p.treasures.findIndex((t) => t.id === ev.asset.id);
-          if (idx >= 0) p.treasures.splice(idx, 1); // 查无 = 窃玉缺口级联(文件头)
-        } else if (ev.asset.kind === "property") {
+        // 同一笔售宝已有 treasureSold 出册,此处再删会多消费同标识技能书。
+        if (ev.asset.kind === "property") {
           const idx = p.properties.findIndex((h) => h.propertyId === ev.asset.id);
           if (idx >= 0) p.properties.splice(idx, 1); // 查无 = 缺口级联略过(文件头;赐城缺口已随 propertyGranted 闭合)
-        } else {
-          const idx = p.heroes.findIndex((slot) => slot.heroId === ev.asset.id);
-          if (idx < 0) throw new Error(`折叠投影:遣散名将 ${ev.asset.id} 不在副本麾下(契约违反)`);
-          p.heroes.splice(idx, 1);
-          engine.recruitedHeroIds.delete(ev.asset.id); // 释放回招贤池(引擎 cashHeroBankruptcy)
         }
+        break;
+      }
+      case "bankruptcySettled": {
+        foldTarget(engine, ev).cash = ev.cashAfter;
+        if (ev.creditor !== null)
+          eventSeatPlayer(engine, ev.creditor.seat, "bankruptcySettled.creditor.seat").cash =
+            ev.creditor.cashAfter;
+        engine.pendingDebt = null;
+        engine.treasureVisitor = null;
         break;
       }
       // ── 折叠面零操作档(default 守卫,档位单源 core/event-tiers)──

@@ -31,6 +31,7 @@ import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
 // 溢出门控常显,与 PileShell 同语言;渐隐带在 banner.css 沿底件下发的
 // data-overflow-y-* 门控(壳只管结构,滚动提示观感单源在 css)。
 import { ScrollArea } from "@app/components/ui/scroll-area";
+import { Button } from "@base-ui/react/button";
 import "./banner.css";
 import { getAudio } from "@app/fx/audio";
 import { Sym } from "@app/screens/shared/Sym";
@@ -67,6 +68,9 @@ interface BannerShellProps {
   /** 奇遇宽卷(#1155 奇遇演出):比常规决策横幅宽一号——奇遇身份全靠形制传达,
    *  不立文字牌(ADR-0051);消费方=EncounterChoiceScroll(按 ONCE id 集合派生)。 */
   wide?: boolean;
+  /** 定高分页内容不使用滚动井;由业务网格控制页内密度。 */
+  fixedBody?: boolean;
+  className?: string;
   /** 题行侧饰槽(#1155):纯视觉纹饰宿主(奇遇金穗一对),绝对定位不占排版、
    *  pointer-events 归宿主自管;渲染在题行末位,章印 span:first-child/题名 h2 的
    *  结构选择器契约(TIER_SKIN 皮肤下探口径)两位不变。 */
@@ -103,7 +107,7 @@ export function BannerButton({
   // 快捷键退场条「不扩面、不复制」),仍在 DecisionScrolls,不随展示件连坐。
   const isGhost = useContext(BannerGhostContext);
   return (
-    <button
+    <Button
       type="button"
       data-testid={testid}
       onClick={onClick}
@@ -116,7 +120,7 @@ export function BannerButton({
       }
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -127,6 +131,8 @@ export function BannerShell({
   onClose,
   testid,
   wide,
+  fixedBody,
+  className,
   sideOrnament,
 }: BannerShellProps) {
   // #90(R3-C3)收起:×/遮罩/Esc 统一走 requestClose——先置 closing(壳体挂退场类、
@@ -215,7 +221,7 @@ export function BannerShell({
         wide ? "w-[clamp(540px,80vw,700px)]" : "w-[clamp(480px,72vw,640px)]"
       } translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] flex-col px-6 py-4 ${
         exiting ? "banner-anim-out" : ""
-      }`}
+      } ${className ?? ""}`}
     >
       {/* 题行:金印 + 笔书题名,兼拖动把手(#674):把手事件/触屏隔离/抓取光标由
           handleProps 承担;行内 X 钮自带豁免(起点命中按钮不启动拖)且自身
@@ -272,9 +278,13 @@ export function BannerShell({
           限高内滚链(壳体 max-h 86dvh → 井 min-h-0 → viewport flex-1 内滚),
           长内容(破产清单等)横屏也不溢出;内衬 px-3/py-3 随内容走(挂井内包裹层,
           视口缘的渐隐带才贴得住内容断头处,观感口径同 pile-body 内容 margin)。 */}
-      <ScrollArea className="banner-body min-h-0">
-        <div className="px-3 py-3">{children}</div>
-      </ScrollArea>
+      {fixedBody ? (
+        <div className="banner-body banner-body-fixed min-h-0">{children}</div>
+      ) : (
+        <ScrollArea className="banner-body min-h-0">
+          <div className="px-3 py-3">{children}</div>
+        </ScrollArea>
+      )}
       {/* #729 footer 槽:正文井之后的钉底段。shrink-0 + 壳体 flex-col 限高链
           (max-h-86dvh → 井 min-h-0 → viewport 内滚)让 footer 在场时正文井自然被
           压缩内滚,钮组不随内容滚走;发丝分隔线与题行 border-b 同色对称(#729 拍板),

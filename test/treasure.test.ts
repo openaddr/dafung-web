@@ -156,7 +156,7 @@ describe("珍宝系统", () => {
     expect(e.escrowTreasure).not.toBeNull(); // 托管区有此珍宝
     expect(e.pendingDebt).not.toBeNull(); // 进入破产清算
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
-    e.sellTreasureBankruptcy(TID); // 托管珍宝不在访客手中 → 拒绝,仅告警
+    e.confirmBankruptcySettle([{ kind: "treasure", id: TID }]); // 托管珍宝不在访客手中 → 拒绝,仅告警
     expect(mover.cash).toBe(guide - 1); // 未借托管珍宝套现
     expect(owner.cash).toBe(ownerCash0); // 城主尚未收款
     expect(owner.treasures.length).toBe(0); // 也不在城主手中(在托管区)
@@ -172,8 +172,7 @@ describe("珍宝系统", () => {
     mover.treasures.push({ id: "other-treasure", name: "旧藏", level: 2, count: 1, desc: "" });
     e.resolveTreasureOwner({ type: "fair", treasureId: TID });
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
-    e.sellTreasureBankruptcy("other-treasure"); // 只能变卖自己的旧藏
-    e.confirmBankruptcySettle();
+    e.confirmBankruptcySettle([{ kind: "treasure", id: "other-treasure" }]);
     expect(mover.treasures.map((t) => t.id)).toEqual([TID]); // 付清后托管珍宝交割
     expect(e.escrowTreasure).toBeNull();
     expect(mover.cash).toBe(guide - 1 + 200 - guide); // 变卖旧藏(Lv2=200)后恰好清偿,余 199
@@ -186,8 +185,11 @@ describe("珍宝系统", () => {
     finishSetup(e);
     const { owner, mover, guide } = setupOwnerChoice(e, "prop-luoyang");
     mover.cash = guide - 1;
-    mover.treasures = []; // 无可变卖资产 → 直接破产(无清算阶段)
+    mover.treasures = []; // 无可变卖资产也先进入清算确认
     e.resolveTreasureOwner({ type: "fair", treasureId: TID });
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    expect(mover.isBankrupt).toBe(false);
+    e.declareBankruptcy();
     expect(mover.isBankrupt).toBe(true);
     expect(e.escrowTreasure).toBeNull();
     expect(owner.treasures.map((t) => t.id)).toEqual([TID]); // 珍宝退回卖家
@@ -229,10 +231,10 @@ describe("托管清算 JSON 恢复(#1441)", () => {
       name: "清算失败退宝",
       cash: 1,
       finalCash: 0,
-      sellerGain: 101,
+      sellerGain: 1,
       bankrupt: true,
       buyerTreasures: [],
-      sellerTreasures: ["escrow-candidate"],
+      sellerTreasures: ["liquidation-fund", "escrow-candidate"],
     },
   ]) {
     it(`恢复后${scenario.name}:债主回链、资金与托管珍宝各归其位`, () => {
@@ -260,8 +262,8 @@ describe("托管清算 JSON 恢复(#1441)", () => {
       expect(restored.pendingDebt!.creditor).toBe(restored.players[sellerSeat]);
       expect(restored.escrowTreasure!.treasure.id).toBe("escrow-candidate");
       const sellerCash = restored.players[sellerSeat].cash;
-      restored.sellTreasureBankruptcy("liquidation-fund");
-      restored.confirmBankruptcySettle();
+      if (scenario.bankrupt) restored.declareBankruptcy();
+      else restored.confirmBankruptcySettle([{ kind: "treasure", id: "liquidation-fund" }]);
 
       expect(restored.players[buyerSeat].cash).toBe(scenario.finalCash);
       expect(restored.players[sellerSeat].cash - sellerCash).toBe(scenario.sellerGain);
@@ -428,8 +430,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     expect(gainIdx).toBeLessThan(awaitIdx); // 探宝先于交涉窗口
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle"); // 链中途清算
-    e.sellTreasureBankruptcy("probe-t"); // 变卖落格探得之宝(Lv1=100 ≥ 欠差)自救
-    e.confirmBankruptcySettle();
+    e.confirmBankruptcySettle([{ kind: "treasure", id: "probe-t" }]);
     expect(passJinnang(e).turnPhase).toBe("Roll"); // 交割完成收回合
     expect(mover.treasures.map((t) => t.id)).toEqual([TID]); // 付清交割(escrow 语义)
     const treasureLines = e.log.filter(
@@ -441,7 +442,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     expect(treasureLines.length).toBe(1); // 全程恰落格一次探宝(清算不抑制、链尾零补抽)
   });
 
-  it("交涉付款直破产:探宝已先行发生(堆空沉默留痕),破产收口零补抽", () => {
+  it("交涉付款清算后认破产:探宝已先行发生(堆空沉默留痕),破产收口零补抽", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -457,13 +458,14 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     });
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
     e.treasureDeck = []; // 堆空:探宝事件位沉默留痕(treasureEmpty),不产可变卖资产
-    mover.cash = 0; // 无银无资产 → premium 付款直破产
+    mover.cash = 0; // 无银无资产 → premium 付款先进入清算确认
     testEngine(e).landActiveAt(tile.index);
     const emptyIdx = e.log.findIndex((l) => l.detail.includes("treasureEmpty"));
     const awaitIdx = e.log.findIndex((l) => l.detail.includes("treasureAwait"));
     expect(emptyIdx).toBeGreaterThanOrEqual(0);
     expect(emptyIdx).toBeLessThan(awaitIdx); // 探宝事件位已结算(先于交涉)
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
+    e.declareBankruptcy();
     expect(mover.isBankrupt).toBe(true); // 付款破产(位移语义:探宝不被抑制,已先行)
     expect(e.log.filter((l) => l.detail.includes("treasureEmpty")).length).toBe(1); // 破产收口零补抽
     expect(passJinnang(e).turnPhase).toBe("GameOver"); // 2 人局:破产即终局(引擎真终端)

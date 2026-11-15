@@ -377,53 +377,89 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
 });
 
 describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
-  // ── ④债务进度/选宝弹层/售出清单刷新(react-scrolls 破产例迁入)──
-  // 断言面:清算卷轴升起+进度行「已凑」三数同窗→卷轴内入口开选宝弹层(「变卖自救」
-  // 标题+进度伴随)→指导价口径价签→二段式变卖(点选金描边→确认武装→提交)→层随结算
-  // 收口→重开清单刷新(已卖件消失、余件仍在)。变卖入账=指导价的结算等式归
-  // test/bankruptcy.test.ts(单测已钉);种植=giveTreasure 终态拼全集+armDebt 挂债
-  // (判词单源 planter)。
-  it("债务进度/选宝弹层(二段式变卖)/售出清单刷新", async () => {
-    const { el, plant, snap } = startGame();
-    plant({
-      kind: "giveTreasure",
-      seat: 0,
-      treasures: [
-        ...snap().players[0].treasures,
-        { id: "seal", name: "传国玉玺", level: 3, desc: "x" },
-        { id: "hat", name: "草帽", level: 1, desc: "x" },
-      ],
-    });
+  it("零资产清算先展示说明,取消认破产保留对局,二次确认才提交出局", async () => {
+    const { snap } = startGame([
+      { kind: "armPhase", activeIndex: 0 },
+      { kind: "setCash", seat: 0, cash: 0 },
+      { kind: "giveTreasure", seat: 0, treasures: [] },
+      { kind: "armDebt", amount: 100, creditor: null },
+    ]);
+    await settle();
+
+    expect(snap().players[0].isBankrupt).toBe(false);
+    expect((docQ(T.bankruptcyConfirm) as HTMLButtonElement).disabled).toBe(true);
+    expect(docQ(T.bankruptcyDeclare)).not.toBeNull();
+    click(docQ(T.bankruptcyDeclare)!);
+    await settle();
+    expect(docQ(T.confirmDialog)).not.toBeNull();
+    expect(snap().players[0].isBankrupt).toBe(false);
+    click(docQ(T.confirmCancel)!);
+    await settle();
+    expect(snap().pendingDebt?.amount).toBe(100);
+
+    click(docQ(T.bankruptcyDeclare)!);
+    await settle();
+    click(docQ(T.confirmOk)!);
+    await settle();
+    expect(snap().players[0].isBankrupt).toBe(true);
+    expect(snap().pendingDebt).toBeNull();
+  });
+
+  // 关键接线:预选/数量/翻页不提交,最后有序逐件明细只提交一次清偿。
+  it("清算跨页预选保留实物顺序,重复珍宝数量可减到零,足额后只允许减选", async () => {
+    const { plant, snap, engine } = startGame();
+    const treasures = [
+      { id: "skillbook-jixing", name: "技能书·急行", level: 2 },
+      { id: "skillbook-jixing", name: "技能书·急行", level: 2 },
+      { id: "qingnang-10", name: "青囊书残卷", level: 5 },
+      { id: "qingnang-11", name: "青囊书残卷", level: 5 },
+      { id: "hat-12", name: "草帽", level: 1 },
+      { id: "hu-13", name: "小斛", level: 3 },
+      { id: "lychee-14", name: "新鲜的荔枝", level: 9 },
+      { id: "seal-15", name: "传国玉玺", level: 10 },
+      { id: "edict-16", name: "带血的诏书", level: 9 },
+    ];
+    plant({ kind: "giveTreasure", seat: 0, treasures });
+    plant({ kind: "setCash", seat: 0, cash: 100 });
     plant({ kind: "armPhase", activeIndex: 0 });
-    plant({ kind: "armDebt", amount: 99999, creditor: null });
-    const scroll = () => docQ(T.bankruptcyScroll);
-    expect(scroll()).not.toBeNull();
-    expect(docQ(T.bankruptcyDebt)).not.toBeNull(); // 进度行:已凑/债务/尚欠三数同窗
-    expect(docQ(T.bankruptcyProgress)!.textContent).toContain("已凑");
-    // 卷轴内入口开选宝弹层
-    click(q(el, T.bankruptcySellTreasureOpen)!);
+    plant({ kind: "armDebt", amount: 1000, creditor: null });
+    const commandCount = engine.log.filter((line) => line.category === "cmd").length;
+    const bookQuantity = () => docQ(T.bankruptcyQuantity("skillbook-jixing"))!;
+    click(docQ(T.bankruptcyIncrease("skillbook-jixing"))!);
+    expect(bookQuantity().textContent).toBe("1");
+    click(docQ(T.bankruptcyDecrease("skillbook-jixing"))!);
+    expect(bookQuantity().textContent).toBe("0");
+    click(docQ(T.bankruptcyIncrease("qingnang"))!);
+    click(docQ(T.bankruptcyIncrease("skillbook-jixing"))!);
+    click(docQ(T.bankruptcyIncrease("qingnang"))!);
+    expect((docQ(T.bankruptcyIncrease("skillbook-jixing")) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    click(docQ(T.bankruptcyDecrease("qingnang"))!);
+    click(docQ(T.bankruptcyNext)!);
+    click(docQ(T.bankruptcyAsset("treasure", "edict"))!);
+    click(docQ(T.bankruptcyPrevious)!);
+    expect(docQ(T.bankruptcyQuantity("qingnang"))!.textContent).toBe("1");
+    expect(bookQuantity().textContent).toBe("1");
+    expect(engine.log.filter((line) => line.category === "cmd")).toHaveLength(commandCount);
+    expect(snap().players[0].cash).toBe(100);
+    expect(snap().players[0].treasures).toHaveLength(treasures.length);
+
+    click(docQ(T.bankruptcyConfirm)!);
     await settle();
-    const pick = () => docQ(T.bankruptcyTreasurePick);
-    expect(pick()).not.toBeNull();
-    expect(pick()!.textContent).toContain("变卖自救"); // 标题语义保留
-    expect(docQ(T.bankruptcyPickProgress)!.textContent).toContain("已凑");
-    const item = () => docQ(T.bankruptcySellTreasure("seal"))!;
-    expect(item()).not.toBeNull();
-    expect(item().textContent).toContain(`至 ${formatMoney(guidePriceOf(3))}`); // 指导价口径
-    // 二段式:点选金描边 → 确认武装 → 提交
-    click(item());
-    expect(item().getAttribute("aria-pressed")).toBe("true");
-    const confirm = () => docQ(T.bankruptcySellTreasureConfirm)!;
-    click(confirm());
-    expect(confirm().textContent).toBe("确认变卖");
-    click(confirm());
-    // 售出即收层(命令落账同步;入账等式归引擎单测)
-    await finishExit(pick, "变卖选宝层应随结算收口");
-    // 重开清单随快照刷新(已卖件消失,余件仍在)
-    click(q(el, T.bankruptcySellTreasureOpen)!);
-    await settle();
-    expect(docQ(T.bankruptcyTreasurePick)).not.toBeNull();
-    expect(docQ(T.bankruptcySellTreasure("seal"))).toBeNull(); // 已卖件消失(缺席=null,断言安全)
-    expect(docQ(T.bankruptcySellTreasure("hat"))).not.toBeNull(); // 余件仍在
+    const submitted = engine.log.filter((line) => line.category === "cmd").slice(commandCount);
+    expect(submitted.map((line) => JSON.parse(line.detail))).toEqual([
+      {
+        type: "confirmBankruptcySettle",
+        assets: [
+          { kind: "treasure", id: "qingnang-10" },
+          { kind: "treasure", id: "skillbook-jixing" },
+          { kind: "treasure", id: "edict-16" },
+        ],
+      },
+    ]);
+    expect(snap().pendingDebt).toBeNull();
+    expect(snap().players[0].treasures.map((t) => t.id)).toContain("qingnang-11");
+    expect(snap().players[0].treasures.filter((t) => t.id === "skillbook-jixing")).toHaveLength(1);
   });
 });

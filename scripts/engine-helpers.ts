@@ -215,7 +215,7 @@ function promptFor(
     case "AwaitingTreasureOwner":
       return `${decisionOwner ?? who} 城主抉择:公道买卖(fair <id>)/坐地起价(premium <id>)/跳过(tskip)`;
     case "AwaitingBankruptcySettle":
-      return `${who} 破产清算:变卖(cmd {"type":"sellTreasureBankruptcy",...})或结算(confirm)`;
+      return `${who} 破产清算:批量出售并清偿(cmd {"type":"confirmBankruptcySettle","assets":[{"kind":"treasure","id":"<id>"}]})或认破产(cmd {"type":"declareBankruptcy"})`;
     case "Land":
     case "EndTurn":
       return `${who} 结算中…(状态过渡,无需操作)`;

@@ -5,7 +5,7 @@
 // 扩展口:未来技能(低价买城)经时机框架在选项计算前修改玩家状态,
 // 此处计算结果随之变化——与 timing 框架同构,无需改引擎流程。
 import type { GameEngine, TurnPhase } from "./authority";
-import { canUpgrade } from "./economy";
+import { canUpgrade, sellValueOf } from "./economy";
 import { tileIndexOfProperty } from "./board";
 import type { ActiveSkillDef, TriggerSkill } from "./skills";
 import { isActiveSkill, isTriggerSkill, skillById } from "./skills";
@@ -14,7 +14,7 @@ import { HERO_CAPACITY } from "./constants";
 import { heroById } from "./heroes";
 import { HEROES } from "./heroes";
 import { heroSlotOf, resetSkillMarks, skillBookLearners, type HeroSlot } from "./roster";
-import { isSkillBook } from "./treasures";
+import { guidePriceOf, isSkillBook } from "./treasures";
 import type { EncounterChoiceOption, EncounterTier } from "./encounters";
 import { jinnangCardOf, isReactionCard, TARGET_DOMAIN_STAGES, type JinnangEffect } from "./jinnang";
 
@@ -205,37 +205,24 @@ function encounterChoices(e: GameEngine): ChoiceOption[] {
 /** AwaitingExhaustion 已随耗竭全自动结算退役(外敌乘虚+休整,无抉择):归 0 不再进
  *  任何相位,处置与休整一律引擎内完成(encounter-flow.ts exhaustIfDepleted)。 */
 
-/** AwaitingBankruptcySettle(各资产变卖 + 认赔)。ADR-0013 明确例外:重大不可逆事件,
- *  即使唯一选项(无可卖资产只能认赔)也不自动执行——见 EXCLUDED_FROM_AUTO。 */
+/** 清算仅有整批出售并清偿与认破产;重大不可逆事件不自动执行。 */
 function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
   const p = e.activePlayer;
-  // 凑足即止硬守卫(assertStillOwing 的注册表镜像):现金已达自救线后变卖全部不可用
-  const stillOwing = e.pendingDebt != null && p.cash < e.pendingDebt.amount;
-  const capProp = e.board.at(p.capitalIndex)?.propertyId;
-  const tileNameOf = (propId: string): string =>
-    e.board.at(tileIndexOfProperty(e.board, propId)).name;
-  return [
-    ...p.treasures.map<ChoiceOption>((t) => ({
-      id: `sell-treasure:${t.id}`,
-      label: `变卖「${t.name}」`,
-      available: stillOwing,
-      reason: "已凑足债务",
-    })),
-    ...p.properties
+  const capProp = e.board.at(p.capitalIndex).propertyId;
+  const availableCash =
+    p.cash +
+    p.treasures.reduce((sum, t) => sum + guidePriceOf(t.level), 0) +
+    p.properties
       .filter((h) => h.propertyId !== capProp)
-      .map<ChoiceOption>((h) => ({
-        id: `sell-property:${h.propertyId}`,
-        label: `变卖「${tileNameOf(h.propertyId)}」`,
-        available: stillOwing,
-        reason: "已凑足债务",
-      })),
-    ...p.heroes.map<ChoiceOption>((slot) => ({
-      id: `cash-hero:${slot.heroId}`,
-      label: `遣散「${heroById(slot.heroId).name}」`,
-      available: stillOwing,
-      reason: "已凑足债务",
-    })),
-    { id: "settle", label: "认赔清偿", available: true },
+      .reduce((sum, h) => sum + sellValueOf(e.catalog.get(h.propertyId)!, h.level), 0);
+  return [
+    {
+      id: "settle",
+      label: "出售并清偿",
+      available: availableCash >= e.pendingDebt!.amount,
+      reason: "可变卖资产不足",
+    },
+    { id: "bankrupt", label: "认破产", available: true },
   ];
 }
 
@@ -719,7 +706,7 @@ export function queueSkillChoice(g: GameEngine, choice: PendingSkillChoice): voi
 
 /** 回合收口的「你可」闸(endTurn 入口调):队列空=无事(返回 false,零扰动);
  *  非空先弃残问——①破产属主(与派发器跳过破产玩家同口径,破产者无决策);②属主
- *  麾下已无此技槽(遣散/破产清算遣散换银把将整槽撤走,规格 #1375 用户故事 9:
+ *  麾下已无此技槽(主动遣散/实际破产把将整槽撤走,规格 #1375 用户故事 9:
  *  「遣散放逐/行殇后标记与待决状态随技能槽清零,不残留」——槽既不在,残问不弃则
  *  发动落账 heroSlotOf 当场炸,#1378 池换血后曹丕可达此路,sim-bench 实锤),弃空
  *  则照常收口;否则停相位 AwaitingSkillChoice 挂首问等应答。bot 不即席代答——窗在

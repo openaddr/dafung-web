@@ -8,6 +8,7 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
+import { armDebt, giveTreasure, setCash } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { EXCLUDED_FROM_AUTO, type ChoiceOption } from "@core/choices";
@@ -15,7 +16,7 @@ import { fullDefenseOf } from "@core/defense";
 import { ENCOUNTERS, type EncounterTier } from "@core/encounters";
 import { HEROES } from "@core/heroes";
 import { botAct } from "@core/bot";
-import { testEngine, armHero, heroOffer } from "@core/testing";
+import { testEngine, heroOffer } from "@core/testing";
 
 const MAP = loadMap(guanzhongData);
 
@@ -136,44 +137,19 @@ describe("选项集注册表(choices.ts)", () => {
     expect(opts.every((o) => o.available)).toBe(true);
   });
 
-  it("破产清算:各资产变卖 + 认赔;凑足后变卖不可用;excludedFromAuto 例外", () => {
+  it("破产清算:只提供整批清偿和认破产,总资产不足时禁止清偿且不自动出局", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
-    p.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" });
-    armHero(e, p, HEROES[0]);
-    const { def } = freeProperty(e); // 一座非都城地产(都城不可变卖)
-    p.properties.push({
-      propertyId: def.id,
-      group: def.group,
-      level: 0,
-      maxLevel: def.maxLevel,
-      defense: 5,
-    });
-    e.pendingDebt = { amount: 99999, creditor: null };
-    testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
-    const opts = e.choicesFor();
-    expect(opts.map((o) => o.id)).toContain("sell-treasure:t1");
-    expect(opts.map((o) => o.id)).toContain(`cash-hero:${HEROES[0].id}`);
-    expect(opts.some((o) => o.id === `sell-property:${def.id}`)).toBe(true); // 非都城地产可变卖
-    expect(
-      opts.some(
-        (o) => o.id === `sell-property:${e.catalog.get(e.board.at(p.capitalIndex).propertyId)!.id}`,
-      ),
-    ).toBe(false); // 都城不可变卖
-    const settle = opt(opts, "settle")!;
-    expect(settle.available).toBe(true);
-    // ADR-0013 决议 3:重大不可逆事件,唯一选项也不自动执行
+    setCash(e, e.activeIndex, 0);
+    giveTreasure(e, e.activeIndex, [{ id: "t1", name: "宝", level: 1 }]);
+    e.payOrLiquidate(p, null, 101);
+    expect(e.choicesFor().map((o) => o.id)).toEqual(["settle", "bankrupt"]);
+    expect(opt(e.choicesFor(), "settle")!.available).toBe(false);
+    expect(opt(e.choicesFor(), "bankrupt")!.available).toBe(true);
     expect(EXCLUDED_FROM_AUTO.has("AwaitingBankruptcySettle")).toBe(true);
-    // 凑足即止:现金 ≥ 债务后变卖全部不可用
-    e.pendingDebt = { amount: 100, creditor: null };
-    for (const o of e.choicesFor()) {
-      if (o.id === "settle") expect(o.available).toBe(true);
-      else {
-        expect(o.available).toBe(false);
-        expect(o.reason).toBe("已凑足债务");
-      }
-    }
+    armDebt(e, 100, null);
+    expect(opt(e.choicesFor(), "settle")!.available).toBe(true);
   });
 
   it("未注册相位(Roll/Land)返回空数组", () => {

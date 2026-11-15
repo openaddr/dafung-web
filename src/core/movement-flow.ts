@@ -423,22 +423,15 @@ function applyJinnangDraw(g: GameEngine, mover: Player, tile: TileDef): void {
 }
 
 /** 商市城固定事件体(#824/#826):随机行情波动 ±100~200(简化版;完整买/卖/持股系统留
- *  后续),落账 + 事件宣告 + 战报;返回走向——liquidating=清算挂起 / bankrupt=已收回合
- *  (两者均中断落格,调用方不再续跑),settled=续交易链。 */
-function applyMarketSwing(
-  g: GameEngine,
-  mover: Player,
-  tile: TileDef,
-): "settled" | "liquidating" | "bankrupt" {
+ *  后续),落账 + 事件宣告 + 战报;liquidating=清算挂起并中断落格,settled=续交易链。 */
+function applyMarketSwing(g: GameEngine, mover: Player, tile: TileDef): "settled" | "liquidating" {
   const gain = g.dice.nextFloat() < 0.5;
   const amt = 100 + Math.floor(g.dice.nextFloat() * 100);
   const delta = gain ? amt : -amt;
-  let bankrupt = false;
   if (delta >= 0) mover.cash += delta;
   else {
     const r = g.payOrLiquidate(mover, null, amt);
     if (r === "liquidating") return "liquidating";
-    bankrupt = r === "bankrupt";
   }
   emitGameEvent(g, g.players.indexOf(mover), {
     kind: "cashChanged",
@@ -447,15 +440,15 @@ function applyMarketSwing(
   }); // 事件流(#375):金钱变更(浮字由 fx 面消费派生)
   if (gain) g.dispatchMoment("CashGained", { subject: g.players.indexOf(mover), amount: delta }); // 时机·CashGained:被动得银(商市行情看涨,#455 A1 补派,与看跌侧对称)
   else g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
-  g.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
+  g.lastLandOutcome = { kind: "Noop", causedBankruptcy: false };
   g.logEvent(
     "system",
     mover.guohao,
-    `${mover.guohao} 落 ${tile.name}(商市):${gain ? "行情看涨" : "行情看跌"} ${gain ? "+" : "−"}${formatMoney(amt)}${bankrupt ? " → 破产" : ""}`,
+    `${mover.guohao} 落 ${tile.name}(商市):${gain ? "行情看涨" : "行情看跌"} ${gain ? "+" : "−"}${formatMoney(amt)}`,
     `stock player=${mover.id} delta=${delta} cash=${mover.cash}`,
     delta,
   );
-  return bankrupt ? "bankrupt" : "settled";
+  return "settled";
 }
 
 /** 城池落格结算(含珍宝城 event:"treasure",ADR-0024 同权):无主 → 可购决策;

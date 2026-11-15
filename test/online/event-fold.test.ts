@@ -10,13 +10,21 @@ import type { EngineConfig, SeatConfig, TurnPhase } from "@core/authority";
 import { createDice } from "@core/dice";
 import type { MovePath } from "@core/board";
 import { HEROES } from "@core/heroes";
-import { TREASURES } from "@core/treasures";
+import { TREASURES, makeSkillBook } from "@core/treasures";
+import {
+  armPhase,
+  armVisitor,
+  giveJinnang,
+  giveTreasure,
+  grantProperty,
+  setCash,
+} from "@core/planter";
+import { cmdMsg, type InboundMsg } from "../../scripts/wire";
 import { ENCOUNTERS, type EncounterDef } from "@core/encounters";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import type { GameEvent, GameEventBody } from "@core/game-events";
-import { beginGameEventBatch } from "@core/game-events";
 import { fullDefenseOf } from "@core/defense";
-import { armHero, testEngine } from "@core/testing";
+import { armHero } from "@core/testing";
 import guanzhongData from "../../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { foldEventBatch } from "@app/net/event-fold";
@@ -72,6 +80,103 @@ function grantHolding(e: GameEngine, seat: number, propertyId: string, level: nu
 }
 
 describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
+  it("银行债批量卖城清偿经线上编码与事件折叠后,现金清债与下一回合同步", () => {
+    const e = makeEngine();
+    e.doDraftRoll();
+    while (e.phase === "Setup")
+      e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
+    const debtor = e.activeIndex;
+    const nextSeat = 1 - debtor;
+    giveJinnang(e, nextSeat, []);
+    grantProperty(e, debtor, "prop-jinyang", 0); // 关中晋阳 Lv.0 变卖价 900
+    setCash(e, debtor, 50);
+    e.payOrLiquidate(e.activePlayer, null, 400);
+    const replica = makeEngine();
+    replica.restoreFromSnapshot(e.snapshot());
+    const message = JSON.parse(
+      cmdMsg({
+        type: "confirmBankruptcySettle",
+        assets: [{ kind: "property", id: "prop-jinyang" }],
+      }),
+    ) as Extract<InboundMsg, { type: "cmd" }>;
+
+    e.submitCommand(message.cmd);
+    foldEventBatch(replica, JSON.parse(JSON.stringify(e.gameEvents)));
+
+    expect(e.players[debtor].cash).toBe(550);
+    expect(replica.players[debtor].cash).toBe(550);
+    expect(e.pendingDebt).toBeNull();
+    expect(replica.pendingDebt).toBeNull();
+    expect(e.activeIndex).toBe(nextSeat);
+    expect(replica.activeIndex).toBe(nextSeat);
+    expect(e.turnPhase).toBe("Roll");
+    expect(replica.turnPhase).toBe("Roll");
+  });
+
+  it("批量清偿命令经线上编码后保留重复数量,真实事件批只消费所卖册数", () => {
+    const e = makeEngine();
+    e.doDraftRoll();
+    while (e.phase === "Setup")
+      e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
+    const seat = e.activeIndex;
+    const book = makeSkillBook("jixing");
+    giveTreasure(e, seat, [book, book, book]);
+    setCash(e, seat, 0);
+    e.payOrLiquidate(e.activePlayer, null, 400);
+    const replica = makeEngine();
+    replica.restoreFromSnapshot(e.snapshot());
+    const message = JSON.parse(
+      cmdMsg({
+        type: "confirmBankruptcySettle",
+        assets: [
+          { kind: "treasure", id: book.id },
+          { kind: "treasure", id: book.id },
+        ],
+      }),
+    ) as Extract<InboundMsg, { type: "cmd" }>;
+
+    e.submitCommand(message.cmd);
+    foldEventBatch(replica, JSON.parse(JSON.stringify(e.gameEvents)));
+
+    expect(e.players[seat].treasures).toHaveLength(1);
+    expect(replica.players[seat].treasures.map((t) => t.id)).toEqual([book.id]);
+  });
+
+  it("卖出同技书自救后交割另一册托管书,不误删卖家的同标识余册", () => {
+    const e = makeEngine();
+    e.doDraftRoll();
+    while (e.phase === "Setup")
+      e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
+    const buyer = e.activeIndex;
+    const seller = 1 - buyer;
+    const book = makeSkillBook("jixing");
+    giveTreasure(e, seller, [book, book, book]);
+    giveTreasure(e, buyer, [book]);
+    setCash(e, buyer, 0);
+    const sellerCash = e.players[seller].cash;
+    armVisitor(e, e.players[seller].properties[0].propertyId, seller);
+    armPhase(e, { turnPhase: "AwaitingTreasureOwner" });
+    e.resolveTreasureOwner({ type: "fair", treasureId: book.id });
+    const replica = makeEngine();
+    replica.restoreFromSnapshot(e.snapshot());
+
+    e.submitCommand({
+      type: "confirmBankruptcySettle",
+      assets: [{ kind: "treasure", id: book.id }],
+    });
+    foldEventBatch(replica, JSON.parse(JSON.stringify(e.gameEvents)));
+
+    expect(e.players[seller].treasures).toHaveLength(2);
+    expect(replica.players[seller].treasures).toHaveLength(2);
+    expect(replica.players[buyer].treasures.map((t) => t.id)).toEqual([book.id]);
+    expect(e.players[buyer].cash).toBe(0);
+    expect(e.players[seller].cash).toBe(sellerCash + 200);
+    expect(replica.players[buyer].cash).toBe(0);
+    expect(replica.players[seller].cash).toBe(sellerCash + 200);
+    expect(replica.pendingDebt).toBeNull();
+    expect(replica.escrowTreasure).toBeNull();
+  });
+
   it("cashChanged 批内逐条累加(delta 带符号,跨座位各自结算)", () => {
     const e = makeEngine();
     const cash0 = e.players[0].cash;
@@ -440,102 +545,20 @@ describe("折叠投影器 · 珍宝族", () => {
 });
 
 describe("折叠投影器 · 金钱族相邻回填", () => {
-  it("stock(商市行情)落格表现态 Noop;批内先破产 → causedBankruptcy 相邻标记", () => {
+  it("stock(商市行情)落格表现态 Noop", () => {
     const e = makeEngine();
     foldEventBatch(e, [ev(0, { kind: "cashChanged", delta: -150, reason: "stock" })]);
     expect(e.lastLandOutcome).toEqual({ kind: "Noop", causedBankruptcy: false });
-
-    const e2 = makeEngine();
-    e2.players[0].heroes = [];
-    foldEventBatch(e2, [
-      ev(0, { kind: "playerBankrupt", creditorSeat: null }),
-      ev(0, { kind: "cashChanged", delta: -150, reason: "stock" }),
-    ]);
-    expect(e2.lastLandOutcome).toEqual({ kind: "Noop", causedBankruptcy: true });
   });
 });
 
-describe("折叠投影器 · 破产扫账平记对齐(#652)", () => {
-  // #652 真实批序构造(#826 起场景改商市城(襄平)):现金 < 行情损失且无可变卖资产(仅剩都城)
-  // 落襄平(关中商市城)→ payOrLiquidate 破产支路:引擎 settleDebt 先整扫现金归零,批内先产
-  // playerBankrupt(finalizeBankruptcy 派发时机同步产事件),随后 movement-flow 仍平记
-  // 整额负 delta(浮字同口径,非状态转移)。副本锁步折叠该平记会穿零成负现金 ——
-  // 渲染端 formatMoney 负数契约被折叠中间态击穿(soak 5 次渲染期崩溃的崩点);
-  // 折叠器以批内破产锚对齐引擎真值(落 0)。
-  function marketBankruptEngine(seed = 5): GameEngine {
-    const seats: SeatConfig[] = [
-      { name: "A", isBot: false, guohao: "魏" },
-      { name: "B", isBot: false, guohao: "蜀" },
-    ];
-    const e = new GameEngine(MAP.board, MAP.catalog, createDice(seed), {
-      seats,
-      targetNetWorth: 30000,
-      startingCash: 10000,
-      startingTreasures: 0,
-    });
-    e.doDraftRoll();
-    let guard = 0;
-    while (e.phase === "Setup" && guard++ < 50) {
-      const idx = e.currentSetupPlayerIndex;
-      if (idx < 0) break;
-      if (e.players[idx].isBot) {
-        e.aiSetupStep();
-        continue;
-      }
-      const capIdx = e.firstAvailableCapitalIndex();
-      if (capIdx < 0) break;
-      e.pickCapital(idx, capIdx);
-    }
-    e.players.forEach((p) => {
-      p.jinnangHand = [];
-      p.jinnangHandCount = 0;
-    });
-    if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
-    return e;
-  }
-
-  // 商市行情骰固定看跌(nextFloat 恒 0.9 → −190):现金 150 < 190 必走破产支路。
-  // 只替换 nextFloat(快照序列化仍读真骰的 rngState,不可整骰换掉)
-  function stubMarketDown(e: GameEngine): void {
-    (e.dice as unknown as { nextFloat: () => number }).nextFloat = () => 0.9;
-  }
-
-  it("襄平(商市城)破产批序折叠:平记 delta 不穿零,副本落 0 = 引擎真值(崩溃批序回归)", () => {
-    const e = marketBankruptEngine();
-    const t = testEngine(e);
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    mover.cash = 150; // < 行情损失 190;无可变卖资产(仅剩都城)→ 破产支路
-    mover.properties = [];
-    mover.heroes = [];
-    mover.treasures = [];
-    const marketTile = MAP.board.tiles.find((tile) => tile.event === "market")!;
-    stubMarketDown(e);
-
-    t.placeActive(marketTile.index);
-    const preSnap = e.snapshot(); // 联机时序:上一校准快照先到(现金 150)
-    beginGameEventBatch(e);
-    t.land();
-    const events = e.snapshot().events;
-    const kinds = events.map((x) => x.kind);
-    expect(kinds.slice(0, 2)).toEqual(["playerBankrupt", "cashChanged"]); // 折叠锚的批序前提:破产宣告恒先于平记
-    expect(events[1]).toMatchObject({ kind: "cashChanged", delta: -190, reason: "stock" });
-    expect(mover.cash).toBe(0); // 引擎真值:整扫归零
-
-    const replica = marketBankruptEngine();
-    replica.restoreFromSnapshot(preSnap);
-    stubMarketDown(replica);
-    foldEventBatch(replica, events);
-    expect(replica.players[seat].cash).toBe(0); // 修复前:-40(平记穿零)= formatMoney 崩点
-    expect(replica.players[seat].isBankrupt).toBe(true);
-  });
-
-  it("穿零且本批无破产锚 = 副本漂移,契约违反当场炸出(不静默钳零)", () => {
+describe("折叠投影器 · 现金契约", () => {
+  it("现金穿零 = 副本漂移,契约违反当场炸出", () => {
     const e = makeEngine();
     e.players[0].cash = 150;
     expect(() =>
       foldEventBatch(e, [ev(0, { kind: "cashChanged", delta: -200, reason: "stock" })]),
-    ).toThrow(/穿零且本批无破产锚/);
+    ).toThrow(/现金穿零/);
   });
 });
 
@@ -658,25 +681,23 @@ describe("折叠投影器 · 名将族", () => {
     expect(e.players[1].stamina).toBe(stamina1 + 30);
   });
 
-  it("assetLiquidated 三变卖:现金+所得、变卖物出册;遣散名将释放回招贤池", () => {
+  it("assetLiquidated 两类变卖:现金+所得、珍宝和城池出册", () => {
     const e = makeEngine();
     e.players[0].treasures.push({ ...TREASURES[0], id: "edict-0" });
     grantHolding(e, 0, "prop-luoyang", 1);
-    armHero(e, e.players[0], HEROES[0]);
-    e.recruitedHeroIds.add("zhouyu");
     const cash0 = e.players[0].cash;
 
     foldEventBatch(e, [
+      ev(0, { kind: "treasureSold", treasureId: "edict-0", amount: 2200 }),
       ev(0, { kind: "assetLiquidated", asset: { kind: "treasure", id: "edict-0" }, amount: 2200 }),
       ev(0, {
         kind: "assetLiquidated",
         asset: { kind: "property", id: "prop-luoyang" },
         amount: 2400,
       }),
-      ev(0, { kind: "assetLiquidated", asset: { kind: "hero", id: "zhouyu" }, amount: 200 }),
     ]);
 
-    expect(e.players[0].cash).toBe(cash0 + 2200 + 2400 + 200);
+    expect(e.players[0].cash).toBe(cash0 + 2200 + 2400);
     expect(e.players[0].treasures).toEqual([]);
     expect(e.players[0].properties).toEqual([]);
     expect(e.players[0].heroes).toEqual([]);
