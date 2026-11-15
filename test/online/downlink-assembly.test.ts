@@ -159,6 +159,21 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "gameOver", reason: "TargetNetWorth" },
   { kind: "diceRolled", die: 3 },
   {
+    kind: "landingResolved",
+    turnPhase: "AwaitingDecision",
+    pendingLand: { kind: "PropertyAvailable", propertyId: "prop-changan" },
+    pendingCityEvent: false,
+    treasureVisitor: null,
+    outcome: {
+      kind: "PropertyAvailable",
+      propertyId: "prop-changan",
+      ownerSeat: null,
+      amount: null,
+      resupply: null,
+      causedBankruptcy: null,
+    },
+  },
+  {
     kind: "marchArrived",
     tileIndex: 7,
     path: {

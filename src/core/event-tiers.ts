@@ -90,7 +90,12 @@ export const EVENT_TIERS = {
   marchArrived: {
     fold: "must-fold",
     fx: "presented",
-    why: "落位+落格推演镜像(相位/pendingLand/落格表现态/交涉到来),路径随事件走(#385)",
+    why: "行军落位+路径;机遇与固定事件结算后的决策由 landingResolved 宣告",
+  },
+  landingResolved: {
+    fold: "must-fold",
+    fx: "silent",
+    why: "权威落格决策事实:相位/pendingLand/落格表现态/交涉到来;招贤候选仍走既有校准",
   },
   capitalHalt: {
     fold: "must-fold",

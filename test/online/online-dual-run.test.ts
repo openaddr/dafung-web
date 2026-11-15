@@ -10,7 +10,6 @@
 // 不替换 socket 语义或全局时钟。稳定读数停在固定种子的注册真人门,零弃试重跑。
 // 反应窗 seed2849/魏 的既有谱使用固定宽窗(长于本例总超时),每次有效手答/拒重复均
 // 以真实下行事件或 error 历史立屏障,超时代答无法在本例预算内替代手答。
-// outcomeKind 漂移豁免仅限 Playing 恢复边界,其他例仍比较全字段。
 //
 // 纯传输故障归 protocol-online;真实设备交互由用户在 APK 验收。
 // 退避由生产 timer 接缝推进,无墙钟等待。
@@ -135,17 +134,6 @@ function snapshotProjection(s: GameSnapshot): PublicProjection {
 
 const sameProjection = (x: PublicProjection | null, y: PublicProjection | null): boolean =>
   JSON.stringify(x) === JSON.stringify(y);
-
-/** 核心投影同读(重连例专用):剥离 `outcomeKind` 后逐字段比对。判词(#1287 实测):
- *  `lastLandOutcome` 是引擎自注的纯表现态(authority.ts「决策命令/恢复重建一律改走
- *  pendingLand」,消费面=战报/卷轴字段),且本票对跑试跑实锤其在「挂起决策门」上
- *  存在**折叠面 vs 权威面漂移**——两端折叠副本同持 Noop 而服务器落盘记录持
- *  PropertyAvailable(服务器房间记录取证,run-88),重连整房摘要把权威值带回一端
- *  即现单字段分歧。该字段不承载决策语义,不入「对局不丢状态」核心等式;漂移本体
- *  另行上报(src/** 不在本票所有权内),修复后应收回此剥离恢复全字段等式。 */
-const sameCoreProjection = (x: PublicProjection | null, y: PublicProjection | null): boolean =>
-  JSON.stringify(x === null ? null : { ...x, outcomeKind: null }) ===
-  JSON.stringify(y === null ? null : { ...y, outcomeKind: null });
 
 async function dismissCurrentRoom(why: string): Promise<void> {
   if (roomId === "" || hostToken === "") return;
@@ -425,7 +413,6 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
 
       const final = await firstPlayingDecision(pair);
       const view = snapshotProjection(final[0].engine!);
-      // 四向等式含 outcomeKind,不扩大恢复旧例对 Noop 漂移的字段豁免。
       expect(snapshotProjection(final[0].game.snapshot!)).toEqual(view);
       expect(snapshotProjection(final[1].engine!)).toEqual(view);
       expect(snapshotProjection(final[1].game.snapshot!)).toEqual(view);
@@ -565,7 +552,6 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
 
   // 固定 seed1 真人门 + 只冻结 guest 的生产退避回调。真 WS 断开后先读每端
   // closed/open/进度,显式释放回调再真重拨,不靠 ±30% 时序也不弃试重来。
-  // #1297 outcomeKind 豁免只在本 Playing 恢复边界沿用;其他例仍作全字段等式。
   it("隔离Playing自动重连:单端断线、生产退避与摘要水合、四向收敛后续局", async () => {
     await withIsolatedPair("held", async (pair) => {
       const [host, guest] = pair.clients;
@@ -628,18 +614,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
       expect(
         views[1].wire.receivedTypes.filter((type) => type === "snapshot").length,
       ).toBeGreaterThan(snapshotsBefore);
-      // 历史缺陷只剥 outcomeKind,其余字段与断线前逐项比较,四份都不能漏。
-      const assertRestoredCore = (current: ClientPair): void => {
-        for (const view of current) {
-          for (const snapshot of [view.engine!, view.game.snapshot!]) {
-            expect({ ...snapshotProjection(snapshot), outcomeKind: null }).toEqual({
-              ...before,
-              outcomeKind: null,
-            });
-          }
-        }
-      };
-      assertRestoredCore(views);
+      expect(assertFourProjections(views)).toEqual(before);
       assertPrivateHands(views);
       for (const [seat, view] of views.entries()) {
         expect(view.game.snapshot!.players[seat].jinnangHand).toEqual(ownHands[seat]);
@@ -659,7 +634,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
           snapshotProjection(view.engine!),
           snapshotProjection(view.game.snapshot!),
         ]);
-        return projected.every((view) => sameCoreProjection(projected[0], view));
+        return projected.every((view) => sameProjection(projected[0], view));
       });
       expect(views[0].engine!.turnNumber).toBeGreaterThan(turn);
       expect(views[1].engine!.turnNumber).toBeGreaterThan(turn);

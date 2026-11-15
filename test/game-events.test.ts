@@ -134,7 +134,7 @@ describe("事件流(#375):开局与批语义", () => {
 });
 
 describe("事件流(#375):掷骰行军与购地", () => {
-  it("rollAndMove 产出 [diceRolled, marchArrived](落无主城进决策,回合未收尾)", () => {
+  it("rollAndMove 产出行军到达与最终落格决策(落无主城进决策,回合未收尾)", () => {
     const e = makeEngine(11);
     finishSetup(e);
     const t = testEngine(e);
@@ -155,7 +155,7 @@ describe("事件流(#375):掷骰行军与购地", () => {
     beginGameEventBatch(e);
     e.rollAndMove();
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["diceRolled", "marchArrived"]);
+    expect(kinds(events)).toEqual(["diceRolled", "marchArrived", "landingResolved"]);
     expect(events[0]).toMatchObject({ kind: "diceRolled", seat, die });
     expect(events[1]).toMatchObject({ kind: "marchArrived", seat, tileIndex: mover.position });
     expect(phaseOf(e)).toBe("AwaitingDecision"); // 购地决策挂起,回合未收尾
@@ -197,7 +197,7 @@ describe("事件流(#375):金钱变更", () => {
     beginGameEventBatch(e);
     t.land();
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["cashChanged"]);
+    expect(kinds(events)).toEqual(["cashChanged", "landingResolved"]);
     expect(events[0]).toMatchObject({
       kind: "cashChanged",
       seat: e.players.indexOf(mover),

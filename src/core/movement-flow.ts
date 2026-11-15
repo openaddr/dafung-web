@@ -18,7 +18,7 @@ import { findHolding } from "./player";
 import { jinnangCardOf } from "./jinnang";
 import { openReactionWindow, REACTION_EXPECT } from "./reaction-window";
 import { formatMoney } from "./money";
-import { emitGameEvent, requireMovePath } from "./game-events";
+import { emitGameEvent, requireMovePath, type LandingResolvedBody } from "./game-events";
 import { SIGN_FACES } from "./constants";
 import { heroDieFaces } from "./skills";
 import type { Player } from "./model";
@@ -59,6 +59,31 @@ export interface LandOutcomeSnapshot {
   amount: number | null;
   resupply: number | null;
   causedBankruptcy: boolean | null;
+}
+
+/** 只在落格效果全部结算、决策真正挂起后宣告事实,不在到达时预测后续相位。
+ *  自动收回合的路径由 turnStarted 清场,不再发出覆盖下一回合的落格状态。 */
+function emitLandingResolved(g: GameEngine, turnPhase: LandingResolvedBody["turnPhase"]): void {
+  const outcome = g.lastLandOutcome;
+  if (outcome == null) throw new Error("landingResolved:决策挂起时缺少落格结果");
+  emitGameEvent(g, g.activeIndex, {
+    kind: "landingResolved",
+    turnPhase,
+    pendingLand: g.pendingLand,
+    pendingCityEvent: g.pendingCityEvent,
+    treasureVisitor:
+      g.treasureVisitor == null
+        ? null
+        : { propertyId: g.treasureVisitor.def.id, ownerIdx: g.treasureVisitor.ownerIdx },
+    outcome: {
+      kind: outcome.kind,
+      propertyId: outcome.property?.id ?? null,
+      ownerSeat: outcome.owner == null ? null : g.players.indexOf(outcome.owner),
+      amount: outcome.amount ?? null,
+      resupply: outcome.resupply ?? null,
+      causedBankruptcy: outcome.causedBankruptcy ?? null,
+    },
+  });
 }
 
 /** 抽签 → 移动 → 经过自己都城必停(补给+结束回合);否则落格结算。
@@ -321,6 +346,7 @@ export function resolveLanding(g: GameEngine): void {
     g.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
     g.turnPhase = "Land";
     if (g.tryRecruitHero(mover) === "silent") g.endTurn(); // 招贤纳士:三选一(或无货→直接 endTurn)
+    else emitLandingResolved(g, "AwaitingHeroPick");
     return;
   }
   const tile = g.board.at(mover.position);
@@ -351,6 +377,7 @@ function resolveCityEvent(g: GameEngine, mover: Player, tile: TileDef): void {
         continueCityEvent(g); // 池空/满员:事件沉默,交易链照常
       } else {
         g.pendingCityEvent = true; // 三选一解完(resolveHeroPick)续跑交易链
+        emitLandingResolved(g, "AwaitingHeroPick");
       }
       return;
     }
@@ -504,6 +531,7 @@ function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
     g.treasureVisitor = { def, ownerIdx: g.players.indexOf(owner) };
     g.turnPhase = "AwaitingTreasureOwner";
     g.lastLandOutcome = { kind: "TreasureTrade", property: def, owner };
+    emitLandingResolved(g, "AwaitingTreasureOwner");
     g.logEvent(
       "trade",
       owner.guohao,
@@ -532,6 +560,7 @@ function enterDecisionPhase(g: GameEngine): boolean {
   const hasRealChoice = options.some((o) => o.available && o.id !== "skip");
   if (hasRealChoice) {
     g.turnPhase = "AwaitingDecision";
+    emitLandingResolved(g, "AwaitingDecision");
     return true;
   }
   const p = g.activePlayer;

@@ -84,7 +84,7 @@ describe("事件流(#384):名将被动技击发 skillFired", () => {
     beginGameEventBatch(e);
     e.rollAndMove();
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["skillFired", "diceRolled", "marchArrived"]);
+    expect(kinds(events)).toEqual(["skillFired", "diceRolled", "marchArrived", "landingResolved"]);
     expect(events[0]).toMatchObject({
       kind: "skillFired",
       seat,
@@ -233,7 +233,7 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
     t.landActiveAt(fate!.index);
     const events = e.snapshot().events;
     // 固定事件解毕续跑交易链(#824 ADR-0037):无主城 → 停 AwaitingDecision,不再当回合收尾
-    expect(kinds(events)).toEqual(["reputationChanged"]);
+    expect(kinds(events)).toEqual(["reputationChanged", "landingResolved"]);
     expect(e.turnPhase).toBe("AwaitingDecision");
     expect(events[0]).toMatchObject({
       kind: "reputationChanged",
@@ -420,7 +420,7 @@ describe("事件流(#385 缺口 3):行军路径随事件 marchArrived.path", () 
     beginGameEventBatch(e);
     e.rollAndMove();
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["diceRolled", "marchArrived"]); // 落无主城进决策,回合未收尾
+    expect(kinds(events)).toEqual(["diceRolled", "marchArrived", "landingResolved"]); // 落无主城进决策,回合未收尾
     const march = events[1] as Extract<GameEvent, { kind: "marchArrived" }>;
     expect(march.tileIndex).toBe(mover.position);
     expect(march.path.from).toBe(target!.index);

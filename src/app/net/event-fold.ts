@@ -16,8 +16,8 @@
 //                 turnNumber+1,故 +1;开局首回合同批有 gameStarted 先行,取首部本值)
 //   掷骰/行军族   diceRolled → lastRoll + heroDiceBonus 消费清零;capitalHalt → position/
 //                 lastMove/turnPhase=Land(补给金额相邻回填);marchArrived → position/
-//                 lastMove/落格推演(turnPhase + pendingLand +
-//                 lastLandOutcome + treasureVisitor 到来)
+//                 lastMove/turnPhase=Land;landingResolved → 最终相位/pendingLand/
+//                 lastLandOutcome/treasureVisitor 与固定事件续接载荷
 //   城池族        capitalSelected → takenCapitalIndices/capitalIndex/position/地产 Lv0 入册
 //                 (Setup 期现金不入折叠,#386 注记保持);propertyBought → 现金-价/
 //                 地产入册;propertyUpgraded → 持有等级对齐 newLevel(副本无
@@ -28,7 +28,7 @@
 //                 降级清单逐城 -1 级(0 级封底)+ skipTurns 按显式 restTurns 累加;
 //                 assetTransferred → 破产逐城易主(承让方入册/无债主回无主)
 //   金钱族        cashChanged → 现金逐条累加(delta 带符号)+ 落格表现态相邻回填
-//                 (reason=supply 回填补给金额;stock(商市行情)入账后续推城池交易链)
+//                 (reason=supply 回填补给金额;商市行情只动账,决策等待 landingResolved)
 //   珍宝族        treasureGained → 得宝入册(流水号实例 id 按静态表回溯定义);
 //                 treasureSold → 卖家出册(银两不在此折:交割价随 treasureTraded、变卖所得
 //                 随 assetLiquidated,防双计);treasureTraded → escrow 清/visitor 收口/
@@ -172,11 +172,6 @@ function seatNo(engine: GameEngine, p: Player): number {
   return seat;
 }
 
-/** 副本侧城主查找:按 propertyId 扫全座位(与引擎 findOwner 同式,读副本态)。 */
-function holdingOwnerOf(engine: GameEngine, propertyId: string): Player | null {
-  return engine.players.find((p) => p.properties.some((h) => h.propertyId === propertyId)) ?? null;
-}
-
 /** 反应窗被询问座位集(与引擎 reactionQueriedOf 同式:view 单源)。 */
 function queriedOf(view: ReactionView): number[] {
   return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
@@ -206,63 +201,6 @@ interface FoldCtx {
   closedWindow: { view: ReactionView; answers: ReactionAnswer[] } | null;
   /** 闭窗内已消费的应答(AOE 多张识破逐份对账用,对象身份去重)。 */
   consumedAnswers: Set<ReactionAnswer>;
-}
-
-/** 主路落格推演(settleMarchLanding → resolveLanding 的事件面镜像):相位 + 待决策落格 +
- *  落格表现态 + 珍宝交涉到来(判定表 treasureVisitor「到来=marchArrived 相邻」半边)。
- *  珍宝城与普通城池同权(ADR-0024):有 propertyId 即走城池三分推演;探宝为落格固定
- *  事件位先行(#825:先探宝后交易链,链尾挂件与 outcome=Noop 收场已退役)。
- */
-function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): void {
-  engine.pendingLand = null;
-  const tile = engine.board.at(tileIndex);
-  // 己都城:补给(金额由相邻 cashChanged·supply 回填)+ 招贤(候选 = 招贤校准档)
-  if (mover.capitalIndex === tileIndex) {
-    engine.turnPhase = "Land";
-    engine.lastLandOutcome = { kind: "OwnProperty" };
-    return;
-  }
-  // 全城池制(#826):一切格子都是城池,三分推演(无主/己城/他人城)对每格适用;
-  // propertyId 缺失 = 引擎/loader 失步,炸出来(与 resolveProperty 同一口径,零兜底)。
-  if (tile.propertyId == null)
-    throw new Error(`foldMainLanding:格 ${tileIndex} 无 propertyId(全城池制下不可能,契约违反)`);
-  const def = propertyDefOf(engine, tile.propertyId);
-  const owner = holdingOwnerOf(engine, tile.propertyId);
-  if (owner == null) {
-    // 无主城:银两足额 → 决策相位挂起;不足 → 引擎自动按兵不动收场(同批
-    // turnStarted 覆盖相位;propertyRejected 为声明性事件,无状态转移)
-    engine.lastLandOutcome = { kind: "PropertyAvailable", property: def };
-    if (mover.cash >= def.purchasePrice) {
-      engine.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
-      engine.turnPhase = "AwaitingDecision";
-    } else {
-      engine.turnPhase = "Land";
-    }
-    return;
-  }
-  if (owner === mover) {
-    // 己城:未满级 → 决策相位挂起;满级 → 引擎自动按兵不动收场
-    const holding = mover.properties.find((h) => h.propertyId === tile.propertyId);
-    if (holding == null)
-      throw new Error(`折叠投影:己城落格 ${tile.propertyId} 无持有(副本状态不一致)`);
-    engine.lastLandOutcome = { kind: "OwnProperty", property: def, owner: mover };
-    if (holding.level < def.maxLevel) {
-      engine.pendingLand = { kind: "OwnProperty", propertyId: tile.propertyId };
-      engine.turnPhase = "AwaitingDecision";
-    } else {
-      engine.turnPhase = "Land";
-    }
-    return;
-  }
-  // 他人城:城主有珍宝 → 交涉到来(treasureVisitor 到来半边);无珍宝 → 无事发生
-  if (owner.treasures.length > 0) {
-    engine.treasureVisitor = { def, ownerIdx: seatNo(engine, owner) };
-    engine.turnPhase = "AwaitingTreasureOwner";
-    engine.lastLandOutcome = { kind: "TreasureTrade", property: def, owner };
-  } else {
-    engine.turnPhase = "Land";
-    engine.lastLandOutcome = { kind: "Noop" };
-  }
 }
 
 /** 事件批折叠(#387 全覆盖):按批内顺序逐条投影进引擎副本(顺序即服务端结算序,后写
@@ -336,7 +274,44 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const mover = foldTarget(engine, ev);
         mover.position = ev.tileIndex;
         engine.lastMove = ev.path;
-        foldMainLanding(engine, mover, ev.tileIndex);
+        engine.turnPhase = "Land";
+        break;
+      }
+      case "landingResolved": {
+        foldTarget(engine, ev); // 最终落格事实仍须由有效行动者宣告。
+        engine.turnPhase = ev.turnPhase;
+        engine.pendingLand = ev.pendingLand;
+        engine.pendingCityEvent = ev.pendingCityEvent;
+        engine.pendingEncounter = null;
+        engine.pendingEncounterHalt = false;
+        if (ev.turnPhase !== "AwaitingHeroPick") engine.offeredHeroes = [];
+        engine.treasureVisitor =
+          ev.treasureVisitor == null
+            ? null
+            : {
+                def: propertyDefOf(engine, ev.treasureVisitor.propertyId),
+                ownerIdx: ev.treasureVisitor.ownerIdx,
+              };
+        engine.lastLandOutcome = {
+          kind: ev.outcome.kind,
+          ...(ev.outcome.propertyId == null
+            ? {}
+            : { property: propertyDefOf(engine, ev.outcome.propertyId) }),
+          ...(ev.outcome.ownerSeat == null
+            ? {}
+            : {
+                owner: eventSeatPlayer(
+                  engine,
+                  ev.outcome.ownerSeat,
+                  "landingResolved.outcome.ownerSeat",
+                ),
+              }),
+          ...(ev.outcome.amount == null ? {} : { amount: ev.outcome.amount }),
+          ...(ev.outcome.resupply == null ? {} : { resupply: ev.outcome.resupply }),
+          ...(ev.outcome.causedBankruptcy == null
+            ? {}
+            : { causedBankruptcy: ev.outcome.causedBankruptcy }),
+        };
         break;
       }
       case "capitalHalt": {
@@ -483,8 +458,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const outcome = engine.lastLandOutcome;
         if (ev.reason === "supply" && outcome?.kind === "OwnProperty" && outcome.resupply == null)
           outcome.resupply = ev.delta; // 都城补给金额(驻跸/落都城两路)
-        // 商市固定事件后仍续跑城池交易链;以行情后的现金推演,上涨可跨过购价门槛。
-        if (ev.reason === "stock") foldMainLanding(engine, p, p.position);
         break;
       }
       // ── 名将族 ──
@@ -716,7 +689,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         if (def.choices != null) {
           // 抉择机遇入相(引擎 enterEncounterPhase):置 Noop + 挂起相位;≤1 可用的自动
           // 执行由同批 encounterChoice/turnStarted 覆盖。即时机遇不碰落格表现态——引擎
-          // 即时结算后仍由落格结算置态(与 marchArrived 推演值一致)
+          // 即时结算后由 landingResolved 宣告落格结果
           engine.lastLandOutcome = { kind: "Noop" };
           engine.turnPhase = "AwaitingEncounter";
         } else {
@@ -728,7 +701,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       }
       case "encounterChoice": {
         // 选项结算点:settleEncounterChoice 效果落账后继续本落格结算(settled 路)——
-        // 相位先回 Land,落格推演重跑归同批后续事件/水合(选项效果 liquidating/exhausted
+        // 相位先回 Land,最终落格结果归同批后续 landingResolved(选项效果 liquidating/exhausted
         // 路的挂起相位无专属事件 = 校准档)
         engine.turnPhase = "Land";
         // 抉择路折章(#1153):按 id+choiceIndex 回查目录取 option.setsFlags——章与文案

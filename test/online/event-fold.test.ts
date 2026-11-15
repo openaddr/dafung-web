@@ -1,9 +1,9 @@
 // 折叠投影器单测(#386 两族,#387 全覆盖,ADR-0020 折叠切换⑤):事件批 → 本地引擎副本
-// 字段的投影契约,按字段族分组断言「事件序列 → 状态」——回合/胜负、掷骰/行军(含落格
-// 推演:相位/pendingLand/落格表现态/交涉到来)、城池、金钱(含相邻回填)、珍宝、名将、
+// 字段的投影契约,按字段族分组断言「事件序列 → 状态」——回合/胜负、掷骰/行军(含权威落格
+// 事实:相位/pendingLand/落格表现态/交涉到来)、城池、金钱(含相邻回填)、珍宝、名将、
 // 锦囊(含反应窗)、声望/体力、跳过、破产、机遇;以及契约边界(未知 kind 忽略 = 范围
 // 定义、无主座位/事件序违反当场炸)与快照对账(折叠漂移被水合无条件校正,快照=校准锚)。
-// 折叠的联机接线(消息到达→折叠→sync)归 e2e/react-online.spec.ts 的双端一致断言覆盖。
+// 真实命令与 JSON 下行的决策续行接缝见同目录 local-hydration.test.ts。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig, TurnPhase } from "@core/authority";
@@ -346,57 +346,14 @@ describe("折叠投影器 · 掷骰/行军族", () => {
     expect(e.players[0].cash).toBe(cash0 + 800);
   });
 
-  it("marchArrived 无主城且购得起:pendingLand 置决策 + AwaitingDecision", () => {
+  it("marchArrived 仅落位,机遇效果落账前不预测城池决策", () => {
     const e = makeEngine();
     foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: CHANGAN, path: path(CHANGAN) })]);
-
-    expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "prop-changan" });
-    expect(e.turnPhase).toBe("AwaitingDecision");
-    expect(e.lastLandOutcome?.kind).toBe("PropertyAvailable");
-    expect(e.lastLandOutcome?.property?.id).toBe("prop-changan");
-  });
-
-  it("marchArrived 无主城购不起:引擎自动按兵不动路,无决策载荷(相位由同批 turnStarted 收场)", () => {
-    const e = makeEngine();
-    e.players[0].cash = 0;
-    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: CHANGAN, path: path(CHANGAN) })]);
-
-    expect(e.pendingLand).toBeNull();
+    expect(e.players[0].position).toBe(CHANGAN);
     expect(e.turnPhase).toBe("Land");
-    expect(e.lastLandOutcome?.kind).toBe("PropertyAvailable"); // 表现态仍在
-  });
-
-  it("marchArrived 己城:未满级挂决策,满级自动按兵不动", () => {
-    const e = makeEngine();
-    grantHolding(e, 0, "prop-luoyang", 1);
-    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: LUOYANG, path: path(LUOYANG) })]);
-    expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: "prop-luoyang" });
-    expect(e.turnPhase).toBe("AwaitingDecision");
-
-    const e2 = makeEngine();
-    grantHolding(e2, 0, "prop-luoyang", MAP.catalog.get("prop-luoyang")!.maxLevel);
-    foldEventBatch(e2, [ev(0, { kind: "marchArrived", tileIndex: LUOYANG, path: path(LUOYANG) })]);
-    expect(e2.pendingLand).toBeNull();
-    expect(e2.turnPhase).toBe("Land");
-  });
-
-  it("marchArrived 他人城:城主有珍宝 → 交涉到来;无珍宝 → 无事发生", () => {
-    const e = makeEngine();
-    grantHolding(e, 1, "prop-luoyang", 0);
-    e.players[1].treasures.push({ ...TREASURES[0], id: "edict-0" });
-    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: LUOYANG, path: path(LUOYANG) })]);
-
-    expect(e.treasureVisitor?.def.id).toBe("prop-luoyang"); // 引擎态形状:{def, ownerIdx}
-    expect(e.treasureVisitor?.ownerIdx).toBe(1);
-    expect(e.turnPhase).toBe("AwaitingTreasureOwner");
-    expect(e.lastLandOutcome?.kind).toBe("TreasureTrade");
-
-    const e2 = makeEngine();
-    grantHolding(e2, 1, "prop-luoyang", 0);
-    foldEventBatch(e2, [ev(0, { kind: "marchArrived", tileIndex: LUOYANG, path: path(LUOYANG) })]);
-    expect(e2.treasureVisitor).toBeNull();
-    expect(e2.turnPhase).toBe("Land");
-    expect(e2.lastLandOutcome?.kind).toBe("Noop");
+    expect(e.pendingLand).toBeNull();
+    expect(e.lastLandOutcome).toBeNull();
+    expect(e.treasureVisitor).toBeNull();
   });
 });
 
@@ -1016,7 +973,7 @@ describe("折叠投影器 · 机遇族", () => {
     expect(e.turnPhase).toBe("Land"); // 结算后续跑本落格(相位由后续事件/水合精修)
   });
 
-  it("encounterTriggered 即时型不动相位(落格推演值保持)", () => {
+  it("encounterTriggered 即时型不动相位(等待最终落格事实)", () => {
     const e = makeEngine();
     foldEventBatch(e, [
       ev(0, { kind: "encounterTriggered", encounterId: "屯粮居奇", tier: "好运" }),
@@ -1168,56 +1125,5 @@ describe("折叠对账:快照=校准锚(#386,ADR-0020 决策 3)", () => {
     expect(e.players[0].skipTurns).toBe(0);
     expect(e.recruitedHeroIds.size).toBe(0);
     expect(e.takenCapitalIndices.size).toBe(0);
-  });
-});
-
-describe("折叠投影器 · 宝物城并权(ADR-0024 落格镜像)", () => {
-  // 关中辽东 = 宝物城(tile 3,#825 后由 event:"treasure" 承载;并权后带 propertyId,走城池三分折叠路径)。
-  const LIAODONG = MAP.board.tiles.find((t) => t.propertyId === "prop-liaodong")!.index;
-
-  it("无主宝物城:足额 → AwaitingDecision + pendingLand(与普通城同路径)", () => {
-    const e = makeEngine();
-    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) })]);
-    expect(e.players[0].position).toBe(LIAODONG);
-    expect(e.turnPhase).toBe("AwaitingDecision");
-    expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "prop-liaodong" });
-    expect(e.lastLandOutcome?.kind).toBe("PropertyAvailable");
-  });
-
-  it("己方宝物城:未满级 → AwaitingDecision(OwnProperty);满级 → Land 收场", () => {
-    const e = makeEngine();
-    grantHolding(e, 0, "prop-liaodong", 0);
-    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) })]);
-    expect(e.turnPhase).toBe("AwaitingDecision");
-    expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: "prop-liaodong" });
-    expect(e.lastLandOutcome?.kind).toBe("OwnProperty");
-
-    const e2 = makeEngine();
-    grantHolding(e2, 0, "prop-liaodong", 3); // 满级:自动按兵不动(相位由同批 turnStarted 收场)
-    foldEventBatch(e2, [
-      ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) }),
-    ]);
-    expect(e2.turnPhase).toBe("Land");
-    expect(e2.pendingLand).toBeNull();
-  });
-
-  it("他人宝物城:城主有宝 → AwaitingTreasureOwner 到来;无宝 → Land 收场", () => {
-    const e = makeEngine();
-    grantHolding(e, 1, "prop-liaodong", 0);
-    e.players[1].treasures.push({ ...TREASURES[0]!, id: "fold-probe" });
-    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) })]);
-    expect(e.turnPhase).toBe("AwaitingTreasureOwner");
-    expect(e.treasureVisitor?.ownerIdx).toBe(1);
-    expect(e.treasureVisitor?.def.id).toBe("prop-liaodong");
-    expect(e.lastLandOutcome?.kind).toBe("TreasureTrade");
-
-    const e2 = makeEngine();
-    grantHolding(e2, 1, "prop-liaodong", 0); // 无宝:无事发生
-    foldEventBatch(e2, [
-      ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) }),
-    ]);
-    expect(e2.turnPhase).toBe("Land");
-    expect(e2.treasureVisitor).toBeNull();
-    expect(e2.lastLandOutcome?.kind).toBe("Noop");
   });
 });
