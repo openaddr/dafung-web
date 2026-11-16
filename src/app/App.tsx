@@ -82,8 +82,10 @@ export function App() {
         // 开局首帧直灌(此后由房间下行拍驱动 sync;#398 起选都/行军全走房间编排)
         useGameStore.getState().syncFromEngine(controller.engine);
         setScreen("game");
+        return true;
       } catch (err) {
         pushHint(`起兵失败:${(err as Error).message}`);
+        return false;
       }
     },
     [pushHint, setScreen],

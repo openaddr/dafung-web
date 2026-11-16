@@ -10,14 +10,17 @@ export const TID = {
   seatRow: (n: number) => `setup-seat-${n}`,
   seatGuohaoInput: (n: number) => `setup-seat-${n}-guohao`,
   seatType: (n: number) => `setup-seat-${n}-type`,
+  guohaoTrigger: "setup-guohao-trigger",
+  guohaoClose: "setup-guohao-close",
   guohaoPool: "guohao-pool",
   guohaoChar: (ch: string) => `guohao-char-${ch}`,
   /** 国号校验错误行(内联即时提示;#664 补登,SoloSetupScreen 渲染)。 */
   guohaoError: "setup-guohao-error",
   // 机遇折叠区(#125;ADR-0035 必出制):details 开合杆 + 开关(#1090 三档基准退役)
   encounterToggle: "setup-encounter-toggle",
+  encounterSummary: "setup-encounter-summary",
+  encounterRow: "setup-encounter-row",
   encounterEnabled: "setup-encounter-enabled",
-  hint: "setup-hint",
   startGame: "start-game",
   currentMapName: "current-map-name",
   mapPanel: "map-select-panel",

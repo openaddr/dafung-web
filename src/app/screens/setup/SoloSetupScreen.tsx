@@ -1,82 +1,60 @@
-// 单机模式配置页(信息架构重构):承接原 SetupScreen 的对局配置部分——
-// 诸侯数/目标身价/机遇开关/国号字盘/座位表 + 起兵。模式入口已上移到首页
-// (HomeScreen),此页只关心「怎么开这一局」,顶部回显当前选中地图名
-// (选图在首页完成,记忆仍走 localStorage)。规则与旧实现保持一致:
-// - 单机模式:2–8 诸侯,仅首行为真人,其余全部电脑(bot 国号由引擎在 Guohao 阶段分配)
-// - 真人国号必须为单个汉字(isSingleCjk 校验)
-// - 目标身价:速战 15000 / 标准 30000 / 鏖战 60000;起始银两固定 10000(经济 v2)
-// - 机遇(#125;#1090 三档基准退役):只剩机遇开关,默认值读 public/config/jiyu.json
-//   (fetch 失败回退内置默认同值),单局覆盖经 SetupConfig.encounter 透传引擎
-import { useEffect, useState } from "react";
+import { Button } from "@base-ui/react/button";
+import { Input } from "@base-ui/react/input";
+import { useEffect, useId, useRef, useState } from "react";
 import type { SeatConfig } from "@core/authority";
 import type { EncounterSwitch } from "@core/encounters";
+import type { MapSource } from "@core/map-source";
+import { isSingleCjk } from "@core/constants";
+import { formatMoney } from "@core/money";
+import { playerColor, playerSealText, rgba } from "@core/theme";
+import { Switch } from "@app/components/ui/switch";
+import { getMapSource } from "@app/map-sources";
+import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
+import { Stepper } from "@app/screens/shared/Stepper";
+import { Sym } from "@app/screens/shared/Sym";
+import { cn } from "@app/utils/cn";
+import {
+  BUILTIN_ENCOUNTER_DEFAULTS,
+  fetchEncounterDefaults,
+  toEncounterConfig,
+} from "./encounterConfig";
+import { GuohaoPicker } from "./GuohaoPicker";
+import { MapSelectPanel } from "./MapSelectPanel";
 import {
   DEFAULT_GUOHAO,
   DEFAULT_SEAT_COUNT,
   DEFAULT_TARGET_NET_WORTH,
   defaultSetupSeats,
 } from "./setup-defaults";
-import { GUOHAO_POOL, playerColor, playerSealText, rgba } from "@core/theme";
-import { formatMoney } from "@core/money";
-import { isSingleCjk } from "@core/constants";
-import type { MapSource } from "@core/map-source";
-import { getMapSource } from "@app/map-sources";
-import { MapSelectPanel } from "./MapSelectPanel";
-import {
-  BUILTIN_ENCOUNTER_DEFAULTS,
-  fetchEncounterDefaults,
-  toEncounterConfig,
-} from "./encounterConfig";
 import { TID } from "./testids";
 import { useMapName } from "./useMapName";
-// X10(#29):原生 select 全退场——小范围数值走 stepper,受限档位走分段选择器(screens/shared)
-import { Stepper } from "@app/screens/shared/Stepper";
-import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
-// W2-包A:details 折叠箭头用 Sym(裸排 ▾ 会出 tofu,见 DESIGN §4.3)
-import { Sym } from "@app/screens/shared/Sym";
-// 机遇开关(ADR-0035):Base UI Switch 原语套水墨皮(红线 6 表单控件收口,SettingsDialog 同款)
-import { Switch } from "@app/components/ui/switch";
-// S1(#34):配置卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
-import "@app/screens/game/scroll/scroll.css";
-// #497:本屏局部样式(起兵 busy 呼吸 + 矮横屏双列档),同 home.css 口径(screen 目录内自持)
 import "./setup.css";
-// #751/S1:矮横屏档 JS 结构分支(双列重排),断点串单源 hooks/use-media-query.ts
-// (setup.css 矮横屏档 media 开口头注同指;home #707 同款手筋)
-import { useIsShortLandscape } from "@app/hooks/use-media-query";
 
-/** 起兵配置:GameEngine 开局所需全部参数(对照旧 main.ts 的 new App({...}) 入参)。
- *  接线方(main 线)用它 loadMapById(mapSource, mapId) 后 new LocalController(map, config)。
- *  seed 可选:?seed= 复现参数由接线方解析后注入,配置页不感知 URL。 */
 export interface SetupConfig {
   seats: SeatConfig[];
   targetNetWorth: number;
-  /** 选中的地图 id(延迟加载:起兵时才 loadMapById,与旧行为一致)。 */
   mapId: string;
-  /** 骰子种子(可选,注入 EngineConfig)。 */
+  /** 骰子种子由接线方解析后注入。 */
   seed?: number;
-  /** 机遇开关(#125;#1090 只剩开关):设置屏透传,开局注入 EngineConfig.encounter。 */
   encounter: EncounterSwitch;
 }
 
 interface SoloSetupScreenProps {
-  /** P0-1:App 侧 handleStart 为 async(loadMapById+开局);允许返回 Promise,
-   *  配置页 await 其完成以驱动 busy 态,同步回调也兼容。 */
-  onStart: (config: SetupConfig) => void | Promise<void>;
-  /** 返回首页。 */
+  onStart: (config: SetupConfig) => Promise<boolean>;
   onBack: () => void;
-  /** 当前选中的地图 id(首页选图后传入,localStorage 记忆同一份;必传,无兜底)。 */
   mapId: string;
-  /** 地图源(默认进程级复合源;测试可注入内存实现)。 */
   mapSource?: MapSource;
-  /** S-3:配置页内嵌换图回调 —— 确认换图后回传新 mapId(接线方持久化
-   *  localStorage 并更新自己的 initialMapId state;与 HomeScreen.onMapChange 同契约)。 */
+  /** 确认换图后回传地图 id，由接线方记忆。 */
   onMapChange?: (mapId: string) => void;
 }
 
-/** 目标身价档位(旧实现固定三档)。 */
-const TARGET_OPTIONS = [15000, 30000, 60000] as const;
-const TARGET_LABEL: Record<number, string> = { 15000: "速战", 30000: "标准", 60000: "鏖战" };
-/** 国号预设持久化 key(起兵成功后写入;下次进入默认带入;联机加入也读同一份)。 */
+const TARGET_OPTIONS = [
+  { value: 15000, label: "速战" },
+  { value: 30000, label: "标准" },
+  { value: 60000, label: "鏖战" },
+] as const;
+
+/** 单机起兵后记录的国号，也是联机预设。 */
 export const GUOHAO_PREF_KEY = "dafung.guohao";
 
 export function SoloSetupScreen({
@@ -88,38 +66,29 @@ export function SoloSetupScreen({
 }: SoloSetupScreenProps) {
   const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
   const [target, setTarget] = useState(DEFAULT_TARGET_NET_WORTH);
-  // 单机模式仅首行可编:真人国号默认读上次起兵用的国号(localStorage 无记录则「魏」);bot 国号引擎分配
   const [guohao, setGuohao] = useState(
     () => localStorage.getItem(GUOHAO_PREF_KEY) ?? DEFAULT_GUOHAO,
   );
-  // S-8:hint 只承载错误提示(装饰文案上移副标题);null = 无错不渲染
-  const [hint, setHint] = useState<string | null>(null);
-  // S-3:配置页内嵌换图 —— 本地镜像当前 mapId(prop 不随换图变,显示走本地态)
   const [currentMap, setCurrentMap] = useState(mapId);
   const [showMapSelect, setShowMapSelect] = useState(false);
-  // S8:国号内联校验 —— onChange 即算,非法时输入框红边 + 框下红字;
-  // 默认值「魏」合法,首屏不误报;提交时的 hint 只作兜底,正常路径不再触发
-  const guohaoInvalid = !isSingleCjk(guohao.trim());
-  // 与首页共用同一份地图名解析逻辑(清单失败回退 id 显示)
-  const mapName = useMapName(mapSource, currentMap);
-  // #751/S1:矮横屏档双列重排开关(左列配置/右列座位表+操作;桌面档信息架构零变化)
-  const isShortLandscape = useIsShortLandscape();
-
-  // P0-1:起兵 busy 态 —— await onStart(App 侧 loadMapById 异步)期间禁点防连击
   const [busy, setBusy] = useState(false);
+  const [encounter, setEncounter] = useState(BUILTIN_ENCOUNTER_DEFAULTS);
+  const [encounterDefault, setEncounterDefault] = useState(BUILTIN_ENCOUNTER_DEFAULTS);
+  const guohaoInputId = useId();
+  // 打开字盘时收起输入法，让系统返回键交给字盘。
+  const guohaoInputRef = useRef<HTMLInputElement>(null);
+  const guohaoHelpId = useId();
+  const mapName = useMapName(mapSource, currentMap);
+  const trimmedGuohao = guohao.trim();
+  const guohaoInvalid = !isSingleCjk(trimmedGuohao);
+  const seats = defaultSetupSeats(trimmedGuohao, seatCount);
 
-  // 机遇(#125;#1090 只剩开关):默认值 = public/config/jiyu.json(挂载后 fetch;首帧先显
-  // 内置默认同值,fetch 成功以文件值为准,失败维持内置默认——回退语义见 encounterConfig.ts)。
-  const [encounter, setEncounter] = useState<boolean>(BUILTIN_ENCOUNTER_DEFAULTS);
-  // #497 ⑤:折叠区说明文案的开关单独钉住配置加载结果 —— 表单编辑只动 encounter,
-  // 说明里的「默认」恒显配置值,不再手抄字面量(免与 jiyu.json 漂移成第二事实源)。
-  const [encounterDefaults, setEncounterDefaults] = useState<boolean>(BUILTIN_ENCOUNTER_DEFAULTS);
   useEffect(() => {
     let alive = true;
-    fetchEncounterDefaults().then((v) => {
+    fetchEncounterDefaults().then((enabled) => {
       if (alive) {
-        setEncounter(v);
-        setEncounterDefaults(v);
+        setEncounter(enabled);
+        setEncounterDefault(enabled);
       }
     });
     return () => {
@@ -128,422 +97,211 @@ export function SoloSetupScreen({
   }, []);
 
   const start = async () => {
-    // 校验规则与旧实现一致:真人国号必须单个汉字;bot 国号留给引擎分配。
-    // S8:内联校验已即时提示,此处 hint 仅作兜底(正常路径不触发)
-    const g = guohao.trim();
-    if (!isSingleCjk(g)) {
-      setHint("你的国号需为单个汉字。");
-      return;
-    }
-    setHint(null);
-    const seats = defaultSetupSeats(g, seatCount);
     setBusy(true);
     try {
-      await onStart({
+      const started = await onStart({
         seats,
         targetNetWorth: target,
         mapId: currentMap,
-        // 机遇开关透传(#1090 起三档概率为引擎 softmax 常量,配置面无归一/回退)
         encounter: toEncounterConfig(encounter),
       });
-      // 起兵成功:记住本次国号,下次进入默认带入
-      localStorage.setItem(GUOHAO_PREF_KEY, g);
+      if (started) localStorage.setItem(GUOHAO_PREF_KEY, trimmedGuohao);
     } finally {
-      // 开局成功即切屏,此复位只服务于失败留在本页的情况
       setBusy(false);
     }
   };
 
-  // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/起兵共用基类,只改尺寸)
-  // S2(#751/#742):返回/起兵触达提档——次级钮 ≥40、主行动墨钮 ≥44(DESIGN §4.7 口径)
-  const btnBase = "rounded border px-4 py-2 font-brush text-paper cursor-pointer transition-colors";
-
-  // ── 构块化 JSX(两档共用件;#751/S1 矮横屏双列重排把同一批块重排进两列,
-  //    testid 契约零变化:座位行/输入/字盘/起兵全部原样)──
-
-  // 国号帮助/错误行(S4:#28 说明缩一行,语义保全)
-  const guohaoHelp = guohaoInvalid ? (
-    <span data-testid="setup-guohao-error" className="text-xs text-danger">
-      国号需为单个汉字
-    </span>
-  ) : (
-    <span className="text-xs text-paper-dim">起兵后默认带入 · 联机同用</span>
-  );
-
-  // 真人国号输入框(桌面档在座位表首行内;矮横屏档升入左列配置块,testid 不变)
-  const guohaoInput = (
-    <input
-      data-testid={TID.seatGuohaoInput(0)}
-      type="text"
-      maxLength={1}
-      value={guohao}
-      placeholder="?"
-      onChange={(e) => setGuohao(e.target.value)}
-      // S8:非法国号即时红边(border-danger),校验随 onChange 每次渲染重算
-      // #955:国号输入位 font-brush(马善政手书;龙藏整族退役,原 font-hand #54)
-      className={
-        "w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-brush text-center " +
-        (guohaoInvalid ? "border-danger text-danger" : "border-paper/30 text-paper")
-      }
-    />
-  );
-
-  // 字盘快选国号(仅作用于真人行;对照旧 GUOHAO_POOL 前 26 字)。
-  // #175:容器 role=group+aria-label(口径同 SegmentedSelect),每钮 aria-pressed
-  // 承载选中态——「钤印」高亮不再只靠视觉,读屏可感知当前国号。
-  // #765:横滑条带退役,26 字落 2×13 网格(su-pool,格随列宽均分 ~32-38px 方格);
-  // 视觉格 <40 的触达缺口由伪元素热区垫足(setup.css,DESIGN §触达「视觉与热区
-  // 可分离」);选中=钤漆金印语言保持(seal-gold,#506,与对局内方印同语言)。
-  const pool = (
-    <div data-testid={TID.guohaoPool} role="group" aria-label="字盘快选国号" className="su-pool">
-      {GUOHAO_POOL.slice(0, 26).map((ch) => (
-        <button
-          key={ch}
-          data-testid={TID.guohaoChar(ch)}
-          aria-pressed={guohao === ch}
-          onClick={() => setGuohao(ch)}
-          className={
-            "su-pool-btn font-brush cursor-pointer transition-colors " +
-            (guohao === ch
-              ? "border-gold-deep seal-gold"
-              : "border-paper/25 bg-bg/60 text-paper-dim hover:border-gold/60 hover:text-paper")
-          }
-        >
-          {ch}
-        </button>
-      ))}
-    </div>
-  );
-
-  // 座位表:首行真人,其余 bot(国号引擎分配,国号列显示「待分配」)。
-  // #765 席位行卡面化:行升格迷你席位卡——复用对局席位格行1 制式(paper-lo 卡底 +
-  // ink 界线,layout.css .seat 同语言;玩家色经行内 --pc/--pc-seal 注入,SeatRail
-  // 同通路):座次色印(28px,座位色字 on 26% 混底)+ brush 国号字(font-brush,真人
-  // 行随输入即动)/「待分配」+ 类型印。行高 ≥44(触达口径);真人行金印「你」、
-  // bot 行淡墨印「机」保持;矮横屏档真人国号编辑在左列,座位行只回显,行高齐平。
-  const seatsTable = (withInput: boolean) => (
-    <div className="su-seats flex flex-col">
-      {/* 表头列位随卡面网格对齐(28px 色印 / 1fr 国号 / 32px 类型;类型列留 32px
-        防 12px 双字标签折行——22px 列实测把表头撑出 +16px,#765 量测实锤) */}
-      <div className="su-seats-head grid grid-cols-[28px_1fr_32px] gap-2 border-b border-paper/25 pb-1 font-deco text-xs text-paper-dim">
-        <span />
-        <span>国号</span>
-        <span>类型</span>
-      </div>
-      {Array.from({ length: seatCount }, (_, i) => {
-        const isBot = i >= 1;
-        return (
-          <div
-            key={i}
-            data-testid={TID.seatRow(i)}
-            className="su-seat-card grid grid-cols-[28px_1fr_32px] items-center gap-2 px-2"
-            style={{
-              ["--pc" as string]: rgba(playerColor(i)),
-              ["--pc-seal" as string]: rgba(playerSealText(i)),
-            }}
-          >
-            {/* 座次色印:座位色系小方印(字吃 --pc-seal 亮档,印边吃 --pc 本体) */}
-            <span className="su-seat-pseal">{i + 1}</span>
-            {isBot ? (
-              // bot 行不可编:国号列显示「待分配」,国号在对局 Guohao 阶段由引擎分配
-              // (R3-A4(#67):原占位「电脑」与类型列重复,类型列独占该语义;S-7 title 保留)
-              <span
-                data-testid={TID.seatGuohaoInput(i)}
-                title="开局由引擎分配国号"
-                className="font-deco text-paper-dim"
-              >
-                待分配
-              </span>
-            ) : withInput ? (
-              <div className="flex flex-col gap-0.5 py-1">
-                {guohaoInput}
-                {guohaoHelp}
-              </div>
-            ) : (
-              // 矮横屏档:编辑位在左列,此处回显当前国号(brush 行书,同输入位字族)
-              <span className="font-brush text-lg text-paper">{guohao}</span>
-            )}
-            <span
-              data-testid={TID.seatType(i)}
-              className={
-                "inline-flex h-[22px] w-[22px] items-center justify-center rounded-[2px] font-title text-[13px] leading-none " +
-                (isBot
-                  ? "border border-paper/30 text-paper-dim" // 淡纸墨印
-                  : "seal-gold") // 漆金小印(= 全屏唯一真人标记,金=势)
-              }
-            >
-              {isBot ? "机" : "你"}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  // 操作区:#765 主次钮重排——返回降 ghost 图标钮(40px 方命中,置左缘,icon-only
-  // 补 aria-label),起兵升满宽主钮(flex-1 吃剩余宽,≥44px,busy 金环呼吸保持)。
-  const actions = (
-    <div className="su-actions flex items-center gap-2 mt-3">
-      <button
-        type="button"
-        data-testid="solo-setup-back"
-        onClick={onBack}
-        aria-label="返回首页"
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[3px] text-paper-dim hover:bg-paper/10 hover:text-paper cursor-pointer transition-colors"
-      >
-        <Sym name="back" size={14} />
-      </button>
-      <button
-        data-testid={TID.startGame}
-        onClick={() => void start()}
-        // S-2:国号非法即禁点(title 说明原因);P0-1:busy 期防连点
-        disabled={guohaoInvalid || busy}
-        title={guohaoInvalid ? "国号需为单个汉字" : undefined}
-        className={
-          btnBase +
-          // 起兵=墨钮(主行动):漆底漆金字,「落子无悔」的一按;S2 主行动 ≥44px
-          " ink-btn flex-1 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed" +
-          // #497 ②:busy 期金环呼吸(setup.css;--dur-ambient 半频)——大图加载的活反馈
-          (busy ? " su-busy" : "")
-        }
-      >
-        {busy ? "调兵遣将中…" : "起兵"}
-      </button>
-    </div>
-  );
-
-  // 诸侯数 / 目标身价 / 机遇折叠:X10(#29)原生 select 全退场——小范围数值走 stepper,
-  // 受限档位走分段选择器(role=group+aria-pressed,选中态对齐字盘样式)。
-  // #559:诸侯数与机遇开关(同为窄控件)并排一行 grid-cols-2 省 ~76px 纵高;
-  // 目标身价三档双行签占宽,独占一行保可读。
-  // #751/S1:矮横屏档三档签改单行(横排名+金额)省 12px 级块高,语义零增减。
-  const controls = (
-    <div className="su-controls flex flex-col gap-2 font-deco text-sm text-paper mb-3">
-      {/* #751/S1:矮横屏档标签与步进器同行(左列竖向预算紧,省一个标签行;桌面档堆叠不动) */}
-      <div className={isShortLandscape ? "flex items-center gap-3" : "flex flex-col gap-1"}>
-        <span className="shrink-0">诸侯数</span>
-        <Stepper
-          testid={TID.seatCount}
-          ariaLabel="诸侯数"
-          value={seatCount}
-          min={2}
-          max={8}
-          onChange={setSeatCount}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <span>目标身价</span>
-        <SegmentedSelect
-          testid={TID.target}
-          ariaLabel="目标身价"
-          value={target}
-          onChange={setTarget}
-          options={TARGET_OPTIONS.map((t) => ({
-            value: t,
-            // #751/S1:矮横屏档单行签(排名+金额同流,金额 11px)——双行签在 300px
-            // 左列装不下会折行(量测:折行=块高 +46px,字盘被挤出首屏);桌面档双行不动。
-            label: isShortLandscape ? (
-              <span className="whitespace-nowrap">
-                {TARGET_LABEL[t]}
-                <span className="font-deco text-[11px] font-normal opacity-80">
-                  {" "}
-                  {formatMoney(t)}
-                </span>
-              </span>
-            ) : (
-              <span className="flex flex-col items-center leading-tight">
-                <span>{TARGET_LABEL[t]}</span>
-                <span className="font-deco text-xs font-normal opacity-80">{formatMoney(t)}</span>
-              </span>
-            ),
-          }))}
-        />
-      </div>
-
-      {/* 机遇(#125;ADR-0035 必出制):折叠区单局覆盖 —— 默认开关读 public/config/jiyu.json
-        (说明写此处文案,JSON 无注释);开关直传,#1090 起三档概率为引擎 softmax 常量 */}
-      <details
-        data-testid={TID.encounterToggle}
-        className="group rounded border border-paper/25 bg-bg/40 open:bg-panel-hi/40"
-      >
-        {/* W2-包A:原生 marker 重置(list-none + ::-webkit-details-marker);箭头用 Sym,
-          group-open 旋转半圈,时长走 --dur token(红线3);机遇区是 #125 新文案,
-          操作短名走 brush,解释文字保留 wenkai */}
-        <summary className="list-none cursor-pointer select-none px-2 py-1.5 font-wenkai text-sm text-paper [&::-webkit-details-marker]:hidden">
-          <Sym
-            name="expand"
-            size={12}
-            className="mr-1.5 inline-block transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-open:rotate-180"
-          />
-          <span className="font-brush">机遇</span>(落格触发事件)
-        </summary>
-        <div className="flex flex-col gap-2 px-2 pb-2">
-          <label className="flex cursor-pointer items-center gap-2 font-wenkai text-sm text-paper">
-            <Switch
-              data-testid={TID.encounterEnabled}
-              size="sm"
-              checked={encounter}
-              onCheckedChange={(checked) => setEncounter(checked === true)}
-            />
-            <span>
-              <span className="font-brush">机遇必出</span>(每次落格触发一条)
-            </span>
-          </label>
-          <p className="font-wenkai text-xs text-paper-dim">
-            {`默认:机遇${encounterDefaults ? "开" : "关"}。机遇必出:开启后每次落格先出一条机遇;好运/中性/霉运三档概率随声望拉锯(softmax),不做手工配置。仅对本局生效。`}
-          </p>
-        </div>
-      </details>
-    </div>
-  );
-
-  // 当前地图行(C10 收口):矮横屏/桌面两档曾逐字双抄——回显 + 内嵌「更换」就地唤起
-  // 选图面板(S-3),两档同件。
-  const mapRow = (
-    <div className="su-map-row font-wenkai text-sm text-paper-dim mb-1 flex items-center gap-2">
-      <span>当前地图:</span>
-      <span data-testid={TID.currentMapName} className="text-paper">
-        {mapName}
-      </span>
-      <button
-        type="button"
-        onClick={() => setShowMapSelect(true)}
-        className="note-btn rounded-[3px] px-2.5 min-h-[40px] font-brush text-xs cursor-pointer transition-colors"
-      >
-        更换
-      </button>
-    </div>
-  );
-  // 错误页脚(C10 收口):两档同件,仅间距档差(mt-2/mt-3 由调用点注入)。
-  const hintFooter = (mt: string) =>
-    hint != null ? (
-      <div data-testid={TID.hint} className={`font-deco text-xs text-danger ${mt}`}>
-        {hint}
-      </div>
-    ) : null;
-
   return (
-    // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
-    // 8 诸侯时座位表+字盘撑高卡片,666×360 横屏下起兵按钮可滚达,不再被截断。
-    // 矮横屏档(#751/S1)不靠根滚:su-wrap 撑满滚动埠、卡片吃剩余高,起兵钉底恒在场。
-    // G1(#751):左右 safe-area 由 setup.css .su-root 复合消费(刘海/圆角不贴边裸奔)。
-    <div
-      data-testid={TID.screen}
-      className="su-root flex h-full flex-col overflow-y-auto bg-bg p-6"
-    >
-      <div
-        className={`m-auto flex w-full flex-col items-center ${isShortLandscape ? "su-wrap" : ""}`}
-      >
-        {/* #497 ①/#559:顶部返回位 —— Sym 左指箭头小笺钮放标题左侧(惯例位;原右端
-          与箭头朝向矛盾),复用 onBack,8 诸侯 + 机遇展开时不必滚到卡底即可退;
-          h1 补 pl 与 tracking 尾部空白同量(home 同款居中补偿)。
-          S2:返回钮命中 32→40px;.su-back 偏移随 safe-left(setup.css)。
-          #751/S1:矮横屏档标题降档(30px)给双列让位(home #707 同款收纳)。 */}
-        <div className="relative w-full flex justify-center">
-          <button
-            type="button"
+    <main data-testid={TID.screen} className="su-root bg-bg font-wenkai text-paper">
+      <div className="su-wrap">
+        <header className="su-header">
+          <Button
             data-testid={TID.backTop}
-            onClick={onBack}
             aria-label="返回首页"
-            className="su-back note-btn absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-[3px] px-2 min-h-[40px] min-w-[40px] text-paper cursor-pointer transition-colors"
+            onClick={onBack}
+            className="note-btn flex size-10 cursor-pointer items-center justify-center rounded-[3px]"
           >
-            <Sym name="back" size={14} />
-          </button>
-          <h1
-            className={`font-title text-paper tracking-widest pl-[0.1em] ${
-              isShortLandscape ? "text-3xl leading-none" : "text-4xl"
-            }`}
-          >
-            单机模式
-          </h1>
+            <Sym name="back" size={16} />
+          </Button>
+          <h1 className="su-title font-title">单机模式</h1>
+        </header>
+
+        <div className="su-card note-card scroll-anim-unroll">
+          <div className="su-content">
+            <section className="su-column su-config" aria-label="对局配置">
+              <h2 className="su-section-title">对局配置</h2>
+
+              <div className="su-config-row">
+                <span className="text-paper-dim">地图</span>
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                  <span data-testid={TID.currentMapName} className="min-w-0 wrap-anywhere">
+                    {mapName}
+                  </span>
+                  <Button
+                    aria-label="更换地图"
+                    onClick={() => setShowMapSelect(true)}
+                    className="su-secondary note-btn font-brush"
+                  >
+                    更换
+                  </Button>
+                </div>
+              </div>
+
+              <div className="su-config-row">
+                <span className="text-paper-dim">诸侯数</span>
+                <Stepper
+                  testid={TID.seatCount}
+                  ariaLabel="诸侯数"
+                  value={seatCount}
+                  min={2}
+                  max={8}
+                  onChange={setSeatCount}
+                />
+              </div>
+
+              <div className="su-config-row su-target">
+                <span className="text-paper-dim">目标身价</span>
+                <SegmentedSelect
+                  testid={TID.target}
+                  ariaLabel="目标身价"
+                  value={target}
+                  onChange={setTarget}
+                  options={TARGET_OPTIONS.map(({ value, label }) => ({
+                    value,
+                    label: (
+                      <span className="su-target-label">
+                        <span>{label}</span>
+                        <span className="font-wenkai text-xs tabular-nums">
+                          {formatMoney(value)}
+                        </span>
+                      </span>
+                    ),
+                  }))}
+                />
+              </div>
+
+              <details data-testid={TID.encounterToggle} className="su-encounter group">
+                <summary
+                  data-testid={TID.encounterSummary}
+                  className="su-config-row su-encounter-summary"
+                >
+                  <span className="font-brush">机遇</span>
+                  <span className="flex items-center justify-between gap-2 text-paper-dim">
+                    <span>{encounter ? "开启" : "关闭"}</span>
+                    <Sym
+                      name="expand"
+                      size={12}
+                      className="transition-transform duration-[var(--dur-fast)] group-open:rotate-180"
+                    />
+                  </span>
+                </summary>
+                <div className="su-encounter-body">
+                  <label data-testid={TID.encounterRow} className="su-encounter-option">
+                    <span className="font-brush">机遇必出</span>
+                    <Switch
+                      data-testid={TID.encounterEnabled}
+                      size="sm"
+                      checked={encounter}
+                      onCheckedChange={setEncounter}
+                    />
+                  </label>
+                  <p className="su-encounter-help text-paper-dim">
+                    开启后每次落格先触发一条机遇，运势概率随声望变化。
+                    {encounterDefault ? "默认开启" : "默认关闭"}，此处调整仅对本局生效。
+                  </p>
+                </div>
+              </details>
+            </section>
+
+            <section className="su-column" aria-label="国号与座次">
+              <div className="su-identity">
+                <label htmlFor={guohaoInputId} className="text-paper-dim">
+                  国号
+                </label>
+                <Input
+                  ref={guohaoInputRef}
+                  id={guohaoInputId}
+                  data-testid={TID.seatGuohaoInput(0)}
+                  type="text"
+                  maxLength={1}
+                  value={guohao}
+                  onInput={(event) => setGuohao(event.currentTarget.value)}
+                  aria-invalid={guohaoInvalid}
+                  aria-describedby={guohaoHelpId}
+                  className="su-guohao-input font-brush"
+                />
+                <GuohaoPicker
+                  value={trimmedGuohao}
+                  onChoose={setGuohao}
+                  onOpen={() => guohaoInputRef.current?.blur()}
+                />
+              </div>
+              <p id={guohaoHelpId} className="su-guohao-help" aria-live="polite">
+                {guohaoInvalid ? (
+                  <span data-testid={TID.guohaoError} className="text-danger">
+                    国号需为单个汉字
+                  </span>
+                ) : (
+                  "起兵后记住国号，联机同用"
+                )}
+              </p>
+
+              <h2 className="su-section-title su-seat-heading">座次</h2>
+              <ol className="su-seat-grid">
+                {seats.map((seat, index) => (
+                  <li
+                    key={seat.name}
+                    data-testid={TID.seatRow(index)}
+                    data-human={seat.isBot ? undefined : ""}
+                    className="su-seat-card"
+                    style={{
+                      ["--pc" as string]: rgba(playerColor(index)),
+                      ["--pc-seal" as string]: rgba(playerSealText(index)),
+                    }}
+                  >
+                    <span className="su-seat-pseal font-title">{index + 1}</span>
+                    {seat.isBot ? (
+                      <span data-testid={TID.seatGuohaoInput(index)} className="text-paper-dim">
+                        待分配
+                      </span>
+                    ) : (
+                      <span className="su-seat-guohao font-brush">{seat.guohao}</span>
+                    )}
+                    <span data-testid={TID.seatType(index)} className="su-seat-type">
+                      {seat.isBot ? "电脑" : "真人"}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </div>
+
+          <footer className="su-actions">
+            <Button
+              data-testid={TID.startGame}
+              onClick={() => void start()}
+              disabled={guohaoInvalid || busy}
+              title={guohaoInvalid ? "国号需为单个汉字" : undefined}
+              className={cn("ink-btn su-start font-brush", busy && "su-busy")}
+            >
+              {busy ? "调兵遣将中…" : "起兵"}
+            </Button>
+          </footer>
         </div>
-
-        {isShortLandscape ? (
-          /* ── 矮横屏档(#751/S1 双列重排,#742 判词 A+B;#765 字盘归右列):卡宽 780
-            居中消两侧死白;左列 ≈300px 配置(地图行/诸侯数/目标身价/机遇折叠/国号
-            编辑位),右列「你的国号」区(2×13 字盘网格)+座位表+操作;起兵 sticky
-            钉底恒在场。副标题/笺头在本档收纳退役(座次预算让位,home #707 降档同款)。 ── */
-          <div className="su-card scroll-anim-unroll note-card w-[min(780px,94vw)] rounded-[8px] px-5 py-4 mt-3">
-            <div className="su-grid">
-              <div className="su-col su-col-left">
-                {/* 顶部回显当前地图(mapRow 单源,C10);S-3:「更换」就地唤起选图面板 */}
-                {mapRow}
-
-                {/* 诸侯数 / 目标身价 / 机遇折叠(块与桌面档同一份);矮横屏档间距收紧走 setup.css */}
-                {controls}
-
-                {/* 国号编辑位(本档归位):标签+输入框+帮助句,字盘已升右列(#765)
-                  ——编辑与回显分置两列,输入即动(座位行/字盘钤印同步)。 */}
-                <div className="su-guohao-block flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-deco text-sm text-paper shrink-0">你的国号</span>
-                    {guohaoInput}
-                  </div>
-                  {guohaoHelp}
-                </div>
-              </div>
-              <div className="su-col su-col-right">
-                {/* 「你的国号」区(#765 右列顶部):2×13 字盘网格,选中态钤漆金印即回显;
-                  横滑容器随网格化退役(竖向预算 26 格两行解,桌面档同构) */}
-                <div className="su-pool-block flex flex-col gap-0.5">
-                  <div className="font-deco text-xs leading-none text-paper-dim">你的国号</div>
-                  {pool}
-                </div>
-                {seatsTable(false)}
-                {actions}
-                {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}
-                {hintFooter("mt-2")}
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* ── 桌面档:信息架构零变化(竖屏同构,根容器滚动兜底 E1 #13)── */
-          <div className="su-card scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] px-5 py-4 mt-3">
-            {/* 顶部回显当前地图(mapRow 单源,C10);S-3:「更换」就地唤起选图面板 */}
-            {mapRow}
-            {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
-            <p className="su-subtitle font-wenkai text-xs text-paper-dim mb-4 border-b border-paper/20 pb-3">
-              立国号、定诸侯,起兵逐鹿天下。
-            </p>
-
-            {/* 笺头制式(视觉重做 v2):「阵」字朱印 + 标签 + 发丝线(用法同 game/StatusBar)
-              #559:mb-3 → mb-2 折叠线微调 */}
-            <h3 className="su-head note-head mb-2 text-xs tracking-[0.25em] text-paper-dim">
-              <i>阵</i>
-              <span>开局布阵</span>
-            </h3>
-
-            {controls}
-
-            {seatsTable(true)}
-
-            {/* 字盘快选国号(仅作用于真人行;#765 网格化 2×13,桌面档位置不变) */}
-            <div className="su-pool-label font-deco text-xs text-paper-dim mt-3 mb-1">
-              字盘快选国号:
-            </div>
-            {pool}
-
-            {actions}
-
-            {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}
-            {hintFooter("mt-3")}
-          </div>
-        )}
-
-        {/* S-3:内嵌选图二级屏(复用首页同款面板;确认后本地回显 + onMapChange 通知接线方) */}
-        {showMapSelect && (
-          <MapSelectPanel
-            mapSource={mapSource}
-            currentMapId={currentMap}
-            onConfirm={(id) => {
-              setCurrentMap(id);
-              setShowMapSelect(false);
-              onMapChange?.(id);
-            }}
-            onCancel={() => setShowMapSelect(false)}
-          />
-        )}
       </div>
-    </div>
+
+      {showMapSelect && (
+        <MapSelectPanel
+          mapSource={mapSource}
+          currentMapId={currentMap}
+          onConfirm={(id) => {
+            setCurrentMap(id);
+            setShowMapSelect(false);
+            onMapChange?.(id);
+          }}
+          onCancel={() => setShowMapSelect(false)}
+        />
+      )}
+    </main>
   );
 }
