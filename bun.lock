@@ -6,6 +6,7 @@
       "name": "dafung-web",
       "dependencies": {
         "@base-ui/react": "^1.8.0",
+        "@tauri-apps/api": "2.12.4",
         "@tauri-apps/plugin-dialog": "^2.8.4",
         "@tauri-apps/plugin-fs": "2.6.0",
         "clsx": "^2.1.1",

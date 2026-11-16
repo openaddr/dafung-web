@@ -7,9 +7,10 @@
 import { DialogClose } from "@app/components/ui/dialog";
 import { Sym } from "./Sym";
 
-export function RoundClose() {
+export function RoundClose({ testid }: { testid?: string }) {
   return (
     <DialogClose
+      data-testid={testid}
       aria-label="关闭"
       className="group absolute right-1 top-1 z-10 flex h-11 w-11 cursor-pointer items-center justify-center"
     >
