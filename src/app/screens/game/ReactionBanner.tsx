@@ -19,6 +19,12 @@ import { JinnangCardFace } from "@app/components/card/JinnangCardFace";
 import { getAudio } from "@app/fx/audio";
 import { TESTIDS } from "./testids";
 import "./reaction-banner.css";
+import {
+  readReactionVariant,
+  ReactionPrototypeLayout,
+  ReactionPrototypeSwitcher,
+  type ReactionPrototypeContext,
+} from "./ReactionBanner.prototype";
 
 interface ReactionBannerProps {
   /** 左段事件文案(单机/联机同构,GameScreen 组装:「X 使用【火烧连营】」等)。 */
@@ -41,6 +47,7 @@ interface ReactionBannerProps {
   onConfirm: () => void;
   onDecline: () => void;
   onMute: () => void;
+  prototypeContext?: ReactionPrototypeContext;
 }
 
 /** 倒计时弧几何:SVG 圆周收敛(viewBox 36,半径 15);周长 2π·15 ≈ 94.2478 作
@@ -60,7 +67,9 @@ export function ReactionBanner({
   onConfirm,
   onDecline,
   onMute,
+  prototypeContext,
 }: ReactionBannerProps) {
+  const [variant, setVariant] = useState(readReactionVariant);
   // 倒计时三通路(#1022 渲染税收口,rAF 逐帧 setState 驱动整条横幅退役):
   // ① 弧=CSS 动画扛(挂载拍声明 reaction-arc-drain,时长经 --reaction-dur 内联直供
   //    animation-duration——durationMs 已过 scaleReactionMs 缩放单源,缩放通道天然
@@ -114,8 +123,8 @@ export function ReactionBanner({
   // 直写,不走 React 状态(danger 翻面重渲不回写,textContent 保持现状)。
   const secs0 = Math.ceil(durationMs / 1000);
 
-  return (
-    <div className="reaction-banner" data-testid={TESTIDS.reactionBanner}>
+  const timer = (
+    <>
       {/* 弧+秒数(#751 A5):阅读序前置——「还剩多久」先于「发生了什么」;testid 挂
           盒子(svg 在内,e2e 可见性断言零漂移);秒数是真信息,不 aria-hidden。
           弧收敛=CSS 动画(#1022):时长经 --reaction-dur 内联直供 animation-duration,
@@ -134,47 +143,57 @@ export function ReactionBanner({
           {secs0}
         </span>
       </span>
+    </>
+  );
+  const miniature = (
+    <>
       {/* 来者锦囊 mini 签面(#751 A6):卡面是既有器物语言非新增标牌;纯装饰锚点
           (文案已带牌名,读屏不重念),march 窗无牌不挂。 */}
       {cardId != null && (
         <JinnangCardFace cardId={cardId} className="reaction-mini" aria-hidden="true" />
       )}
-      <span className="reaction-text" data-testid={TESTIDS.reactionText}>
-        {text}
+    </>
+  );
+  const shares =
+    shareSeats.length > 0 ? (
+      <span className="reaction-shares">
+        {shareSeats.map((share) => (
+          <button
+            key={share}
+            type="button"
+            data-testid={TESTIDS.reactionSeat(share)}
+            className={"reaction-seat-chip" + (shareSeat === share ? " picked" : "")}
+            aria-pressed={shareSeat === share}
+            onClick={() => onPickShare(share)}
+          >
+            {seatLabel(share)}
+          </button>
+        ))}
       </span>
-      {shareSeats.length > 0 && (
-        <span className="reaction-shares">
-          {shareSeats.map((share) => (
-            <button
-              key={share}
-              type="button"
-              data-testid={TESTIDS.reactionSeat(share)}
-              className={"reaction-seat-chip" + (shareSeat === share ? " picked" : "")}
-              aria-pressed={shareSeat === share}
-              onClick={() => onPickShare(share)}
-            >
-              {seatLabel(share)}
-            </button>
-          ))}
-        </span>
-      )}
-      <button
-        type="button"
-        className="reaction-btn mo"
-        data-testid={TESTIDS.reactionConfirm}
-        disabled={!confirmEnabled}
-        onClick={onConfirm}
-      >
-        落印
-      </button>
-      <button
-        type="button"
-        className="reaction-btn qian"
-        data-testid={TESTIDS.reactionDecline}
-        onClick={onDecline}
-      >
-        不用
-      </button>
+    ) : null;
+  const confirm = (
+    <button
+      type="button"
+      className="reaction-btn mo"
+      data-testid={TESTIDS.reactionConfirm}
+      disabled={!confirmEnabled}
+      onClick={onConfirm}
+    >
+      落印
+    </button>
+  );
+  const decline = (
+    <button
+      type="button"
+      className="reaction-btn qian"
+      data-testid={TESTIDS.reactionDecline}
+      onClick={onDecline}
+    >
+      不用
+    </button>
+  );
+  const mute = (
+    <>
       {/* 降噪口(#751 A4):移按钮行末位并与拍板钮拉开一档间距(≥12px)——即效语义
           不动,与「不用」的近邻误触面拆掉。 */}
       <button
@@ -185,6 +204,38 @@ export function ReactionBanner({
       >
         本回合不再询问
       </button>
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      {prototypeContext != null && variant !== "current" ? (
+        <ReactionPrototypeLayout
+          variant={variant}
+          context={prototypeContext}
+          timer={timer}
+          miniature={miniature}
+          shares={shares}
+          confirm={confirm}
+          decline={decline}
+          mute={mute}
+        />
+      ) : (
+        <div className="reaction-banner" data-testid={TESTIDS.reactionBanner}>
+          {timer}
+          {miniature}
+          <span className="reaction-text" data-testid={TESTIDS.reactionText}>
+            {text}
+          </span>
+          {shares}
+          {confirm}
+          {decline}
+          {mute}
+        </div>
+      )}
+      {prototypeContext != null && (
+        <ReactionPrototypeSwitcher variant={variant} onChange={setVariant} />
+      )}
+    </>
   );
 }

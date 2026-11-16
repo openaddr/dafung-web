@@ -513,6 +513,20 @@ function GameScreenLive({
         onPickShare={(share) => setReactShare((cur) => (cur === share ? null : share))} // 首点选中/再点取消
         // 份令牌标签随域:城指向域=城名,其余=国号(候选集语义随 reactShareSeats)。
         seatLabel={reactDomain === "one-city" ? cityNameOf : seatLabelOf}
+        prototypeContext={
+          reaction.kind === "jinnang" &&
+          snapshot.pendingReaction?.payload.kind !== "counter" &&
+          (reactDomain === "all-others" || reactDomain === "one-city")
+            ? {
+                title: `${snapshot.players[reaction.userSeat].guohao}用「${reaction.cardId}」`,
+                affected:
+                  reactDomain === "one-city"
+                    ? `受击城　${reaction.targetSeats.map(cityNameOf).join("、")}`
+                    : "全体其他诸侯受影响",
+                domain: reactDomain === "one-city" ? "city" : "seat",
+              }
+            : undefined
+        }
         confirmEnabled={reactCardId != null && (reactShareSeats.length === 0 || reactShare != null)}
         onConfirm={() => {
           if (reactCardId == null) return;

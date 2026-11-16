@@ -174,6 +174,7 @@ export const TESTIDS = {
   reactionDecline: "reaction-decline",
   /** 降噪口「本回合不再询问」(点下即对当前窗应答不用,同回合后续询问静默代发)。 */
   reactionMute: "reaction-mute",
+  reactionPrototypeMore: "reaction-prototype-more",
   /** AOE 选份候选笺(横征暴敛等全体域:点笺=定被保护份;seat=被保护座位,含自己)。 */
   reactionSeat: (seat: number) => `reaction-seat-${seat}` as const,
 

@@ -1,0 +1,534 @@
+{
+  "seats-wait": {
+    "panel": [90.48, 184.81, 599.02, 60],
+    "board": [0, 0, 740, 390],
+    "boardCovered": 35940.94,
+    "rail": [740, 8, 96, 328],
+    "title": "14 / 横征暴敛 / 攻 / 其余所有诸侯各向你缴纳 200 两;现金不足者倾囊而付。 / 青 使用【横征暴敛】(全场) / 落印 / 不用 / 本回合不再询问",
+    "timer": "15000ms",
+    "controls": [
+      {
+        "id": "reaction-confirm",
+        "text": "落印",
+        "rect": [405.27, 192.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": true,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-decline",
+        "text": "不用",
+        "rect": [484.52, 192.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-mute",
+        "text": "本回合不再询问",
+        "rect": [569.77, 192.81, 106.73, 44],
+        "line": "18px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      }
+    ]
+  },
+  "seats-selected": {
+    "panel": [40, 134.81, 700, 110],
+    "board": [0, 0, 740, 390],
+    "boardCovered": 77000,
+    "rail": [740, 8, 96, 328],
+    "title": "13 / 横征暴敛 / 攻 / 其余所有诸侯各向你缴纳 200 两;现金不足者倾囊而付。 / 青 使用【横征暴敛】(全场) / 魏 / 滇 / 吴 / 赵 / 陇 / 黔 / 衮",
+    "timer": "15000ms",
+    "controls": [
+      {
+        "id": "reaction-seat-0",
+        "text": "魏",
+        "rect": [382.89, 142.81, 40, 40],
+        "line": "24px",
+        "pressed": "true",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-2",
+        "text": "滇",
+        "rect": [428.89, 142.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-3",
+        "text": "吴",
+        "rect": [474.89, 142.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-4",
+        "text": "赵",
+        "rect": [520.89, 142.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-5",
+        "text": "陇",
+        "rect": [566.89, 142.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-6",
+        "text": "黔",
+        "rect": [612.89, 142.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-7",
+        "text": "衮",
+        "rect": [658.89, 142.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-confirm",
+        "text": "落印",
+        "rect": [254.38, 192.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-decline",
+        "text": "不用",
+        "rect": [333.63, 192.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-mute",
+        "text": "本回合不再询问",
+        "rect": [418.88, 192.81, 106.73, 44],
+        "line": "18px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      }
+    ]
+  },
+  "seats-collapsed": {
+    "panel": [0, 258.81, 740, 114],
+    "board": [0, 0, 740, 390],
+    "boardCovered": 84360,
+    "rail": [740, 8, 96, 328],
+    "title": "13 / 横征暴敛 / 攻 / 其余所有诸侯各向你缴纳 200 两;现金不足者倾囊而付。 / 青 使用【横征暴敛】(全场) / 魏 / 滇 / 吴 / 赵 / 陇 / 黔 / 衮",
+    "timer": "15000ms",
+    "controls": [
+      {
+        "id": "reaction-seat-0",
+        "text": "魏",
+        "rect": [323.27, 268.81, 40, 40],
+        "line": "24px",
+        "pressed": "true",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-2",
+        "text": "滇",
+        "rect": [369.27, 268.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-3",
+        "text": "吴",
+        "rect": [415.27, 268.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-4",
+        "text": "赵",
+        "rect": [461.27, 268.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-5",
+        "text": "陇",
+        "rect": [507.27, 268.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-6",
+        "text": "黔",
+        "rect": [553.27, 268.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-7",
+        "text": "衮",
+        "rect": [599.27, 268.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-confirm",
+        "text": "落印",
+        "rect": [649.27, 266.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-decline",
+        "text": "不用",
+        "rect": [274, 320.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-mute",
+        "text": "本回合不再询问",
+        "rect": [359.25, 320.81, 106.73, 44],
+        "line": "18px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      }
+    ]
+  },
+  "city-single": {
+    "panel": [42.45, 184.81, 695.08, 60],
+    "board": [0, 0, 740, 390],
+    "boardCovered": 41704.69,
+    "rail": [740, 8, 96, 328],
+    "title": "14 / 火烧连营 / 攻 / 指定任意一座城为火源,对此城及其前方距离 1、2 格上的城各造成 1 点火焰伤害;无主城不受火焰伤害(作火源则自身免伤),己方城照烧。 / 青 使用【火烧连营】(对 子午谷) / 子午谷 / 落印 / 不用 / 本回合不再询问",
+    "timer": "15000ms",
+    "controls": [
+      {
+        "id": "reaction-seat-18",
+        "text": "子午谷",
+        "rect": [403.3, 194.81, 40, 40],
+        "line": "24px",
+        "pressed": "true",
+        "disabled": false,
+        "textLines": 2,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-confirm",
+        "text": "落印",
+        "rect": [453.3, 192.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-decline",
+        "text": "不用",
+        "rect": [532.55, 192.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-mute",
+        "text": "本回合不再询问",
+        "rect": [617.8, 192.81, 106.73, 44],
+        "line": "18px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      }
+    ]
+  },
+  "cities-wait": {
+    "panel": [40, 130.81, 700, 114],
+    "board": [0, 0, 740, 390],
+    "boardCovered": 79800,
+    "rail": [740, 8, 96, 328],
+    "title": "15 / 火烧连营 / 攻 / 指定任意一座城为火源,对此城及其前方距离 1、2 格上的城各造成 1 点火焰伤害;无主城不受火焰伤害(作火源则自身免伤),己方城照烧。 / 青 使用【火烧连营】(对 卧龙岗、赤壁、合肥) / 落印 / 不用 / 本回合不再询问",
+    "timer": "15000ms",
+    "controls": [
+      {
+        "id": "reaction-confirm",
+        "text": "落印",
+        "rect": [543.73, 138.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": true,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-decline",
+        "text": "不用",
+        "rect": [622.98, 138.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-mute",
+        "text": "本回合不再询问",
+        "rect": [339.63, 192.81, 106.73, 44],
+        "line": "18px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      }
+    ]
+  },
+  "cities-selected": {
+    "panel": [40, 130.81, 700, 114],
+    "board": [0, 0, 740, 390],
+    "boardCovered": 79800,
+    "rail": [740, 8, 96, 328],
+    "title": "14 / 火烧连营 / 攻 / 指定任意一座城为火源,对此城及其前方距离 1、2 格上的城各造成 1 点火焰伤害;无主城不受火焰伤害(作火源则自身免伤),己方城照烧。 / 青 使用【火烧连营】(对 卧龙岗、赤壁、合肥) / 卧龙岗 / 赤壁 / 合肥 / 落印 / 不用 / 本回合不再询问",
+    "timer": "15000ms",
+    "controls": [
+      {
+        "id": "reaction-seat-20",
+        "text": "卧龙岗",
+        "rect": [512.36, 140.81, 40, 40],
+        "line": "24px",
+        "pressed": "true",
+        "disabled": false,
+        "textLines": 2,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-seat-21",
+        "text": "赤壁",
+        "rect": [558.36, 140.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-seat-22",
+        "text": "合肥",
+        "rect": [604.36, 140.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "reaction-confirm",
+        "text": "落印",
+        "rect": [654.36, 138.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-decline",
+        "text": "不用",
+        "rect": [294, 192.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "reaction-mute",
+        "text": "本回合不再询问",
+        "rect": [379.25, 192.81, 106.73, 44],
+        "line": "18px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      }
+    ]
+  },
+  "cityDefense": {
+    "before": [
+      [3, 2],
+      [3, 2],
+      [3, 2]
+    ],
+    "after": [
+      [3, 2],
+      [3, 1],
+      [3, 1]
+    ]
+  },
+  "skill": {
+    "panel": [40, 152.72, 700, 92.09],
+    "board": [0, 0, 740, 390],
+    "boardCovered": 64465.63,
+    "rail": [740, 8, 96, 328],
+    "title": "魏「放逐」可达发动条件,可指定目标或暂不发 / 青 / 滇 / 吴 / 赵 / 陇 / 黔 / 衮 / 发动 / 暂不发",
+    "timer": null,
+    "controls": [
+      {
+        "id": "skill-choice-confirm",
+        "text": "发动",
+        "rect": [470.2, 192.81, 69.25, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "skill-choice-decline",
+        "text": "暂不发",
+        "rect": [549.45, 192.81, 86.33, 44],
+        "line": "21px",
+        "pressed": null,
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, true, true, true, true]
+      },
+      {
+        "id": "skill-choice-seat-1",
+        "text": "青",
+        "rect": [144.2, 194.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "skill-choice-seat-2",
+        "text": "滇",
+        "rect": [190.2, 194.81, 40, 40],
+        "line": "24px",
+        "pressed": "true",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "skill-choice-seat-3",
+        "text": "吴",
+        "rect": [236.2, 194.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "skill-choice-seat-4",
+        "text": "赵",
+        "rect": [282.2, 194.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "skill-choice-seat-5",
+        "text": "陇",
+        "rect": [328.2, 194.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "skill-choice-seat-6",
+        "text": "黔",
+        "rect": [374.2, 194.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      },
+      {
+        "id": "skill-choice-seat-7",
+        "text": "衮",
+        "rect": [420.2, 194.81, 40, 40],
+        "line": "24px",
+        "pressed": "false",
+        "disabled": false,
+        "textLines": 1,
+        "edges": [true, true, true, true, false, false, false, false]
+      }
+    ]
+  }
+}
