@@ -120,6 +120,7 @@ export const TESTIDS = {
   actionbarPass: "actionbar-pass",
   /** 目标段确认钮,未选目标时显示「选择目标」且禁用,选中后显示「出」。 */
   actionbarTarget: "actionbar-target",
+  actionbarPreviousTarget: "actionbar-previous-target",
   /** 目标段「作罢」(收回此计牌:不消耗、不记冷却)。 */
   actionbarCancel: "actionbar-cancel",
   /** 目标段席位按钮(含自机);首点选中、再点取消,打出经动作条确认。 */

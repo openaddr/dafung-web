@@ -44,6 +44,7 @@ import {
   resolveJinnang,
   settleJinnangExit,
   type PendingJinnang,
+  type UseJinnangCommand,
   type PendingHeroSkill,
 } from "./jinnang-execution";
 // 机遇主流程+体力耗竭域(#320,ADR-0019):机遇触发抽取/抉择机遇入相与选项结算/效果
@@ -186,7 +187,7 @@ export type GameCommand =
     }
   | { type: "declareBankruptcy" }
   | { type: "confirmBankruptcySettle"; assets: BankruptcyAsset[] }
-  | { type: "useJinnang"; cardId: string | null; targets?: number[]; cancel?: boolean } // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段);cancel=作罢(保留牌)
+  | UseJinnangCommand
   | { type: "useHeroSkill"; heroId: string; skillId: string; targets?: number[]; cancel?: boolean } // 名将主动技(#188 档 3;#817 携实例):heroId+skillId=麾下实例定位对(选项 id 拼接单源 choices.skillOptionId),发动直落本实例;targets=目标座位(目标段);cancel=作罢(回卡牌段)
   | { type: "useBookSkill"; treasureId: string; heroId: string } // 用书学技(#1146):treasureId=珍宝位技能书实例,heroId=可学者(skillBookLearners 槽位序单源);技 id 随书派生不另行携带,书用后消耗
   | { type: "dismissHero"; heroId: string } // 遣散(#1147):免费主动遣散——槽移除+回池划名+已学技逐册折书;自己回合随时可点(他座决策窗除外),清算期间禁用
@@ -923,7 +924,12 @@ export class GameEngine {
       case "respondSkillChoice": // 「你可」应答(#1377):决策者=挂问属主=本相位 decisionOwner
         return this.respondSkillChoice(cmd.seat, cmd.use, cmd.targetSeat);
       case "useJinnang":
-        return this.resolveJinnang(cmd.cardId ?? null, cmd.targets, cmd.cancel);
+        return this.resolveJinnang(
+          cmd.cardId ?? null,
+          cmd.targets,
+          cmd.cancel,
+          cmd.previousTargetStep,
+        );
       case "useHeroSkill":
         return this.resolveHeroSkill(cmd.heroId, cmd.skillId, cmd.targets, cmd.cancel);
       case "useBookSkill":
@@ -1164,8 +1170,13 @@ export class GameEngine {
   }
 
   /** 用锦囊(#122/T2):薄委托 → jinnang-execution.resolveJinnang。 */
-  resolveJinnang(cardId: string | null, targets?: number[], cancel?: boolean): void {
-    resolveJinnang(this, cardId, targets, cancel);
+  resolveJinnang(
+    cardId: string | null,
+    targets?: number[],
+    cancel?: boolean,
+    previousTargetStep?: true,
+  ): void {
+    resolveJinnang(this, cardId, targets, cancel, previousTargetStep);
   }
 
   /** 发动主动技(#188 档 3;#817 实例定位):薄委托 → jinnang-execution.resolveHeroSkill。 */

@@ -245,10 +245,13 @@ function GameScreenLive({
   const [junshiTargetSeat, setJunshiTargetSeat] = useState<number | null>(null);
   // 城目标首点选中、再点取消、点他格改选,执行经动作条确认。进/出目标段清空。
   const [junshiTargetTile, setJunshiTargetTile] = useState<number | null>(null);
+  // 目标段仍存在时，命令在途的操作锁不能清掉上一步带回的草稿。
+  const hasPendingTarget = snapshot.pendingJinnang != null || snapshot.pendingSkill != null;
+  const ownsJinnangWindow = junshiWindowUp && snapshot.decisionOwner === selfSeat;
   useEffect(() => {
     setJunshiTargetSeat(null);
     setJunshiTargetTile(null);
-  }, [junshiTargeting, junshiUp, selfSeat, selfPlayer.id]);
+  }, [hasPendingTarget, ownsJinnangWindow, selfSeat, selfPlayer.id]);
   const junshiOptions =
     junshiUp && !junshiTargeting
       ? snapshot.choices.filter((o) => o.id !== "pass" && o.id !== "cancel")
@@ -328,6 +331,7 @@ function GameScreenLive({
       // 选中必在(playEnabled 已闸的确认钮自门控),缺选静返=自门控口径(非兜底)。
       const target = junshiCityTargeting ? junshiTargetTile : junshiTargetSeat;
       if (target == null) return;
+      if (targetDemo != null && junshiPendingCard?.stage === "two-a") setJunshiTargetSeat(null);
       getAudio().play("stamp");
       dispatchCommand(junshiTargetCmd(target));
       return;
@@ -541,7 +545,7 @@ function GameScreenLive({
                 affected:
                   reactDomain === "one-city"
                     ? `受击城　${reaction.targetSeats.map(cityNameOf).join("、")}`
-                    : "全体其他诸侯受影响",
+                    : `其余 ${reaction.targetSeats.length} 位诸侯受影响`,
                 domain: reactDomain === "one-city" ? "city" : "seat",
               }
             : undefined
@@ -574,7 +578,8 @@ function GameScreenLive({
   const currentPrototypeTarget =
     junshiTargetTile != null
       ? cityNameOf(junshiTargetTile)
-      : junshiTargetSeat != null
+      : junshiTargetSeat != null &&
+          junshiSeatOptions.some((o) => o.available && o.targetSeat === junshiTargetSeat)
         ? seatLabelOf(junshiTargetSeat)
         : null;
   const prototypePicked = [
@@ -960,6 +965,23 @@ function GameScreenLive({
             testId={TESTIDS.actionbar}
             actions={
               <>
+                {junshiPendingCard?.stage === "two-b" && (
+                  <button
+                    type="button"
+                    className="reaction-btn qian"
+                    data-testid={TESTIDS.actionbarPreviousTarget}
+                    onClick={() => {
+                      setJunshiTargetSeat(junshiPendingCard.picked[0]);
+                      dispatchCommand({
+                        type: "useJinnang",
+                        cardId: junshiPendingCard.cardId,
+                        previousTargetStep: true,
+                      });
+                    }}
+                  >
+                    上一步
+                  </button>
+                )}
                 <button type="button" className="reaction-btn qian" onClick={junshiPass}>
                   {junshiTargeting ? "取消选牌" : "不出"}
                 </button>

@@ -51,6 +51,15 @@ export interface PendingJinnang {
   picked: number[];
 }
 
+export interface UseJinnangCommand {
+  type: "useJinnang";
+  cardId: string | null;
+  targets?: number[];
+  cancel?: boolean;
+  /** 多步目标选择从后一步退回，保留牌，重新计算候选。 */
+  previousTargetStep?: true;
+}
+
 /** 技能目标段载荷(#188 档 3;#817 携实例定位):选技后进入选人子状态(AwaitingJinnang
  *  相位内重算选项集);heroId+skillId=麾下实例定位对(与选项 id/命令同形状,拼接单源
  *  choices.skillOptionId),发动直落本实例。随快照走(目标段中途断线可恢复)。
@@ -156,8 +165,18 @@ export function resolveJinnang(
   cardId: string | null,
   targets?: number[],
   cancel?: boolean,
+  previousTargetStep?: true,
 ): void {
   if (!g.assertPhase("AwaitingJinnang", "resolveJinnang")) return;
+  const pending = g.pendingJinnang;
+  if (previousTargetStep) {
+    if (pending?.stage !== "two-b" || cardId !== pending.cardId || cancel || targets != null) {
+      g.warn(`锦囊无法返回上一目标步骤:${cardId}`);
+      return;
+    }
+    g.pendingJinnang = { cardId: pending.cardId, stage: "two-a", picked: [] };
+    return;
+  }
   const p = g.activePlayer;
   const userSeat = g.players.indexOf(p);
 
@@ -172,7 +191,6 @@ export function resolveJinnang(
   }
 
   // ── 目标段:提交目标 / 作罢 ──
-  const pending = g.pendingJinnang;
   if (pending) {
     const def = jinnangCardOf(pending.cardId);
     if (cancel || cardId == null) {

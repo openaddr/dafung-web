@@ -8,14 +8,18 @@ export const targetDemo =
 
 export function TargetDecisionPrototype({
   title,
+  affected,
   prompt,
   timer,
+  mute,
   actions,
   testId,
 }: {
   title: string;
+  affected?: string;
   prompt: string;
   timer?: ReactNode;
+  mute?: ReactNode;
   actions: ReactNode;
   testId: string;
 }) {
@@ -24,8 +28,12 @@ export function TargetDecisionPrototype({
       {timer}
       <div className="target-decision-prototype-copy">
         <div>{title}</div>
-        <p aria-live="polite">{prompt}</p>
+        {affected && <p>{affected}</p>}
+        <p className="target-decision-prototype-prompt" aria-live="polite">
+          {prompt}
+        </p>
       </div>
+      {mute}
       <div className="target-decision-prototype-actions">{actions}</div>
     </div>
   );

@@ -214,14 +214,15 @@ export function ReactionBanner({
     return (
       <TargetDecisionPrototype
         title={prototypeContext?.title ?? text}
+        affected={prototypeContext?.affected}
         prompt={prototypeBoardPrompt}
         testId={TESTIDS.reactionBanner}
         timer={timer}
+        mute={mute}
         actions={
           <>
             {decline}
             {confirm}
-            {mute}
           </>
         }
       />
