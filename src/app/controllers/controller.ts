@@ -8,6 +8,8 @@
 // 「需推理才能确认」的本地隐式假设,恰是本票要消灭的 bug 族)。
 import type { GameEngine } from "@core/authority";
 import type { GameCommand } from "@core/authority";
+import type { GameDiagnosticCapture } from "@app/game-diagnostic-record";
+import { finishGameDiagnostics } from "@app/game-diagnostics";
 import { useGameStore } from "@app/store/gameStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
@@ -57,9 +59,27 @@ export abstract class GameController {
   /** 切换托管(子类覆写:联机发 WS {type:"autoPilot"};单机本地驱动)。 */
   setAutoPilot(_on: boolean): void {}
 
-  /** 释放长生命周期资源(基类=行军会话订阅退订;子类覆写必须调 super.destroy())。 */
+  /** 子类须先调用基类，保留退出前的交互现场。 */
   destroy(): void {
+    finishGameDiagnostics(this);
     this.unsubMarching?.();
+  }
+
+  get diagnosticInteraction(): Pick<
+    GameDiagnosticCapture["client"],
+    "seat" | "pending" | "fxBusy" | "autopilotOn"
+  > {
+    return {
+      seat: this.mySeat,
+      pending: this.pending,
+      fxBusy: this.fxBusy,
+      autopilotOn: this.autoPilotOn,
+    };
+  }
+
+  /** 子类从诊断错误文本中剔除对应传输的凭证。 */
+  redactDiagnosticCredentials(message: string): string {
+    return message;
   }
 
   // ─── 交互策略状态(#433 上收;子类协议面读写)───

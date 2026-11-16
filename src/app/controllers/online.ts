@@ -12,6 +12,9 @@ import { createDice } from "@core/dice";
 import { GameEngine } from "@core/authority";
 import type { GameCommand } from "@core/authority";
 import { loadMapById } from "@core/map-source";
+import type { GameArchiveIdentity } from "@app/game-diagnostic-record";
+import { finishGameDiagnostics, recordGameDiagnosticError } from "@app/game-diagnostics";
+import { archiveGameLog, archiveGameLogTail } from "@app/gameLogArchive";
 import { FetchMapSource } from "@app/map-sources";
 import { setEngine, useGameStore, type GameSnapshotCore } from "@app/store/gameStore";
 import {
@@ -25,13 +28,26 @@ import { ReconnectingSocket, type ReconnectingSocketOptions } from "@app/net/rec
 import { stashEventBatch } from "@app/net/event-feed";
 // wire 协议编解码单源(#429):下行消息类型(ServerMsg)与上行编码从这里 import——
 // 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
-import { autoPilotMsg, cmdMsg, pickCapitalMsg, type ServerMsg } from "../../../scripts/wire";
+import {
+  autoPilotMsg,
+  cmdMsg,
+  pickCapitalMsg,
+  type GameLogMsg,
+  type ServerMsg,
+  type SnapshotMsg,
+} from "../../../scripts/wire";
 import { foldEventBatch } from "@app/net/event-fold";
 import { abandonAllMarches } from "@app/fx/useMarch";
 import { setController } from "./registry";
 import { GameController } from "./controller";
 
 export type { RoomJoinReply };
+
+interface GameLogPrefix {
+  identity: GameArchiveIdentity;
+  length: number;
+  missing: boolean;
+}
 
 export class OnlineController extends GameController {
   private _engine: GameEngine; // 只读:每次 snapshot 用 restoreFromSnapshot 重 hydrate
@@ -43,6 +59,8 @@ export class OnlineController extends GameController {
   private ended = false;
   private roomId: string | null = null;
   private seatToken: string | null = null;
+  /** 归档使用独立的权威日志前缀，水合副本的日志仍由既有状态通路维护。 */
+  private gameLog: GameLogPrefix | null = null;
   /** 当前占位引擎对应的地图 id(换图守卫:同图不重建)。 */
   private mapId: string | null;
   /** 当前地图(占位引擎重建用:快照座位数与占位引擎不一致时按数重建)。 */
@@ -85,6 +103,10 @@ export class OnlineController extends GameController {
   }
   get viewSeat(): number {
     return this.seat;
+  }
+
+  override redactDiagnosticCredentials(message: string): string {
+    return this.seatToken === null ? message : message.replaceAll(this.seatToken, "[凭证已隐去]");
   }
   /** 当前连接已用权威摘要(未开局时为 lobby)完成校准。 */
   get sessionReady(): boolean {
@@ -270,7 +292,8 @@ export class OnlineController extends GameController {
     });
     sock.onMessage((data) => {
       if (this.sock !== sock) return;
-      this.onMessage(JSON.parse(data) as ServerMsg);
+      const receivedAt = Date.now();
+      this.onMessage(JSON.parse(data) as ServerMsg, receivedAt);
     });
     sock.connect();
   }
@@ -286,7 +309,7 @@ export class OnlineController extends GameController {
     this.connect();
   }
 
-  private onMessage(msg: ServerMsg): void {
+  private onMessage(msg: ServerMsg, receivedAt: number): void {
     if (msg.type === "lobby") {
       // lobby/snapshot 两种消息都带完整 NetRoomFields(ServerMsg 已声明),直接透传
       this.applyRoomFields(msg);
@@ -300,6 +323,7 @@ export class OnlineController extends GameController {
       return;
     }
     if (msg.type === "snapshot") {
+      if (this._engine.gameId !== msg.gameId) finishGameDiagnostics(this);
       const { type: _t, ...snap } = msg;
       // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
       // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
@@ -328,11 +352,16 @@ export class OnlineController extends GameController {
       this.fx.play(prePositions);
       this.checkRollSeal();
       this.sync();
+      this.anchorGameLog(msg, receivedAt);
       // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
       if (!this.enteredGame) {
         this.enteredGame = true;
         useGameStore.getState().setScreen("game");
       }
+      return;
+    }
+    if (msg.type === "gameLog") {
+      this.appendGameLog(msg, receivedAt);
       return;
     }
     if (msg.type === "events") {
@@ -370,6 +399,7 @@ export class OnlineController extends GameController {
       return;
     }
     if (msg.type === "dismissed") {
+      recordGameDiagnosticError(this, this._engine.gameId, "房主已解散房间");
       this.destroy();
       useNetStore.getState().setDismissed();
       useGameStore.getState().pushHint("房主已解散房间");
@@ -393,6 +423,47 @@ export class OnlineController extends GameController {
     }
     // 普通命令错误仍闪提示;pending 解锁等下一帧 events/校准快照校正。
     useGameStore.getState().pushHint(msg.error);
+  }
+
+  private anchorGameLog(msg: SnapshotMsg, receivedAt: number): void {
+    const identity: GameArchiveIdentity = { gameId: msg.gameId, mode: "online", mapId: msg.mapId };
+    this.gameLog = {
+      identity,
+      length: msg.log.length,
+      missing: false,
+    };
+    void archiveGameLog(identity, msg.log, receivedAt).catch(this.reportArchiveFailure);
+  }
+
+  private appendGameLog(msg: GameLogMsg, receivedAt: number): void {
+    const prefix = this.gameLog;
+    if (!this.sessionReady || prefix === null || prefix.identity.gameId !== msg.gameId) {
+      this.reportLogError("收到未校准或非本局的日志增量");
+      return;
+    }
+    if (prefix.missing) return;
+    const expected = prefix.length;
+    if (!Number.isSafeInteger(msg.offset) || msg.offset < 0 || msg.offset > expected) {
+      prefix.missing = true;
+      this.reportLogError(`联机日志断档，预期偏移 ${expected}，收到 ${msg.offset}`);
+      return;
+    }
+    const firstNew = expected - msg.offset;
+    if (firstNew >= msg.lines.length) return;
+    prefix.length = msg.offset + msg.lines.length;
+    const lines = firstNew === 0 ? msg.lines : msg.lines.slice(firstNew);
+    void archiveGameLogTail(prefix.identity, expected, lines, receivedAt).catch(
+      this.reportArchiveFailure,
+    );
+  }
+
+  private reportLogError(message: string): void {
+    recordGameDiagnosticError(this, this._engine.gameId, message);
+    console.error(`[logArchive] ${message}`);
+  }
+
+  private reportArchiveFailure(error: unknown): void {
+    console.error("[logArchive] 联机日志归档失败:", error);
   }
 
   /** 换图重建(lobby 广播驱动):fetch 内置图 → 重建占位引擎 + registry 的 MapData。
@@ -461,6 +532,7 @@ export class OnlineController extends GameController {
     const sock = this.sock;
     this.sock = null;
     sock?.close();
+    this.gameLog = null;
     this.pending = false;
     useNetStore.getState().setPending(false); // UI F3:销毁时清 pending,防残留
     this.setConnectionStatus("idle");

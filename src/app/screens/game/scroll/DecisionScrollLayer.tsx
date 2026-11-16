@@ -7,7 +7,7 @@
 // 让其壳体以退场类收场),决策弹层「收走」不再瞬时消失。
 // #107 C6:该机制(prev 快照/sig 判定/ghost state/定时/让位)整体下沉 useGhostChild,
 // 本层只算 skip(按子节点类型)、就地收场时调 yield(),render 期不再有 state/ref/定时。
-import { Fragment, useCallback, useMemo } from "react";
+import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import type { GameCommand } from "@core/authority";
 import { formatMoney } from "@core/money";
 import { sellValueOf, type CityTier } from "@core/economy";
@@ -15,7 +15,11 @@ import { tileIndexOfProperty } from "@core/board";
 import { Theme } from "@core/theme";
 import { useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
+import { checkpointGameDiagnostics } from "@app/game-diagnostics";
+import { gameArchiveFailureText } from "@app/game-diagnostic-record";
+import { waitForGameArchive } from "@app/gameLogArchive";
 import { BankruptcyScroll } from "./BankruptcyScroll";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { HeroPickScroll } from "./HeroPickScroll";
 import { TileDetailScroll } from "./TileDetailScroll";
 import { TreasureVisitorScroll } from "./TreasureVisitorScroll";
@@ -75,7 +79,27 @@ export function DecisionScrollLayer({
         })),
     [players],
   );
-  const restartGame = useCallback(() => location.reload(), []);
+  const restarting = useRef(false);
+  const [restartError, setRestartError] = useState<string | null>(null);
+  const restartGame = useCallback(() => {
+    if (restarting.current) return;
+    restarting.current = true;
+    const { gameId } = snapshot;
+    void (async () => {
+      const captureFailure = await checkpointGameDiagnostics(gameId).then(
+        () => null,
+        (error: unknown) => (error instanceof Error ? error.message : String(error)),
+      );
+      const failures = await waitForGameArchive(gameId);
+      if (getController()?.engine.gameId !== gameId) return;
+      const messages = failures.map(gameArchiveFailureText);
+      if (captureFailure !== null && !failures.some((failure) => failure.kind === "capture")) {
+        messages.push(gameArchiveFailureText({ kind: "capture", message: captureFailure }));
+      }
+      if (messages.length === 0) location.reload();
+      else setRestartError(messages.join("；"));
+    })();
+  }, [snapshot.gameId]);
 
   // 本帧应显示的弹层:原路由逻辑原样收进 IIFE,供幽灵帧机制对比子节点身份。
   // registry 未就绪时旧版整层直接 return null;现统一表达为 child = null——
@@ -330,11 +354,34 @@ export function DecisionScrollLayer({
   return (
     <>
       {/* 常驻 key 槽:幽灵帧出列时当前子节点不被 React 按位对调重挂 */}
-      <Fragment key="scroll-current">{child}</Fragment>
+      <Fragment key="scroll-current">
+        {child?.type === VictoryScreen ? (
+          <div className="contents" inert={restartError !== null}>
+            {child}
+          </div>
+        ) : (
+          child
+        )}
+      </Fragment>
       {/* 幽灵帧渲染在当前子节点之后(DOM 末位)+ 壳体幽灵态整体 inert,
           保证任何选择器/点击永远先命中真实卷轴 */}
       {ghostSlot.ghost !== null && (
         <BannerGhostContext.Provider value={true}>{ghostSlot.ghost}</BannerGhostContext.Provider>
+      )}
+      {restartError !== null && (
+        <ConfirmDialog
+          title="对局诊断保存失败"
+          confirmLabel="继续再战"
+          cancelLabel="返回终局"
+          danger
+          onConfirm={() => location.reload()}
+          onCancel={() => {
+            restarting.current = false;
+            setRestartError(null);
+          }}
+        >
+          {restartError}
+        </ConfirmDialog>
       )}
     </>
   );

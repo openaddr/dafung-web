@@ -14,6 +14,7 @@ import {
 } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerContext } from "@app/controllers/registry";
+import type { GameController } from "@app/controllers/controller";
 import { returnHome } from "@app/screens/shared/return-home";
 import { OnlineController } from "@app/controllers/online";
 import type { Board } from "@core/board";
@@ -21,15 +22,15 @@ import type { GameCommand } from "@core/authority";
 import { isSkillOption } from "@core/choices";
 import { jinnangCardOf } from "@core/jinnang";
 import { skillById } from "@core/skills";
-import { REACTION_EXPECT } from "@core/reaction-window";
 import { getAudio } from "@app/fx/audio";
 import { scaleReactionMs } from "@app/fx/timings";
-import { reactionQueriesSeat } from "@app/controllers/reaction";
+import { reactionChoicesForSeat } from "@app/controllers/reaction";
 import { AudioProvider } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
-import { startFrameDiag, stopFrameDiag } from "@app/frameDiag";
+import { checkpointGameDiagnostics, mountGameDiagnostics } from "@app/game-diagnostics";
+import { VERSION } from "../../../version";
 import { HandRack, type RackCardSelection } from "./HandRack";
 import { HandZone } from "./HandZone";
 import { ReactionBanner } from "./ReactionBanner";
@@ -50,7 +51,7 @@ import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
-import { useCapitalPick } from "./useCapitalPick";
+import { selectableCapitalTiles, useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
 import {
   ConnectionBanner,
@@ -77,9 +78,10 @@ function jinnangTargetNote(
 
 export function GameScreen() {
   const snapshot = useGameStore((s) => s.snapshot);
+  const controller = getController();
   // 静态上下文由 registry 提供,门卫确认快照与地图均已就位。
   const context = getControllerContext();
-  if (!snapshot || !context) {
+  if (!snapshot || !context || !controller) {
     // 数据缺失时显式展示返回入口;GameScreenLive 就位后才挂载,两分支不共享 hooks。
     const back = useGameStore.getState().setScreen;
     return (
@@ -99,7 +101,7 @@ export function GameScreen() {
       </div>
     );
   }
-  return <GameScreenLive snapshot={snapshot} board={context.board} />;
+  return <GameScreenLive snapshot={snapshot} board={context.board} controller={controller} />;
 }
 
 /** 竖屏手机「请横屏」提示层:移动端只做横屏形态。
@@ -151,9 +153,15 @@ function RotateHintOverlay() {
 }
 
 /** 已开局主体;快照与静态地图由 GameScreen 门卫注入,所有对局 hooks 在此挂载。 */
-function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Board }) {
-  // 模块级取控制器(不在 React 状态里:实例含方法/WS,非渲染数据,见 registry.ts 注释)
-  const controller = getController();
+function GameScreenLive({
+  snapshot,
+  board,
+  controller,
+}: {
+  snapshot: GameSnapshot;
+  board: Board;
+  controller: GameController;
+}) {
   const interactive = useGameStore((s) => s.interactive);
   // 本座位动作在途(「行军中…」提示源):与 interactive 同拍由控制器写入,
   // WaitingBar 与按钮同源消费——亮一起亮、灰一起灰。
@@ -240,12 +248,6 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
     setJunshiTargetSeat(null);
     setJunshiTargetTile(null);
   }, [junshiTargeting, junshiUp, selfSeat, selfPlayer.id]);
-  // 帧诊采样器(ADR-0047):采样生命周期=对局屏生命周期——挂载开采/卸载停采,
-  // 设置「性能诊断」行随时导诊断包(真机卡顿取证;桌面探针测不到真机体感)。
-  useEffect(() => {
-    startFrameDiag();
-    return () => stopFrameDiag();
-  }, []);
   const junshiOptions =
     junshiUp && !junshiTargeting
       ? snapshot.choices.filter((o) => o.id !== "pass" && o.id !== "cancel")
@@ -394,12 +396,8 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
   // 已应答退出窗态:本座已在 pendingReaction.answers 占座(用与不用都占座)
   // 即不再复显横幅/金边/可打牌面——UI 消费权威应答账本,防残留与重复点击入口;引擎
   // 对重复应答本就警告拒绝。answers 逐条公开(联机投影不裁,seat-projection.ts 注)。
-  const reactionUp =
-    snapshot.phase === "Playing" &&
-    snapshot.turnPhase === "AwaitingReaction" &&
-    snapshot.reaction != null &&
-    reactionQueriesSeat(snapshot.reaction, selfSeat) &&
-    !snapshot.pendingReaction!.answers.some((a) => a.seat === selfSeat);
+  const reactionChoices = reactionChoicesForSeat(snapshot, selfSeat);
+  const reactionUp = reactionChoices !== null && reactionChoices.asked && !reactionChoices.answered;
   // 窗实例号:seq 变化即新窗(同 kind/userSeat/cardId 的连续窗不靠 key 区分了),
   // 横幅重挂=倒计时弧重起、静默代发重评估,与权威侧窗级 deadline 同享同一判据。
   const reactionSeq = snapshot.pendingReaction?.seq ?? null;
@@ -413,6 +411,23 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
     [snapshot.activeIndex],
   );
   const reactMuted = reactionMuted(reactMute, snapshot.activeIndex);
+  useEffect(
+    () =>
+      mountGameDiagnostics(controller, snapshot.gameId, VERSION, (state, seat, canAct) => {
+        const choices = reactionChoicesForSeat(state, seat);
+        const muted = reactionMuted(reactMute, state.activeIndex);
+        const canDecline =
+          choices !== null && choices.asked && !choices.answered && !muted && canAct;
+        return {
+          capitalChoices: selectableCapitalTiles(state, seat),
+          reaction:
+            choices === null
+              ? null
+              : { ...choices, muted, canDecline, playable: canDecline ? choices.playable : [] },
+        };
+      }),
+    [controller, snapshot.gameId, reactMute],
+  );
   // 静默自动应答:窗开且静默中 → 代发不用(单机走驱动链排队,联机走 WS;均与手点同路)。
   // 依赖含窗实例号:静默期间连续两窗(march 续走下一城,seq 递增)时第二窗也要代发。
   useEffect(() => {
@@ -448,15 +463,6 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
     reactCardId != null &&
     (reactDomain === "all-others" || reactDomain === "one-city")
       ? reaction.targetSeats
-      : [];
-  // 此刻可打的反应锦囊(手牌 ∩ 本窗牌种;目录单源 core/jinnang,UI 不自判合法性)。
-  // 在座却无 selfPlayer=引擎/快照 bug,未判空直取让它当场崩出(零兜底)
-  // ——不写 `!= null` 静默收窄成空手牌。
-  const reactPlayable =
-    reactionUp && reaction != null
-      ? selfPlayer.jinnangHand.filter(
-          (id) => jinnangCardOf(id).effect.kind === REACTION_EXPECT[reaction.kind], // 窗种→反应 kind 单源
-        )
       : [];
   const reactRespond = (use: boolean, cardId?: string, shareSeat?: number) => {
     if (use) getAudio().play("stamp"); // 落印音
@@ -712,6 +718,7 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
             选都/详情流程只下发一个窄 props(tileDetail,状态机在 useCapitalPick)。 */}
           <div id="scroll-layer" className="pointer-events-none absolute inset-0">
             <DecisionScrollLayer
+              key={snapshot.gameId}
               snapshot={snapshot}
               viewSeat={viewSeat}
               interactive={interactive}
@@ -790,7 +797,7 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
                   reactBanner != null
                     ? {
                         banner: reactBanner,
-                        reactiveIds: reactPlayable,
+                        reactiveIds: reactionChoices!.playable,
                         seq: snapshot.pendingReaction!.seq,
                         selectedKey: reactCardId != null ? reactSelection!.key : null,
                         onSelect: (selection) => {
@@ -840,6 +847,7 @@ function GameScreenLive({ snapshot, board }: { snapshot: GameSnapshot; board: Bo
             onClose={closeSettings}
             onOpenWarReport={openWarReport}
             onGoHome={goHome}
+            onCaptureDiagnostic={checkpointGameDiagnostics}
           />
         )}
         {/* 动作条独立于牌架,收架仍可决策;卡牌段出牌/不出,目标段出/作罢。

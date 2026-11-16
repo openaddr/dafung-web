@@ -17,7 +17,7 @@
 //                                            提交者=决策归属,非归属 403 回执 error),
 //                                            收 snapshot(首连摘要/校准,#381 起按接收
 //                                            座位投影)/events(#390 唯一状态通路,#381 起
-//                                            逐座位过滤)/lobby(元数据)/dismissed
+//                                            逐座位过滤)/gameLog(诊断日志尾段)/lobby(元数据)/dismissed
 //                                            (#388 折叠切换⑥:正常对局零逐步快照,
 //                                            全量下行=摘要/校准/生命周期三类)
 // 掉线:WS close → 该 Seat 冻结(不自动代打,只在其轮到时才卡);保留窗(默认 10
@@ -37,7 +37,7 @@ import {
   unlinkSync,
 } from "node:fs";
 import { extname, join, resolve } from "node:path";
-import type { TurnPhase } from "../src/core/authority";
+import type { GameEngine, TurnPhase } from "../src/core/authority";
 import { BOT_STEP_MS } from "../src/core/timings";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
@@ -51,6 +51,7 @@ import { loadExtensionPackages } from "../src/core/extension-loader";
 // 登记(CALIBRATION_*)同居该模块;eventsMsg 随 events 直发退役出本文件。
 import {
   assembleDownlinkShot,
+  assembleGameLogDelta,
   CALIBRATION_BACKED_KINDS,
   CALIBRATION_EVENT_KINDS,
   CALIBRATION_WINDOWS,
@@ -263,10 +264,11 @@ const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
 
 // ──────────────────────────── WS 句柄归传输层(ADR-0007 关键不变量 1)────────────────────────────
 // 房间 → 座位 → 当前 WebSocket。Room 模块不持有 WS,只有这里持有。
-// Bun 的 ServerWebSocket 以 data 携带 {roomId, seat}(upgrade 时注入,免反查)。
+// Bun 的 ServerWebSocket 以 data 携带座位标识和该连接的诊断日志游标。
 export interface WsSeat {
   roomId: string;
   seat: number;
+  logOffset: number;
 }
 type SeatSocket = import("bun").ServerWebSocket<WsSeat>;
 
@@ -290,6 +292,19 @@ function onlineSeatsOf(roomId: string): Set<number> {
   return set;
 }
 
+function sendSeatSummary(room: RoomSession, online: Set<number>, ws: SeatSocket): void {
+  const shot = assembleDownlinkShot(room, online, ws.data.seat, [], true);
+  // Bun.send 的 0 表示丢弃，-1 表示已排队。游标随已接受的下行推进。
+  if (ws.send(shot.snapshot) !== 0) ws.data.logOffset = shot.logOffset;
+}
+
+function sendGameLog(ws: SeatSocket, engine: GameEngine, capturedAt: number): void {
+  const msg = assembleGameLogDelta(engine, ws.data.logOffset, capturedAt);
+  if (msg != null && ws.send(encodeDownlink(msg)) !== 0) {
+    ws.data.logOffset = msg.offset + msg.lines.length;
+  }
+}
+
 // ──────────────────────────── 事件批下行通道(#390,#388 起为唯一对局状态通路)────────────────────────────
 // 每次编排转移(submitCommand/botAct/开局驱动)后 onUpdate→broadcast;引擎当前批
 // (engine.gameEvents,#375)以「数组引用换新」为界——beginGameEventBatch 弃批建新数组,
@@ -305,6 +320,7 @@ function onlineSeatsOf(roomId: string): Set<number> {
  *     投影,自带房间字段(元数据随车,指纹同步更新);
  *  3. 房间元数据消息(③):非校准 flush 且元数据指纹变化时补发 lobby 形状一条
  *     (对局中掉线/托管开关等不再搭快照车)。
+ *  非校准拍另发已连接座位尚未获得的日志尾段(诊断归档)。日志可独立于事件批增长。
  *  「最新者胜」合并:本 tick 内只标记脏座位,setTimeout(0) 统一 flush——bot 局
  *  的零延迟连锁落在一个同步 tick 里,合并后每 tick 至多一批事件+至多一份校准快照。
  *  人类节奏的流程(每次命令一个 tick)行为不变;托管的步间 await 天然分 tick,
@@ -370,15 +386,22 @@ function flushRoom(roomId: string): void {
   if (calibrate) {
     // 关键节点校准(②):每座位一份纯摘要拍,自带房间字段,元数据指纹随车更新
     for (const ws of socketsOf(roomId).values()) {
-      if (ws.readyState === WebSocket.OPEN)
-        ws.send(assembleDownlinkShot(r, online, ws.data.seat, [], true).snapshot);
+      if (ws.readyState === WebSocket.OPEN) sendSeatSummary(r, online, ws);
     }
     lastRoomMeta.set(roomId, metaJson);
-  } else if (lastRoomMeta.get(roomId) !== metaJson) {
+    return;
+  }
+  if (lastRoomMeta.get(roomId) !== metaJson) {
     // 房间元数据消息(③):lobby 形状,指纹变化才发
     lastRoomMeta.set(roomId, metaJson);
     for (const ws of socketsOf(roomId).values()) {
       if (ws.readyState === WebSocket.OPEN) ws.send(metaJson);
+    }
+  }
+  if (e) {
+    const capturedAt = Date.now();
+    for (const ws of socketsOf(roomId).values()) {
+      if (ws.readyState === WebSocket.OPEN) sendGameLog(ws, e, capturedAt);
     }
   }
 }
@@ -502,7 +525,7 @@ const HELP = {
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/托管)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=":
-      "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/events/dismissed",
+      "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/events/gameLog/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
   retention:
@@ -640,17 +663,16 @@ async function handle(req: Request): Promise<Response> {
 
   if (path === "/room/dismiss") {
     const roomId = String(obj.roomId ?? "");
+    const game = registry.get(roomId)?.engine;
     const id = registry.dismissRoom(roomId, String(obj.seatToken ?? ""));
-    // 广播 dismissed 并断开所有连接
+    // dismissRoom 追加了解散行。先从各连接的游标交付余下日志，再通知解散。
+    const capturedAt = Date.now();
     const msg = dismissedMsg(id);
     for (const ws of socketsOf(id).values()) {
-      if (ws.readyState !== WebSocket.CLOSED) {
-        try {
-          ws.send(msg);
-          ws.close();
-        } catch {
-          /* 忽略 */
-        }
+      if (ws.readyState === WebSocket.OPEN) {
+        if (game) sendGameLog(ws, game, capturedAt);
+        ws.send(msg);
+        ws.close();
       }
     }
     roomSockets.delete(id);
@@ -691,7 +713,7 @@ export const engineServer = Bun.serve<WsSeat>({
     if (!roomId || !registry.validateSeat(roomId, seat, token)) {
       return new Response("Unauthorized", { status: 401 });
     }
-    if (!srv.upgrade(req, { data: { roomId, seat } })) {
+    if (!srv.upgrade(req, { data: { roomId, seat, logOffset: 0 } })) {
       return new Response("WebSocket upgrade failed", { status: 500 });
     }
     return undefined; // upgrade 成功后由 handlers 接管
@@ -718,7 +740,7 @@ export const engineServer = Bun.serve<WsSeat>({
       // redactSnapshotForSeat 投影(#381 保密后补,他人锦囊手牌/牌库序/反应窗询问集
       // 不出网);重连语义=整房摘要水合,断线期间事件不补发(无 seq/ack,决策 4)。
       // 批已强制排空(上方 flushRoom),此处纯摘要拍:batch=[],withSnapshot 恒真。
-      ws.send(assembleDownlinkShot(room, onlineSeatsOf(roomId), seat, [], true).snapshot);
+      sendSeatSummary(room, onlineSeatsOf(roomId), ws);
       settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
       // 在线集变化通知他人:flush 按元数据指纹差异补发 lobby(③);结算相位基线已登记
       broadcast(roomId);
@@ -761,10 +783,11 @@ export const engineServer = Bun.serve<WsSeat>({
     },
     close(ws) {
       const { roomId, seat } = ws.data;
-      // 仅当当前映射还指向本 ws 时才移除(若已重连到新 ws,新连接保留)
-      const cur = socketsOf(roomId).get(seat);
-      if (cur === ws) socketsOf(roomId).delete(seat);
       recordEvent(roomId, { ev: "ws-close", seat });
+      // 旧连接关掉时，重连后的当前座位仍然在线。
+      const sockets = roomSockets.get(roomId);
+      if (sockets?.get(seat) !== ws) return;
+      sockets.delete(seat);
       // 算"还在线的座位"(不含刚断开的本 seat),交给 Room 做 host 移交 + 托管代开判断
       const stillOnline = onlineSeatsOf(roomId);
       void registry.markSeatOffline(roomId, seat, stillOnline, () => broadcast(roomId));

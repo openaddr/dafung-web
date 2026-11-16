@@ -5,7 +5,9 @@
 // scripts 不吃 app(层界红线),故不做跨层物理单源。
 // jinnang 窗=公告询问集(联机投影后每人只看到「自己是否被询问」,ADR-0016);
 // march 窗=[城主]。
-import type { ReactionView } from "@core/reaction-window";
+import { jinnangCardOf } from "@core/jinnang";
+import { REACTION_EXPECT, type ReactionView } from "@core/reaction-window";
+import type { GameSnapshot } from "@core/snapshot";
 
 /** 反应窗被询问座位集(view 单源)。 */
 export function reactionQueriedSeats(view: ReactionView): number[] {
@@ -15,4 +17,19 @@ export function reactionQueriedSeats(view: ReactionView): number[] {
 /** 该座位是否被当前反应窗询问。 */
 export function reactionQueriesSeat(view: ReactionView, seat: number): boolean {
   return reactionQueriedSeats(view).includes(seat);
+}
+
+/** 反应横幅、手牌架与现场采集共用本座的问询及牌目录。 */
+export function reactionChoicesForSeat(snapshot: GameSnapshot, seat: number) {
+  const { phase, turnPhase, reaction, pendingReaction, players } = snapshot;
+  if (phase !== "Playing" || turnPhase !== "AwaitingReaction" || reaction === null) return null;
+  const asked = reactionQueriesSeat(reaction, seat);
+  const answered = pendingReaction!.answers.some((answer) => answer.seat === seat);
+  const playable =
+    asked && !answered
+      ? players[seat].jinnangHand.filter(
+          (id) => jinnangCardOf(id).effect.kind === REACTION_EXPECT[reaction.kind],
+        )
+      : [];
+  return { kind: reaction.kind, asked, answered, playable };
 }

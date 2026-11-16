@@ -10,13 +10,13 @@
 //   解析 + 分发,**错误回报是返回值的一部分**(InboundResult),任何失败都不抛出到
 //   传输层之外——传输面(adapter)只负责把失败送到各自通道:WS = error 消息下行,
 //   内存 = pushHint(结构性失败在内存面属自身 bug,adapter 自行抛出,零兜底)。
-// - 下行(ServerMsg)五族:lobby / snapshot(clientView/lobbyView 产出,编解码只管
-//   封装)、events / dismissed / error(本模块构造函数产出)。redaction 归属在
-//   seat-projection(下行装配另票),本模块只收编形状。
+// - 下行(ServerMsg)六族:lobby / snapshot / gameLog 由 seat-projection 装配,
+//   events / dismissed / error 由本模块封装。redaction 归属在 seat-projection。
 // - 穷尽纪律:dispatch 对 InboundMsg 穷尽 switch(新增消息类型漏分支 = 编译红,
 //   default 收 never),与 seat-projection redactEvents 同机器。
 import type { GameCommand } from "../src/core/authority";
 import type { GameEvent } from "../src/core/game-events";
+import type { LogEvent } from "../src/core/model";
 import type { GameSnapshot } from "../src/core/snapshot";
 import type { LobbyView } from "./seat-projection";
 
@@ -45,6 +45,15 @@ export interface EventBatchMsg {
   events: GameEvent[];
 }
 
+/** 对局诊断的权威日志尾段。offset 是首行在同局完整日志中的零基下标。 */
+export interface GameLogMsg {
+  type: "gameLog";
+  gameId: string;
+  offset: number;
+  lines: LogEvent[];
+  capturedAt: number;
+}
+
 /** lobby/snapshot 共带的房间字段(产出单源 seat-projection 的 clientView/lobbyView;
  *  客户端 netStore 的 NetRoomFields 从此别名投影,不再手抄同形接口)。 */
 export interface WireRoomFields {
@@ -63,6 +72,7 @@ export type ServerMsg =
   | LobbyView
   | SnapshotMsg
   | EventBatchMsg
+  | GameLogMsg
   | { type: "dismissed"; roomId: string }
   | { type: "error"; error: string };
 

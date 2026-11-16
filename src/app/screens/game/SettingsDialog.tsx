@@ -1,6 +1,6 @@
 // 组件收口:已收口——底件 ui/dialog+ADR-0031 拖动把手+Base UI Switch,挂载不夺焦;含「托管」开关行(细则 docs/design/组件收口.md)
 // 设置弹层(#700 全浮层骨架,原型席位侧列(临时件已佚) ⑥设置弹层 判决移植):
-// 顶左齿轮点开的降级入口收口件——音效 / 托管 / 演出加速 / 战报› / 版本 / 回到主页。
+// 顶左齿轮点开的降级入口收口件——音效 / 托管 / 演出加速 / 战报› / 对局诊断 / 版本 / 回到主页。
 // 壳走 ui/dialog 底件(Base UI:焦点陷阱/Esc/点外关闭白拿,不自写交互语义)+
 // ADR-0031 题名拖动(DialogDragHandle 把手);挂载不夺焦(ScrollShell 先例)。
 // 入口降级对账(旧顶栏/仪表条退役 → 本弹层承接):
@@ -16,13 +16,19 @@
 // #1097 收编(#1096 决议2):托管开关行迁入(音效行同款形制)——原 #701 单人格
 // 弹层托管行随格 tap 退役,开关接同一 ADR-0028 现役引擎通路(useAutopilotOn 回读 +
 // controller.setAutoPilot,行为=旧托管钮);仅自机语义不变(本弹层只属屏前真人)。
+import { Button } from "@base-ui/react/button";
 import { memo, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { Switch } from "@app/components/ui/switch";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { useAudio } from "@app/fx/AudioProvider";
+import { useGameStore } from "@app/store/gameStore";
 import { useAutopilotOn, useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
+import {
+  GameDiagnosticDialog,
+  type CurrentDiagnosticGame,
+} from "@app/screens/shared/GameDiagnosticDialog";
 import { Sym } from "@app/screens/shared/Sym";
 import { RoundClose } from "@app/screens/shared/RoundClose";
 import { ConfirmDialog } from "./scroll/ConfirmDialog";
@@ -36,14 +42,15 @@ interface SettingsDialogProps {
   onOpenWarReport: () => void;
   /** 回到主页行:弃局离屏(控制器销毁 + 切 setup),接线归 GameScreen。 */
   onGoHome: () => void;
+  onCaptureDiagnostic?: (gameId: string) => Promise<void>;
 }
 
-/** 重渲口径(#1140 渲染税):三回调由 GameScreenLive useCallback 稳定引用,弹层
- *  自身零快照消费(audio/托管态内订)——演出期开着设置不再随每拍 sync 重渲。 */
+/** 回调引用稳定，快照只订阅局 ID，演出中设置不会随每拍同步重渲染。 */
 export const SettingsDialog = memo(function SettingsDialog({
   onClose,
   onOpenWarReport,
   onGoHome,
+  onCaptureDiagnostic,
 }: SettingsDialogProps) {
   const audio = useAudio();
   // 托管开关(#1097 收编):控制器模块级单源(弹层只在 GameScreenLive 门卫后可达,
@@ -55,6 +62,18 @@ export const SettingsDialog = memo(function SettingsDialog({
   // 确认文案写明后果(单机=对局进度丢弃;联机=并退出房间);取消则设置弹层原样保留。
   const roomId = useNetStore((s) => s.roomId);
   const [confirmHome, setConfirmHome] = useState(false);
+  const gameId = useGameStore((s) => s.snapshot?.gameId);
+  const [diagnostic, setDiagnostic] = useState<CurrentDiagnosticGame | null>(null);
+  if (diagnostic !== null && diagnostic.gameId === gameId) {
+    return (
+      <GameDiagnosticDialog
+        current={diagnostic}
+        onClose={onClose}
+        onBack={() => setDiagnostic(null)}
+      />
+    );
+  }
+
   return (
     <Dialog
       open
@@ -136,6 +155,25 @@ export const SettingsDialog = memo(function SettingsDialog({
           战报
           <Sym name="expand" size={11} className="rotate-[-90deg] text-gold" />
         </button>
+        {gameId !== undefined && onCaptureDiagnostic !== undefined && (
+          <Button
+            data-testid={TESTIDS.settingsDiagnostic}
+            className="setrow setrow-btn"
+            onClick={() => {
+              // 从点击拍发起一次采集，诊断面板等它完成再读摘要。
+              const captureError = Promise.resolve()
+                .then(() => onCaptureDiagnostic(gameId))
+                .then(
+                  () => null,
+                  (error: unknown) => (error instanceof Error ? error.message : String(error)),
+                );
+              setDiagnostic({ gameId, captureError });
+            }}
+          >
+            <span className="font-brush">对局诊断</span>
+            <Sym name="expand" size={11} className="rotate-[-90deg] text-gold" />
+          </Button>
+        )}
         {/* 版本:发版号(单源 package.json 构建期注入) */}
         <div className="setrow">
           版本
