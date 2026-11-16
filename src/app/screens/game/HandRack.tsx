@@ -30,6 +30,7 @@
 //
 // 藏品双入口(#361)随 #700 退役:接替者=右下三圆钮(PileButtons,珍宝/名将圆钮
 // 点开同名藏品弹层,弹层壳与陈列仍在 PileModal.tsx)。
+import { targetDemo } from "./TargetDecision.prototype";
 import {
   memo,
   useEffect,
@@ -762,7 +763,11 @@ export const HandRack = memo(function HandRack({
               available: false,
               selected: false,
               played,
-              reason: played ? "已出牌 · 待择目标" : undefined,
+              reason: played
+                ? targetDemo != null
+                  ? "已选 · 待择目标"
+                  : "已出牌 · 待择目标"
+                : undefined,
             }}
             openKey={openKey}
             glowHeld={detail?.key === openKey}

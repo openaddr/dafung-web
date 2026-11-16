@@ -47,6 +47,7 @@ import { SeatRail } from "./SeatRail";
 import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
+import { targetDemo, TargetDecisionPrototype } from "./TargetDecision.prototype";
 import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
@@ -473,6 +474,23 @@ function GameScreenLive({
   const seatLabelOf = (seat: number) => snapshot.players[seat].guohao;
   // 城指向域选份令牌/目标括注的城名查表(board 越界当场炸=零兜底)。
   const cityNameOf = (tileIndex: number) => board.at(tileIndex).name;
+  const prototypeReaction = targetDemo != null && reactionUp && !reactMuted;
+  const prototypeCityShares =
+    prototypeReaction && reactDomain === "one-city" && reactShareSeats.length > 0;
+  const prototypeSeatShares =
+    prototypeReaction && reactDomain === "all-others" && reactShareSeats.length > 0;
+  const toggleReactShare = (share: number) =>
+    setReactShare((current) => (current === share ? null : share));
+  const prototypeReactionPrompt =
+    reactCardId == null
+      ? "在下方手牌区选反应锦囊"
+      : reactShare == null
+        ? prototypeCityShares
+          ? "在地图上点一座受击城保护"
+          : prototypeSeatShares
+            ? "在右侧席位区选择保护对象"
+            : "可以落印"
+        : `保护 ${prototypeCityShares ? cityNameOf(reactShare) : seatLabelOf(reactShare)}`;
   const reactBanner =
     reactionUp && reaction != null && !reactMuted ? (
       <ReactionBanner
@@ -508,9 +526,10 @@ function GameScreenLive({
         cardId={reaction.kind === "jinnang" ? reaction.cardId : undefined}
         // 时长来自权威快照 windowMs,统一经 scaleReactionMs 包装。
         durationMs={scaleReactionMs(reaction.windowMs)}
+        prototypeBoardPrompt={prototypeReaction ? prototypeReactionPrompt : undefined}
         shareSeats={reactShareSeats}
         shareSeat={reactShare}
-        onPickShare={(share) => setReactShare((cur) => (cur === share ? null : share))} // 首点选中/再点取消
+        onPickShare={toggleReactShare}
         // 份令牌标签随域:城指向域=城名,其余=国号(候选集语义随 reactShareSeats)。
         seatLabel={reactDomain === "one-city" ? cityNameOf : seatLabelOf}
         prototypeContext={
@@ -539,6 +558,36 @@ function GameScreenLive({
         }}
       />
     ) : null;
+
+  const prototypePlay = targetDemo != null && junshiUp;
+  const prototypePlayTitle = junshiPendingCard?.cardId ?? junshiSelected?.label ?? "出牌阶段";
+  const currentPrototypeTarget =
+    junshiTargetTile != null
+      ? cityNameOf(junshiTargetTile)
+      : junshiTargetSeat != null
+        ? seatLabelOf(junshiTargetSeat)
+        : null;
+  const prototypePicked = [
+    ...(junshiPendingCard?.picked.map(seatLabelOf) ?? []),
+    ...(currentPrototypeTarget == null ? [] : [currentPrototypeTarget]),
+  ];
+  const prototypeWhere = junshiCityTargeting
+    ? "在地图上点一座城"
+    : junshiPendingCard?.stage === "two-a"
+      ? "在右侧席位区选第一位诸侯"
+      : junshiPendingCard?.stage === "two-b"
+        ? "在右侧席位区选第二位诸侯"
+        : "在右侧席位区选一位诸侯";
+  const prototypePlayPrompt = junshiTargeting
+    ? [
+        currentPrototypeTarget == null ? prototypeWhere : "",
+        prototypePicked.length ? `已选 ${prototypePicked.join("、")}` : "",
+      ]
+        .filter(Boolean)
+        .join("　")
+    : junshiSelected == null
+      ? "在下方手牌区选择锦囊"
+      : "确认这张锦囊";
 
   // ── 「你可」选择闸窗态:快照 pendingSkillChoices 首问驱动 ──
   // 相位单属主(decisionOwner=挂问属主,引擎 getter;interactive 经 canAct 主分支
@@ -615,7 +664,8 @@ function GameScreenLive({
   const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
   const windowUp = junshiUp || reactBanner != null || skillBanner != null;
   const hasRackContent = selfPlayer.jinnangHand.length > 0 || junshiOptions.some(isSkillOption);
-  const autoRackHidden = !((myTurnUp || windowUp) && hasRackContent);
+  const prototypePickingOnMap = targetDemo != null && (junshiCityTargeting || prototypeCityShares);
+  const autoRackHidden = prototypePickingOnMap || !((myTurnUp || windowUp) && hasRackContent);
   const rackHidden = rackManualHidden === null ? autoRackHidden : rackManualHidden;
   const toggleRackHidden = useCallback(
     () => setRackManualHidden((manual) => !(manual === null ? autoRackHidden : manual)),
@@ -676,16 +726,26 @@ function GameScreenLive({
             /* 点格相位路由(Playing 详情 / Setup 选都 / 灰城 hint)在 useCapitalPick;
                城目标段在窗时改选格路由
                (候选格=选格,handleTileClick) */
-            onTileClick={handleTileClick}
+            onTileClick={
+              prototypeCityShares
+                ? (tile) => {
+                    if (reactShareSeats.includes(tile)) toggleReactShare(tile);
+                  }
+                : handleTileClick
+            }
             selectableTiles={selectableTiles}
             /* 目标段选城:候选金环呼吸(选都 crown 同通路)+ 选中实金停持环;
                候选集/选中格从快照 choices 城选项派生,非城域恒 undefined/null */
             cityTargetTiles={
-              junshiCityTargeting
-                ? new Set(junshiCityOptions.map((o) => o.targetTileIndex))
-                : undefined
+              prototypeCityShares
+                ? new Set(reactShareSeats)
+                : junshiCityTargeting
+                  ? new Set(junshiCityOptions.map((o) => o.targetTileIndex))
+                  : undefined
             }
-            cityPickedTileIndex={junshiCityTargeting ? junshiTargetTile : null}
+            cityPickedTileIndex={
+              prototypeCityShares ? reactShare : junshiCityTargeting ? junshiTargetTile : null
+            }
             /* 候选集全座位透传——非决策席也见静态金圈与壹贰叁序号印 */
             candidateTiles={offeredCapitals ?? undefined}
             /* 目标段:可用候选席位的棋子金虚线环呼吸(与席位格金圈同步) */
@@ -743,34 +803,47 @@ function GameScreenLive({
         {/* 顶左设置/详情两钮,顶中留给知会槽。 */}
         <GameTopBar snapshot={snapshot} warUnread={warUnread} onOpenSettings={openSettings} />
         {/* 顶中知会槽承载回合胶囊/都城停条带/等待条,瞬态知会优先,由 fxStore 槽泵排队互斥。 */}
-        <NoticeBanner
-          snapshot={snapshot}
-          interactive={interactive}
-          selfPresenting={selfPresenting}
-          viewSeat={viewSeat}
-          online={online}
-        />
+        {!prototypePlay && !prototypeReaction && (
+          <NoticeBanner
+            snapshot={snapshot}
+            interactive={interactive}
+            selfPresenting={selfPresenting}
+            viewSeat={viewSeat}
+            online={online}
+          />
+        )}
+        {prototypeReaction && reactBanner}
         {/* 席位格按稳定 selfSeat 识别自机,活跃方金圈指名。
           目标段由 choices 派生候选,点格选中/再点取消,打出经动作条确认。 */}
         <SeatRail
           snapshot={snapshot}
           selfSeat={selfSeat}
           targets={
-            junshiTargeting
+            prototypeSeatShares
               ? {
                   bySeat: new Map(
-                    junshiSeatOptions.map((o) => [
-                      o.targetSeat,
-                      {
-                        available: o.available,
-                        reason: o.reason,
-                        selected: o.targetSeat === junshiTargetSeat,
-                      },
+                    reactShareSeats.map((seat) => [
+                      seat,
+                      { available: true, selected: seat === reactShare },
                     ]),
                   ),
-                  onPick: junshiToggleSeat, // 首点选中/再点取消,打出走动作条「出」
+                  onPick: toggleReactShare,
                 }
-              : undefined
+              : junshiTargeting
+                ? {
+                    bySeat: new Map(
+                      junshiSeatOptions.map((o) => [
+                        o.targetSeat,
+                        {
+                          available: o.available,
+                          reason: o.reason,
+                          selected: o.targetSeat === junshiTargetSeat,
+                        },
+                      ]),
+                    ),
+                    onPick: junshiToggleSeat, // 首点选中/再点取消,打出走动作条「出」
+                  }
+                : undefined
           }
         />
         {/* 底缘透明手牌区:签面驻左端 + 手牌架。
@@ -810,7 +883,7 @@ function GameScreenLive({
                 reaction={
                   reactBanner != null
                     ? {
-                        banner: reactBanner,
+                        banner: prototypeReaction ? null : reactBanner,
                         reactiveIds: reactionChoices!.playable,
                         seq: snapshot.pendingReaction!.seq,
                         selectedKey: reactCardId != null ? reactSelection!.key : null,
@@ -866,7 +939,36 @@ function GameScreenLive({
         )}
         {/* 动作条独立于牌架,收架仍可决策;卡牌段出牌/不出,目标段出/作罢。
           未选牌的确认尝试触发 playNudge:架展开时提示可用牌,收起时提示锦囊钮。 */}
-        {junshiUp && (
+        {prototypePlay && (
+          <TargetDecisionPrototype
+            title={prototypePlayTitle}
+            prompt={prototypePlayPrompt}
+            testId={TESTIDS.actionbar}
+            actions={
+              <>
+                <button type="button" className="reaction-btn qian" onClick={junshiPass}>
+                  {junshiTargeting ? "作罢" : "不出"}
+                </button>
+                <button
+                  type="button"
+                  className="reaction-btn mo"
+                  data-testid={junshiTargeting ? TESTIDS.actionbarTarget : TESTIDS.actionbarPlay}
+                  disabled={
+                    junshiTargeting ? currentPrototypeTarget == null : junshiSelected == null
+                  }
+                  onClick={junshiConfirm}
+                >
+                  {junshiPendingCard?.stage === "two-a"
+                    ? "下一步"
+                    : junshiTargeting
+                      ? "出牌"
+                      : "继续"}
+                </button>
+              </>
+            }
+          />
+        )}
+        {junshiUp && !prototypePlay && (
           <ActionBar
             segment={junshiTargeting ? "target" : "card"}
             playEnabled={

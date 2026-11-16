@@ -19,6 +19,7 @@ import { JinnangCardFace } from "@app/components/card/JinnangCardFace";
 import { getAudio } from "@app/fx/audio";
 import { TESTIDS } from "./testids";
 import "./reaction-banner.css";
+import { TargetDecisionPrototype } from "./TargetDecision.prototype";
 import {
   readReactionVariant,
   ReactionPrototypeLayout,
@@ -48,6 +49,7 @@ interface ReactionBannerProps {
   onDecline: () => void;
   onMute: () => void;
   prototypeContext?: ReactionPrototypeContext;
+  prototypeBoardPrompt?: string;
 }
 
 /** 倒计时弧几何:SVG 圆周收敛(viewBox 36,半径 15);周长 2π·15 ≈ 94.2478 作
@@ -68,6 +70,7 @@ export function ReactionBanner({
   onDecline,
   onMute,
   prototypeContext,
+  prototypeBoardPrompt,
 }: ReactionBannerProps) {
   const [variant, setVariant] = useState(readReactionVariant);
   // 倒计时三通路(#1022 渲染税收口,rAF 逐帧 setState 驱动整条横幅退役):
@@ -206,6 +209,24 @@ export function ReactionBanner({
       </button>
     </>
   );
+
+  if (prototypeBoardPrompt != null) {
+    return (
+      <TargetDecisionPrototype
+        title={prototypeContext?.title ?? text}
+        prompt={prototypeBoardPrompt}
+        testId={TESTIDS.reactionBanner}
+        timer={timer}
+        actions={
+          <>
+            {decline}
+            {confirm}
+            {mute}
+          </>
+        }
+      />
+    );
+  }
 
   return (
     <>

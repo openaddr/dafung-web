@@ -1,0 +1,53 @@
+/* #1403 真实盘面的构图试样。给右侧席位、下方手牌及棋盘点选留出空间。 */
+.game-layout .target-decision-prototype {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--conn-h) + 6px);
+  left: 92px;
+  right: calc(var(--safe-right) + 112px);
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 570px;
+  max-width: calc(100% - var(--safe-right) - 204px);
+  min-height: 56px;
+  margin-inline: auto;
+  padding: 5px 9px;
+  color: var(--color-paper);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
+  border: 1px solid var(--color-gold-wash);
+  border-radius: 5px;
+  box-shadow: var(--ink-shadow-sm);
+}
+
+.target-decision-prototype-copy {
+  font: 16px / 1.2 var(--font-wenkai);
+  overflow-wrap: anywhere;
+}
+
+.target-decision-prototype-copy p {
+  margin: 3px 0 0;
+  color: var(--color-paper-dim);
+  font-size: 13px;
+}
+
+.target-decision-prototype-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.target-decision-prototype .reaction-btn {
+  justify-content: center;
+  min-width: 54px;
+  padding-inline: 10px;
+  letter-spacing: 0;
+  text-indent: 0;
+}
+
+.target-decision-prototype .reaction-mute {
+  padding-inline: 6px;
+  border-inline-start: 1px solid var(--hairline);
+  font-family: var(--font-brush);
+}
