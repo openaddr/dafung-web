@@ -11,7 +11,7 @@ import { armPhase, giveJinnang } from "@core/planter";
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { assembleGameLogDelta, redactSnapshotForSeat } from "../../scripts/seat-projection";
-import { encodeDownlink, type ServerMsg } from "../../scripts/wire";
+import { encodeDownlink, type ReactionTiming, type ServerMsg } from "../../scripts/wire";
 import pkg from "../../package.json";
 import rawGuanzhongData from "../../public/maps/guanzhong.json";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
@@ -141,8 +141,16 @@ function startAuthority(): GameEngine {
   return engine;
 }
 
-function snapshotOf(engine: GameEngine): Extract<ServerMsg, { type: "snapshot" }> {
-  return { type: "snapshot", ...ROOM, ...redactSnapshotForSeat(engine.snapshot(), 1) };
+function snapshotOf(
+  engine: GameEngine,
+  reactionTiming?: ReactionTiming,
+): Extract<ServerMsg, { type: "snapshot" }> {
+  return {
+    type: "snapshot",
+    ...ROOM,
+    ...redactSnapshotForSeat(engine.snapshot(), 1),
+    reactionTiming,
+  };
 }
 
 async function join() {
@@ -260,7 +268,11 @@ it("选都与反应窗的现场记录本座可执行选项", async () => {
   giveJinnang(authority, 1, ["识破诡计", "连环计"]);
   armPhase(authority, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
   authority.submitCommand({ type: "useJinnang", cardId: "横征暴敛" });
-  act(() => socket.receive(snapshotOf(authority)));
+  const pending = authority.pendingReaction;
+  if (pending == null) throw new Error("布场缺少挂起的反应窗");
+  act(() => {
+    socket.receive(snapshotOf(authority, { seq: pending.seq, remainingMs: pending.view.windowMs }));
+  });
   const decline = document.querySelector(`[data-testid="${TESTIDS.reactionDecline}"]`);
   expect(decline !== null).toBe(true);
   await checkpointGameDiagnostics(authority.gameId);

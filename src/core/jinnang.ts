@@ -30,17 +30,41 @@ export type JinnangTargetDomain =
 /** 目标域 → 目标段流声明表(#1067 语义声明化单源):「两步目标段、第二步排除首目标」
  *  不再内联在 resolveJinnang/choices——两消费点按 targetDomain 查此表。
  *  stages=目标段步数(0=无目标段:self 自指/all-others 全体/reaction 唯反应,出牌即执行;
- *  1=单段单选;2=两步,段名 two-a→two-b);excludeFirstFromSecond=末段候选排除首段
+ *  1=单段数量区间;2=各选一位,段名 two-a→two-b);excludeFirstFromSecond=末段候选排除首段
  *  已定目标(两步流语义:两名目标互异)。 */
-export const TARGET_DOMAIN_STAGES: Record<
-  JinnangTargetDomain,
-  { stages: 0 | 1 | 2; excludeFirstFromSecond: boolean }
-> = {
+export const SINGLE_TARGET = { min: 1, max: 1 } as const;
+
+type TargetDomainFlow =
+  | { stages: 0; excludeFirstFromSecond: false }
+  | {
+      stages: 1;
+      excludeFirstFromSecond: false;
+      selection: { domain: "seat" | "city"; min: number; max: number };
+    }
+  | {
+      stages: 2;
+      excludeFirstFromSecond: true;
+      selection: { domain: "seat" } & typeof SINGLE_TARGET;
+    };
+
+export const TARGET_DOMAIN_STAGES: Record<JinnangTargetDomain, TargetDomainFlow> = {
   self: { stages: 0, excludeFirstFromSecond: false },
-  one: { stages: 1, excludeFirstFromSecond: false },
-  "two-others": { stages: 2, excludeFirstFromSecond: true },
+  one: {
+    stages: 1,
+    excludeFirstFromSecond: false,
+    selection: { domain: "seat", ...SINGLE_TARGET },
+  },
+  "two-others": {
+    stages: 2,
+    excludeFirstFromSecond: true,
+    selection: { domain: "seat", ...SINGLE_TARGET },
+  },
   "all-others": { stages: 0, excludeFirstFromSecond: false },
-  "one-city": { stages: 1, excludeFirstFromSecond: false },
+  "one-city": {
+    stages: 1,
+    excludeFirstFromSecond: false,
+    selection: { domain: "city", ...SINGLE_TARGET },
+  },
   reaction: { stages: 0, excludeFirstFromSecond: false },
 };
 

@@ -310,6 +310,7 @@ export class OnlineController extends GameController {
   }
 
   private onMessage(msg: ServerMsg, receivedAt: number): void {
+    const receivedAtMonotonic = performance.now();
     if (msg.type === "lobby") {
       // lobby/snapshot 两种消息都带完整 NetRoomFields(ServerMsg 已声明),直接透传
       this.applyRoomFields(msg);
@@ -324,7 +325,7 @@ export class OnlineController extends GameController {
     }
     if (msg.type === "snapshot") {
       if (this._engine.gameId !== msg.gameId) finishGameDiagnostics(this);
-      const { type: _t, ...snap } = msg;
+      const { type: _t, reactionTiming, ...snap } = msg;
       // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
       // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
       // #386:同 tick 事件批已先行折叠推进 position,视觉停点改用折叠前捕获的锚点;
@@ -344,6 +345,7 @@ export class OnlineController extends GameController {
         setEngine(this._engine);
       }
       this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
+      this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
       this.setConnectionStatus("open");
       this.pending = false;
       useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
@@ -383,7 +385,10 @@ export class OnlineController extends GameController {
       // 再发摘要,摘要后批不落此窗。跳过折叠不是吞错——壳本就不是折叠目标,快照才是
       // 该窗口内唯一状态来源。
       const hydrated = this.enteredGame;
-      if (hydrated) foldEventBatch(this._engine, msg.events);
+      if (hydrated) {
+        foldEventBatch(this._engine, msg.events);
+        this.observeReactionTiming(msg.reactionTiming, receivedAtMonotonic);
+      }
       // 表现消费(#385):批经 SnapshotEffects 直译播放。#388 起直译随事件帧走——
       // 正常对局快照不再随转移到达,表现锁(fxPlaying=本座位演出落定,#611 改绑,
       // L42 决策卷轴的时序门)不能等快照帧;快照帧的 play 由消费游标去重,同批不会

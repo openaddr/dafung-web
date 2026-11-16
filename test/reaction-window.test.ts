@@ -420,6 +420,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
       cardId: "半路杀出",
       userSeat: moverSeat,
       ownerSeat,
+      tileIndex: PASSED,
       windowMs: REACTION_WINDOW_MS.MarchPassedCity, // #284:开窗时长随 view 走
     });
     expect(mover.position).toBe(START); // 挂起中未落位
@@ -730,6 +731,7 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
         cardId: "半路杀出",
         userSeat: 2,
         ownerSeat: 1,
+        tileIndex: 10,
         windowMs: REACTION_WINDOW_MS.MarchPassedCity,
       },
       answers: [],

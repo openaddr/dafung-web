@@ -125,36 +125,57 @@ describe("redactEvents · 逐 kind 隐私档位(#381)", () => {
     // 三席被询问 [0,1,2],viewer=1 → 自己在列可见,他人全匿
     const opened = ev(3, {
       kind: "reactionOpened",
-      windowKind: "jinnang",
-      cardId: "横征暴敛",
-      queriedSeats: [0, 1, 2],
+      seq: 1,
+      view: {
+        kind: "jinnang",
+        cardId: "横征暴敛",
+        userSeat: 3,
+        targetSeats: [0, 1, 2],
+        queriedBySeat: [0, 1, 2],
+        windowMs: 15000,
+      },
     });
     const view1 = redactEvents([opened], 1)[0]!;
-    expect(view1).toEqual({ ...opened, queriedSeats: [-1, 1, -1] } as typeof opened);
+    expect(view1).toMatchObject({
+      seq: 1,
+      view: { targetSeats: [0, 1, 2], queriedBySeat: [-1, 1, -1] },
+    });
     // viewer 不在列:全匿,数量不动
     const viewer9 = redactEvents([opened], 9)[0] as Extract<GameEvent, { kind: "reactionOpened" }>;
-    expect(viewer9.queriedSeats).toEqual([-1, -1, -1]);
+    expect(viewer9.view).toMatchObject({ queriedBySeat: [-1, -1, -1] });
     // 单人窗:被询问者见 [自己]
     const solo = redactEvents(
       [
         ev(3, {
           kind: "reactionOpened",
-          windowKind: "jinnang",
-          cardId: "缓兵之计",
-          queriedSeats: [1],
+          seq: 1,
+          view: {
+            kind: "jinnang",
+            cardId: "缓兵之计",
+            userSeat: 3,
+            targetSeats: [1],
+            queriedBySeat: [1],
+            windowMs: 15000,
+          },
         }),
       ],
       1,
     )[0] as Extract<GameEvent, { kind: "reactionOpened" }>;
-    expect(solo.queriedSeats).toEqual([1]);
+    expect(solo.view).toMatchObject({ queriedBySeat: [1] });
   });
 
   it("march 窗原样透传(城主归属棋盘可推导,全公开)", () => {
     const opened = ev(0, {
       kind: "reactionOpened",
-      windowKind: "march",
-      cardId: "半路杀出",
-      queriedSeats: [1],
+      seq: 1,
+      view: {
+        kind: "march",
+        cardId: "半路杀出",
+        userSeat: 0,
+        ownerSeat: 1,
+        tileIndex: 11,
+        windowMs: 15000,
+      },
     });
     for (const seat of [0, 1, 2]) {
       expect(redactEvents([opened], seat)).toEqual([opened]);
@@ -177,9 +198,15 @@ describe("redactEvents · 逐 kind 隐私档位(#381)", () => {
       ev(0, { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1] }),
       ev(0, {
         kind: "reactionOpened",
-        windowKind: "jinnang",
-        cardId: "横征暴敛",
-        queriedSeats: [1, 2],
+        seq: 1,
+        view: {
+          kind: "jinnang",
+          cardId: "横征暴敛",
+          userSeat: 0,
+          targetSeats: [1, 2],
+          queriedBySeat: [1, 2],
+          windowMs: 15000,
+        },
       }),
     ];
     const before = JSON.stringify(batch);
@@ -407,14 +434,25 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
         ev(2, { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [0, 1] }),
         ev(2, {
           kind: "reactionOpened",
-          windowKind: "jinnang",
-          cardId: "横征暴敛",
-          queriedSeats: [0, 1],
+          seq: 1,
+          view: {
+            kind: "jinnang",
+            cardId: "横征暴敛",
+            userSeat: 2,
+            targetSeats: [0, 1],
+            queriedBySeat: [0, 1],
+            windowMs: 15000,
+          },
         }),
       ],
       [ev(1, { kind: "reactionAnswered", use: false })],
       [
-        ev(0, { kind: "reactionAnswered", use: true, cardId: "识破诡计" }),
+        ev(0, {
+          kind: "reactionAnswered",
+          use: true,
+          cardId: "识破诡计",
+          spentCards: [{ seat: 0, cardId: "识破诡计" }],
+        }),
         ev(0, { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 }),
       ],
     ];
@@ -490,7 +528,7 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
       GameEvent,
       { kind: "reactionOpened" }
     > | null;
-    expect(opened?.queriedSeats).toEqual([-1, -1]);
+    expect(opened?.view).toMatchObject({ queriedBySeat: [-1, -1] });
     expect(filtered.players[2].jinnangHandCount).toBe(god.players[2].jinnangHandCount);
     expect(filtered.jinnangDiscard).toEqual(god.jinnangDiscard);
   });
@@ -505,9 +543,15 @@ describe("redactSnapshotForSeat · 快照路径查询集数量语义(#461)", () 
       ev(2, { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [0, 1] }),
       ev(2, {
         kind: "reactionOpened",
-        windowKind: "jinnang",
-        cardId: "横征暴敛",
-        queriedSeats: [0, 1],
+        seq: 1,
+        view: {
+          kind: "jinnang",
+          cardId: "横征暴敛",
+          userSeat: 2,
+          targetSeats: [0, 1],
+          queriedBySeat: [0, 1],
+          windowMs: 15000,
+        },
       }),
     ]);
     return e.snapshot();

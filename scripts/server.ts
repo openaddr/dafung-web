@@ -723,7 +723,7 @@ export const engineServer = Bun.serve<WsSeat>({
       // 重连归座(ADR-0002/0005):token 是 Seat 归属唯一凭证。托管开关不动(ADR-0028:
       // 重连不清托管,回来的人点「收回」拿回控制)。
       const { roomId, seat } = ws.data;
-      const room = registry.attachSeat(roomId, seat);
+      const room = registry.attachSeat(roomId, seat, () => broadcast(roomId));
       if (!room) {
         ws.close();
         return;

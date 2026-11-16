@@ -43,6 +43,13 @@ export function autoPilotMsg(on: boolean): string {
 export interface EventBatchMsg {
   type: "events";
   events: GameEvent[];
+  reactionTiming?: ReactionTiming;
+}
+
+/** 传输时刻的剩余时长，按权威窗号绑定。 */
+export interface ReactionTiming {
+  seq: number;
+  remainingMs: number;
 }
 
 /** 对局诊断的权威日志尾段。offset 是首行在同局完整日志中的零基下标。 */
@@ -65,7 +72,11 @@ export interface WireRoomFields {
 }
 
 /** snapshot 消息 = 房间字段 + 引擎快照展开(快照无同名键,见 seat-projection clientView)。 */
-export type SnapshotMsg = { type: "snapshot" } & WireRoomFields & GameSnapshot;
+export type SnapshotMsg = {
+  type: "snapshot";
+  reactionTiming?: ReactionTiming;
+} & WireRoomFields &
+  GameSnapshot;
 
 /** 下行消息 union(线上形状单源;客户端 online.ts/local.ts 从此 import)。 */
 export type ServerMsg =
@@ -78,8 +89,8 @@ export type ServerMsg =
 
 /** 事件批消息构造(flush 下行;per-seat 脱敏在装配单口 assembleDownlinkShot 内部
  *  完成——#431 起 redaction 是装配必经步,本构造函数只管已装配批的封装)。 */
-export function eventsMsg(events: GameEvent[]): string {
-  return JSON.stringify({ type: "events" as const, events });
+export function eventsMsg(events: GameEvent[], reactionTiming?: ReactionTiming): string {
+  return encodeDownlink({ type: "events", events, reactionTiming });
 }
 /** 错误回报消息构造(WS 面唯一错误通道的形状)。 */
 export function errorMsg(error: string): string {

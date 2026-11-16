@@ -11,6 +11,7 @@ import {
   JINNANG_CARDS,
   JINNANG_DECK_LIST,
   JINNANG_STARTING_HAND,
+  TARGET_DOMAIN_STAGES,
   buildJinnangDeck,
   jinnangCardOf,
 } from "@core/jinnang";
@@ -472,6 +473,41 @@ describe("锦囊渠道(T5)", () => {
 
 // ──────────────────────────── 目标段与指向他人(T3)────────────────────────────
 describe("锦囊目标段(T3)", () => {
+  it("单段可声明数量区间，重复或不可用目标拒绝整批，有效目标全部随用牌公告", () => {
+    const e = makeEngine(42, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    const plan = TARGET_DOMAIN_STAGES.one;
+    TARGET_DOMAIN_STAGES.one = {
+      stages: 1,
+      excludeFirstFromSecond: false,
+      selection: { domain: "seat", min: 1, max: 2 },
+    };
+    try {
+      armJinnang(e, ["缓兵之计"]);
+      e.resolveJinnang("缓兵之计");
+      const [first, second] = e.players
+        .map((_, seat) => seat)
+        .filter((seat) => seat !== e.activeIndex);
+      for (const invalid of [[], [first, first], [first, e.activeIndex], [first, second, first]]) {
+        e.resolveJinnang("缓兵之计", invalid);
+        expect(e.pendingJinnang?.cardId).toBe("缓兵之计");
+        expect(e.activePlayer.jinnangHand).toEqual(["缓兵之计"]);
+      }
+      e.resolveJinnang("缓兵之计", [first, second]);
+      expect(e.pendingJinnang).toBeNull();
+      expect(e.gameEvents).toContainEqual(
+        expect.objectContaining({ kind: "jinnangAnnounced", targetSeats: [first, second] }),
+      );
+    } finally {
+      TARGET_DOMAIN_STAGES.one = plan;
+    }
+  });
+
   it("缓兵之计入目标段:候选含国号+作罢;选定后 skipTurns+1", () => {
     const e = makeEngine(42);
     finishSetup(e);

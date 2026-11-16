@@ -279,6 +279,7 @@ export class LocalController extends GameController {
 
   // ─── 下行消费(events 先行、整房摘要随后;与联机 OnlineController 同形,#1241)───
   private onMessage(msg: ServerMsg): void {
+    const receivedAtMonotonic = performance.now();
     if (msg.type === "lobby") {
       // 非校准拍的房间字段变化由 lobby 消息下行;同拍刷新托管与交互读口。
       this.applyRoomFields(msg.seats);
@@ -286,13 +287,14 @@ export class LocalController extends GameController {
       return;
     }
     if (msg.type === "snapshot") {
-      const { type: _t, ...snap } = msg;
+      const { type: _t, reactionTiming, ...snap } = msg;
       // 转移前各座位棋子位置(行军锚定基准):hydrate 覆盖引擎态前捕获——反应窗余段
       // 行军按「视觉停点 → 落点」截短播用(与联机快照帧同口径)。
       const prePositions = this._engine.players.map((p) => p.position);
       this.applyRoomFields(msg.seats); // 托管态等房间字段单源下行(不再直查房间会话)
       // 水合无条件覆盖全部字段(校准锚,ADR-0020 决策 3):折叠漂移在此归零。
       this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
+      this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
       this.pending = false;
       // 演出(#385):netStore 暂存的事件批经 SnapshotEffects 直译播放;本帧无批
       //(空批 flush)时游标不推进,自然跳过。
@@ -313,7 +315,10 @@ export class LocalController extends GameController {
       // 不即刻播演出——占位壳未经首帧摘要校准,对壳折叠 = 座位越界/目录查无。单机
       // 首帧摘要随建连同步到达,此门正常恒开;保留同形门 = 消息处理与联机一处形制。
       const hydrated = this.enteredGame;
-      if (hydrated) foldEventBatch(this._engine, msg.events);
+      if (hydrated) {
+        foldEventBatch(this._engine, msg.events);
+        this.observeReactionTiming(msg.reactionTiming, receivedAtMonotonic);
+      }
       // 表现消费(#385):批入 netStore 暂存 → SnapshotEffects 直译播放,与联机同一
       // 消费面;快照帧的 play 由消费游标去重,同批不会播两次。
       stashEventBatch(msg.events);

@@ -263,15 +263,19 @@ describe("事件流(#375):锦囊出牌与反应窗", () => {
     });
     expect(events[1]).toMatchObject({
       kind: "reactionOpened",
-      windowKind: "jinnang",
-      cardId: "横征暴敛",
-      queriedSeats: [otherSeat],
+      view: {
+        kind: "jinnang",
+        cardId: "横征暴敛",
+        queriedBySeat: [otherSeat],
+        targetSeats: [otherSeat],
+      },
     });
     expect(events[2]).toMatchObject({
       kind: "reactionAnswered",
       seat: otherSeat,
       use: true,
       cardId: "识破诡计",
+      spentCards: [{ seat: otherSeat, cardId: "识破诡计" }],
     });
     expect(events[3]).toMatchObject({
       kind: "jinnangAnnounced",

@@ -6,7 +6,7 @@
 // 真实命令与 JSON 下行的决策续行接缝见同目录 local-hydration.test.ts。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig, TurnPhase } from "@core/authority";
+import type { EngineConfig, GameCommand, SeatConfig, TurnPhase } from "@core/authority";
 import { createDice } from "@core/dice";
 import type { MovePath } from "@core/board";
 import { HEROES } from "@core/heroes";
@@ -30,7 +30,7 @@ import { armHero } from "@core/testing";
 import guanzhongData from "../../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { foldEventBatch } from "@app/net/event-fold";
-import { redactEvents } from "../../scripts/seat-projection";
+import { redactEvents, redactSnapshotForSeat } from "../../scripts/seat-projection";
 
 const MAP = loadMap(guanzhongData);
 
@@ -750,7 +750,55 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(e.jinnangDiscard).toEqual(["军情密探"]);
   });
 
-  it("reactionOpened 置窗(view/seq/windowMs 派生)+ AwaitingReaction;应答齐闭窗", () => {
+  it("真实下行跨批保留受击城与反识破争夺城，根计与生效反应各扣一次", () => {
+    const authority = makeEngine();
+    armPhase(authority, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    giveJinnang(authority, 0, ["火烧连营", "识破诡计"]);
+    giveJinnang(authority, 1, ["识破诡计"]);
+    grantProperty(authority, 1, "prop-jinyang", 2);
+    grantProperty(authority, 1, "prop-youzhou", 2);
+    const replica = makeEngine();
+    replica.restoreFromSnapshot(redactSnapshotForSeat(authority.snapshot(), 1));
+
+    function submit(command: GameCommand) {
+      const { cmd } = JSON.parse(cmdMsg(command)) as Extract<InboundMsg, { type: "cmd" }>;
+      authority.submitCommand(cmd);
+      foldEventBatch(replica, JSON.parse(JSON.stringify(redactEvents(authority.gameEvents, 1))));
+    }
+
+    submit({ type: "useJinnang", cardId: "火烧连营" });
+    submit({ type: "useJinnang", cardId: "火烧连营", targets: [1] });
+    expect(replica.snapshot().reaction).toMatchObject({
+      cardId: "火烧连营",
+      targetSeats: [1, 2],
+      queriedBySeat: [1],
+    });
+    submit({ type: "respondReaction", seat: 1, use: true, cardId: "识破诡计", shareSeat: 2 });
+    expect(replica.snapshot().reaction).toMatchObject({
+      cardId: "识破诡计",
+      targetSeats: [2],
+      queriedBySeat: [-1],
+      counter: { rootCardId: "火烧连营", rootUserSeat: 0, protects: true },
+    });
+    const recovered = makeEngine();
+    const projected = redactSnapshotForSeat(authority.snapshot(), 1);
+    recovered.restoreFromSnapshot(JSON.parse(JSON.stringify(projected)));
+    expect(recovered.snapshot().reaction).toEqual(replica.snapshot().reaction);
+    expect(recovered.pendingReaction?.seq).toBe(replica.pendingReaction?.seq);
+    expect(projected.events.find((event) => event.kind === "reactionOpened")?.view).toMatchObject({
+      queriedBySeat: [-1],
+    });
+
+    submit({ type: "respondReaction", seat: 0, use: true, cardId: "识破诡计" });
+    expect(replica.pendingReaction).toBeNull();
+    expect(replica.players.map((p) => p.jinnangHandCount)).toEqual([0, 0]);
+    expect(replica.players.map((p) => p.jinnangHand)).toEqual([[], []]);
+    expect(replica.jinnangDiscard).toEqual(["火烧连营", "识破诡计", "识破诡计"]);
+    expect(replica.jinnangUsedTags).toEqual(["攻"]);
+    expect(authority.players[1].properties.map((holding) => holding.defense)).toEqual([2, 2]);
+  });
+
+  it("开窗消息直接采用权威窗号和时长，收到最终应答后闭窗", () => {
     const e = makeEngine();
     e.players[1].jinnangHand = ["识破诡计"];
     e.players[1].jinnangHandCount = 1;
@@ -758,64 +806,32 @@ describe("折叠投影器 · 锦囊族", () => {
       ev(0, { kind: "jinnangAnnounced", cardId: "缓兵之计", targetSeats: [1] }),
       ev(0, {
         kind: "reactionOpened",
-        windowKind: "jinnang",
-        cardId: "缓兵之计",
-        queriedSeats: [1],
+        seq: 7,
+        view: {
+          kind: "jinnang",
+          cardId: "缓兵之计",
+          userSeat: 0,
+          targetSeats: [1],
+          queriedBySeat: [1],
+          windowMs: 3750,
+        },
       }),
     ]);
 
     expect(e.turnPhase).toBe("AwaitingReaction");
-    expect(e.pendingReaction?.seq).toBe(1); // 留痕退役后窗实例号取首个流水(#412)
+    expect(e.pendingReaction?.seq).toBe(7);
     expect(e.pendingReaction?.view).toEqual({
       kind: "jinnang",
       cardId: "缓兵之计",
       userSeat: 0,
       targetSeats: [1],
       queriedBySeat: [1],
-      windowMs: REACTION_WINDOW_MS.JinnangAnnounced,
+      windowMs: 3750,
     });
     expect(e.pendingReaction?.answers).toEqual([]);
 
-    foldEventBatch(e, [ev(1, { kind: "reactionAnswered", use: true, cardId: "识破诡计" })]);
+    foldEventBatch(e, [ev(1, { kind: "reactionAnswered", use: false, spentCards: [] })]);
     expect(e.pendingReaction).toBeNull(); // 应答齐即闭窗
-  });
-
-  it("jinnangVoided 识破扣账(应答按座位配对,shareSeat 不参与折叠)", () => {
-    const e = makeEngine();
-    e.players[1].jinnangHand = ["识破诡计"];
-    e.players[1].jinnangHandCount = 1;
-    foldEventBatch(e, [
-      ev(0, { kind: "jinnangAnnounced", cardId: "缓兵之计", targetSeats: [1] }),
-      ev(0, {
-        kind: "reactionOpened",
-        windowKind: "jinnang",
-        cardId: "缓兵之计",
-        queriedSeats: [1],
-      }),
-      ev(1, { kind: "reactionAnswered", use: true, cardId: "识破诡计" }),
-      ev(1, { kind: "jinnangVoided", cardId: "缓兵之计" }),
-    ]);
-
-    expect(e.players[1].jinnangHandCount).toBe(0); // 识破牌扣账
-    expect(e.jinnangDiscard).toEqual(["缓兵之计", "识破诡计"]);
-
-    const e2 = makeEngine(); // AOE:shareSeat 明传,按份配对生效应答
-    e2.players[0].jinnangHand = ["横征暴敛"];
-    e2.players[0].jinnangHandCount = 1;
-    e2.players[1].jinnangHand = ["识破诡计"];
-    e2.players[1].jinnangHandCount = 1;
-    foldEventBatch(e2, [
-      ev(0, { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1] }),
-      ev(0, {
-        kind: "reactionOpened",
-        windowKind: "jinnang",
-        cardId: "横征暴敛",
-        queriedSeats: [1],
-      }),
-      ev(1, { kind: "reactionAnswered", use: true, cardId: "识破诡计", shareSeat: 1 }),
-      ev(1, { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 }),
-    ]);
-    expect(e2.jinnangDiscard).toEqual(["横征暴敛", "识破诡计"]);
   });
 
   it("行军窗:闭窗应答点扣拦检牌(胜负两路同折);reactionFailed 无状态转移", () => {
@@ -826,11 +842,22 @@ describe("折叠投影器 · 锦囊族", () => {
     foldEventBatch(e, [
       ev(0, {
         kind: "reactionOpened",
-        windowKind: "march",
-        cardId: "半路杀出",
-        queriedSeats: [1],
+        seq: 1,
+        view: {
+          kind: "march",
+          cardId: "半路杀出",
+          userSeat: 0,
+          ownerSeat: 1,
+          tileIndex: LUOYANG,
+          windowMs: REACTION_WINDOW_MS.MarchPassedCity,
+        },
       }),
-      ev(1, { kind: "reactionAnswered", use: true, cardId: "半路杀出" }),
+      ev(1, {
+        kind: "reactionAnswered",
+        use: true,
+        cardId: "半路杀出",
+        spentCards: [{ seat: 1, cardId: "半路杀出" }],
+      }),
       ev(1, {
         kind: "reactionFailed",
         windowKind: "march",
@@ -870,9 +897,15 @@ describe("折叠投影器 · 锦囊族", () => {
         [
           ev(2, {
             kind: "reactionOpened",
-            windowKind: "jinnang",
-            cardId: "横征暴敛",
-            queriedSeats: [0, 1],
+            seq: 1,
+            view: {
+              kind: "jinnang",
+              cardId: "横征暴敛",
+              userSeat: 2,
+              targetSeats: [0, 1],
+              queriedBySeat: [0, 1],
+              windowMs: REACTION_WINDOW_MS.JinnangAnnounced,
+            },
           }),
         ],
         1,
@@ -886,28 +919,15 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(e.pendingReaction).not.toBeNull();
     expect(e.pendingReaction?.answers).toEqual([{ seat: 0, use: false }]);
     // 自己应答:2 ≥ 2 → 收窗
-    foldEventBatch(e, [ev(1, { kind: "reactionAnswered", use: false })]);
+    foldEventBatch(e, [ev(1, { kind: "reactionAnswered", use: false, spentCards: [] })]);
     expect(e.pendingReaction).toBeNull();
   });
 
-  it("事件序契约违反当场炸:识破无同批窗、应答无窗、行军窗非单座询问", () => {
+  it("应答无窗时报告事件序错误", () => {
     const e = makeEngine();
-    expect(() => foldEventBatch(e, [ev(1, { kind: "jinnangVoided", cardId: "缓兵之计" })])).toThrow(
-      /事件序契约违反/,
-    );
     expect(() => foldEventBatch(e, [ev(1, { kind: "reactionAnswered", use: false })])).toThrow(
       /事件序契约违反/,
     );
-    expect(() =>
-      foldEventBatch(e, [
-        ev(0, {
-          kind: "reactionOpened",
-          windowKind: "march",
-          cardId: "半路杀出",
-          queriedSeats: [],
-        }),
-      ]),
-    ).toThrow(/事件产出契约违反/);
   });
 });
 

@@ -54,6 +54,8 @@ type Screen = "setup" | "solo-setup" | "lobby" | "game";
 interface GameStoreState {
   // ── 引擎数据(快照;null = 尚未开局)──
   snapshot: GameSnapshot | null;
+  /** 当前快照的反应窗在本机单调时钟上的截止时刻。 */
+  reactionDeadlineAt: number | null;
   /** 本地视角座位(单机=当前活跃人类座位;联机=自己分到的 seat;-1 = 未入座)。 */
   viewSeat: number;
   /** 此刻本地玩家能否操作(由控制器判定写入:UI 不自行推导,保持单一来源)。 */
@@ -71,7 +73,7 @@ interface GameStoreState {
 
   // ── actions ──
   /** 控制器在引擎变化后调用,将 engine.snapshot() 整体写入 state。 */
-  syncFromEngine: (engine: GameEngine) => void;
+  syncFromEngine: (engine: GameEngine, reactionDeadlineAt?: number | null) => void;
   setViewSeat: (seat: number) => void;
   setInteractive: (interactive: boolean) => void;
   setSelfPresenting: (selfPresenting: boolean) => void;
@@ -85,6 +87,7 @@ interface GameStoreState {
 
 export const useGameStore = create<GameStoreState>((set) => ({
   snapshot: null,
+  reactionDeadlineAt: null,
   viewSeat: -1,
   interactive: false,
   selfPresenting: false,
@@ -92,10 +95,21 @@ export const useGameStore = create<GameStoreState>((set) => ({
   hint: null,
   hintLevel: "error",
 
-  syncFromEngine: (engine) => {
+  syncFromEngine: (engine, reactionDeadlineAt) => {
     // core 快照直灌。全量替换快照:引擎每次动作都是新的序列化
     // 对象,浅比较引用即触发订阅组件重渲。
-    set({ snapshot: engine.snapshot() });
+    const snapshot = engine.snapshot();
+    set((state) => {
+      if (reactionDeadlineAt !== undefined) return { snapshot, reactionDeadlineAt };
+      const sameWindow =
+        snapshot.turnPhase === "AwaitingReaction" &&
+        state.snapshot?.gameId === snapshot.gameId &&
+        state.snapshot.pendingReaction?.seq === snapshot.pendingReaction?.seq;
+      return {
+        snapshot,
+        reactionDeadlineAt: sameWindow ? state.reactionDeadlineAt : null,
+      };
+    });
   },
   setViewSeat: (seat) => set({ viewSeat: seat }),
   setInteractive: (interactive) => set({ interactive }),
@@ -112,6 +126,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
     gameHintTimer = null;
     set({
       snapshot: null,
+      reactionDeadlineAt: null,
       viewSeat: -1,
       interactive: false,
       selfPresenting: false,

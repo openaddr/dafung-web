@@ -90,9 +90,7 @@ export async function driveBots(
   if (!e) return;
   host.watchdogs.stall.clear(r.roomId); // 新链开跑即撤看门狗:服务器在驱动,无停摆可言(出口重评估)
   host.watchdogs.autoRoll.clear(r.roomId); // #188:同撤自动起摇(链尾按停点重武装)
-  // #284:反应窗计时器不再随链撤——链重开会重置他人倒计时(本票修的 bug)。改由
-  // reactionWait.arm 按 PendingReaction.seq 判据管重武装:同窗跳过(deadline 一次
-  // 算死),换窗才撤旧起新;已收窗的残表项由到点重校验静默退场。
+  host.watchdogs.syncReaction(r, onUpdate); // 链重开沿用当前窗的截止时刻。
   if (driving.has(r)) return; // 已有链在跑:它会把新进展接走
   driving.add(r);
   try {
@@ -106,7 +104,7 @@ export async function driveBots(
       while (e.phase !== "GameOver" && guard++ < 500) {
         // 反应窗(#281,ADR-0017):bot 座位引擎开窗时已即席代答,这里只等人类座位——
         // 托管/接管代驾按 botReactionDecision 策略答案立即代发(与 bot 同款口径,#580;
-        // 在线/离线真人在链尾按座位武装超时定时器,归零代发 respondReaction{use:false})。
+        // 在线/离线真人共用本窗截止时刻，归零代发 respondReaction{use:false})。
         // 决策方天然多属主,decisionOwner/botAct 都不适用,故先于通用路径特判。
         if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
           const pr = e.pendingReaction;
@@ -137,7 +135,7 @@ export async function driveBots(
                 )
               : [];
           if (stillWaiting.length > 0) {
-            reason = "human-turn"; // 等待真人应答:出口为待应答座位武装 per-seat 定时器
+            reason = "human-turn"; // 等待已武装超时定时器的真人应答
             break;
           }
           continue; // 窗已收/无待应答:回循环头按新相位续推
@@ -167,6 +165,7 @@ export async function driveBots(
           turnPhase: e.turnPhase,
           active: e.activeIndex,
         });
+        host.watchdogs.syncReaction(r, onUpdate);
         host.persist(r);
         onUpdate?.(r); // 每步直播
         if (e.isOver) {
@@ -223,20 +222,13 @@ export async function driveBots(
       seatControlled(r, guardOwner)
     )
       host.watchdogs.stallAbort.arm(r, guardOwner, onUpdate);
-    // #118/#188/#281 出口评估:链停在未接管的真人座位——
-    // 反应窗(#281):为每个待应答人类座位武装 per-seat 超时定时器(托管/接管座位
-    // 已在循环头立即代发,不在待应答集);
+    // #118/#188 出口评估:链停在未接管的真人座位，反应窗已在发布时武装。
     // Roll 相位(无决策内容)武装自动起摇(1s 后代发 rollAndMove);
     // 其余决策相位(等待真人抉择)= 该端拖节奏,武装 #118 看门狗超时接管。
     // not-input-phase/game-over/guard 续链:服务器仍在掌控,不武装。
     if (reason === "human-turn" && guardOwner >= 0) {
-      if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
-        const pr = e.pendingReaction;
-        if (pr != null)
-          for (const seat of reactionQueriedSeats(pr.view))
-            if (!pr.answers.some((a) => a.seat === seat) && !seatControlled(r, seat))
-              host.watchdogs.reactionWait.arm(r, seat, onUpdate);
-      } else if (e.phase === "Playing" && e.turnPhase === "Roll")
+      if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") return;
+      if (e.phase === "Playing" && e.turnPhase === "Roll")
         host.watchdogs.autoRoll.arm(r, guardOwner, onUpdate);
       else if (host.decisionTimeoutMs > 0) host.watchdogs.stall.arm(r, guardOwner, onUpdate);
     }

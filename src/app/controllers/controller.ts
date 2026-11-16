@@ -14,6 +14,7 @@ import { useGameStore } from "@app/store/gameStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { isMarching } from "@app/fx/useMarch";
+import type { ReactionTiming } from "../../../scripts/wire";
 import { reactionQueriesSeat } from "./reaction";
 
 /**
@@ -196,13 +197,39 @@ export abstract class GameController {
     this.prevMyRollWait = myRollWait;
   }
 
+  private reactionDeadline: { gameId: string; seq: number; deadlineAt: number } | null = null;
+
+  /** 到达时投影为本机单调时刻。后续同窗消息只会收紧时限。 */
+  protected observeReactionTiming(timing: ReactionTiming | undefined, receivedAt: number): void {
+    if (timing == null || timing.seq !== this.engine.pendingReaction?.seq) return;
+    const { gameId } = this.engine;
+    const current = this.reactionDeadline;
+    const deadlineAt = receivedAt + timing.remainingMs;
+    this.reactionDeadline = {
+      gameId,
+      seq: timing.seq,
+      deadlineAt:
+        current?.gameId === gameId && current.seq === timing.seq
+          ? Math.min(current.deadlineAt, deadlineAt)
+          : deadlineAt,
+    };
+  }
+
   // ─── 状态桥 ───
   /** 引擎变化后的统一出口:快照灌 store(旧 fullRender 的新等价物)。
    *  同时刷新 interactive 与 selfPresenting(#611「行军中…」提示源,与按钮同源
    *  canAct 的自我侧输入)两个派生量,保证 UI 一次重渲拿到一致的状态。 */
   protected sync(): void {
     const store = useGameStore.getState();
-    store.syncFromEngine(this.engine);
+    const e = this.engine;
+    const deadline = this.reactionDeadline;
+    if (
+      e.turnPhase !== "AwaitingReaction" ||
+      deadline?.gameId !== e.gameId ||
+      deadline.seq !== e.pendingReaction?.seq
+    )
+      this.reactionDeadline = null;
+    store.syncFromEngine(e, this.reactionDeadline?.deadlineAt ?? null);
     // viewSeat 一并刷:单机热座跟随活跃座位,联机恒为本座——均在控制器侧收口,UI 不自行推导。
     store.setViewSeat(this.viewSeat);
     store.setInteractive(this.interactive);

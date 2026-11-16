@@ -73,7 +73,8 @@ interface SeatTargetSlot {
   available: boolean;
   selected?: boolean;
   reason?: string;
-  onPick: () => void;
+  locked?: boolean;
+  onPick: (seat: number) => void;
 }
 
 /** 手牌计数封顶(#743 判词 A/#751 C 批):行 2 内宽预算容不下两位数——≥10 显示
@@ -85,7 +86,7 @@ const handCountText = (count: number): string =>
 
 /** SeatCell 值等(#1140 渲染税,Tile #1023 链 A 同族):p 引用由 SeatRail 的
  *  useStablePlayers 保证「内容不变即引用不变」;target 槽对象每渲染重建,按字段比
- *  ——onPick 不入比较:语义=选中态 setState 切换(行为恒定),身份抖动无意义。 */
+ *  目标段换步或在途锁变化时，同步更新点击处理。 */
 function seatCellEqual(
   a: {
     p: SnapshotPlayer;
@@ -115,7 +116,9 @@ function seatCellEqual(
     a.hosted === b.hosted &&
     a.target?.available === b.target?.available &&
     a.target?.selected === b.target?.selected &&
-    a.target?.reason === b.target?.reason
+    a.target?.reason === b.target?.reason &&
+    a.target?.locked === b.target?.locked &&
+    a.target?.onPick === b.target?.onPick
   );
 }
 
@@ -294,6 +297,7 @@ const SeatCell = memo(function SeatCell({
           type="button"
           data-testid={TESTIDS.seatTarget(seat)}
           className={"seat-target" + (target.selected ? " picked" : "")}
+          disabled={target.locked}
           aria-disabled={!target.available || undefined}
           aria-pressed={target.available ? Boolean(target.selected) : undefined}
           aria-label={
@@ -306,7 +310,7 @@ const SeatCell = memo(function SeatCell({
               setShake(true);
               return;
             }
-            target.onPick();
+            target.onPick(seat);
           }}
         />
       )}
@@ -328,6 +332,7 @@ interface SeatRailProps {
   selfSeat: number;
   targets?: {
     bySeat: Map<number, { available: boolean; selected?: boolean; reason?: string }>;
+    locked?: boolean;
     onPick: (seat: number) => void;
   };
 }
@@ -353,7 +358,8 @@ export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
       available: t.available,
       selected: t.selected,
       reason: t.reason,
-      onPick: () => targets.onPick(seat),
+      locked: targets.locked,
+      onPick: targets.onPick,
     };
   };
 

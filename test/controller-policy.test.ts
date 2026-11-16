@@ -119,7 +119,14 @@ function jinnangView(queriedBySeat: number[]): ReactionView {
 }
 
 function marchView(ownerSeat: number): ReactionView {
-  return { kind: "march", cardId: "card-fake", userSeat: 1, ownerSeat, windowMs: 8000 };
+  return {
+    kind: "march",
+    cardId: "card-fake",
+    userSeat: 1,
+    ownerSeat,
+    tileIndex: 4,
+    windowMs: 8000,
+  };
 }
 
 describe("控制器交互策略公式(#433 canAct 单源)", () => {

@@ -134,7 +134,7 @@
   transform: scale(1.02);
 }
 /* 触达命中垫(#840 ③,审计 P1-C4:触达欠账两处之一,视觉 ~30px 掉队):视觉不动,
-   上下外扩 10px → 触高 ~50px 过主行动 ≥44 口径(#751;::after 垫先例 .tbtn/.actionbar-btn);
+   上下外扩 10px → 触高 ~50px 过主行动 ≥44 口径(#751;::after 垫先例 .tbtn);
    横向不垫——抽屉内横宽本就富余,垫了反吞左右空白条带的点击。 */
 .war-earlier::after {
   content: "";
@@ -596,19 +596,13 @@
   pointer-events: none;
   flex: 0 1 auto;
 }
-/* 反应窗横幅在场时回全宽(#840 ④ 例外档):横幅 left/right:0 + max-width:100%
-   锚架体盒(reaction-banner.css,#860 已合文件本票禁碰)——hug 窄架会把长文案
-   横幅挤到折行;窗开瞬间横幅本身是焦点,签面归组让位。 */
-.game-layout .handzone .hand-rack:has(> .reaction-banner) {
-  flex: 1 1 auto;
-}
-/* 「你可」触发卡在场同回全宽(#1378,反应窗 #840 ④ 同例外档):触发卡横幅
+/* 「你可」触发卡在场时使用全宽(#1378):触发卡横幅
    left/right:0 + max-width:100% 锚架体盒(skill-choice-banner.css)——hug 窄架
    会把发动询问长文案挤成竖排字气球。 */
 .game-layout .handzone .hand-rack:has(> .skill-banner) {
   flex: 1 1 auto;
 }
-.game-layout .handzone .hand-rack :is(button, .reaction-banner, .skill-banner *) {
+.game-layout .handzone .hand-rack :is(button, .skill-banner *) {
   pointer-events: auto;
 }
 /* 签面(原仪表条「签」徽章平移,testid dice-face 不变;原型 .diceseal 制式):
@@ -855,124 +849,6 @@
 /* 音效开关(#745 高4):手写 .setsw 皮退役,单源回 ui/switch 底件(桥接
    --primary=漆金,shadcn 收口红线闭合);尺寸档走底件缺省。 */
 
-/* ── 动作条(#256 出牌阶段态):斗地主式两段动作条,浮于手牌区上缘(底 176px=
-   桌面牌高 160px + 区底距 8px + 8px 气口)——选中放大牌占中时整条右让
-   (.right-shift,手牌区居中后取原型 240px 档,#700 重标定)。
-   按钮=原型 .btn 制式;字体按 DESIGN §4.3 新文案红线落 brush/wenkai。
-   右让量收变量 --actionbar-shift(#496):断点重定义见文件尾形态分档块。 ── */
-.game-layout .actionbar {
-  --actionbar-shift: 240px;
-  position: absolute;
-  left: 50%;
-  bottom: calc(176px + var(--safe-bottom));
-  transform: translateX(-50%);
-  z-index: 7;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.game-layout .actionbar.right-shift {
-  margin-left: var(--actionbar-shift);
-}
-/* 按钮(#528 深底可辨性修复):玄墨换装后漆底(#332a1e)与棋盘玄墨底(#1f1a13)
-   明度几乎同档(1.23:1)且 border:0 只靠 1px 内环,深底上轮廓被吃掉=走查员找不到
-   (dogfood #526 ISSUE-001,黑盒实测对比度达标但「实际不可辨」)。三招:
-   ① 亮金 hairline 外描边勾轮廓(--color-gold 系 color-mix,横幅 reaction-banner
-   漆金描边同语感);② 墨底提亮一档(lacquer 平底 → panel-hi/panel 渐变)与棋盘
-   深底拉开;③ 字阶 15→17px(对齐 reaction-text)。
-   本条无入场动画、无半透明叠加态(走查报告猜疑项,查证不存在)——可见性全靠
-   常驻态自身。字/描边实测:金字对 panel-hi 6.5:1、hairline@0.6 对棋盘底 4.1:1。 */
-.game-layout .actionbar .actionbar-btn {
-  font-family: var(--font-brush);
-  font-size: 17px;
-  letter-spacing: 0.25em;
-  text-indent: 0.25em;
-  padding: 8px 22px;
-  border-radius: 4px;
-  border: 1px solid color-mix(in srgb, var(--color-gold) 60%, transparent);
-  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
-  cursor: pointer;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
-  /* 悬停微反馈统一(#490 微档):亮金内环 + 印影 + 微缩放 */
-  transition:
-    transform var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out);
-}
-/* 墨钮(DESIGN §4.2 推进对局的主行动):漆底金字;启用态金内环=原型 .armed,
-   描边升全金+弱光晕与次级拉开强度(dogfood 建议:两钮视觉强度拉开) */
-.game-layout .actionbar .actionbar-btn.mo {
-  color: var(--color-lacquer-gold);
-  box-shadow:
-    inset 0 0 0 1px rgba(217, 185, 92, 0.6),
-    0 3px 10px rgba(0, 0, 0, 0.55);
-}
-.game-layout .actionbar .actionbar-btn.mo:disabled,
-.game-layout .actionbar .actionbar-btn.mo[aria-disabled="true"] {
-  /* #528 0.45→0.6:入场未选牌时「出牌」恒禁用,原值深底上整钮近隐形
-     (「出钮尤甚」主因);0.6 下 hairline 仍可辨(2.3:1)、字对混底 3.6:1
-     (禁用字无 WCAG 门槛),禁用感不丢。
-     aria-disabled 档(#751 B1):卡牌段弃原生 disabled(吞点击=禁用点按零反馈),
-     改 aria-disabled+自门控(#715 灰置牌同款),视觉禁用态与原生档同形。 */
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-/* 墨钮启用态金内环(#751 B1 起排除 aria-disabled 档:卡牌段禁用走 aria-disabled,
-   不得吃启用金环/光晕,与禁用态视觉拉开)。 */
-.game-layout .actionbar .actionbar-btn.mo:not(:disabled):not([aria-disabled="true"]) {
-  border-color: var(--color-gold);
-  box-shadow:
-    inset 0 0 0 1.5px var(--color-gold),
-    0 0 10px rgba(200, 161, 58, 0.35),
-    0 3px 10px rgba(0, 0, 0, 0.55);
-}
-.game-layout .actionbar .actionbar-btn.mo:not(:disabled):not([aria-disabled="true"]):hover {
-  transform: scale(1.02);
-  border-color: var(--color-gold-bright);
-  box-shadow:
-    inset 0 0 0 2px var(--color-gold-bright),
-    0 0 12px rgba(200, 161, 58, 0.45),
-    0 3px 12px rgba(0, 0, 0, 0.6);
-}
-/* 次级漆钮(不出/作罢):原型 .qian 同族;同底渐变靠 hairline 弱档与墨钮拉开 */
-.game-layout .actionbar .actionbar-btn.qian {
-  color: var(--color-lacquer-gold);
-  box-shadow:
-    inset 0 0 0 1px rgba(217, 185, 92, 0.5),
-    0 3px 10px rgba(0, 0, 0, 0.55);
-}
-.game-layout .actionbar .actionbar-btn.qian:hover {
-  transform: scale(1.02);
-  border-color: var(--color-gold-bright);
-  box-shadow:
-    inset 0 0 0 1.5px var(--color-gold),
-    0 3px 10px rgba(0, 0, 0, 0.6);
-}
-.game-layout .actionbar .actionbar-btn:focus-visible {
-  outline: 2px dashed var(--color-gold);
-  outline-offset: 3px;
-}
-/* 未选牌点按「出牌」轻晃一拍(#751 B1):自门控回执的钮层反馈——横向微晃一次,
-   「点到了但它没答应」可感;一次性动画(.bump 类挂摘归组件 onAnimationEnd)。 */
-.game-layout .actionbar .actionbar-btn.mo.bump {
-  animation: actionbar-bump 0.4s var(--ease-out);
-}
-@keyframes actionbar-bump {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  25% {
-    transform: translateX(-3px);
-  }
-  50% {
-    transform: translateX(3px);
-  }
-  75% {
-    transform: translateX(-2px);
-  }
-}
-
 /* ── 目标段候选席位(#256):金圈呼吸(原型 .selglow 移植;DESIGN §4.6 候选=金圈
    呼吸,禁文字章),点击层 .seat-target 真按钮覆盖格面(键盘可达,不自写交互语义);
    非候选(免战庇护/无效目标)格不动,原因在点击层 title 浮签。
@@ -1014,7 +890,8 @@
 }
 .game-layout .seat-target {
   position: absolute;
-  inset: 0;
+  /* 38px 席位的边框内高为 36px，上下各扩 2px 吃满两格间距。 */
+  inset: -2px 0;
   z-index: 3;
   border: 0;
   border-radius: 5px;
@@ -1068,63 +945,18 @@
 /* ══ 对局屏形态分档(#703 收口;#680 拍板:同构模板一套,无桌面专属布局)══
    同构模板以移动横屏为基准档,按视口分两档(ADR-0018 修订 + ADR-0032):
    A 矮横屏档(orientation: landscape + max-height: 500px,Android 844×390 一类):
-     全浮层紧凑档,允许重排——动作条锚点随牌高(160→128px)收紧、右让收档;
+     全浮层紧凑档,允许重排。
      手牌架 em 基降档(8→6.4px)是 hand-rack.css 既有断点的事;
    B 桌面档(其余一切横屏):布局零重排,密度/字号随视口舒展——手牌卡与三圆钮
-     适度放大(两处几何同拍耦合,见桌面档块注),棋盘取景右让 104px 居中净空;
+     适度放大,棋盘取景右让 104px 居中净空;
    C 竖屏不做布局,只出「请横屏」提示层(portrait + max-width: 700px + pointer: coarse)。 */
 
-/* ── A 矮横屏(Android 矮横屏 844×390 一类)──
-   #700 全浮层骨架后本档只剩动作条锚点与右让差量:顶部浮层(32px 钮/12px chip)/
-   三圆钮(44px)尺寸以原型 844×390 判决为准,与基准档同形零分支。
-   #709 动作条压高:字阶 17→15px、行高钉 1.2、padding 8→5px——条高 43.5→~30px,
-   上缘随之下落 ~13px 还给棋盘(缓解底行浮压);锚点 144px 不动(128 牌高 + 8 区底距
-   + 8 气口的既有口径,条不得压进牌面决策区)。 */
-/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
-@media (orientation: landscape) and (max-height: 500px) {
-  .game-layout .actionbar {
-    bottom: calc(144px + var(--safe-bottom));
-    /* 右让量矮横屏收档(#496/#700 重标定):矮横屏牌面 96px 宽(6.4px 基),
-       放大 1.6× 半幅 ≈77px,动作条半幅 ≈90px,手牌区中线左偏视口中线 52px
-       (席位条 104px 让位之半)——200px 右让后条右缘 ≈712<740(席位条左缘)完整可见。 */
-    --actionbar-shift: 200px;
-  }
-  .game-layout .actionbar .actionbar-btn {
-    /* 钉横排:abspos 收缩适配的可用宽(<首选宽)会把钮字挤成竖排,保「出牌/不出」
-       二字横排不折。 */
-    white-space: nowrap;
-    font-size: 15px;
-    line-height: 1.2;
-    padding: 5px 16px;
-    position: relative; /* ::after 命中垫定位上下文(#840 ②) */
-  }
-  /* 触达命中垫(#840 ②,审计 P1-C4:触达欠账两处之一):本档钮视觉高
-     15×1.2+2×5+2 边 ≈30px,::after inset:-7px 上下左右各垫 7px → 触达 44px
-     过主行动 ≥44 口径(#751/#742;::after 垫先例 .tbtn inset:-6)。仅矮横屏档——
-     桌面档存量钮 36px 级且非触屏主面,存量桌面档控件不回改(DESIGN 触达口径);
-     两钮 gap 14px,垫各 7px 恰好相接不互叠。 */
-  .game-layout .actionbar .actionbar-btn::after {
-    content: "";
-    position: absolute;
-    inset: -7px;
-  }
-}
-
 /* ── B 桌面档(其余一切横屏,#703 校准):密度舒展,布局零重排──
-   手牌卡 em 基 8→9.6px(牌面 120×160→144×192,名将卡基 --hface-base 同拍随动);
-   三圆钮 44→52px。两处几何随拍耦合,断档即错位:
-   ① 动作条锚点 = 桌面牌高 192 + 区底距 8 + 气口 8 = 208px(基准档 176px、
-     矮横屏档 144px 各随各的牌高);
-   ② 席位列区下界 = 钮区预算(52 钮高 + 10 底距 = 62px,替代基准档 44+10=54)。
-   席位格 96×38 制式不动(格高 clamp 上限 38 桌面恒触顶,列不满即止),棋盘取景
-   右让 104px 不变(取景居中净空由 board-area 让位天然成立)。 */
+   手牌卡 em 基 8→9.6px，三圆钮 44→52px，席位列区下界随钮区增至 62px。 */
 @media (orientation: landscape) and (min-height: 501px) {
   .game-layout .handzone .hand-rack {
     font-size: 9.6px;
     --hface-base: 9.6px; /* 名将卡面卡基随槽位 em 基(#360,hand-rack.css 同款) */
-  }
-  .game-layout .actionbar {
-    bottom: calc(208px + var(--safe-bottom));
   }
   .game-layout .gbtn {
     width: 52px;

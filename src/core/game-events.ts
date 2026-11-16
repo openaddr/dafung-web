@@ -4,8 +4,7 @@
 // 批,快照非破坏性透出(同一转移的多次快照看到同一批,批语义幂等),新转移开批即弃
 // 旧批:数组按转移产出,非全史。恢复随批走(写入侧回灌)。
 // 本模块只管「词汇 + 产出」:折叠/动效等消费归后续工单。纯数据、序列化友好
-// (架构红线 1/5):事件无函数、无循环引用、无 DOM 引用;全桌公开信息,redact 不裁
-// (ADR-0016 投影 spread 透传)。
+// (架构红线 1/5):事件无函数、无循环引用、无 DOM 引用；联机按 ADR-0016 投影询问身份等私有载荷。
 //
 // 产出两口:
 //  1. 时机映射(MOMENT_EVENT_FACTORIES):时机总线 dispatchMoment 是引擎的「转移宣告
@@ -21,6 +20,7 @@ import type { GameEngine, GameCommand, VictoryReason } from "./authority";
 import type { LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
 import type { EncounterTier } from "./encounters";
+import type { ReactionCardSpend, ReactionView } from "./reaction-window";
 import type { MovePath } from "./board";
 import { findHolding } from "./player";
 import { heroSlotOf } from "./roster";
@@ -351,18 +351,19 @@ export interface JinnangAnnouncedBody {
   cardId: string;
   targetSeats: number[];
 }
-/** 反应窗开启(识破窗/拦检窗;queriedSeats=被询问座位集,god-view 明传,ADR-0020)。 */
+/** 权威窗号、时长和影响范围随开窗公告一起下行；询问身份按席位投影。 */
 export interface ReactionOpenedBody {
   kind: "reactionOpened";
-  windowKind: "jinnang" | "march";
-  cardId: string;
-  queriedSeats: number[];
+  seq: number;
+  view: ReactionView;
 }
 /** 反应窗应答(use=false=「不用」;cardId=打出的反应牌,仅 use 时携带)。 */
 export interface ReactionAnsweredBody {
   kind: "reactionAnswered";
   use: boolean;
   cardId?: string;
+  /** 最终应答随附实际离手的反应锦囊，按权威扣账顺序；此窗无人消耗时为空数组。 */
+  spentCards?: ReactionCardSpend[];
 }
 /** 拦检失败(#385 缺口 5):拼点平/负,【半路杀出】白耗,行人照常续走——seat=城主
  *  (出牌方),aRoll/bRoll=拼点点数(全桌公开,签面演出与战报同源),tileIndex=拦检城(浮字锚格)。 */
