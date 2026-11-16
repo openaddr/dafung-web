@@ -20,7 +20,7 @@ import { OnlineController } from "@app/controllers/online";
 import type { Board } from "@core/board";
 import type { GameCommand } from "@core/authority";
 import { isSkillOption } from "@core/choices";
-import { jinnangCardOf } from "@core/jinnang";
+import { jinnangCardOf, TARGET_DOMAIN_STAGES } from "@core/jinnang";
 import { skillById } from "@core/skills";
 import { getAudio } from "@app/fx/audio";
 import { scaleReactionMs } from "@app/fx/timings";
@@ -560,6 +560,16 @@ function GameScreenLive({
     ) : null;
 
   const prototypePlay = targetDemo != null && junshiUp;
+  const prototypeCard =
+    prototypePlay && junshiSelected != null && !isSkillOption(junshiSelected)
+      ? jinnangCardOf(junshiSelected.id)
+      : null;
+  const prototypeDirectPlay =
+    prototypeCard != null && TARGET_DOMAIN_STAGES[prototypeCard.targetDomain].stages === 0;
+  const levyPreview =
+    prototypeCard?.effect.kind === "levyAll"
+      ? `对其余 ${snapshot.players.filter((p, seat) => seat !== selfSeat && !p.isBankrupt).length} 位诸侯　每位至多征收 ${prototypeCard.effect.amount} 两`
+      : null;
   const prototypePlayTitle = junshiPendingCard?.cardId ?? junshiSelected?.label ?? "出牌阶段";
   const currentPrototypeTarget =
     junshiTargetTile != null
@@ -587,7 +597,7 @@ function GameScreenLive({
         .join("　")
     : junshiSelected == null
       ? "在下方手牌区选择锦囊"
-      : "确认这张锦囊";
+      : (levyPreview ?? "确认这张锦囊");
 
   // ── 「你可」选择闸窗态:快照 pendingSkillChoices 首问驱动 ──
   // 相位单属主(decisionOwner=挂问属主,引擎 getter;interactive 经 canAct 主分支
@@ -960,7 +970,7 @@ function GameScreenLive({
                 >
                   {junshiPendingCard?.stage === "two-a"
                     ? "下一步"
-                    : junshiTargeting
+                    : junshiTargeting || prototypeDirectPlay
                       ? "出牌"
                       : "继续"}
                 </button>

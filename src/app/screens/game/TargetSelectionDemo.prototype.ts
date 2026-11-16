@@ -3,7 +3,17 @@ import { LocalController } from "@app/controllers/local";
 import { applyPlant } from "@core/planter";
 import type { RoomRegistry } from "../../../../scripts/room";
 
+const scenes = {
+  duel: { card: "连环计", reacting: false },
+  fire: { card: "火烧连营", reacting: false },
+  counter: { card: "火烧连营", reacting: true },
+  levy: { card: "横征暴敛", reacting: false },
+  "levy-counter": { card: "横征暴敛", reacting: true },
+} as const;
+
 export async function startTargetSelectionDemo(scene: string) {
+  if (!Object.hasOwn(scenes, scene)) throw new Error(`未知的样张场景 ${scene}`);
+  const { card, reacting } = scenes[scene as keyof typeof scenes];
   const debug = window.__dafung;
   if (!debug) throw new Error("样张的调试桥未接入");
   await debug.seedSolo({ seed: 49, seats: 8, mapId: "guanzhong" });
@@ -20,8 +30,6 @@ export async function startTargetSelectionDemo(scene: string) {
   const engine = registry.get(roomId)?.engine;
   if (!engine) throw new Error("样张缺少权威引擎");
 
-  const reacting = scene === "counter";
-  const card = scene === "duel" ? "连环计" : "火烧连营";
   for (let seat = 0; seat < engine.players.length; seat++) {
     const cards =
       seat === 0 ? [reacting ? "识破诡计" : card] : seat === 1 && reacting ? [card] : [];
@@ -56,6 +64,11 @@ export async function startTargetSelectionDemo(scene: string) {
       engine.submitCommand({ type: "useJinnang", cardId: card });
       engine.submitCommand({ type: "useJinnang", cardId: card, targets: [run[0].index] });
     }
+  }
+  if (reacting && card === "横征暴敛") {
+    // 结算后停在出牌者的待掷点，能直接核对这一次的缴付。
+    applyPlant(engine, { kind: "setBot", seat: 1, bot: false });
+    engine.submitCommand({ type: "useJinnang", cardId: card });
   }
   registry.flushTransportNow(roomId);
 }
