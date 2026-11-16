@@ -16,11 +16,15 @@ import { TESTIDS } from "./testids";
 import { WaitingBar, type WaitingBarProps } from "./WaitingBar";
 import "./notice-banner.css";
 
-export function NoticeBanner(props: WaitingBarProps) {
+export function NoticeBanner({ occupied, ...props }: WaitingBarProps & { occupied: boolean }) {
   const notice = useFxStore((s) => s.notice);
   const capsule = useFxStore((s) => s.turnCapsule);
   return (
-    <div className="notice-slot" data-testid={TESTIDS.noticeBanner}>
+    <div
+      className="notice-slot"
+      data-occupied={occupied || undefined}
+      data-testid={TESTIDS.noticeBanner}
+    >
       {capsule != null && (
         // 常驻回合胶囊(回合宣告唯一形制,#958):key=id 保证每次回合宣告都重挂重播
         // 入场过渡;--pc-seal 印字亮档单源 core/theme playerSealText(同 SeatRail 注入式)。

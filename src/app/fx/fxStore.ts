@@ -170,22 +170,27 @@ export interface OwnFlashFx {
 }
 
 let nextId = 1;
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+const clearNoticeTimer = () => {
+  clearTimeout(noticeTimer);
+  noticeTimer = undefined;
+};
 
 /** 知会槽泵(#732):槽空且队列非空即取队首开播,时长到自清再泵下一条——
  *  同槽互斥(同一时刻 notice 至多一条)+ 先进先出排队,全在这里结构性成立。
- *  时长与槽内 CSS 动画全长硬同步(halt=FX.haltBannerMs,见 timings.ts),id 守卫防
- *  resetFx 后迟到回调复活旧知会。 */
+ *  动作条占槽时暂停取队列。计时器归属按本次播放判定，抢占后同一条知会可重新入场。 */
 const pumpNotice = () => {
   const s = useFxStore.getState();
-  if (s.notice != null || s.noticeQueue.length === 0) return;
-  const next = s.noticeQueue[0];
-  useFxStore.setState({ notice: next, noticeQueue: s.noticeQueue.slice(1) });
-  const ms = FX.haltBannerMs;
-  setTimeout(() => {
-    const cur = useFxStore.getState();
-    if (cur.notice?.id === next.id) useFxStore.setState({ notice: null });
+  if (s.noticeSlotOccupied || s.notice != null || s.noticeQueue.length === 0) return;
+  const [next, ...queue] = s.noticeQueue;
+  const timer = setTimeout(() => {
+    if (noticeTimer !== timer) return;
+    noticeTimer = undefined;
+    useFxStore.setState({ notice: null });
     pumpNotice();
-  }, ms);
+  }, FX.haltBannerMs);
+  noticeTimer = timer;
+  useFxStore.setState({ notice: next, noticeQueue: queue });
 };
 
 interface FxState {
@@ -195,6 +200,8 @@ interface FxState {
   notice: NoticeFx | null;
   /** 知会排队(#732):同槽互斥——展示中的知会播完(时长到)才从队首取下一条。 */
   noticeQueue: NoticeFx[];
+  noticeSlotOccupied: boolean;
+  setNoticeSlotOccupied(occupied: boolean): void;
   /** 常驻回合胶囊(#762 立,#958 起为回合宣告唯一形制):当前回合方(国号印+名号+
    *  轮次),每次回合宣告刷新重挂——「谁在打」的永在答案,等待条附加信息与它同槽融合。 */
   turnCapsule: TurnCapsuleFx | null;
@@ -283,6 +290,7 @@ export const useFxStore = create<FxState>()(
     seals: [],
     notice: null,
     noticeQueue: [],
+    noticeSlotOccupied: false,
     turnCapsule: null,
     jinnangLines: [],
     peek: null,
@@ -336,6 +344,22 @@ export const useFxStore = create<FxState>()(
       const id = nextId++;
       set((s) => ({ seals: [...s.seals, { id, x, y, char, tone }] }));
       setTimeout(() => set((s) => ({ seals: s.seals.filter((f) => f.id !== id) })), FX.sealMs);
+    },
+
+    setNoticeSlotOccupied(occupied) {
+      const current = useFxStore.getState();
+      if (current.noticeSlotOccupied === occupied) return;
+      if (occupied && current.notice != null) {
+        clearNoticeTimer();
+        set({
+          noticeSlotOccupied: true,
+          notice: null,
+          noticeQueue: [current.notice, ...current.noticeQueue],
+        });
+      } else {
+        set({ noticeSlotOccupied: occupied });
+      }
+      if (!occupied) pumpNotice();
     },
 
     showHaltBanner(guohao, color, cityName) {
@@ -453,6 +477,7 @@ export const useFxStore = create<FxState>()(
     },
 
     resetFx() {
+      clearNoticeTimer();
       set({
         floaters: [],
         seals: [],

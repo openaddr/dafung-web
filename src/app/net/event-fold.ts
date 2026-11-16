@@ -43,10 +43,9 @@
 //                 ADR-0016);jinnangReshuffled → 牌库数+count/弃堆清零(洗后牌序不折);
 //                 jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额);
 //                 peekApplied → 零折(窥探即时一次性 #575,无任何客户端状态);
-//                 jinnangVoided → 识破牌扣账
 //                 (反应锦囊 id 出自同批应答,按座位配对;shareSeat 不参与折叠);
 //                 reactionOpened → pendingReaction
-//                 置窗(view/seq 派生,windowMs 单源常量表);reactionAnswered → 应答入账
+//                 置窗(权威公告);reactionAnswered → 应答、收窗与实际费用入账
 //                 + 应答齐闭窗;行军窗闭窗即拦检牌扣账(引擎胜负两路均在结算点扣账,与
 //                 应答同批);reactionFailed → 无状态转移(声明性);
 //                 duelResolved → 无状态转移(声明性 #636/ADR-0030:拼点结算宣告,胜负
@@ -72,7 +71,7 @@
 // ── 校准兜底项(#384 判定表对账:折叠器不碰,由快照水合纠正,ADR-0020 决策 3)──
 //   ①城池降级精确等级:火烧连营随机降级与火攻城损等级/防御值不在任何事件(结算无专属事件,#1388)
 //   ②窃玉偷香珍宝转移:treasureStolen 只宣告不转移(双方珍宝列表校准)
-//   ③出牌阶段目标段子状态:pendingJinnang/pendingSkill 无专属事件
+//   ③出牌阶段目标段草稿无专属事件，随摘要水合；公开宣布时清除 pendingJinnang。
 //   ⑤Setup 期字段:draftOrder/draftRolls/currentDraftIndex/offeredCapitals/usedGuohao/
 //     setupPhase,开局校准点覆盖
 //   对账机器(#431):本校准清单的发射侧触发登记单源 scripts/seat-projection——
@@ -95,19 +94,14 @@
 // ── 零兜底 ──
 //   折叠族事件产出恒带具体座位(见 game-events.ts 各产出点,行动者=座位主),seat=null
 //   = 产出契约违反,当场炸出不静默跳过;事件引用的静态数据(名将/锦囊/机遇/地产目录)
-//   查无 = 数据 bug,当场炸出;事件序违反(识破无同批窗、应答无窗)当场炸出;delta/数量
+//   查无 = 数据 bug,当场炸出;事件序违反(应答无窗)当场炸出;delta/数量
 //   等字段缺失由类型系统在编译期兜住(线上形状以 core GameEvent 为准)。
 import type { GameEngine } from "@core/authority";
 import type { Player, PropertyHolding } from "@core/model";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import { fullDefenseOf, resetToFull } from "@core/defense";
 import type { PropertyDef } from "@core/economy";
-import type {
-  PendingReaction,
-  ReactionAnswer,
-  ReactionPayload,
-  ReactionView,
-} from "@core/reaction-window";
+import type { ReactionPayload, ReactionView } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/skills";
 import { jinnangCardOf } from "@core/jinnang";
 import { grantEncounterFlags, isOncePerGameEncounter, markOnceEncounter } from "@core/encounters";
@@ -118,14 +112,12 @@ import {
   SKILL_BOOK_ID_PREFIX,
   type TreasureDef,
 } from "@core/treasures";
-import { REACTION_WINDOW_MS } from "@core/constants";
 import {
   activeSkillDefOf,
   encounterDefOfId,
   eventSeat,
   eventSeatPlayer,
   heroDefOf,
-  type AnnounceCursor,
   type FoldHandledKind,
 } from "@core/event-tiers";
 import { heroSlotOf } from "@core/roster";
@@ -192,15 +184,6 @@ interface FoldCtx {
   /** 开局批旗标:gameStarted 与开局首个 turnStarted 同批(finishSetup),此时 turnNumber
    *  取事件首部本值(引擎开局即置 1,非「派发后 +1」路径)。 */
   sawGameStart: boolean;
-  /** 批内锦囊宣布锚点(后写覆盖):reactionOpened 的 targetSeats 同源回溯(宣布与开窗
-   *  同一结算)。游标形状单源 core/event-tiers(AnnounceCursor,与 fx 提取器跨批游标
-   *  同型,各自实例化)。 */
-  lastAnnounce: AnnounceCursor | null;
-  /** 批内刚闭窗的反应窗(应答齐即结算):jinnangVoided 的识破牌 id 出自应答
-   *  (jinnangVoided.cardId=被拆的宣布牌,非识破者打出的反应锦囊)。 */
-  closedWindow: { view: ReactionView; answers: ReactionAnswer[] } | null;
-  /** 闭窗内已消费的应答(AOE 多张识破逐份对账用,对象身份去重)。 */
-  consumedAnswers: Set<ReactionAnswer>;
 }
 
 /** 事件批折叠(#387 全覆盖):按批内顺序逐条投影进引擎副本(顺序即服务端结算序,后写
@@ -210,9 +193,6 @@ interface FoldCtx {
 export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[]): void {
   const ctx: FoldCtx = {
     sawGameStart: false,
-    lastAnnounce: null,
-    closedWindow: null,
-    consumedAnswers: new Set<ReactionAnswer>(),
   };
   for (const ev of events) {
     // 事件首部摸照(判定表「turnNumber/round 事件覆盖」):round 逐事件对齐(单调,后写
@@ -537,95 +517,33 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       }
       case "jinnangAnnounced": {
         const user = foldTarget(engine, ev);
-        const userSeat = seatNo(engine, user);
         const card = jinnangCardOf(ev.cardId);
-        consumeCard(engine, user, ev.cardId); // 出牌即扣账:离手+手牌数-1+弃堆
-        engine.jinnangUsedTags.push(...card.tags); // 标签名额占用(生产点先扣账后宣告,批序等效)
-        // 窥探(#575)零折:军情密探即时一次性,peekApplied 声明性事件,窥探无任何客户端状态
-        ctx.lastAnnounce = { cardId: ev.cardId, userSeat, targetSeats: [...ev.targetSeats] };
-        break;
-      }
-      case "jinnangVoided": {
-        const responder = foldTarget(engine, ev); // 识破者
-        // 扣账锚定:被消耗的是识破者打出的反应锦囊(id 出自应答),jinnangVoided.cardId=
-        // 被拆的宣布牌(已随宣布扣账)。份对账:shareSeat 明传按份配对(AOE),缺席取
-        // 座位序第一张未消费的生效应答(单份/连环计全作废)。
-        const closed = ctx.closedWindow;
-        if (closed == null || closed.view.kind !== "jinnang" || closed.view.cardId !== ev.cardId)
-          throw new Error(`折叠投影:${ev.cardId} 识破无同批反应窗可回溯(事件序契约违反)`);
-        const responderSeat = seatNo(engine, responder);
-        // 应答配对按座位(jinnangVoided 主体=该份的识破者;每座位至多应答一次,座位即键;
-        // shareSeat 不随 reactionAnswered 过网,份信息由座位序+逐份 void 事件承载)
-        const play = closed.answers
-          .filter((a) => a.use && !ctx.consumedAnswers.has(a))
-          .sort((a, b) => a.seat - b.seat) // 引擎按座位序结算,同序取张
-          .find((a) => a.seat === responderSeat);
-        if (play == null || play.cardId == null)
-          throw new Error(`折叠投影:${ev.cardId} 识破无对应生效应答(事件序契约违反)`);
-        ctx.consumedAnswers.add(play);
-        consumeCard(engine, responder, play.cardId); // 识破牌扣账(被顶替张原样退回,无事件不折)
+        if (card.targetDomain === "reaction") break; // 反应锦囊在收窗事件中已扣账。
+        engine.pendingJinnang = null;
+        consumeCard(engine, user, ev.cardId);
+        engine.jinnangUsedTags.push(...card.tags);
         break;
       }
       case "reactionOpened": {
-        const user = foldTarget(engine, ev); // userSeat=窗公告的使用者/行人
-        const userSeat = seatNo(engine, user);
-        const windowMs =
-          engine.reactionWindowMsOverride > 0
-            ? engine.reactionWindowMsOverride
-            : REACTION_WINDOW_MS[
-                ev.windowKind === "jinnang" ? "JinnangAnnounced" : "MarchPassedCity"
-              ];
-        let view: ReactionView;
-        let payload: ReactionPayload;
-        if (ev.windowKind === "jinnang") {
-          // targetSeats 出自同批宣布(宣布与开窗同一结算 settleJinnangPlay)
-          const announce = ctx.lastAnnounce;
-          if (announce == null || announce.cardId !== ev.cardId)
-            throw new Error(`折叠投影:${ev.cardId} 开窗无同批宣布可回溯(事件序契约违反)`);
-          const domain = jinnangCardOf(ev.cardId).targetDomain;
-          view = {
-            kind: "jinnang",
-            cardId: ev.cardId,
-            userSeat,
-            targetSeats: [...announce.targetSeats],
-            queriedBySeat: [...ev.queriedSeats],
-            windowMs,
-          };
-          payload = {
-            kind: "jinnang",
-            userSeat,
-            cardId: ev.cardId,
-            targets: domain === "one" || domain === "two-others" ? [...announce.targetSeats] : [],
-          };
-        } else {
-          if (ev.queriedSeats.length !== 1)
-            throw new Error("折叠投影:行军窗被询问集非单座城主(事件产出契约违反)");
-          view = {
-            kind: "march",
-            cardId: ev.cardId,
-            userSeat,
-            ownerSeat: ev.queriedSeats[0]!,
-            windowMs,
-          };
-          // 词汇缺口(表内声明档,core/event-tiers reactionOpened.declaredGaps,#430 票项 4):
-          // reactionOpened 不携续走载荷(在途态无事件登记),副本侧 payload 仅类型完备
-          // 占位、零消费面(UI 读 view/answers/seq;payload 唯一消费方 = 权威侧 room.ts
-          // 超时判据)。若副本侧将来需要该载荷,先补词汇再折。
-          payload = {
-            kind: "march",
-            moverSeat: userSeat,
-            tileIndex: -1,
-            stepsToTile: 0,
-            totalTiles: 0,
-            resumeTiles: [],
-            landIndex: -1,
-            fromPos: -1,
-            steps: 0,
-          };
-        }
-        engine.jinnangSeq += 1; // 窗实例号(nextJinnangSeq 同式)
-        const pr: PendingReaction = { seq: engine.jinnangSeq, view, answers: [], payload };
-        engine.pendingReaction = pr;
+        foldTarget(engine, ev);
+        const { seq, view } = ev;
+        // 副本无权续结算，保留既有挂起载荷占位；公开状态一律读权威 view。
+        const payload: ReactionPayload =
+          view.kind === "jinnang"
+            ? { kind: "jinnang", userSeat: view.userSeat, cardId: view.cardId, targets: [] }
+            : {
+                kind: "march",
+                moverSeat: view.userSeat,
+                tileIndex: view.tileIndex,
+                stepsToTile: 0,
+                totalTiles: 0,
+                resumeTiles: [],
+                landIndex: -1,
+                fromPos: -1,
+                steps: 0,
+              };
+        engine.jinnangSeq = seq;
+        engine.pendingReaction = { seq, view, answers: [], payload };
         engine.turnPhase = "AwaitingReaction";
         break;
       }
@@ -639,24 +557,15 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           ...(ev.cardId != null ? { cardId: ev.cardId } : {}),
         });
         if (pr.answers.length >= queriedOf(pr.view).length) {
-          // 应答齐即闭窗续结算(引擎先离场再结算;相位由同批后续事件/水合覆盖)
-          ctx.closedWindow = { view: pr.view, answers: [...pr.answers] };
+          if (ev.spentCards == null)
+            throw new Error("折叠投影:最终反应应答缺扣账清单(事件产出契约违反)");
           engine.pendingReaction = null;
-          if (pr.view.kind === "march") {
-            // 行军窗结算恒消耗拦检牌(胜负两路 consumeReactionCard 皆先于拼点),折于
-            // 闭窗应答点(批序与引擎结算点等效);牌 id=应答载荷自带(#1067「按载荷取牌」,
-            // 不再按 kind 猜静态目录)
-            const ambush = pr.answers.find((a) => a.use);
-            if (ambush != null) {
-              if (ambush.cardId == null)
-                throw new Error("折叠投影:行军窗应答缺牌 id(事件产出契约违反)");
-              consumeCard(
-                engine,
-                eventSeatPlayer(engine, ambush.seat, "行军窗应答"),
-                ambush.cardId,
-              );
-            }
+          for (const { seat, cardId } of ev.spentCards) {
+            consumeCard(engine, eventSeatPlayer(engine, seat, "反应牌扣账"), cardId);
           }
+          // 锦囊收窗继续行军；尚有可用暗牌时，出牌阶段随既有决策窗校准恢复。
+          // 下一反应环与行军落格分别由同批开窗和落格事件覆盖。
+          if (pr.view.kind === "jinnang") engine.turnPhase = "Roll";
         }
         break;
       }

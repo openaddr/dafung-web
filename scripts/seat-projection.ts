@@ -17,6 +17,7 @@ import { EVENT_TIERS, type EventKind } from "../src/core/event-tiers";
 import { HEROES } from "../src/core/heroes";
 import { SKILLS } from "../src/core/skills";
 import { createTreasureDeck, SKILL_BOOK_ID_PREFIX } from "../src/core/treasures";
+import { reactionTimingOf } from "./reaction-deadline";
 import type { RoomSession } from "./room";
 // 下行封装构造收口 wire.ts(#429):装配口只管形状与裁剪,序列化不另起炉灶。
 // (wire 对本模块/room 的引用全是 type 导入,构建期擦除,无运行时环。)
@@ -253,6 +254,7 @@ export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapsh
         ? { ...s.pendingReaction, view: redactReactionView(s.pendingReaction.view, seat) }
         : s.pendingReaction,
     reaction: s.reaction != null ? redactReactionView(s.reaction, seat) : s.reaction,
+    events: redactEvents(s.events, seat),
     log: s.log.map(projectGameLogLine),
   };
 }
@@ -309,7 +311,7 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *    · 机遇族 encounterTriggered/encounterChoice;声望/体力/跳过族 reputationChanged/
  *      staminaChanged/turnSkipped。
  *  - 裁剪(2 kind):
- *    · reactionOpened 的 jinnang 窗——queriedSeats 是 per-seat private 档(god-view
+ *    · reactionOpened 的 jinnang 窗——view.queriedBySeat 是 per-seat private 档(god-view
  *      全集 = 谁持识破诡计,#281/ADR-0016 同案)。裁剪口径=**身份匿名、数量保留**:
  *      接收座位在列保留自己座位,其余一律置换 ANON_SEAT。数量必须保留:折叠器
  *      (event-fold.ts)闭窗算术「应答数 ≥ queriedBySeat.length」按此数组长度收窗,清零
@@ -325,8 +327,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
   return batch.map((ev) => {
     switch (ev.kind) {
       case "reactionOpened":
-        if (ev.windowKind !== "jinnang") return ev; // march 窗全公开(城主=棋盘可推导)
-        return { ...ev, queriedSeats: ev.queriedSeats.map((s) => (s === seat ? seat : ANON_SEAT)) };
+        return { ...ev, view: redactReactionView(ev.view, seat) };
       case "peekApplied":
         return ev.viewerSeat === seat ? ev : { ...ev, hand: [] }; // 仅窥方保留手牌内容
       // ── 透传族(全桌公开,原样)──
@@ -398,7 +399,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
  *    无跨设备泄密面;泄漏面想不走裁剪必须先在签名上写出这个 null,「忘了裁」不存在)。
  *  withSnapshot:②是否随拍构造——联机校准判定为真才发(快照含全量 log,非校准
  *  flush 不白付 O(log) 序列化),单机恒发;①恒装配(空批自然产出 null)。
- *  纯函数:不改输入;零兜底——redactEvents 对未登记 kind 当场炸(编译期穷尽 switch
+ *  装配只读房间状态及反应窗剩余时间；redactEvents 对未登记 kind 当场炸(编译期穷尽 switch
  *  + 运行期双保险,防遗漏机器见 test/online/downlink-assembly.test.ts)。
  *  返回型按 withSnapshot 收窄:要摘要必得摘要(true 恒 string),并给出实际发送的日志行数。 */
 export function assembleDownlinkShot(
@@ -422,15 +423,27 @@ export function assembleDownlinkShot(
   batch: readonly GameEvent[],
   withSnapshot: boolean,
 ): { events: string | null; snapshot: string | null; logOffset: number | null } {
+  const e = r.engine;
+  const view = e?.turnPhase === "AwaitingReaction" ? e.pendingReaction?.view : null;
+  const reactionTiming =
+    view != null &&
+    (viewerSeat == null ||
+      (view.kind === "march"
+        ? view.ownerSeat === viewerSeat
+        : view.queriedBySeat.includes(viewerSeat)))
+      ? reactionTimingOf(r)
+      : undefined;
   const events =
     batch.length > 0
-      ? eventsMsg(viewerSeat == null ? [...batch] : redactEvents(batch, viewerSeat))
+      ? eventsMsg(viewerSeat == null ? [...batch] : redactEvents(batch, viewerSeat), reactionTiming)
       : null;
   if (!withSnapshot) return { events, snapshot: null, logOffset: null };
   const snapshot = clientView(r, onlineSeats, viewerSeat);
   return {
     events,
-    snapshot: encodeDownlink(snapshot),
+    snapshot: encodeDownlink(
+      snapshot.type === "snapshot" ? { ...snapshot, reactionTiming } : snapshot,
+    ),
     logOffset: snapshot.type === "snapshot" ? snapshot.log.length : 0,
   };
 }

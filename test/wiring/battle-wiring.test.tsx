@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
 import { GHOST } from "@app/fx/timings";
+import { targetCandidates } from "@app/screens/game/target-selection";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
@@ -30,7 +31,7 @@ let GameScreen: GameScreenModule["GameScreen"];
 let setController: RegistryModule["setController"];
 
 /** 接线控制器面(GameController 生产基类的最小子型 + resync 测试口;构造见 beforeAll)。 */
-type WiringController = GameControllerClass & { resync(): void };
+type WiringController = GameControllerClass & { resync(remainingMs?: number): void };
 let newWiringController: (e: GameEngine) => WiringController;
 
 const guanzhongData = rawGuanzhongData as MapData; // JSON 导入 tier 丢字面量,cast 同 map-storage-wiring #1316 形
@@ -88,7 +89,7 @@ function mount(): HTMLElement {
 function startGame(ops: PlantOp[] = []): {
   el: HTMLElement;
   engine: GameEngine;
-  plant: (op: PlantOp) => void;
+  plant: (op: PlantOp, remainingMs?: number) => void;
   snap: () => GameSnapshot;
 } {
   const e = seedPlayingEngine();
@@ -102,10 +103,10 @@ function startGame(ops: PlantOp[] = []): {
   return {
     el,
     engine: e,
-    plant: (op) => {
+    plant: (op, remainingMs) => {
       applyPlant(e, op);
       act(() => {
-        c.resync();
+        c.resync(remainingMs);
       });
     },
     snap: () => useGameStore.getState().snapshot!,
@@ -222,7 +223,14 @@ beforeAll(async () => {
       this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
     }
     // 测试侧重灌口(protected sync 的公开面;种植后调)。
-    resync(): void {
+    resync(remainingMs?: number): void {
+      const current = this.e.pendingReaction;
+      if (current != null) {
+        this.observeReactionTiming(
+          { seq: current.seq, remainingMs: remainingMs ?? current.view.windowMs },
+          performance.now(),
+        );
+      }
       this.sync();
     }
   }
@@ -258,76 +266,113 @@ afterAll(async () => {
   await releaseHappyDom();
 });
 
+it("目标候选只略过作罢项，缺编号或错域直接报错", () => {
+  const seatChoice = { id: "t1", label: "魏", available: true, targetSeat: 1 };
+  const cancel = { id: "cancel", label: "作罢", available: true };
+  expect(targetCandidates([seatChoice, cancel], "seat").map((choice) => choice.id)).toEqual([1]);
+  expect(() => targetCandidates([seatChoice], "city")).toThrow("t1");
+  expect(() => targetCandidates([{ ...seatChoice, targetSeat: undefined }], "seat")).toThrow("t1");
+});
+
 describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
-  // ── ①识破诡计反应窗应答(react-jinnang-use 例 1 迁入;#1389 城指向域改走选份流程)──
-  // 断言面:架上金边(.reactive)→点牌选中(.sel)→未选份=落印禁用(城指向域确认钮
-  // 自门控,与 all-others 同形,#1389 新拍)→点城份令牌选中(aria-pressed,令牌=城名)
-  // →落印点亮→再点令牌取消(选中可逆)→重选牌+份落印确认→窗收+牌离手(识破消耗)
-  // +留痕(reactionRespond use=1 share=<城格> / reactionCounter)。识破结算(受击城免烧)
-  // 是引擎同拍真结算;窗载荷经 armReaction 种植(判词单源 planter:反应窗由持牌+时机
-  // 判定产生,凭空开窗无公共命令);bot 手牌清形防识破链环(被询问集=持 counter 牌者,
-  // seed 67 起手随机可能含识破诡计——giveJinnang 终态组合表达「去指定牌」,判词同
-  // e2e #1301)。
-  it("识破诡计:架上金边→点选/未选份禁用/选城份→落印→窗收牌耗+留痕", async () => {
+  it("火烧开窗即报受击城；地图选城可取消，手牌开收后仍能按同一窗出牌", async () => {
     const { el, engine, plant, snap } = startGame([
       { kind: "giveJinnang", seat: 0, cards: ["识破诡计"] },
       { kind: "giveJinnang", seat: 1, cards: [] },
       { kind: "giveJinnang", seat: 2, cards: [] },
       { kind: "giveJinnang", seat: 3, cards: [] },
     ]);
-    // 受击城与窗体拍间种植(择址/窗形判词见 plantableCityTile·huoshaoWindow 头注;
-    // 城名断言查板,不落数值第二源)。识破候选=有主受击城(引擎开窗侧已滤无主/免疫,
-    // jinnang-execution shareSeats 判词)——受击城须先入自机名下,凭空无主城进窗会踩
-    // settle「受击城恒有主」断言(测试前提失真,非引擎缺口)。
     const { tileIndex, propertyId } = plantableCityTile(engine);
     plant({ kind: "grantProperty", seat: 0, propertyId, level: 1 });
-    plant({ kind: "armPhase", activeIndex: 1 }); // bot 行动方回合内打出的窗(e2e 同形)
-    for (const op of huoshaoWindow(1, tileIndex)) plant(op);
+    plant({ kind: "armPhase", activeIndex: 1 });
+    for (const op of huoshaoWindow(1, tileIndex)) plant(op, 3950);
     const cityName = engine.board.at(tileIndex).name;
-    const banner = () => q(document, TESTIDS.reactionBanner);
-    expect(banner()).not.toBeNull(); // 窗已升起(停车坪自证)
-    expect(banner()!.textContent).toContain(`使用【火烧连营】(对 ${cityName})`); // 目标括注=城名(#1389)
-    const card = () => q(el, TESTIDS.jinnangCard("识破诡计"))!;
-    // 反应窗槽的呼吸金边/选中实金挂按钮本体(.reactive/.sel,HandRack 反应槽形;
-    // 出牌窗槽的 .off 才在 .jinnang-card 画心,两槽形制不同勿混)
-    expect(hasClass(card(), "reactive")).toBe(true);
-    const confirm = () => q(document, TESTIDS.reactionConfirm)!;
-    expect(confirm().hasAttribute("disabled")).toBe(true); // 未选牌落印禁用
-    // 点牌=选中(.sel);城指向域还须选份,未选份落印仍禁用(自门控,#1389 新拍)
-    click(card());
-    expect(hasClass(card(), "sel")).toBe(true);
+    const banner = () => q(el, TESTIDS.reactionBanner);
+    const timer = () => q(el, TESTIDS.reactionTimer);
+    const confirm = () => q(el, TESTIDS.reactionConfirm)!;
+    const toggleRack = () => click(q(el, TESTIDS.jinnangToggle)!);
+    const pickCity = () => click(el.querySelector(TESTIDS.cityTarget(tileIndex))!);
+
+    expect(banner()!.textContent).toContain("火烧连营");
+    expect(banner()!.textContent).toContain(`受击城 ${cityName}`);
+    expect(confirm().textContent).toBe("出牌");
     expect(confirm().hasAttribute("disabled")).toBe(true);
-    // 城份令牌(testid=reaction-seat-<城格>):点令牌=选中(aria-pressed)→落印点亮;
-    // 再点同令牌=取消→回禁用(#417 选中可逆同口径)
-    const chip = () => q(document, TESTIDS.reactionSeat(tileIndex))!;
-    expect(chip().textContent).toContain(cityName); // 份令牌以城名呈现
-    click(chip());
-    expect(chip().getAttribute("aria-pressed")).toBe("true");
+    const openedTimer = timer();
+    expect(Number(openedTimer!.textContent)).toBeGreaterThan(0);
+    expect(Number(openedTimer!.textContent)).toBeLessThanOrEqual(4);
+    const openedDeadline = useGameStore.getState().reactionDeadlineAt;
+
+    click(q(el, TESTIDS.jinnangCard("识破诡计"))!);
+    expect(q(el, TESTIDS.jinnangRack)).toBeNull();
+    expect(confirm().hasAttribute("disabled")).toBe(true);
+    pickCity();
+    expect(el.querySelector(TESTIDS.cityTargetPicked(tileIndex))).not.toBeNull();
+    expect(banner()!.textContent).toContain(`保护 ${cityName}`);
     expect(confirm().hasAttribute("disabled")).toBe(false);
-    click(chip());
-    expect(chip().getAttribute("aria-pressed")).toBe("false");
+    pickCity();
+    expect(el.querySelector(TESTIDS.cityTargetPicked(tileIndex))).toBeNull();
     expect(confirm().hasAttribute("disabled")).toBe(true);
-    // 牌取消可逆(原拍保留):再点同牌=取消→回禁用;重选后份已清,仍须重选份
-    click(card());
-    expect(hasClass(card(), "sel")).toBe(false);
-    click(card());
-    expect(hasClass(card(), "sel")).toBe(true);
-    click(chip());
+    pickCity();
+    toggleRack();
+    expect(q(el, TESTIDS.jinnangCard("识破诡计"))!.getAttribute("aria-pressed")).toBe("true");
+    toggleRack();
+    expect(el.querySelector(TESTIDS.cityTargetPicked(tileIndex))).not.toBeNull();
+    expect(banner()!.textContent).toContain(`受击城 ${cityName}`);
+    expect(timer() === openedTimer).toBe(true);
+    expect(useGameStore.getState().reactionDeadlineAt).toBe(openedDeadline);
+
     click(confirm());
-    await finishExit(banner, "落印后窗应随结算收横幅"); // 窗收断言吃已卸载 null(wire3 判词)
-    expect(snap().players[0].jinnangHand).not.toContain("识破诡计"); // 牌耗(离手)
-    const log = snap()
-      .log.map((l) => l.detail)
-      .join("\n");
-    expect(log).toContain("reactionRespond");
-    expect(log).toContain("use=1");
-    expect(log).toContain(`share=${tileIndex}`); // 城份随确认链过帐(tileIndex 语义,#1389)
-    expect(log).toContain("reactionCounter"); // 识破留痕(bot 零 counter 牌=链即站住)
-    // 受击城免烧:防御满值不动(Lv1 满防 4,#1386 防御值口径)
+    await finishExit(banner, "识破出牌后收窗");
+    expect(snap().players[0].jinnangHand).toEqual([]);
+    expect(
+      snap()
+        .log.map((line) => line.detail)
+        .join("\n"),
+    ).toContain(`use=1 card=识破诡计 share=${tileIndex}`);
     const holding = engine
       .findOwner(propertyId)!
       .properties.find((h) => h.propertyId === propertyId)!;
     expect(holding.defense).toBe(4);
+  });
+
+  it("横征开窗先报受影响人数，改选席位后只保护最后选中的诸侯", async () => {
+    const { el, engine, plant, snap } = startGame([
+      { kind: "giveJinnang", seat: 0, cards: ["识破诡计"] },
+      { kind: "giveJinnang", seat: 1, cards: [] },
+      { kind: "giveJinnang", seat: 2, cards: [] },
+      { kind: "giveJinnang", seat: 3, cards: [] },
+    ]);
+    const cash = engine.players.map((p) => p.cash);
+    plant({ kind: "armPhase", activeIndex: 1 });
+    plant({
+      kind: "armReaction",
+      view: {
+        kind: "jinnang",
+        cardId: "横征暴敛",
+        userSeat: 1,
+        targetSeats: [0, 2, 3],
+        queriedBySeat: [0],
+        windowMs: 30000,
+      },
+      payload: { kind: "jinnang", userSeat: 1, cardId: "横征暴敛", targets: [] },
+    });
+    const banner = () => q(el, TESTIDS.reactionBanner);
+    expect(banner()!.textContent).toContain("影响 3 位诸侯");
+    click(q(el, TESTIDS.jinnangCard("识破诡计"))!);
+    expect(q(el, TESTIDS.seatTarget(1))).toBeNull();
+    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "1" })));
+    expect(q(el, TESTIDS.reactionConfirm)!.hasAttribute("disabled")).toBe(true);
+    click(q(el, TESTIDS.seatTarget(0))!);
+    click(q(el, TESTIDS.seatTarget(2))!);
+    expect(banner()!.textContent).toContain(`保护 ${engine.players[2].guohao}`);
+    click(q(el, TESTIDS.reactionConfirm)!);
+    await finishExit(banner, "横征应答后收窗");
+    expect(snap().players.map((p) => p.cash)).toEqual([
+      cash[0] - 200,
+      cash[1] + 400,
+      cash[2],
+      cash[3] - 200,
+    ]);
   });
 
   // ── ④军情密探目标段两步(react-jinnang-use 例 4 迁入)──

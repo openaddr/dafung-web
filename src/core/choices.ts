@@ -50,6 +50,7 @@ export interface ChoiceOption {
    *  id 即 cardId(pass=今不用)。 */
   cardText?: string;
   cardTags?: string[];
+  levy?: { affectedSeats: number[]; maxPerSeat: number };
   /** 目标段选项(#122/T3):候选座位(id=`t${seat}`,label=国号)。 */
   targetSeat?: number;
   /** 名将主动技选项专属(#188 档 3;#817 选项携实例):id=`skill:<heroId>:<skillId>`
@@ -251,6 +252,11 @@ export function jinnangTargetOk(
   return { ok: true };
 }
 
+/** 全体域自动圈定其余在场诸侯，供确认、反应份与结算共用。 */
+export function otherLivingSeats(e: GameEngine, userSeat: number): number[] {
+  return e.players.flatMap((p, seat) => (seat !== userSeat && !p.isBankrupt ? [seat] : []));
+}
+
 /** 主动技目标有效性(#188 档 3;席位域专用):目标域按技能定义分派。
  *  注:主动技不受反应窗/锦囊任何庇护(#229/#281 口径:技能不走 announce 通道,不可被识破),
  *  故此处无锦囊类守卫。城目标域(#1388 T2)不走席位校验——合法性单源
@@ -409,13 +415,16 @@ export function fireWallSplashCities(e: GameEngine, centerTileIndex: number): Fi
  *  改列候选座位 +「作罢」。锦囊 effect 尚未接入结算的种类灰置。 */
 function jinnangChoices(e: GameEngine): ChoiceOption[] {
   const p = e.activePlayer;
+  const userSeat = e.activeIndex;
   const pending = e.pendingJinnang;
   if (pending) {
     const def = jinnangCardOf(pending.cardId);
+    const flow = TARGET_DOMAIN_STAGES[def.targetDomain];
+    if (flow.stages === 0) throw new Error(`锦囊【${def.id}】没有目标段`);
     // 城指向目标段(#1389 火烧连营):候选=全部城池格(谓词单源 fireWallCenterTargets;
     // 无主城标注「作火源自身免伤」语义进 label),逐城携城 id/城主;提交通道=targetTileIndex
     // (命令 targets=[tileIndex],id 拼接单源 cityTargetOptionId——与技能城目标段同形制)。
-    if (def.targetDomain === "one-city") {
+    if (flow.selection.domain === "city") {
       const targets: ChoiceOption[] = fireWallCenterTargets(e).map((c): ChoiceOption => ({
         id: cityTargetOptionId(c.tileIndex),
         label: c.ownerSeat == null ? `${c.name}(无主,作火源自身免伤)` : c.name,
@@ -428,13 +437,10 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     }
     // 末段候选排除首段已定目标(声明单源 jinnang.TARGET_DOMAIN_STAGES.excludeFirstFromSecond,
     // #1067;两步域段名 two-b 由载荷形状承载)
-    const exclude =
-      TARGET_DOMAIN_STAGES[def.targetDomain].excludeFirstFromSecond && pending.stage === "two-b"
-        ? pending.picked
-        : [];
+    const exclude = flow.excludeFirstFromSecond && pending.stage === "two-b" ? pending.picked : [];
     const targets: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
       const excluded = exclude.includes(seat);
-      const verdict = jinnangTargetOk(e, e.players.indexOf(p), seat, def.effect.kind);
+      const verdict = jinnangTargetOk(e, userSeat, seat, def.effect.kind);
       const ok = !excluded && verdict.ok;
       return {
         id: `t${seat}`,
@@ -449,7 +455,6 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
   const pendingSkill = e.pendingSkill;
   if (pendingSkill) {
     const skill = activeSkillOf(p, pendingSkill.heroId, pendingSkill.skillId);
-    const userSeat = e.players.indexOf(p);
     // 城目标段(#1388 T2):候选=合法城清单(谓词单源 heroSkillCityTargets),逐城携
     // 城名(label)/城 id/城主/距离;作罢不记冷却(与席位域同口径)。
     if (skill?.target === "city") {
@@ -498,9 +503,7 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     const isCityDomain = def.targetDomain === "one-city";
     const validTargets =
       needTwo || needOne
-        ? e.players.filter(
-            (_, i) => jinnangTargetOk(e, e.players.indexOf(p), i, def.effect.kind).ok,
-          ).length
+        ? e.players.filter((_, i) => jinnangTargetOk(e, userSeat, i, def.effect.kind).ok).length
         : 0;
     const targetsShort =
       (needTwo && validTargets < 2) ||
@@ -530,6 +533,9 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
               : undefined,
       cardText: def.text,
       cardTags: def.tags,
+      ...(def.effect.kind === "levyAll"
+        ? { levy: { affectedSeats: otherLivingSeats(e, userSeat), maxPerSeat: def.effect.amount } }
+        : {}),
     };
   });
   return [...cards, ...activeSkillChoices(e), { id: "pass", label: "今不用", available: true }];

@@ -2,8 +2,7 @@
 // 底缘透明浮置容器,签面驻左端 + 锦囊手牌架(漆木条随仪表条退役,架体透明化)。
 // 显隐账本在 GameScreen(会话内临时态 rackHidden;#1006 立,2026-11-07 改
 // 「回合联动+决策保底」:亮=我的回合∪决策窗在场∪手动临时开),本件只呈现。
-// banner-only 形态(#1006):架收起而反应窗在场时区壳仍挂载,只宿横幅(横幅失去
-// 架体依托后贴底下移),签面不挂。
+// 收起手牌时，待决触发技仍驻手牌区上缘。
 // 签面(原仪表条「签」徽章平移,testid dice-face 不变):驻留上轮点数;待起摇
 // (#530)转「待」浅印 + 呼吸金边——UI 状态变化承载(DESIGN §4.6,不加文字标牌)。
 // 芯片提前剧透防线(审计 P2,#849 棒1 存续):lastRoll 在结算拍随快照入库,而掷骰
@@ -25,7 +24,7 @@ interface HandZoneProps {
   player: SnapshotPlayer;
   /** 托管态(useAutopilotOn 单源;待起摇判定免误报)。 */
   autopilotOn: boolean;
-  /** banner-only 形态(#1006):架收起而反应窗在场——只渲 children(宿横幅的架),
+  /** banner-only 形态(#1006):架收起而待决触发技在场——只渲 children(宿横幅的架),
    *  签面不挂(签面归「架亮」形态,零中间形态)。 */
   bannerOnly?: boolean;
   children: ReactNode;

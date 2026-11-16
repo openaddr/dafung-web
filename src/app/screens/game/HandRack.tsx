@@ -111,9 +111,9 @@ interface JunshiWindow {
 interface RackCardJunshi {
   available: boolean;
   selected: boolean;
-  /** 目标段:此牌即已出待择目标的计牌(金描边上浮,非交互,印「已出牌 · 待择目标」)。 */
+  /** 目标段:选中的牌以金描边和上浮标示，等最终出牌才消耗。 */
   played?: boolean;
-  /** 原因印条(灰置时展示;文案单源 choices;目标段用原型口径「目标段不可换牌」)。 */
+  /** 卡牌段灰置原因，文案由选项集提供。 */
   reason?: string;
   onSelect?: () => void;
   onDeselect?: () => void;
@@ -221,7 +221,7 @@ function tiltVars(key: string): CSSProperties {
  *  语义层,不在指针层);屏读语义不降级(aria-disabled 仍宣告禁用)。目标段(played
  *  字段在场)整架退出交互(#256),原生禁用保持。两态共用同一组件与 key:进/出窗态
  *  不重挂、不重播发牌音/入场级联。
- *  反应窗槽(reaction 在场,#281):点牌=选中/再点取消(确认在横幅落印钮),长按开
+ *  反应窗槽(reaction 在场,#281):点牌=选中/再点取消(确认在顶部动作条),长按开
  *  详情弹层(#751 A1);呼吸金边归 .reactive 类(reaction-banner.css);非反应锦囊仍走
  *  常态详情。
  *  openKey:本卡稳定键(与手牌行 key 同式)——详情开合态/微光达成态按键对位(#768),
@@ -484,12 +484,8 @@ function SkillCard({
 }
 
 /** 反应窗态载荷(#281,P1-D 牌架即反应窗;GameScreen 派生,缺省=常态架)。
- *  banner=已组装的结算事件横幅(ReactionBanner 件,本件只负责定位在架上缘——
- *  「横幅从手牌架上缘长出」);reactiveIds=此刻可打的反应锦囊(呼吸金边,点牌=选中,
- *  确认在横幅落印钮);selectedKey/onSelect=选中可逆(再点同牌取消)。与出牌阶段态
- *  (AwaitingJinnang)互斥,不并存。 */
+ *  可打牌点选后在顶部动作条确认。与出牌阶段互斥。 */
 interface RackReaction {
-  banner: ReactNode;
   reactiveIds: string[];
   /** 权威窗实例号，连续同种反应窗也会结束上次检视。 */
   seq: number;
@@ -505,14 +501,12 @@ interface HandRackProps {
   /** 反应窗态(#281);缺省 = 常态架。与 junshi 互斥(AwaitingReaction ≠ AwaitingJinnang)。 */
   reaction?: RackReaction;
   /** 「你可」触发卡(#1378,SkillChoiceBanner 件,GameScreen 组装):待决技窗态,
-   *  与 reaction 同位同形(架上缘长出);相位互斥(AwaitingSkillChoice ≠ 上两窗)。 */
+   *  在手牌架上缘呈现，和两种锦囊窗相位互斥。 */
   skillBanner?: ReactNode;
   /** 未选牌点按「出牌」的计数(#751 B1,GameScreen 持账本):变更一次=架上可用牌
    *  金圈脉冲一次(自门控 #715 同款状态语言)。 */
   nudgePulse?: number;
-  /** banner-only 形态(#1006):架收起而反应窗在场——只渲横幅,不渲牌行/牌背/
-   *  计数章(零中间形态:牌要么整架亮、要么随收起消失);架体盒保留作横幅锚
-   *  (ADR-0032「响应件落架缘」,横幅贴底下移后仍是架缘语义)。 */
+  /** 收起手牌时只呈现待决触发技。 */
   bannerOnly?: boolean;
 }
 
@@ -746,10 +740,7 @@ export const HandRack = memo(function HandRack({
   // 窗态不重挂已存在的牌)。
   const handItems = (() => {
     if (junshi != null && targeting) {
-      // 目标段:整架退出交互——pendingCardId 即已出计牌(金描边上浮),其余灰置;
-      // 牌钮恒 disabled,不传 onSelect/onDeselect(交互语义已随窗态退场)。
-      // 印条只留已出计牌(#751 B3,#744 判词):§4.6 判据——撤掉文字,off 置灰已可辨,
-      // N 张各印一条同文案是噪音;「为什么不能动」由目标段窗态本身表达。
+      // 目标段的牌架只供查看。当前锦囊保留金边，步骤提示由顶部动作条显示。
       return hand.map((id, i) => {
         const played = junshi.pendingCardId === id;
         const openKey = `${id}-${nthSame(hand, i, id)}`;
@@ -762,7 +753,6 @@ export const HandRack = memo(function HandRack({
               available: false,
               selected: false,
               played,
-              reason: played ? "已出牌 · 待择目标" : undefined,
             }}
             openKey={openKey}
             glowHeld={detail?.key === openKey}
@@ -819,7 +809,7 @@ export const HandRack = memo(function HandRack({
       });
     }
     // 常态:手牌全展/叠加,点牌开详情;反应窗槽(#281)在场时,可打的反应锦囊改点选
-    //(呼吸金边,确认在横幅落印钮),其余牌仍开详情。
+    //(呼吸金边,确认在顶部动作条),其余牌仍开详情。
     return hand.map((id, i) => {
       const reactive = reaction != null && reaction.reactiveIds.includes(id);
       const openKey = `${id}-${nthSame(hand, i, id)}`;
@@ -853,13 +843,6 @@ export const HandRack = memo(function HandRack({
       className={"hand-rack" + (junshi != null ? " junshi" : "") + (spreadAll ? " spread-all" : "")}
       style={box == null ? undefined : { ["--rack-avail" as string]: `${box.avail}px` }}
     >
-      {/* 反应窗横幅(#281):从手牌架上缘长出(P1-D「牌架即反应窗」);定位归架体
-          (reaction-banner.css),挂载/卸载即窗开/窗收,横幅自带入场与倒计时。
-          banner-only(#1006):架收起时横幅是本盒唯一内容,失去牌行依托后随零高
-          架体盒贴底下移,决策通路不断(倒计时弧/落印/不用/降噪口全可达)。
-          「你可」触发卡(#1378)同位同形(skill-choice-banner.css):待决技窗的
-          发动/暂不发拍板面,相位互斥不并存。 */}
-      {reaction?.banner}
       {skillBanner}
       {!bannerOnly &&
         (renderCount > 0 ? (

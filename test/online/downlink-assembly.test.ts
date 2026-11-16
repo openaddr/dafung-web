@@ -72,9 +72,15 @@ function privacyBatch(): GameEvent[] {
   return [
     ev(0, {
       kind: "reactionOpened",
-      windowKind: "jinnang",
-      cardId: "横征暴敛",
-      queriedSeats: [0, 1],
+      seq: 1,
+      view: {
+        kind: "jinnang",
+        cardId: "横征暴敛",
+        userSeat: 2,
+        targetSeats: [0, 1],
+        queriedBySeat: [0, 1],
+        windowMs: 15000,
+      },
     }),
   ];
 }
@@ -89,7 +95,7 @@ describe("assembleDownlinkShot · 双模式(#431:单机显式 god-view、联机�
     const msg = JSON.parse(shot.events!) as { type: string; events: GameEvent[] };
     expect(msg.type).toBe("events");
     expect(msg.events).toHaveLength(1);
-    expect((msg.events[0] as { queriedSeats: number[] }).queriedSeats).toEqual([-1, 1]);
+    expect(msg.events[0]).toMatchObject({ view: { queriedBySeat: [-1, 1] } });
     // 摘要消息:他人(host)手牌内容不出网、数量照发;牌库只给数量;自己手牌恒全量;
     // 反应窗询问集同口径(只留「我是否被询问」)
     const snap = JSON.parse(shot.snapshot!) as Record<string, any>;
@@ -237,8 +243,30 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
   { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, cardId: "军情密探", hand: ["连环计"] },
-  { kind: "reactionOpened", windowKind: "jinnang", cardId: "横征暴敛", queriedSeats: [0, 1] },
-  { kind: "reactionOpened", windowKind: "march", cardId: "半路杀出", queriedSeats: [1] },
+  {
+    kind: "reactionOpened",
+    seq: 1,
+    view: {
+      kind: "jinnang",
+      cardId: "横征暴敛",
+      userSeat: 2,
+      targetSeats: [0, 1],
+      queriedBySeat: [0, 1],
+      windowMs: 15000,
+    },
+  },
+  {
+    kind: "reactionOpened",
+    seq: 1,
+    view: {
+      kind: "march",
+      cardId: "半路杀出",
+      userSeat: 0,
+      ownerSeat: 1,
+      tileIndex: 3,
+      windowMs: 15000,
+    },
+  },
 ];
 
 describe("assembleDownlinkShot · 全 kind 普查(#431 防遗漏机器,底册 EVENT_TIERS)", () => {

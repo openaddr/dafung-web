@@ -196,7 +196,7 @@ export function marchTraverse(
           const walkedCount = totalLen - remaining.length;
           openReactionWindow(
             g,
-            { kind: "march", cardId: ambushId, userSeat: moverSeat, ownerSeat },
+            { kind: "march", cardId: ambushId, userSeat: moverSeat, ownerSeat, tileIndex: tIdx },
             {
               kind: "march",
               moverSeat,

@@ -8,9 +8,20 @@ import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { GameEngine, type GameCommand, type SeatConfig } from "@core/authority";
+import { tileIndexOfProperty } from "@core/board";
 import { loadMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
-import { armHero, armPhase, giveJinnang, setJinnangUsedTags, setStamina } from "@core/planter";
+import {
+  armBankrupt,
+  armHero,
+  armPhase,
+  giveJinnang,
+  grantProperty,
+  pinDice,
+  placePlayer,
+  setJinnangUsedTags,
+  setStamina,
+} from "@core/planter";
 import { skillOptionId } from "@core/choices";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -132,6 +143,85 @@ function click(el: Element): void {
   });
 }
 
+it("连环计上一步经在途锁保留首选，改选后第二步需重新选择", () => {
+  const { el, snap, completeCommand } = startGame((e) => {
+    for (let seat = 0; seat < e.players.length; seat++) {
+      giveJinnang(e, seat, seat === 0 ? ["连环计"] : []);
+    }
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    pinDice(e, "duel", [6, 1]);
+  }, true);
+  const confirm = () => q(el, TESTIDS.actionbarTarget)!;
+  const seat = (index: number) => q(el, TESTIDS.seatTarget(index))!;
+  click(q(el, TESTIDS.jinnangCard("连环计"))!);
+  expect(q(el, TESTIDS.actionbarPlay)!.textContent).toBe("选目标");
+  click(q(el, TESTIDS.actionbarPlay)!);
+  completeCommand();
+  click(seat(1));
+  expect(seat(1).getAttribute("aria-pressed")).toBe("true");
+  click(confirm());
+  completeCommand();
+  click(seat(3));
+  click(q(el, TESTIDS.actionbarPrevious)!);
+  expect(useGameStore.getState().interactive).toBe(false);
+  expect(seat(3).getAttribute("aria-pressed")).toBe("true");
+  expect(confirm().hasAttribute("disabled")).toBe(true);
+  completeCommand();
+  expect(seat(1).getAttribute("aria-pressed")).toBe("true");
+  click(seat(2));
+  click(confirm());
+  completeCommand();
+  expect(seat(1).getAttribute("aria-disabled")).toBeNull();
+  expect(seat(2).getAttribute("aria-disabled")).toBe("true");
+  expect(seat(3).getAttribute("aria-pressed")).toBe("false");
+  expect(confirm().hasAttribute("disabled")).toBe(true);
+  expect(snap().players[0].jinnangHand).toEqual(["连环计"]);
+  click(seat(1));
+  expect(confirm().textContent).toBe("出牌");
+  click(confirm());
+  completeCommand();
+  expect(snap().players[0].jinnangHand).toEqual([]);
+  expect(snap().events.filter((event) => event.kind === "duelResolved")).toHaveLength(1);
+});
+
+it("地图选择收架，可重开并保留目标，取消后仍能以同一入口发动火攻", () => {
+  const city = tileIndexOfProperty(MAP.board, "prop-xianyang");
+  const { el, snap } = startGame((e) => {
+    for (let seat = 0; seat < e.players.length; seat++) {
+      giveJinnang(e, seat, seat === 0 ? ["火烧连营"] : []);
+    }
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    armHero(e, 0, "zhouyu", ["huogong"]);
+    placePlayer(e, 0, city);
+    grantProperty(e, 1, "prop-xianyang", 1);
+  });
+  const confirm = () => q(el, TESTIDS.actionbarTarget)!;
+  click(q(el, TESTIDS.jinnangCard("火烧连营"))!);
+  click(q(el, TESTIDS.actionbarPlay)!);
+  expect(q(el, TESTIDS.jinnangRack)).toBeNull();
+  click(el.querySelector(TESTIDS.cityTarget(city))!);
+  click(q(el, TESTIDS.jinnangToggle)!);
+  expect(el.querySelector(TESTIDS.cityTargetPicked(city))).not.toBeNull();
+  expect(confirm().hasAttribute("disabled")).toBe(false);
+  click(q(el, TESTIDS.actionbarCancel)!);
+  expect(snap().players[0].jinnangHand).toEqual(["火烧连营"]);
+  click(q(el, TESTIDS.jinnangCard(skillOptionId("zhouyu", "huogong")))!);
+  expect(q(el, TESTIDS.actionbarPlay)!.textContent).toBe("选目标");
+  click(q(el, TESTIDS.actionbarPlay)!);
+  click(el.querySelector(TESTIDS.cityTarget(city))!);
+  expect(confirm().textContent).toBe("发动");
+  expect(q(el, TESTIDS.actionbarCancel)!.textContent).toBe("作罢");
+  click(confirm());
+  expect(snap().events).toContainEqual(
+    expect.objectContaining({
+      kind: "heroSkillActivated",
+      skillId: "huogong",
+      targetTileIndex: city,
+    }),
+  );
+  expect(snap().players[0].jinnangHand).toEqual(["火烧连营"]);
+});
+
 /** 异步拍收口(模板同款):弹层壳底件挂载拍有 RO 测量态更新,回调在 act 外落会刷
  *  act 警告噪声——让一拍宏任务并包进 act(断言面不依赖该拍,纯噪声治理)。 */
 async function settle(): Promise<void> {
@@ -222,6 +312,13 @@ beforeAll(async () => {
     }
     // 测试侧重灌口(protected sync 的公开面;直写引擎后调)。
     resync(): void {
+      const current = this.e.pendingReaction;
+      if (current != null) {
+        this.observeReactionTiming(
+          { seq: current.seq, remainingMs: current.view.windowMs },
+          performance.now(),
+        );
+      }
       this.sync();
     }
   }
@@ -295,9 +392,11 @@ describe("手牌架内容与临时显隐", () => {
     expect(rack() !== null).toBe(true);
     writeEngine((e) => {
       giveJinnang(e, 0, ["横征暴敛"]);
+      armBankrupt(e, 3);
       armPhase(e, { turnPhase: "AwaitingJinnang" });
     });
     click(q(el, TESTIDS.jinnangCard("横征暴敛"))!);
+    expect(q(el, TESTIDS.actionbar)!.textContent).toContain("对其余 2 位诸侯各征至多 200 两");
     click(q(document, TESTIDS.actionbarPlay)!);
     expect(engine.players[0].jinnangHand).toEqual([]);
     expect(q(el, TESTIDS.handZone) === null).toBe(true);

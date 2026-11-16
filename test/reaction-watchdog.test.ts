@@ -10,6 +10,7 @@
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry } from "../scripts/room";
 import type { RoomClock } from "../scripts/room";
+import type { ServerMsg } from "../scripts/wire";
 import type { RoomPersistence } from "../scripts/room-persistence";
 import type { RoomRecord } from "../scripts/room-record";
 import type { LoadedMap } from "../src/core/board-loader";
@@ -40,10 +41,14 @@ class InMemoryPersistence implements RoomPersistence {
 
 /** 手动时钟(同 test/online/room.test.ts):定时全挂表,fireAll 手动泵,零真实等待。 */
 class ManualClock implements RoomClock {
-  private readonly pending = new Map<unknown, () => void>();
-  setTimeout(cb: () => void, _ms: number): unknown {
+  private time = 10_000;
+  private readonly pending = new Map<unknown, { cb: () => void; at: number }>();
+  now(): number {
+    return this.time;
+  }
+  setTimeout(cb: () => void, ms: number): unknown {
     const id = {} as unknown;
-    this.pending.set(id, cb);
+    this.pending.set(id, { cb, at: this.time + ms });
     return id;
   }
   clearTimeout(handle: unknown): void {
@@ -52,7 +57,15 @@ class ManualClock implements RoomClock {
   fireAll(): void {
     const cbs = [...this.pending.values()];
     this.pending.clear();
-    for (const cb of cbs) cb();
+    for (const { cb } of cbs) cb();
+  }
+  advanceBy(ms: number): void {
+    this.time += ms;
+    for (const [id, { cb, at }] of this.pending) {
+      if (at > this.time) continue;
+      this.pending.delete(id);
+      cb();
+    }
   }
   get size(): number {
     return this.pending.size;
@@ -79,7 +92,7 @@ async function playingRoom(clock: ManualClock, seed = 42) {
     hostConfig: { seed },
   });
   const roomId = created.room.roomId;
-  reg.joinSeat(roomId); // seat1 真人
+  const { token: guestToken } = reg.joinSeat(roomId); // seat1 真人
   reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = reg.get(roomId)!.engine!;
@@ -92,13 +105,13 @@ async function playingRoom(clock: ManualClock, seed = 42) {
     await macroTick();
   }
   expect(clock.size).toBe(0);
-  return { reg, roomId, events, e };
+  return { reg, roomId, events, e, guestToken };
 }
 
 describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)", () => {
   it("窗内不应答:超时到点代发「不用」——份额失效结算照走、窗收、链续推", async () => {
     const clock = new ManualClock();
-    const { reg, roomId, events, e } = await playingRoom(clock);
+    const { reg, roomId, events, e, guestToken } = await playingRoom(clock);
     // 布场:seat0(真人)出横征暴敛(全体域,宣布即入窗,无目标段);seat1 持识破诡计
     // =唯一被询问座位(jinnang 窗询问集=持识破者,引擎单源);清标签名额保出牌可用。
     e.activeIndex = 0;
@@ -115,17 +128,39 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     const botCashBefore = e.players[2].cash;
 
     // 命令过公共路径(内部通路):宣布 → 开窗 → 链为待应答真人武装 per-seat 定时器
-    await reg.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
+    const messages: ServerMsg[] = [];
+    const endpoint = {
+      seat: 1,
+      open: true,
+      send: (raw: string) => messages.push(JSON.parse(raw)),
+    };
+    reg.connectSeat(roomId, 1, guestToken, endpoint);
+    const broadcast = () => reg.transportBroadcast(roomId);
+    await reg.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" }, broadcast);
     expect<string>(e.turnPhase).toBe("AwaitingReaction"); // 显式宽化:赋值窄化不绑架断言
     const view = e.pendingReaction?.view;
     expect(view?.kind === "jinnang" && view.queriedBySeat).toEqual([1]);
     expect(clock.size).toBe(1); // 恰一表项:reactionWait(seat1)已武装,无其他挂表
 
-    // 泵送:窗寿到点 → 看门狗代发「不用」(与玩家手点同一条 respondReaction 命令路径)
-    for (let i = 0; i < 4000 && !events.some((ev) => ev.ev === "reaction-decline"); i++) {
-      clock.fireAll();
-      await macroTick();
-    }
+    // 下行排队与断线经过的时间都算在同一窗内。
+    const seq = e.pendingReaction!.seq;
+    const windowMs = e.pendingReaction!.view.windowMs;
+    clock.advanceBy(200);
+    await macroTick();
+    expect(messages.find((msg) => msg.type === "events")).toMatchObject({
+      reactionTiming: { seq, remainingMs: windowMs - 200 },
+    });
+    reg.disconnectSeat(roomId, 1);
+    clock.advanceBy(500);
+    reg.connectSeat(roomId, 1, guestToken, endpoint);
+    expect(messages.at(-1)).toMatchObject({
+      type: "snapshot",
+      reactionTiming: { seq, remainingMs: windowMs - 700 },
+    });
+    clock.advanceBy(windowMs - 701);
+    expect(events.some((ev) => ev.ev === "reaction-decline")).toBe(false);
+    clock.advanceBy(1);
+    await macroTick();
     const declines = events.filter((ev) => ev.ev === "reaction-decline");
     expect(declines.length).toBe(1);
     expect(declines[0]!.seat).toBe(1);

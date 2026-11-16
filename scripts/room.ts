@@ -201,6 +201,8 @@ export interface RoomRegistryOptions {
  *  #399:注入点——编排内一切「等待」都经它,运行时差异(服务器全局定时器 /
  *  浏览器 Worker 时钟)归注入方。 */
 export interface RoomClock {
+  /** 与定时器共用的单调毫秒时钟，手动驱动时注入。 */
+  now?(): number;
   setTimeout(cb: () => void, ms: number): unknown;
   clearTimeout(handle: unknown): void;
 }
@@ -290,6 +292,7 @@ export class RoomRegistry {
       stallAbortMs: this.stallAbortMs,
       retentionWindowMs: this.retentionWindowMs,
       clock: this.clock,
+      now: this.clock.now?.bind(this.clock) ?? (() => performance.now()),
     };
   }
 
@@ -619,6 +622,7 @@ export class RoomRegistry {
     const room = this.rooms.get(roomId);
     if (!room || !room.engine) return;
     room.engine.submitCommand(cmd);
+    this.watchdogs.syncReaction(room, onUpdate);
     this.persist(room);
     onUpdate?.(room); // 人类命令结果先推
     await this.driveBots(room, onUpdate); // bot/托管座位的连锁,逐步 persist+onUpdate
@@ -669,6 +673,7 @@ export class RoomRegistry {
     const room = this.rooms.get(roomId);
     if (!room || !room.engine) throw new RoomError(409, "房间不存在或对局未开始,不可作废");
     room.engine.abortGame(reason);
+    this.watchdogs.syncReaction(room, onUpdate);
     this.persist(room);
     onUpdate?.(room);
   }
@@ -719,10 +724,15 @@ export class RoomRegistry {
    *  传输层随后发整房摘要给该 WS。托管开关不动(ADR-0028:重连不清托管,回来的人
    *  点「收回」拿回控制)。
    *  #380:重连即撤本座位保留窗(到期不误托管已归来的在线座位)。 */
-  attachSeat(roomId: string, seat: number): RoomSession | undefined {
+  attachSeat(
+    roomId: string,
+    seat: number,
+    onUpdate?: (room: RoomSession) => void,
+  ): RoomSession | undefined {
     const room = this.rooms.get(roomId);
     if (!room) return undefined;
     this.watchdogs.retention.disarm(roomId, seat);
+    this.watchdogs.syncReaction(room, onUpdate);
     return room;
   }
 
@@ -733,7 +743,7 @@ export class RoomRegistry {
    *  此后编排每次可见变化都会经 transportBroadcast 合并下行到本端点。 */
   connectSeat(roomId: string, seat: number, token: string, ep: SeatEndpoint): RoomSession {
     if (!this.validateSeat(roomId, seat, token)) throw new RoomError(401, "座位鉴权失败");
-    const room = this.attachSeat(roomId, seat);
+    const room = this.attachSeat(roomId, seat, () => this.transportBroadcast(roomId));
     if (!room) throw new RoomError(404, "房间不存在");
     let eps = this.seatEndpoints.get(roomId);
     if (!eps) {

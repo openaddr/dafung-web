@@ -3,6 +3,8 @@
 // 停条带独占),「谁在打」永有答案;resetFx 换局才清。
 // e2e 不做窗内计数断言(ADR-0029 吸附档丢知会的观测性竞速,#732 同口径),机制归此处。
 import { describe, it, expect, beforeEach } from "bun:test";
+import { withGlobal } from "@sinonjs/fake-timers";
+import { FX } from "../../src/app/fx/timings";
 import { useFxStore } from "../../src/app/fx/fxStore";
 
 /** 捷径:重置后宣告一次回合,取槽内状态。 */
@@ -42,6 +44,35 @@ describe("常驻回合胶囊(回合宣告唯一形制,#958)", () => {
     const s = useFxStore.getState();
     expect(s.notice?.kind).toBe("halt");
     expect(s.turnCapsule).toBeNull();
+  });
+
+  it("动作条抢占后保留正在展示和新到达的知会，按原顺序播完", () => {
+    const clock = withGlobal(globalThis).install({ toFake: ["setTimeout", "clearTimeout"] });
+    const fx = useFxStore.getState();
+    const currentCity = () => useFxStore.getState().notice?.cityName;
+    try {
+      fx.showHaltBanner("魏", "rgba(1, 2, 3, 1)", "长安");
+      clock.tick(50);
+      fx.setNoticeSlotOccupied(true);
+      fx.showHaltBanner("蜀", "rgba(1, 2, 3, 1)", "成都");
+      fx.showHaltBanner("吴", "rgba(1, 2, 3, 1)", "建业");
+      expect(currentCity()).toBeUndefined();
+      clock.tick(50);
+      fx.setNoticeSlotOccupied(false);
+      expect(currentCity()).toBe("长安");
+      clock.tick(FX.haltBannerMs - 100); // 原计时器此时会到期
+      expect(currentCity()).toBe("长安");
+      clock.tick(100);
+      expect(currentCity()).toBe("成都");
+      clock.tick(FX.haltBannerMs);
+      expect(currentCity()).toBe("建业");
+      clock.tick(FX.haltBannerMs);
+      expect(currentCity()).toBeUndefined();
+    } finally {
+      fx.setNoticeSlotOccupied(false);
+      fx.resetFx();
+      clock.uninstall();
+    }
   });
 
   it("resetFx 清胶囊:新局从零起(选都期胶囊未立)", () => {

@@ -12,9 +12,9 @@ import {
   setReputation,
   setStamina,
 } from "../../src/core/planter";
-import type { GameEngine } from "../../src/core/authority";
+import type { GameCommand, GameEngine } from "../../src/core/authority";
 import { foldEventBatch } from "../../src/app/net/event-fold";
-import { cmdMsg, type InboundMsg, type ServerMsg } from "../../scripts/wire";
+import { cmdMsg, dispatchInbound, type InboundMsg, type ServerMsg } from "../../scripts/wire";
 import { expect, it } from "bun:test";
 import { MAP } from "../../scripts/engine-helpers";
 import { LocalController } from "../../src/app/controllers/local";
@@ -125,8 +125,96 @@ async function playingRoom(
   broadcast();
   await downlinkTurn();
   messages.length = 0;
-  return { registry, room, token, engine, replica, messages, broadcast };
+  const sendCommand = async (cmd: GameCommand) => {
+    messages.length = 0;
+    const result = await dispatchInbound(cmdMsg(cmd), {
+      cmd: (command) => registry.applyCommandFromSeat(room.roomId, 0, command, broadcast),
+      pickCapital: (tileIndex) => registry.pickCapital(room.roomId, 0, tileIndex, broadcast),
+      setAutoPilot: (on) => registry.setAutoPilot(room.roomId, 0, on, broadcast),
+    });
+    await downlinkTurn();
+    return result;
+  };
+  return { registry, room, token, engine, replica, messages, broadcast, sendCommand };
 }
+
+it("连环计返回改选经真实下行保留首选，最终提交才消耗并结算", async () => {
+  const { registry, room, token, engine, replica, messages, sendCommand } = await playingRoom(
+    (authority) => {
+      for (let seat = 0; seat < 4; seat++) {
+        giveJinnang(authority, seat, seat === 0 ? ["连环计"] : []);
+        setCash(authority, seat, 5000);
+      }
+      armPhase(authority, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+      pinDice(authority, "duel", [6, 1]);
+    },
+    { seatCount: 4 },
+  );
+  async function submit(fields: { targets?: number[]; back?: boolean; cancel?: boolean } = {}) {
+    const cmd: GameCommand = { type: "useJinnang", cardId: "连环计", ...fields };
+    expect(await sendCommand(cmd)).toEqual({ ok: true });
+    expect(replica.pendingJinnang).toEqual(engine.pendingJinnang);
+    expect(replica.players[0].jinnangHand).toEqual(engine.players[0].jinnangHand);
+    expect(replica.turnPhase).toBe(engine.turnPhase);
+  }
+  const candidates = () =>
+    replica
+      .choicesFor()
+      .flatMap((o) => (o.available && o.targetSeat != null ? [o.targetSeat] : []));
+  try {
+    await submit();
+    expect(candidates()).toEqual([1, 2, 3]);
+    await submit({ cancel: true });
+    expect(replica.pendingJinnang).toBeNull();
+    expect(replica.turnPhase).toBe("AwaitingJinnang");
+    expect(replica.players[0].jinnangHand).toEqual(["连环计"]);
+    await submit();
+    await submit({ targets: [1] });
+    expect(candidates()).toEqual([2, 3]);
+    await submit({ back: true });
+    expect(replica.pendingJinnang).toMatchObject({ stage: "two-a", picked: [1] });
+    await submit({ targets: [2] });
+    expect(candidates()).toEqual([1, 3]);
+    await submit({ targets: [2] });
+    expect(replica.players[0].jinnangHand).toEqual(["连环计"]);
+    expect(replica.turnPhase).toBe("AwaitingJinnang");
+    expect(replica.players.map((p) => p.cash)).toEqual([5000, 5000, 5000, 5000]);
+    await submit({ targets: [1] });
+    expect(replica.pendingJinnang).toBeNull();
+    expect(replica.turnPhase).toBe("Roll");
+    expect(replica.players[0].jinnangHand).toEqual([]);
+    expect(replica.players.map((p) => p.cash)).toEqual([5400, 4600, 5300, 5000]);
+    const events = messages.flatMap((message) => (message.type === "events" ? message.events : []));
+    expect(events.filter((event) => event.kind === "duelResolved")).toHaveLength(1);
+  } finally {
+    registry.dismissRoom(room.roomId, token);
+  }
+});
+
+it("目标锦囊最终提交后，下行副本从目标段进入反应窗", async () => {
+  const { registry, room, token, replica, messages, sendCommand } = await playingRoom(
+    (authority) => {
+      giveJinnang(authority, 0, ["缓兵之计"]);
+      giveJinnang(authority, 1, ["识破诡计"]);
+      armPhase(authority, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    },
+  );
+  try {
+    expect(await sendCommand({ type: "useJinnang", cardId: "缓兵之计" })).toEqual({ ok: true });
+    expect(replica.pendingJinnang?.stage).toBe("one");
+    expect(await sendCommand({ type: "useJinnang", cardId: "缓兵之计", targets: [1] })).toEqual({
+      ok: true,
+    });
+    expect(replica.pendingJinnang).toBeNull();
+    expect(replica.players[0].jinnangHand).toEqual([]);
+    expect(replica.turnPhase).toBe("AwaitingReaction");
+    expect(replica.pendingReaction?.view).toMatchObject({ kind: "jinnang", targetSeats: [1] });
+    const events = messages.flatMap((msg) => (msg.type === "events" ? msg.events : []));
+    expect(events.map((ev) => ev.kind)).toEqual(["jinnangAnnounced", "reactionOpened"]);
+  } finally {
+    registry.dismissRoom(room.roomId, token);
+  }
+});
 
 it("结盟互市自动结算后,真实下行将咸阳交易交给城主并可续行下一回合", async () => {
   // 守住机遇 → 最终城池决策的真实 JSON 下行接缝,单例只等两个合并拍。

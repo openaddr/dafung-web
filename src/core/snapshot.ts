@@ -183,6 +183,8 @@ export interface GameSnapshot {
   pendingSkillChoices?: import("./choices").PendingSkillChoice[];
   /** 擂鼓步数加成(#188 档 3):本回合 rollAndMove 消费;发动与掷骰之间可被快照广播,须保真。 */
   heroDiceBonus: number;
+  /** 最近分配的反应窗编号，闭窗后也随快照保留。 */
+  jinnangSeq: number;
   /** 反应窗挂起态(#281,god-view):公告/应答/续结算载荷全部随快照走(ADR-0017,
    *  重放=普通 respondReaction 命令流);可见性由传输层投影(ADR-0016),公开载荷另经
    *  派生字段 reaction 透出。 */
@@ -200,7 +202,7 @@ export interface GameSnapshot {
   log: LogEvent[];
   // 事件流(#375,ADR-0020):当前转移批的类型化事件(批界=编排入口开批,见
   // game-events.ts beginGameEventBatch)。快照非破坏性透出当前批(同一转移的多次
-  // 快照幂等),随状态恢复回灌;全桌公开转移记录,redact 不裁(ADR-0016 投影透传)。
+  // 快照幂等),随状态恢复回灌。下行与事件批共用逐座位裁剪。
   events: GameEvent[];
 }
 
@@ -217,6 +219,7 @@ function clonePendingReaction(
           userSeat: pr.view.userSeat,
           targetSeats: [...pr.view.targetSeats],
           queriedBySeat: [...pr.view.queriedBySeat],
+          ...(pr.view.counter != null ? { counter: { ...pr.view.counter } } : {}),
           windowMs: pr.view.windowMs,
         }
       : {
@@ -224,6 +227,7 @@ function clonePendingReaction(
           cardId: pr.view.cardId,
           userSeat: pr.view.userSeat,
           ownerSeat: pr.view.ownerSeat,
+          tileIndex: pr.view.tileIndex,
           windowMs: pr.view.windowMs,
         };
   const answers: import("./reaction-window").ReactionAnswer[] = pr.answers.map((a) => ({ ...a }));
@@ -489,6 +493,13 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => e.heroDiceBonus,
     write: (e, s) => {
       e.heroDiceBonus = s.heroDiceBonus;
+    },
+  },
+  {
+    key: "jinnangSeq",
+    read: (e) => e.jinnangSeq,
+    write: (e, s) => {
+      e.jinnangSeq = s.jinnangSeq;
     },
   },
   {

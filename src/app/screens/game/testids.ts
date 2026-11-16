@@ -112,15 +112,16 @@ export const TESTIDS = {
   cityLedgerEmpty: "city-ledger-empty",
 
   // ── 出牌动作条 ──
-  /** 动作条容器;卡牌段出牌/不出,目标段出/作罢。 */
+  /** 顶部出牌动作条。 */
   actionbar: "actionbar",
-  /** 卡牌段「出牌」确认钮;未选牌时自门控并触发可用牌提示。 */
+  /** 卡牌段主按钮「选目标」「出牌」或「发动」。 */
   actionbarPlay: "actionbar-play",
   /** 卡牌段「不出」,牌不消耗。 */
   actionbarPass: "actionbar-pass",
-  /** 目标段确认钮,未选目标时显示「选择目标」且禁用,选中后显示「出」。 */
+  /** 目标段主按钮「下一步」「出牌」或「发动」。 */
   actionbarTarget: "actionbar-target",
-  /** 目标段「作罢」(收回此计牌:不消耗、不记冷却)。 */
+  actionbarPrevious: "actionbar-previous",
+  /** 目标段「取消选牌」。 */
   actionbarCancel: "actionbar-cancel",
   /** 目标段席位按钮(含自机);首点选中、再点取消,打出经动作条确认。 */
   seatTarget: (seat: number) => `seat-target-${seat}` as const,
@@ -162,20 +163,18 @@ export const TESTIDS = {
   duelVerdict: "duel-verdict",
 
   // ── 反应窗 ──
-  /** 结算事件横幅(从手牌架上缘长出;仅被询问座位渲染)。 */
+  /** 顶部反应动作条，仅在本座待应答时呈现。 */
   reactionBanner: "reaction-banner",
-  /** 左段事件文案(「X 使用【火烧连营】」/「X 行军将过你的城池」)。 */
+  /** 反应窗的来者和事件名称。 */
   reactionText: "reaction-text",
-  /** 右段朱砂倒计时弧(SVG,随剩余时间收敛)。 */
+  /** 反应窗倒计时。 */
   reactionTimer: "reaction-timer",
-  /** 落印确认墨钮(选中反应锦囊且 AOE 份已定时可用)。 */
+  /** 「出牌」确认钮，按份牌须先确定保护对象。 */
   reactionConfirm: "reaction-confirm",
-  /** 「不用」立即应答钮。 */
+  /** 「不出」立即应答钮。 */
   reactionDecline: "reaction-decline",
-  /** 降噪口「本回合不再询问」(点下即对当前窗应答不用,同回合后续询问静默代发)。 */
+  /** 降噪口「本回合不再询问」(点下即对当前窗应答不出,同回合后续询问静默代发)。 */
   reactionMute: "reaction-mute",
-  /** AOE 选份候选笺(横征暴敛等全体域:点笺=定被保护份;seat=被保护座位,含自己)。 */
-  reactionSeat: (seat: number) => `reaction-seat-${seat}` as const,
 
   // ── 「你可」选择闸触发卡 ──
   /** 触发卡横幅(从手牌架上缘长出,反应窗同形;仅待决属主座位渲染)。 */

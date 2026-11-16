@@ -16,6 +16,7 @@ import type { GameCommand } from "../src/core/authority";
 import { AUTO_ROLL_DELAY_MS } from "../src/core/timings";
 import type { RoomClock, RoomEvent, RoomSession } from "./room";
 import { decisionSeatOf, reactionQueriedSeats } from "./bot-driver";
+import { reactionTimingOf, syncReactionDeadline } from "./reaction-deadline";
 import { seatControlled } from "./seat-projection";
 
 type UpdateFn = (room: RoomSession) => void;
@@ -43,6 +44,7 @@ export interface WatchdogHost {
   readonly retentionWindowMs: number;
   /** 定时原语(#399 Worker 时钟注入点):武装/撤表全经它,服务器=全局、单机=Worker。 */
   readonly clock: RoomClock;
+  readonly now: () => number;
 }
 
 /** 单组看门狗实例:clear=整房撤表(链重开/解散时);arm=按座位武装;disarm=按座位
@@ -57,6 +59,7 @@ export interface Watchdogs {
   stall: Watchdog; // #118 决策停摆
   autoRoll: Watchdog; // #188 自动起摇
   reactionWait: Watchdog; // #281/#284 反应窗
+  syncReaction(r: RoomSession, onUpdate?: UpdateFn): void;
   retention: Watchdog; // #380 掉线座位保留窗
   stallAbort: Watchdog; // #642 驱动链停摆作废(出口②)
 }
@@ -143,7 +146,43 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
     onUpdate?.(r); // 先广播托管(客户端「托管中」徽章置位;托管座位 isBot 不变,等待条走真人措辞)
     await host.driveBots(r, onUpdate); // 若该座位正轮到,解冻续推
   };
+  // 每位待答真人各有一表，共用当前窗的截止时刻。
+  const reactionWait = createWatchdog(
+    {
+      window: (r) => {
+        const { seq, remainingMs } = reactionTimingOf(r);
+        return { tag: seq, delayMs: remainingMs };
+      },
+      fire: async (r, seat, onUpdate) => {
+        const e = r.engine;
+        if (!host.isCurrentRoom(r) || !e || e.isOver || e.phase !== "Playing") return;
+        if (e.turnPhase !== "AwaitingReaction" || e.pendingReaction == null) return;
+        const pr = e.pendingReaction;
+        if (!reactionQueriedSeats(pr.view).includes(seat)) return;
+        if (pr.answers.some((a) => a.seat === seat)) return;
+        if (seatControlled(r, seat)) return;
+        host.observe(r, { ev: "reaction-decline", seat });
+        await host.applyCommand(r.roomId, { type: "respondReaction", seat, use: false }, onUpdate);
+      },
+    },
+    host.clock,
+  );
   return {
+    reactionWait,
+    syncReaction(r, onUpdate) {
+      if (syncReactionDeadline(r, host.now)) reactionWait.clear(r.roomId);
+      const e = r.engine;
+      if (e?.turnPhase !== "AwaitingReaction") return;
+      const pending = e.pendingReaction;
+      if (pending == null) throw new Error(`房间 ${r.roomId} 缺少挂起的反应窗`);
+      for (const seat of reactionQueriedSeats(pending.view)) {
+        if (pending.answers.some((a) => a.seat === seat) || seatControlled(r, seat)) {
+          reactionWait.disarm(r.roomId, seat);
+        } else {
+          reactionWait.arm(r, seat, onUpdate);
+        }
+      }
+    },
     // ──────────────────── 决策停摆看门狗(#118)────────────────────
     // 武装:decisionTimeoutMs 后若仍停在同一未被托管的真人座位 → 看门狗代开托管
     // (ADR-0028)。同房间旧计时器先撤(决策点换了,重算)。driveBots 出口仅在
@@ -224,49 +263,6 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
             return;
           host.observe(r, { ev: "auto-roll", seat });
           await host.applyCommand(r.roomId, { type: "rollAndMove" }, onUpdate);
-        },
-      },
-      host.clock,
-    ),
-    // ──────────────────── 反应窗超时兜底(#281,ADR-0017)────────────────────
-    // 可能多座位同时被询问(AOE),按房间持座位表各配一表;#284 起 seq 判据管重武装
-    // (arm)——链重开不再整体撤表,deadline 一次算死;clear(链重开不走,唯一调用点
-    // 是解散清理)按房间整表撤。
-    reactionWait: createWatchdog(
-      {
-        /** 武装(#284 seq 判据):REACTION_WINDOW_MS(或 env 覆盖值)后若该座位仍是本窗
-         *  待应答的非服务器驱动人类座位 → 服务器代发 respondReaction{use:false}(走
-         *  applyCommand 公共命令路径,与玩家手点同源;ADR-0017:超时兜底=权威侧代发普通
-         *  命令,重放天然复现)。同窗(PendingReaction.seq 未变)且已武装 → 跳过不重武装:
-         *  deadline 开窗一次算死,链重开/他人命令不重置他人倒计时(FreeKill request.lua
-         *  「timestamp+timeout 随包下发、同窗不重置」同语义);seq 变了才撤旧起新。
-         *  离线冻结座位同样武装——断线者超时即「不用」,不冻结对局(ADR-0017 后果节)。 */
-        window: (r) => {
-          const e = r.engine;
-          if (e?.pendingReaction == null) return undefined;
-          const pr = e.pendingReaction;
-          return {
-            tag: pr.seq,
-            delayMs: pr.view.windowMs, // 已由引擎开窗时解析(override 在 EngineConfig 单点),此处不二次推导(#284 评审)
-          };
-        },
-        /** 到点触发(工厂已核对本火表项):重校验(房间还在/对局未终/仍在
-         *  AwaitingReaction/该座位仍被询问且未应答/仍非服务器驱动)后代发「不用」。
-         *  任何一条不满足=窗已被应答或代驾已接手,静默退出。 */
-        fire: async (r, seat, onUpdate) => {
-          const e = r.engine;
-          if (!host.isCurrentRoom(r) || !e || e.isOver || e.phase !== "Playing") return;
-          if (e.turnPhase !== "AwaitingReaction" || e.pendingReaction == null) return;
-          const pr = e.pendingReaction;
-          if (!reactionQueriedSeats(pr.view).includes(seat)) return;
-          if (pr.answers.some((a) => a.seat === seat)) return;
-          if (seatControlled(r, seat)) return; // 代驾接手:循环头已立即代发,不重复
-          host.observe(r, { ev: "reaction-decline", seat });
-          await host.applyCommand(
-            r.roomId,
-            { type: "respondReaction", seat, use: false },
-            onUpdate,
-          );
         },
       },
       host.clock,

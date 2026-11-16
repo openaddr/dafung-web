@@ -1,190 +1,47 @@
-/* 反应窗(#281,#234 P1-D「牌架即反应窗」)样式收口:结算事件横幅(从手牌架上缘
-   长出)+ 架上反应牌呼吸金边。色一律 var(--color-*) 或其 color-mix alpha 形式
-   (#510 玄墨鎏金:墨影 rgba(43,35,23,·) 退役,发丝线/弱轨改漆金细线);
-   动效时长/缓动走 --dur-* 与 --ease-* token(tokens.css 单源)。文案笔书(新文案禁
-   font-deco,DESIGN font-deco 条);按钮种同 ActionBar 口径(墨钮=漆底金字金内环,次级=同底漆钮),
-   但本件独立类名(.reaction-btn)——actionbar-btn 作用域锁在 .game-layout .actionbar 下,
-   不跨件复用选择器。
-
-   裸色豁免登记(#510 后存留):rgba(200,161,58,·)/rgba(217,185,92,·)=
-   --color-gold / --color-gold-bright / --color-lacquer-gold 通道(CSS 无法对 hex var
-   直接调 alpha 的既定写法,可调 alpha 处一律 color-mix);rgba(138,106,28,·)=墨金影。
-   悬停微反馈统一(#490 微档):可点件 hover 亮金描边+微缩放,--dur-fast。 */
-
-/* ── 横幅:浮置于架体(.hand-rack 为定位上下文)上缘带(#709 下移浮置:从挤压
-   膨胀的板中区落回架上缘浮置带,矮横屏不再上探盖/触席位条);深墨面板 + 漆金
-   描边 + 朱砂倒计时弧嵌秒数前置(#510 玄墨鎏金,#751 A5,同 HUD 面板语言)。
-   宽度自适应(#709):left/right 双锚 + margin auto + max-content——旧 left:50% +
-   translateX 的收缩适配把可用宽饿成架体右半幅,矮横屏下横幅被挤成竖排字气球
-   (按钮一字一行、面板 142px 高直探板中区);架体自身已带席位条 104px 让位
-   (handzone 右缘内收),max-width:100% 锁横幅右缘不出架体 = 结构性不触席位条;
-   下缘锚架上缘,离顶中 chip 半屏之遥,几何上不可达。内容超架宽时 flex-wrap
-   折行(罕见:反识破链长文案 + AOE 选份笺同场),不再压竖排字。── */
-.reaction-banner {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  margin-inline: auto;
-  width: max-content;
-  max-width: 100%;
-  z-index: 9; /* 架体 z-5 之上;棋盘浮层(hint/WaitingBar)之下不冲突(不同槽位) */
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 7px 12px;
-  border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
-  /* border 色过渡(#834危急档):danger 翻面时描边漆金→朱砂走 --dur-fast 同拍过渡
-     (弧/秒数/timerbox 同一翻面拍),常态档不感知。 */
-  transition: border-color var(--dur-fast) var(--ease-out);
-  border-radius: 5px;
-  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-  transform-origin: bottom center;
-  animation: reaction-banner-in var(--dur-med) var(--ease-out);
+/* 顶部 B 分区。信息可跨行，倒计时、降噪口和出牌按钮保持各自的横向位置。 */
+.game-layout .reaction-action-bar {
+  min-height: 66px;
+  gap: 9px;
 }
-@keyframes reaction-banner-in {
-  from {
-    opacity: 0;
-    transform: translateY(0.5em) scaleY(0.7);
-  }
-}
-/* 危急档横幅描边(#834 P1-B5):danger 类挂在 timerbox(弧的宿主)上,横幅级
-   响应用 :has() 沿结构上查——TSX 不为描边另设横幅级状态类;Chromium/以
-   board.css #board:has(...) 为先例的既有用法。 */
-.reaction-banner:has(.reaction-timerbox.danger) {
+
+.game-layout .reaction-action-bar:has(.reaction-timerbox.danger) {
   border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
 }
 
-/* 左段事件文案:「X 使用【火烧连营】」/「X 行军将过你的城池」(横幅标题字,#508 起 font-title) */
-.reaction-text {
-  font-family: var(--font-title);
-  font-size: 17px;
-  line-height: 1.3;
-  letter-spacing: 0.06em;
-  color: var(--color-paper);
-  white-space: nowrap;
+.reaction-action-bar .target-action-copy {
+  flex: 1 1 auto;
 }
 
-/* AOE 选份候选笺行(全体域:点笺=定被保护份;含自己)。§4.6:选中=金边+金圈,
-   不加文字标牌;笺上只留座位国号一字。热区 30→40px(#751 A3,#744 判词:竞速窗
-   小目标=漏触误触直接来源;字阶不动)。 */
-.reaction-shares {
+.reaction-range {
+  color: var(--color-paper);
+}
+
+.reaction-step {
+  margin-top: 2px;
+}
+
+.reaction-mute-group {
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-.reaction-seat-chip {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  font-family: var(--font-brush);
-  font-size: 16px;
-  color: var(--color-paper);
-  background: var(--color-panel);
-  border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
-  border-radius: 50%;
-  cursor: pointer;
-  transition:
-    border-color var(--dur-fast) var(--ease-out),
-    transform var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out);
-}
-.reaction-seat-chip:hover {
-  border-color: var(--color-gold-bright);
-  transform: scale(1.02);
-}
-.reaction-seat-chip.picked {
-  border-color: var(--color-gold);
-  box-shadow:
-    0 0 0 2px var(--color-gold),
-    0 0 6px rgba(200, 161, 58, 0.55);
+  align-self: stretch;
+  margin-inline-end: 5px;
+  padding-inline: 6px;
+  border-inline: 1px solid color-mix(in srgb, var(--color-paper-dim) 22%, transparent);
 }
 
-/* 落印(墨钮,DESIGN §4.2 主行动)与不用(次级漆钮):同 ActionBar 按钮种参数。
-   nowrap(#709):折行容器里钮字恒横排,不吃行内挤压。热区垫到 ≥44px(#751 A3,
-   #744 判词:原高 ≈29px 全面低于触达标;min-height+inline-flex 居中,字阶与横排
-   不动)。 */
-.reaction-btn {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-  font-family: var(--font-brush);
-  font-size: 14px;
-  letter-spacing: 0.22em;
-  text-indent: 0.22em;
-  padding: 6px 16px;
-  border-radius: 4px;
-  border: 0;
-  cursor: pointer;
-  /* 悬停微反馈统一(#490 微档):亮金内环 + 微缩放 */
-  transition:
-    transform var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out),
-    opacity var(--dur-fast) var(--ease-out);
-}
-.reaction-btn.mo {
-  background: var(--color-lacquer);
-  color: var(--color-lacquer-gold);
-  box-shadow: inset 0 0 0 1px rgba(217, 185, 92, 0.6);
-}
-.reaction-btn.mo:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.reaction-btn.mo:not(:disabled) {
-  box-shadow: inset 0 0 0 1.5px var(--color-gold);
-}
-.reaction-btn.mo:not(:disabled):hover {
-  transform: scale(1.02);
-  box-shadow: inset 0 0 0 2px var(--color-gold-bright);
-}
-.reaction-btn.qian {
-  background: var(--color-lacquer);
-  color: color-mix(in srgb, var(--color-lacquer-gold) 72%, var(--color-lacquer));
-  opacity: 0.92;
-}
-.reaction-btn.qian:hover {
-  opacity: 1;
-  transform: scale(1.02);
-  box-shadow: inset 0 0 0 1.5px var(--color-gold);
-}
-
-/* 降噪口(静默是状态不是主行动:弱化文字钮,不抢落印/不用)。nowrap(#709):
-   横幅折行时整钮挪行,不再被行内挤压成一字一列的竖排。
-   #751 A4(防误触):居按钮行末位并与「不用」拉开一档(margin 垫出总间隔 ≥12px),
-   透明 padding 把热区垫到 ≥44px(视觉弱化小字不变)。 */
-.reaction-mute {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  margin-inline-start: 6px;
-  padding: 0 8px;
-  white-space: nowrap;
-  font-family: var(--font-wenkai);
-  font-size: 12px;
-  letter-spacing: 0.08em;
+.reaction-action-bar .reaction-mute {
+  padding-inline: 4px;
   color: var(--color-paper-dim);
   background: none;
-  border: 0;
-  cursor: pointer;
+  font: 12px / 1.2 var(--font-wenkai);
   text-decoration: underline color-mix(in srgb, var(--color-paper-dim) 40%, transparent);
   text-underline-offset: 3px;
-}
-.reaction-mute:hover {
-  color: var(--color-paper);
 }
 
 /* 倒计时弧+弧心秒数(#751 A5,阅读序前置;#760 信号重校;#834 危急档全横幅可感):
    底环墨影弱轨,前弧随剩余时间收敛(CSS 动画扛 dashoffset,#1022:rAF 逐帧 setState
-   退役,时长经 TSX 内联 --reaction-dur 直供 animation-duration——durationMs 已过
-   scaleReactionMs 缩放单源,缩放通道天然保住;周长 2π·15 ≈ 94.2478 作 dasharray 与
-   收敛终点,几何单源在此,TSX 只留 r=15);秒数=信息(§4.6 例外),文楷
-   tabular-nums,1Hz 拍 ref 直写(调度在 TSX,不走 React 状态)。
+   退役,时长与开窗已过时间经 TSX 内联变量传入；周长 2π·15 ≈ 94.2478 作
+   dasharray 与收敛终点，TSX 只留 r=15。秒数=信息(§4.6 例外)，文楷 tabular-nums。
    #760 重校:常态弧由朱砂退墨金弱轨 goldWash——倒计时是常驻状态不是警报,朱砂
    只留给危急;≤5s danger 档(#834 P1-B5:朱砂+呼吸曾全困在 30px 圆里,横幅其余
    600px 毫无变化,紧迫感只剩滴答音单通道——现危急信号出盒):timerbox scale 1.33
@@ -216,11 +73,9 @@
   stroke: var(--color-gold-wash); /* 常态档(#760):墨金弱轨,朱砂留给危急 */
   stroke-width: 3.5;
   stroke-linecap: round;
-  /* 弧收敛动画(#1022):dasharray=周长 2π·15(单源在此);dashoffset 0(满弧,
-     挂载首帧=满弧不跳变)线性收敛到 94.2478(空弧),forwards 定格到收回拍。
-     时长 var(--reaction-dur) 由 TSX 内联直供(=durationMs)。 */
+  /* 负延时让重连和晚挂载的首帧直接显示当前剩余比例。 */
   stroke-dasharray: 94.2478;
-  animation: reaction-arc-drain var(--reaction-dur) linear forwards;
+  animation: reaction-arc-drain var(--reaction-dur) linear var(--reaction-delay) forwards;
 }
 @keyframes reaction-arc-drain {
   from {
@@ -279,18 +134,6 @@
   }
 }
 
-/* 来者锦囊 mini 签面(#751 A6):行首卡面锚点——卡面是既有器物语言,非新增标牌。
-   高 26px(em 基 1.3px,15em×20em 随缩),纯装饰(aria-hidden,牌名在文案里)。
-   选择器提级(#834 P0-3):hand-rack.css `.hand-rack .jinnang-card{font-size:inherit}`
-   (0-2-0)会打穿裸 `.reaction-mini`(0-1-0)的 em 基,签面被撑成 96×128(短横屏
-   6.4px 架基),横幅膨胀 145-200px 高、盖 40-50% 棋盘中带——提级 0-3-0 压回 1.3px
-   em 基(横幅只在 .hand-rack 内挂载,HandRack 单点,前提恒成立)。 */
-.hand-rack .reaction-banner .reaction-mini {
-  flex: 0 0 auto;
-  align-self: center;
-  font-size: 1.3px;
-}
-
 /* ── 架上反应牌呼吸金边(P1-D:牌只有一份、就在架上亮):可打的反应锦囊金描边
    呼吸(--dur-ambient 半频拍),选中(.sel)转实金上浮。作用域锁手牌行钮层。
    #834(P1-B5 伴生):呼吸低相位 30%→55%(原谷值outline≈隐形,「这牌能打」
@@ -337,16 +180,6 @@
 .hand-rack-hand > button.reactive.sel .jinnang-card::after {
   display: none;
 }
-@keyframes reaction-edge-breathe {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
 /* reduced-motion:呼吸/入场退场为直接状态变化(静态金边),同 layout.css 显式口径
    (app.css M-4 全局兜层压时长对 infinite 呼吸会高频闪,须显式关)。
    #760:危急段 2Hz 脉动/脉冲同退(状态色变与滴答音保留——滴答调度在 TSX 1Hz 拍,
@@ -356,9 +189,6 @@
    剩余时长信息丢失),此处以更高特异性反制,弧照常走满时长(--reaction-dur 内联
    变量直供);只退装饰性呼吸/入场。 */
 @media (prefers-reduced-motion: reduce) {
-  .reaction-banner {
-    animation: none;
-  }
   .reaction-timer .arc {
     animation-duration: var(--reaction-dur) !important; /* 反制 M-4,弧=信息载体 */
   }

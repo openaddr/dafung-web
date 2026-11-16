@@ -1,0 +1,100 @@
+.game-layout .target-action-bar {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--conn-h) + 6px);
+  left: calc(var(--safe-left) + 92px);
+  right: calc(var(--safe-right) + 112px);
+  z-index: 7;
+  width: min(570px, calc(100% - var(--safe-left) - var(--safe-right) - 204px));
+  min-height: 56px;
+  margin-inline: auto;
+  padding: 5px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--color-paper);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
+  border: 1px solid color-mix(in srgb, var(--color-gold) 55%, transparent);
+  border-radius: 5px;
+  box-shadow: var(--ink-shadow-sm);
+  pointer-events: none;
+}
+
+/* 保留掷骰签的常驻几何锚，顶中知会内容随动作条让位。 */
+.notice-slot[data-occupied] > :not(.dice-sign-anchor) {
+  visibility: hidden;
+}
+
+.target-action-copy {
+  min-width: 0;
+  font-family: var(--font-wenkai);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.target-action-title {
+  font-size: 16px;
+}
+
+.target-action-detail {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--color-paper-dim);
+}
+
+.target-action-buttons {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.target-action-button {
+  min-width: 54px;
+  min-height: 40px;
+  padding-inline: 9px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--color-lacquer-gold);
+  background: color-mix(in srgb, var(--color-lacquer) 75%, transparent);
+  font: 15px / 1.2 var(--font-brush);
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.target-action-button.primary {
+  min-height: 44px;
+  border-color: var(--color-gold);
+  box-shadow: inset 0 0 0 1px var(--color-gold-wash);
+}
+
+.target-action-button[aria-disabled="true"],
+.target-action-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.target-action-button:hover:not(:disabled, [aria-disabled="true"]) {
+  border-color: var(--color-gold-bright);
+}
+
+.target-action-button:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .target-action-button.bump {
+    animation: target-action-bump 0.4s var(--ease-out);
+  }
+}
+
+@keyframes target-action-bump {
+  25% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}

@@ -213,27 +213,25 @@ export const EVENT_TIERS = {
     why: "牌库与弃堆双空落空宣告(#588):零状态转移(无牌可抽即无转移,#384 口径);表现=「锦囊已空」文案浮字(自引擎浮字死通道迁 fx 面,单机/联机同见)",
   },
   jinnangAnnounced: {
-    fold: "must-fold",
+    fold: "fold+calibration",
     fx: "presented",
-    why: "出牌扣账(离手/手牌数-1/弃堆/标签名额)+窥探入册(军情密探);同批宣布=反应窗 targetSeats 回溯锚;表现=出牌线+浮字",
+    why: "主动出牌扣账与清除目标段载荷；反应锦囊公告提供表现。直接结算后是否还有可用暗牌由权威端判定，出牌阶段闭沿由校准同步相位。表现为出牌线和浮字。",
   },
   reactionOpened: {
     fold: "must-fold",
     fx: "presented",
-    why: "置窗(view/seq/windowMs 派生)+ AwaitingReaction;表现面=窗体 UI 直读副本 pendingReaction(窗体本身不经提取器)+ 开窗轻叩音(sound=reactionOpen,#751 窎开音,窗开即响单机/联机同见)",
-    declaredGaps: [
-      "march 窗 payload:在途续走载荷无词汇,副本侧零值占位仅类型完备、零消费面(UI 读 view/answers;payload 唯一消费方=权威侧 room.ts 超时判据,不经折叠)——#430 票项 4 判定:不补词汇,表中声明",
-    ],
+    why: "权威窗号、影响范围与时长置窗 + AwaitingReaction;表现面=窗体 UI 直读副本 pendingReaction(窗体本身不经提取器)+ 开窗轻叩音(sound=reactionOpen,#751 窎开音,窗开即响单机/联机同见)",
+    declaredGaps: ["权威续结算载荷由引擎保管；事件下行只携公告与应答，副本不消费占位载荷"],
   },
   reactionAnswered: {
     fold: "must-fold",
     fx: "presented",
-    why: "应答入账+应答齐闭窗;行军窗闭窗点扣拦检牌(与引擎结算批序等效);表现=拦检出牌线",
+    why: "应答入账，应答齐后按权威清单扣账并收窗；表现为拦检出牌线",
   },
   reactionFailed: {
     fold: "declarative",
     fx: "presented",
-    why: "拼点平/负宣告:零状态转移(拦检牌扣账已折于闭窗应答点);表现=事发现场浮字(点数演出归全屏签面 duelSigns,#637)",
+    why: "拼点平/负宣告:零状态转移(拦检牌扣账随最终应答);表现=事发现场浮字(点数演出归全屏签面 duelSigns,#637)",
   },
   duelResolved: {
     fold: "declarative",
@@ -241,9 +239,9 @@ export const EVENT_TIERS = {
     why: "拼点结算宣告(#636,ADR-0030):resolveDuel 单点产出,两方座位/两枚点数/胜者随事件走;零状态转移(胜负后果由调用点既有事件折:拦停=marchArrived、银两=cashChanged·duel);表现=拼点签面(#637,全屏多签直译,场景无关)",
   },
   jinnangVoided: {
-    fold: "must-fold",
+    fold: "declarative",
     fx: "presented",
-    why: "识破牌扣账(应答按座位配对,shareSeat 不参与折叠);表现=识破线+浮字",
+    why: "份或整计作废宣告，反应锦囊已随最终应答扣账；表现为识破线和浮字",
   },
   jinnangInflicted: {
     fold: "must-fold",

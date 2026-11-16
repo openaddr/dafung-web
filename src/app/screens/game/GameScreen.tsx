@@ -2,9 +2,9 @@
 // 对局屏:全幅棋盘、顶左设置/详情、顶中知会槽、席位格列、底缘手牌区与右下三圆钮。
 // 本屏持有设置/战报开合态,战报入口在设置内;PileButtons 自持珍宝/名将藏品弹层。
 // 出牌窗由 AwaitingJinnang、interactive 与 choices 派生:HandRack 选牌,ActionBar 确认,
-// SeatRail/BoardView 选择目标;命令经 registry 当前控制器下发。反应窗与技能待决另走横幅。
+// SeatRail/BoardView 选择目标;命令经 registry 当前控制器下发。反应窗共用动作条，触发技在架缘。
 // gameStore.snapshot 驱动渲染,useCapitalPick 持有选都/详情流程,棋盘取景恒为地图总览。
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BoardView } from "@app/components/board/BoardView";
 import {
   useGameStore,
@@ -20,10 +20,11 @@ import { OnlineController } from "@app/controllers/online";
 import type { Board } from "@core/board";
 import type { GameCommand } from "@core/authority";
 import { isSkillOption } from "@core/choices";
-import { jinnangCardOf } from "@core/jinnang";
-import { skillById } from "@core/skills";
+import { jinnangCardOf, SINGLE_TARGET, TARGET_DOMAIN_STAGES } from "@core/jinnang";
+import type { ReactionView } from "@core/reaction-window";
+import { formatMoney } from "@core/money";
+import { isActiveSkill, skillById } from "@core/skills";
 import { getAudio } from "@app/fx/audio";
-import { scaleReactionMs } from "@app/fx/timings";
 import { reactionChoicesForSeat } from "@app/controllers/reaction";
 import { AudioProvider } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
@@ -35,18 +36,13 @@ import { HandRack, type RackCardSelection } from "./HandRack";
 import { HandZone } from "./HandZone";
 import { ReactionBanner } from "./ReactionBanner";
 import { SkillChoiceBanner } from "./SkillChoiceBanner";
-import {
-  reactionMuteEngage,
-  reactionMuteInitial,
-  reactionMuteOnActor,
-  reactionMuted,
-  type ReactionMuteState,
-} from "./reaction-mute";
+import { reactionMuteEngage, reactionMuted, type ReactionMuteState } from "./reaction-mute";
 import { GameTopBar } from "./GameTopBar";
 import { SeatRail } from "./SeatRail";
 import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
+import { targetCandidates, useTargetSelection, type TargetSelectionStep } from "./target-selection";
 import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
@@ -61,19 +57,48 @@ import {
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { TESTIDS } from "./testids";
 
-/** 目标括注按 core/jinnang.targetDomain 装配;targetSeats 在城域存 tileIndex,其余存座位号。
- *  反识破链环的争夺份「(保 X)」在装配点另列,份与目标名单不同。 */
-function jinnangTargetNote(
-  cardId: string,
-  targetSeats: number[],
-  nameOf: (seat: number) => string,
-  cityNameOf: (tileIndex: number) => string,
-): string {
-  const domain = jinnangCardOf(cardId).targetDomain;
-  if (domain === "all-others") return "(全场)";
-  if (domain === "self") return "(自身)";
-  const labelOf = domain === "one-city" ? cityNameOf : nameOf;
-  return `(对 ${targetSeats.map(labelOf).join("、")})`;
+function reactionAnnouncement(
+  view: ReactionView,
+  seatLabel: (seat: number) => string,
+  cityName: (tileIndex: number) => string,
+) {
+  const user = seatLabel(view.userSeat);
+  if (view.kind === "march") {
+    return {
+      text: `${user} 行军途经`,
+      range: `${seatLabel(view.ownerSeat)} 的「${cityName(view.tileIndex)}」`,
+    };
+  }
+  const text = `${user} 用「${view.cardId}」`;
+  if (view.counter != null) {
+    const { rootCardId, rootUserSeat, protects } = view.counter;
+    const label = jinnangCardOf(rootCardId).targetDomain === "one-city" ? cityName : seatLabel;
+    const objects = view.targetSeats.map(label).join("、");
+    const root = `${seatLabel(rootUserSeat)} 的「${rootCardId}」`;
+    return {
+      text,
+      range: `${protects ? "拆解" : "恢复"} ${root}${objects ? ` · ${objects}` : ""}`,
+    };
+  }
+  const domain = jinnangCardOf(view.cardId).targetDomain;
+  if (domain === "one-city") {
+    return {
+      text,
+      range:
+        view.targetSeats.length > 0
+          ? `受击城 ${view.targetSeats.map(cityName).join("、")}`
+          : "无受击城",
+    };
+  }
+  if (domain === "all-others") return { text, range: `影响 ${view.targetSeats.length} 位诸侯` };
+  return {
+    text,
+    range: domain === "self" ? "影响自身" : `影响 ${view.targetSeats.map(seatLabel).join("、")}`,
+  };
+}
+
+function reactionTurnScope(snapshot: GameSnapshot): string {
+  return JSON.stringify([snapshot.gameId, snapshot.turnNumber, snapshot.activeIndex]);
 }
 
 export function GameScreen() {
@@ -163,6 +188,7 @@ function GameScreenLive({
   controller: GameController;
 }) {
   const interactive = useGameStore((s) => s.interactive);
+  const reactionDeadlineAt = useGameStore((s) => s.reactionDeadlineAt);
   // 本座位动作在途(「行军中…」提示源):与 interactive 同拍由控制器写入,
   // WaitingBar 与按钮同源消费——亮一起亮、灰一起灰。
   const selfPresenting = useGameStore((s) => s.selfPresenting);
@@ -183,7 +209,6 @@ function GameScreenLive({
   const players = useStablePlayers(snapshot.players);
   // 挂载时已入座;座位缺位表示快照与座位表不一致,直取使接线错误暴露。
   const selfPlayer = players[selfSeat];
-  const selfHandOrder = JSON.stringify(selfPlayer.jinnangHand);
   // 入手音按手牌多重集差量播放,不跟随牌架挂载;同名牌逐张记账,收架期间照响。
   // 账本只活在本屏,换局重挂即重开。
   const prevHandRef = useRef<string[]>([]);
@@ -225,36 +250,27 @@ function GameScreenLive({
     snapshot,
   });
 
-  // 出牌窗:本件持有选牌/目标态,interactive 由控制器判定,choices 须含 pass/cancel。
+  // 决策归属与命令在途分开：锁住操作期间继续显示这一步的选择。
   const junshiWindowUp =
     snapshot.phase === "Playing" &&
     snapshot.turnPhase === "AwaitingJinnang" &&
+    snapshot.decisionOwner === selfSeat &&
     snapshot.choices.some((o) => o.id === "pass" || o.id === "cancel");
-  const junshiUp = interactive && junshiWindowUp;
-  // 目标段二态载荷(pendingJinnang=锦囊选人 / pendingSkill=技选人,引擎字段单源)。
+  const junshiUp = junshiWindowUp && !autopilotOn && !selfPlayer.isBot;
   const junshiPendingCard = junshiUp ? snapshot.pendingJinnang : null;
   const junshiPendingSkill = junshiUp ? snapshot.pendingSkill : null;
   const junshiTargeting = junshiPendingCard != null || junshiPendingSkill != null;
-  // 卡牌段选中(选中可逆:点它牌换选/再点同牌/右键/长按取消在 HandRack);进目标段
-  // 与退窗态即清空重选。
   const [junshiSelection, setJunshiSelection] = useState<
     (RackCardSelection & { scope: string }) | null
   >(null);
-  // 席位点击与数字键共用选中态;首点选中、再点取消,执行经动作条确认。进/出目标段清空。
-  const [junshiTargetSeat, setJunshiTargetSeat] = useState<number | null>(null);
-  // 城目标首点选中、再点取消、点他格改选,执行经动作条确认。进/出目标段清空。
-  const [junshiTargetTile, setJunshiTargetTile] = useState<number | null>(null);
-  useEffect(() => {
-    setJunshiTargetSeat(null);
-    setJunshiTargetTile(null);
-  }, [junshiTargeting, junshiUp, selfSeat, selfPlayer.id]);
   const junshiOptions =
     junshiUp && !junshiTargeting
       ? snapshot.choices.filter((o) => o.id !== "pass" && o.id !== "cancel")
       : [];
-  // 渲染序与可用性按值记账；快照的新数组不构成新选择上下文。同名序缩短或重排
-  // 无法映射回真实纸牌实例，整次选择作废，禁止将旧 key 迁到另一张同名牌。
+  // 同名牌渲染次序变化时，旧 key 无法继续定位原来的那张牌。
   const junshiScope = JSON.stringify([
+    snapshot.gameId,
+    snapshot.turnNumber,
     selfSeat,
     selfPlayer.id,
     junshiOptions.map((o) => [o.id, o.available]),
@@ -264,24 +280,47 @@ function GameScreenLive({
     junshiSelection != null && junshiSelection.scope === junshiScope
       ? junshiOptions.find((o) => o.id === junshiSelection.optionId && o.available)
       : undefined;
-  // 目标段候选(available 过滤后供席位呼吸/棋盘呼吸与数字键同序)。
-  const junshiSeatOptions = junshiTargeting
-    ? (snapshot.choices.filter((o) => o.targetSeat != null) as Array<
-        (typeof snapshot.choices)[number] & { targetSeat: number }
-      >)
-    : [];
-  // 城目标段候选(火攻技与火烧连营锦囊同窗同款):choices 城选项
-  //(结构化载荷含 targetTileIndex,available 引擎已闸——技域合法城清单空时技选项灰置
-  //「射程内无可烧之城」根本进不了目标段;锦囊域候选=全部城池格恒非空)。点亮/点选
-  // 形制两域同款无第二形制(无主中心免伤是结算语义,UI 无差别)。域互斥:目标段在城域
-  // 时候席选项恒空(候选形状单源 choices.ts)。
-  const junshiCityOptions = junshiTargeting
-    ? (snapshot.choices.filter((o) => o.targetTileIndex != null) as Array<
-        (typeof snapshot.choices)[number] & { targetTileIndex: number }
-      >)
-    : [];
-  const junshiCityTargeting = junshiCityOptions.length > 0;
-
+  const selectedSkill =
+    junshiSelected != null && isSkillOption(junshiSelected)
+      ? skillById(junshiSelected.skillId)
+      : null;
+  const pendingSkill = junshiPendingSkill != null ? skillById(junshiPendingSkill.skillId) : null;
+  const pendingCard = junshiPendingCard != null ? jinnangCardOf(junshiPendingCard.cardId) : null;
+  const selectionRule = useMemo(() => {
+    if (pendingCard != null) {
+      const flow = TARGET_DOMAIN_STAGES[pendingCard.targetDomain];
+      if (flow.stages === 0) throw new Error(`锦囊【${pendingCard.id}】没有目标段`);
+      return flow.selection;
+    }
+    if (pendingSkill == null) return null;
+    if (!isActiveSkill(pendingSkill) || pendingSkill.target === "none") {
+      throw new Error(`技能【${pendingSkill.name}】没有目标段`);
+    }
+    const domain = pendingSkill.target === "city" ? "city" : "seat";
+    return { domain, ...SINGLE_TARGET } as const;
+  }, [pendingCard, pendingSkill]);
+  const targetStep = useMemo(
+    () =>
+      selectionRule && {
+        ...selectionRule,
+        candidates: targetCandidates(snapshot.choices, selectionRule.domain),
+      },
+    [selectionRule, snapshot.choices],
+  );
+  const targetScope = junshiTargeting
+    ? JSON.stringify([
+        junshiScope,
+        junshiPendingCard?.cardId,
+        junshiPendingCard?.stage,
+        junshiPendingSkill,
+      ])
+    : null;
+  const targets = useTargetSelection(
+    targetScope,
+    targetStep,
+    junshiPendingCard?.stage === "two-a" ? junshiPendingCard.picked : undefined,
+  );
+  const junshiCityTargeting = targetStep?.domain === "city";
   // 与 DecisionScrollLayer.dispatch 同款可选拍点(registry 未就绪时不发;GameScreenLive
   // 只在 controller/map 就位后挂载,正常流到不了 null)。
   const dispatchCommand = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
@@ -303,36 +342,24 @@ function GameScreenLive({
     setWarReportOpen(true);
   }, []);
 
-  // 目标段提交命令装配(席位域 targets=[座位] / 城指向域 targets=[目标城 tileIndex]:
-  // 技=useHeroSkill、锦囊=useJinnang,四种组合命令形状同构一装配两域共用;城指向域
-  // (火烧连营)提交后由引擎按 cityTargetOptionId 对选项集复验,通道与候选 id
-  // 沿 choices 既有形状,不出第三条通路。目标段在窗恒有 pendingSkill/pendingCard
-  // 之一(引擎字段互斥单源),双缺=状态机 bug——`!` 直取失载荷当场炸出(零兜底)。
-  const junshiTargetCmd = (target: number): GameCommand =>
-    junshiPendingSkill != null
-      ? {
-          type: "useHeroSkill",
-          heroId: junshiPendingSkill.heroId,
-          skillId: junshiPendingSkill.skillId,
-          targets: [target],
-        }
-      : { type: "useJinnang", cardId: junshiPendingCard!.cardId, targets: [target] };
-
-  // 卡牌段确认(动作钮「出牌」)与目标段确认(动作钮「出」)共用拍点:选中项/选中席/
-  // 选中格发命令,同时播放落印音。
   const junshiConfirm = () => {
-    if (junshiTargeting) {
-      // 城目标段:提交通道 targets=[目标城
-      // tileIndex](choices 候选 targetTileIndex 同值);席位域=targets=[选中席]。
-      // 选中必在(playEnabled 已闸的确认钮自门控),缺选静返=自门控口径(非兜底)。
-      const target = junshiCityTargeting ? junshiTargetTile : junshiTargetSeat;
-      if (target == null) return;
-      getAudio().play("stamp");
-      dispatchCommand(junshiTargetCmd(target));
+    if (!interactive) return;
+    if (targetStep != null) {
+      if (!targets.canConfirm) return;
+      if (junshiPendingCard?.stage !== "two-a") getAudio().play("stamp");
+      if (junshiPendingSkill != null) {
+        dispatchCommand({ type: "useHeroSkill", ...junshiPendingSkill, targets: targets.selected });
+      } else {
+        dispatchCommand({
+          type: "useJinnang",
+          cardId: junshiPendingCard!.cardId,
+          targets: targets.selected,
+        });
+      }
       return;
     }
     if (junshiSelected == null) return;
-    getAudio().play("stamp");
+    if (!selectedNeedsTarget) getAudio().play("stamp");
     dispatchCommand(
       isSkillOption(junshiSelected)
         ? {
@@ -343,79 +370,81 @@ function GameScreenLive({
         : { type: "useJinnang", cardId: junshiSelected.id },
     );
   };
-  // 卡牌段「不出」= 今不用(牌不消耗);目标段「作罢」= 收回此计牌(不消耗、不记冷却)。
   const junshiPass = () => {
-    if (junshiTargeting) {
-      dispatchCommand(
-        junshiPendingSkill != null
-          ? {
-              type: "useHeroSkill",
-              heroId: junshiPendingSkill.heroId,
-              skillId: junshiPendingSkill.skillId,
-              cancel: true,
-            }
-          : { type: "useJinnang", cardId: junshiPendingCard!.cardId, cancel: true },
-      );
+    if (!interactive) return;
+    if (junshiPendingSkill != null) {
+      dispatchCommand({ type: "useHeroSkill", ...junshiPendingSkill, cancel: true });
+    } else if (junshiPendingCard != null) {
+      dispatchCommand({ type: "useJinnang", cardId: junshiPendingCard.cardId, cancel: true });
     } else {
       dispatchCommand({ type: "useJinnang", cardId: null });
     }
   };
-  // 目标段选席:席位点击层与数字键同写一个选中态(首点选中/再点同席取消);
-  // 打出经 junshiConfirm(动作条「出」)。
-  const junshiToggleSeat = (targetSeat: number) =>
-    setJunshiTargetSeat((cur) => (cur === targetSeat ? null : targetSeat));
-  // 城目标段选格:棋盘格点击层同写一个选中态
-  //(首点选中/再点同格取消/点他格改选);打出经 junshiConfirm
-  //(动作条「出」)。
-  const junshiToggleTile = (tileIndex: number) =>
-    setJunshiTargetTile((cur) => (cur === tileIndex ? null : tileIndex));
-  // 落格点击路由:城目标段在窗时候选格点击=选格,不再走选都/详情路由;
-  // 非候选格=死区(候选金环呼吸+全场压暗已表意,§4.6;席位域不可选槽轻晃同判词,
-  // 格侧死区零反馈可接受——压暗态一眼可辨不可点)。其余相位原路由(useCapitalPick)。
-  const handleTileClick = (tileIndex: number) => {
-    if (junshiCityTargeting) {
-      if (junshiCityOptions.some((o) => o.targetTileIndex === tileIndex))
-        junshiToggleTile(tileIndex);
-      return;
-    }
-    onTileClick(tileIndex);
-  };
-  // 目标段数字键 1..n 选中可用席位(与点选同口径:只选中,不打出;
-  // useDigitKeyPick 单源;卡牌段数字键在 HandRack)。
-  useDigitKeyPick(
-    junshiTargeting,
-    junshiSeatOptions.filter((o) => o.available).map((o) => o.targetSeat),
-    junshiToggleSeat,
+  const junshiBack =
+    junshiPendingCard?.stage === "two-b"
+      ? () => dispatchCommand({ type: "useJinnang", cardId: junshiPendingCard.cardId, back: true })
+      : undefined;
+  const selectedNeedsTarget =
+    selectedSkill != null
+      ? isActiveSkill(selectedSkill) && selectedSkill.target !== "none"
+      : junshiSelected != null &&
+        TARGET_DOMAIN_STAGES[jinnangCardOf(junshiSelected.id).targetDomain].stages > 0;
+  const junshiTitle = pendingCard?.id ?? pendingSkill?.name ?? junshiSelected?.label ?? "出牌阶段";
+  const stepHint = junshiCityTargeting
+    ? "在地图上选一座城"
+    : junshiPendingCard?.stage === "two-a"
+      ? "在右侧席位区选第一位诸侯"
+      : junshiPendingCard?.stage === "two-b"
+        ? "在右侧席位区选第二位诸侯"
+        : "在右侧席位区选一位诸侯";
+  const chosenLabels = targets.selected.map(
+    (id) => targetStep!.candidates.find((candidate) => candidate.id === id)!.label,
   );
+  if (junshiPendingCard?.stage === "two-b") {
+    chosenLabels.unshift(players[junshiPendingCard.picked[0]].guohao);
+  }
+  const levy = junshiSelected?.levy;
+  const junshiDetail = junshiTargeting
+    ? [
+        "正在选目标",
+        stepHint,
+        ...(chosenLabels.length > 0 ? [`已选 ${chosenLabels.join("、")}`] : []),
+      ].join(" · ")
+    : levy != null
+      ? `对其余 ${levy.affectedSeats.length} 位诸侯各征至多 ${formatMoney(levy.maxPerSeat)}`
+      : selectedNeedsTarget
+        ? "确认后选择目标"
+        : junshiSelected != null
+          ? undefined
+          : "在下方手牌区选牌";
+  const junshiPrimaryLabel =
+    junshiPendingCard?.stage === "two-a"
+      ? "下一步"
+      : pendingSkill != null || (selectedSkill != null && !selectedNeedsTarget)
+        ? "发动"
+        : junshiTargeting || (junshiSelected != null && !selectedNeedsTarget)
+          ? "出牌"
+          : "选目标";
 
-  // 自己也是候选时,SeatRail 自机格使用同一 seatTarget 通路。
-  // ── 反应窗态:快照 reaction 专用字段驱动 ──
-  // 反应询问不走 choices 单属主通道(多属主),本件从 reaction 派生横幅/可打牌/选份;
-  // 命令=respondReaction(seat 显式携带)。与出牌阶段态互斥(AwaitingReaction 相位)。
-  // 被询问判定公式单源 controllers/reaction.ts。
-  // 已应答退出窗态:本座已在 pendingReaction.answers 占座(用与不用都占座)
-  // 即不再复显横幅/金边/可打牌面——UI 消费权威应答账本,防残留与重复点击入口;引擎
-  // 对重复应答本就警告拒绝。answers 逐条公开(联机投影不裁,seat-projection.ts 注)。
   const reactionChoices = reactionChoicesForSeat(snapshot, selfSeat);
-  const reactionUp = reactionChoices !== null && reactionChoices.asked && !reactionChoices.answered;
-  // 窗实例号:seq 变化即新窗(同 kind/userSeat/cardId 的连续窗不靠 key 区分了),
-  // 横幅重挂=倒计时弧重起、静默代发重评估,与权威侧窗级 deadline 同享同一判据。
-  const reactionSeq = snapshot.pendingReaction?.seq ?? null;
-  // 降噪口(客户端本地态,ADR-0017 §4):「本回合不再询问」只活到当前行动者回合结束
-  //(行动者变更即解除)——静默期间收到询问自动立即代发「不用」,不弹横幅。
-  // 状态机单源 reaction-mute.ts(纯函数;语义:静默记按下时的
-  // 行动者,换人即解除且回到原行动者不复燃)。
-  const [reactMute, setReactMute] = useState<ReactionMuteState>(reactionMuteInitial);
-  useEffect(
-    () => setReactMute((s) => reactionMuteOnActor(s, snapshot.activeIndex)),
-    [snapshot.activeIndex],
+  const reactionUp =
+    reactionChoices != null && reactionChoices.asked && !reactionChoices.answered && !autopilotOn;
+  const reactionScope = reactionUp
+    ? JSON.stringify([snapshot.gameId, selfSeat, snapshot.pendingReaction!.seq])
+    : null;
+  const turnScope = reactionTurnScope(snapshot);
+  const [reactMute, setReactMute] = useState<{ scope: string; state: ReactionMuteState } | null>(
+    null,
   );
-  const reactMuted = reactionMuted(reactMute, snapshot.activeIndex);
+  const reactMuted =
+    reactMute?.scope === turnScope && reactionMuted(reactMute.state, snapshot.activeIndex);
   useEffect(
     () =>
       mountGameDiagnostics(controller, snapshot.gameId, VERSION, (state, seat, canAct) => {
         const choices = reactionChoicesForSeat(state, seat);
-        const muted = reactionMuted(reactMute, state.activeIndex);
+        const muted =
+          reactMute?.scope === reactionTurnScope(state) &&
+          reactionMuted(reactMute.state, state.activeIndex);
         const canDecline =
           choices !== null && choices.asked && !choices.answered && !muted && canAct;
         return {
@@ -428,103 +457,100 @@ function GameScreenLive({
       }),
     [controller, snapshot.gameId, reactMute],
   );
-  // 静默自动应答:窗开且静默中 → 代发不用(单机走驱动链排队,联机走 WS;均与手点同路)。
-  // 依赖含窗实例号:静默期间连续两窗(march 续走下一城,seq 递增)时第二窗也要代发。
+  const lastMutedAnswer = useRef<string | null>(null);
   useEffect(() => {
-    if (reactionUp && reactMuted)
-      dispatchCommand({ type: "respondReaction", seat: selfSeat, use: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- dispatchCommand 闭包随渲染更新,依赖窗态/静默/窗实例号三个语义键
-  }, [reactionUp, reactMuted, reactionSeq]);
-  // 卡牌段选中与按份族选份(点牌选中,再点同牌取消;进/出窗态清空重选;
-  // share 语义随域=座位号或受击城 tileIndex)
-  const reactScope = JSON.stringify([selfSeat, selfPlayer.id, selfHandOrder, reactionSeq]);
+    if (
+      !interactive ||
+      !reactMuted ||
+      reactionScope == null ||
+      lastMutedAnswer.current === reactionScope
+    )
+      return;
+    lastMutedAnswer.current = reactionScope;
+    controller.dispatchCommand({ type: "respondReaction", seat: selfSeat, use: false });
+  }, [controller, interactive, reactionScope, reactMuted, selfSeat]);
+
+  const reaction = reactionUp && !reactMuted ? snapshot.reaction : null;
+  const noticeOccupied = junshiUp || reaction != null;
+  useLayoutEffect(() => {
+    const { setNoticeSlotOccupied } = useFxStore.getState();
+    setNoticeSlotOccupied(noticeOccupied);
+    return () => setNoticeSlotOccupied(false);
+  }, [noticeOccupied]);
   const [reactSelection, setReactSelection] = useState<
     (RackCardSelection & { scope: string }) | null
   >(null);
-  const reactCardId =
-    reactSelection != null && reactSelection.scope === reactScope ? reactSelection.optionId : null;
-  const [reactShare, setReactShare] = useState<number | null>(null);
   useEffect(() => {
-    setReactSelection(null);
-    setReactShare(null);
-  }, [reactionUp, reactScope]);
-  const reaction = snapshot.reaction;
-  // 本窗公告牌的目标域(单源 core/jinnang 目录;反识破链环窗公告的是识破自身,域=
-  // reaction 族,天然落「免选」分支——链环应答不带份,与引擎 respondReaction 校验同形)。
-  const reactDomain =
-    reactionUp && reaction?.kind === "jinnang" ? jinnangCardOf(reaction.cardId).targetDomain : null;
-  // 按份族必选份:识破只免其中一份,须指定被保护份——all-others=座位份(横征暴敛等,
-  // 含自己);one-city=城份(火烧连营,份=受击城 tileIndex 清单)。选中反应牌才出
-  // 份候选(与既有 all-others 同形);其余域(单目标/半路杀出/链环窗)shareSeat 不参与
-  // 语义,免选。
-  const reactShareSeats =
-    reactionUp &&
-    reaction?.kind === "jinnang" &&
-    reactCardId != null &&
-    (reactDomain === "all-others" || reactDomain === "one-city")
-      ? reaction.targetSeats
-      : [];
-  const reactRespond = (use: boolean, cardId?: string, shareSeat?: number) => {
-    if (use) getAudio().play("stamp"); // 落印音
-    dispatchCommand({ type: "respondReaction", seat: selfSeat, use, cardId, shareSeat });
-  };
-  // 未选牌点按「出牌」计数:动作条自门控回执 → HandRack 可用牌金圈脉冲一拍。
-  const [playNudge, setPlayNudge] = useState(0);
-  const seatLabelOf = (seat: number) => snapshot.players[seat].guohao;
-  // 城指向域选份令牌/目标括注的城名查表(board 越界当场炸=零兜底)。
+    setReactSelection((selected) => (selected?.scope === reactionScope ? selected : null));
+  }, [reactionScope]);
+  const selectedReaction =
+    reaction != null &&
+    reactSelection?.scope === reactionScope &&
+    reactionChoices!.playable.includes(reactSelection.optionId)
+      ? reactSelection
+      : null;
+  const reactCardId = selectedReaction?.optionId;
+  const seatLabelOf = (seat: number) => players[seat].guohao;
   const cityNameOf = (tileIndex: number) => board.at(tileIndex).name;
-  const reactBanner =
-    reactionUp && reaction != null && !reactMuted ? (
-      <ReactionBanner
-        // key 挂窗实例号:seq 变化即重挂重起弧(倒计时投影与权威侧窗级 deadline
-        // 同享同一判据;同参数牌的连续窗不靠 kind/userSeat/cardId 区分)。
-        key={`reaction-${reactionSeq}`}
-        text={
-          reaction.kind === "jinnang"
-            ? snapshot.pendingReaction?.payload.kind === "counter"
-              ? // 反识破链环:公告的是一张识破,文案带链根与争夺份(争夺份标签随
-                // 根域:城指向域=城名;其余=国号);整计链(连环计被识破)无份
-                // 可保,改列根计目标(目标域读目录)
-                `${snapshot.players[reaction.userSeat].guohao} 识破【${snapshot.pendingReaction.payload.root.cardId}】${
-                  snapshot.pendingReaction.payload.shareSeat != null
-                    ? `(保 ${
-                        jinnangCardOf(snapshot.pendingReaction.payload.root.cardId).targetDomain ===
-                        "one-city"
-                          ? cityNameOf(snapshot.pendingReaction.payload.shareSeat)
-                          : snapshot.players[snapshot.pendingReaction.payload.shareSeat].guohao
-                      })`
-                    : jinnangTargetNote(
-                        snapshot.pendingReaction.payload.root.cardId,
-                        snapshot.pendingReaction.payload.root.targets,
-                        seatLabelOf,
-                        cityNameOf,
-                      )
-                },可反识破`
-              : // 根窗:目标括注随目录目标域——被询问者凭此判「要不要识破」
-                `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】${jinnangTargetNote(reaction.cardId, reaction.targetSeats, seatLabelOf, cityNameOf)}`
-            : `${snapshot.players[reaction.userSeat].guohao} 行军将过你的城池`
+  const reactDomain =
+    reaction?.kind === "jinnang" ? jinnangCardOf(reaction.cardId).targetDomain : null;
+  const reactTargetStep: TargetSelectionStep | null =
+    reaction?.kind === "jinnang" &&
+    selectedReaction != null &&
+    (reactDomain === "all-others" || reactDomain === "one-city")
+      ? {
+          domain: reactDomain === "one-city" ? "city" : "seat",
+          ...SINGLE_TARGET,
+          candidates: reaction.targetSeats.map((id) => ({
+            id,
+            label: reactDomain === "one-city" ? cityNameOf(id) : seatLabelOf(id),
+            available: true,
+          })),
         }
-        // 来者锦囊 mini 签面:jinnang 窗带本窗牌面锚点;march 窗无牌不挂。
-        cardId={reaction.kind === "jinnang" ? reaction.cardId : undefined}
-        // 时长来自权威快照 windowMs,统一经 scaleReactionMs 包装。
-        durationMs={scaleReactionMs(reaction.windowMs)}
-        shareSeats={reactShareSeats}
-        shareSeat={reactShare}
-        onPickShare={(share) => setReactShare((cur) => (cur === share ? null : share))} // 首点选中/再点取消
-        // 份令牌标签随域:城指向域=城名,其余=国号(候选集语义随 reactShareSeats)。
-        seatLabel={reactDomain === "one-city" ? cityNameOf : seatLabelOf}
-        confirmEnabled={reactCardId != null && (reactShareSeats.length === 0 || reactShare != null)}
-        onConfirm={() => {
-          if (reactCardId == null) return;
-          reactRespond(true, reactCardId, reactShareSeats.length > 0 ? reactShare! : undefined);
-        }}
-        onDecline={() => reactRespond(false)}
-        onMute={() => {
-          setReactMute(reactionMuteEngage(snapshot.activeIndex)); // 先记静默(本回合内后续询问不弹)
-          reactRespond(false); // 当前窗立即以「不用」应答
-        }}
-      />
-    ) : null;
+      : null;
+  const reactTargets = useTargetSelection(
+    reactTargetStep != null ? JSON.stringify([reactionScope, selectedReaction!.key]) : null,
+    reactTargetStep,
+  );
+  const activeTargetStep = reactTargetStep ?? targetStep;
+  const activeTargets = reactTargetStep != null ? reactTargets : targets;
+  const cityTargeting = activeTargetStep?.domain === "city";
+  const cityOptions = cityTargeting ? activeTargetStep.candidates.filter((o) => o.available) : [];
+  const seatOptions = activeTargetStep?.domain === "seat" ? activeTargetStep.candidates : [];
+  const seatTargetPick = useCallback(
+    (seat: number) => {
+      if (interactive) activeTargets.toggle(seat);
+    },
+    [interactive, activeTargets.toggle],
+  );
+  const handleTileClick = (tileIndex: number) => {
+    if (cityTargeting) {
+      if (interactive) activeTargets.toggle(tileIndex);
+      return;
+    }
+    onTileClick(tileIndex);
+  };
+  useDigitKeyPick(
+    interactive && targetStep?.domain === "seat",
+    targetStep?.candidates.filter((o) => o.available).map((o) => o.id) ?? [],
+    (seat) => {
+      if (interactive) targets.toggle(seat);
+    },
+  );
+  const reactionShare = reactTargets.selected[0];
+  const reactRespond = (use: boolean) => {
+    if (!interactive) return;
+    if (use) getAudio().play("stamp");
+    dispatchCommand({
+      type: "respondReaction",
+      seat: selfSeat,
+      use,
+      ...(use ? { cardId: reactCardId, shareSeat: reactionShare } : {}),
+    });
+  };
+  const reactionNotice =
+    reaction != null ? reactionAnnouncement(reaction, seatLabelOf, cityNameOf) : null;
+  const [playNudge, setPlayNudge] = useState(0);
 
   // ── 「你可」选择闸窗态:快照 pendingSkillChoices 首问驱动 ──
   // 相位单属主(decisionOwner=挂问属主,引擎 getter;interactive 经 canAct 主分支
@@ -597,18 +623,17 @@ function GameScreenLive({
     ) : null;
 
   // 自动状态实时随内容变化;灰置锦囊仍算有内容,主动技只计实际在架的卡牌段选项。
-  // 反应/技能横幅独立保留应答通路,空架或手动收架时照挂 banner-only。
+  // 触发技继续由手牌架边缘承载；锦囊反应条独立置顶。
   const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
-  const windowUp = junshiUp || reactBanner != null || skillBanner != null;
+  const windowUp = junshiUp || reaction != null || skillBanner != null;
   const hasRackContent = selfPlayer.jinnangHand.length > 0 || junshiOptions.some(isSkillOption);
-  const autoRackHidden = !((myTurnUp || windowUp) && hasRackContent);
+  const autoRackHidden = cityTargeting || !((myTurnUp || windowUp) && hasRackContent);
   const rackHidden = rackManualHidden === null ? autoRackHidden : rackManualHidden;
   const toggleRackHidden = useCallback(
     () => setRackManualHidden((manual) => !(manual === null ? autoRackHidden : manual)),
     [autoRackHidden],
   );
-  const rackJunshiWindowUp = junshiWindowUp && snapshot.decisionOwner === selfSeat;
-  const rackReactionSeq = reactionUp ? reactionSeq : null;
+  const rackJunshiWindowUp = junshiWindowUp;
   const rackSkillQuestionId =
     skillWindowUp && snapshot.decisionOwner === selfSeat ? skillQuestionId : null;
   // 只在回合/本座实际窗态边界撤销手动控制;命令在途的交互锁不算关窗。
@@ -620,12 +645,13 @@ function GameScreenLive({
     snapshot.activeIndex,
     snapshot.turnNumber,
     rackJunshiWindowUp,
-    rackReactionSeq,
+    cityTargeting,
+    reactionScope,
     rackSkillQuestionId,
   ]);
   // 窗态+收起的两处派生(呼吸金光/banner-only 形态,消费点见下渲染段):一次推导。
   const rackBreathe = rackHidden && windowUp;
-  const rackBannerOnly = rackHidden && (reactBanner != null || skillBanner != null);
+  const rackBannerOnly = rackHidden && skillBanner != null;
 
   // 选都引导区分当前行动者与本座,剩余人数按 capitalIndex < 0 统计(与 TokenLayer 同口径)。
   const setupHint = (() => {
@@ -638,6 +664,9 @@ function GameScreenLive({
     if (myTurn) return `轮到你定都:点选一座候选城(余 ${pending} 人未定)`;
     return `「${cur.guohao}」正在定都(尚余 ${pending} 人)…`;
   })();
+
+  if (reaction != null && reactionDeadlineAt == null)
+    throw new Error(`反应窗 ${snapshot.pendingReaction!.seq} 缺少截止时刻`);
 
   return (
     <AudioProvider>
@@ -666,22 +695,14 @@ function GameScreenLive({
             selectableTiles={selectableTiles}
             /* 目标段选城:候选金环呼吸(选都 crown 同通路)+ 选中实金停持环;
                候选集/选中格从快照 choices 城选项派生,非城域恒 undefined/null */
-            cityTargetTiles={
-              junshiCityTargeting
-                ? new Set(junshiCityOptions.map((o) => o.targetTileIndex))
-                : undefined
-            }
-            cityPickedTileIndex={junshiCityTargeting ? junshiTargetTile : null}
+            cityTargetTiles={cityTargeting ? new Set(cityOptions.map((o) => o.id)) : undefined}
+            cityPickedTileIndex={cityTargeting ? (activeTargets.selected[0] ?? null) : null}
             /* 候选集全座位透传——非决策席也见静态金圈与壹贰叁序号印 */
             candidateTiles={offeredCapitals ?? undefined}
             /* 目标段:可用候选席位的棋子金虚线环呼吸(与席位格金圈同步) */
             targetedPlayerIds={
-              junshiTargeting
-                ? new Set(
-                    junshiSeatOptions
-                      .filter((o) => o.available)
-                      .map((o) => players[o.targetSeat].id),
-                  )
+              activeTargetStep?.domain === "seat"
+                ? new Set(seatOptions.filter((o) => o.available).map((o) => players[o.id].id))
                 : undefined
             }
             activeTileIndex={
@@ -730,6 +751,7 @@ function GameScreenLive({
         <GameTopBar snapshot={snapshot} warUnread={warUnread} onOpenSettings={openSettings} />
         {/* 顶中知会槽承载回合胶囊/都城停条带/等待条,瞬态知会优先,由 fxStore 槽泵排队互斥。 */}
         <NoticeBanner
+          occupied={noticeOccupied}
           snapshot={snapshot}
           interactive={interactive}
           selfPresenting={selfPresenting}
@@ -742,30 +764,26 @@ function GameScreenLive({
           snapshot={snapshot}
           selfSeat={selfSeat}
           targets={
-            junshiTargeting
+            activeTargetStep?.domain === "seat"
               ? {
                   bySeat: new Map(
-                    junshiSeatOptions.map((o) => [
-                      o.targetSeat,
+                    seatOptions.map((o) => [
+                      o.id,
                       {
                         available: o.available,
                         reason: o.reason,
-                        selected: o.targetSeat === junshiTargetSeat,
+                        selected: activeTargets.selected.includes(o.id),
                       },
                     ]),
                   ),
-                  onPick: junshiToggleSeat, // 首点选中/再点取消,打出走动作条「出」
+                  locked: !interactive,
+                  onPick: seatTargetPick,
                 }
               : undefined
           }
         />
-        {/* 底缘透明手牌区:签面驻左端 + 手牌架。
-          有内容时按回合/窗态自动展开,手动开/收保留至下次边界。
-          挂载条件 `!rackHidden || 横幅窗在场`(反应窗/
-          「你可」触发卡):纯收起整区卸载(签面随之,卸载零占位,战斗区
-          最大化);收起时若横幅窗在场,区壳仍挂载以宿主横幅(banner-only 形态,
-          签面/牌行不挂,横幅失去架体依托后贴底下移)。 */}
-        {(!rackHidden || reactBanner != null || skillBanner != null) && (
+        {/* 收架时仅待决触发技保留手牌区入口。 */}
+        {(!rackHidden || skillBanner != null) && (
           <HandZone
             snapshot={snapshot}
             player={selfPlayer}
@@ -785,29 +803,31 @@ function GameScreenLive({
                         pendingCardId: junshiPendingCard?.cardId ?? null,
                         pendingSkillId: junshiPendingSkill?.skillId ?? null,
                         selectedKey: junshiSelected != null ? junshiSelection!.key : null,
-                        onSelect: (selection) =>
-                          setJunshiSelection(
-                            selection != null ? { ...selection, scope: junshiScope } : null,
-                          ),
+                        onSelect: (selection) => {
+                          if (interactive) {
+                            setJunshiSelection(
+                              selection != null ? { ...selection, scope: junshiScope } : null,
+                            );
+                          }
+                        },
                         onConfirm: junshiConfirm,
                       }
                     : undefined
                 }
                 reaction={
-                  reactBanner != null
+                  reaction != null
                     ? {
-                        banner: reactBanner,
                         reactiveIds: reactionChoices!.playable,
                         seq: snapshot.pendingReaction!.seq,
-                        selectedKey: reactCardId != null ? reactSelection!.key : null,
+                        selectedKey: selectedReaction?.key ?? null,
                         onSelect: (selection) => {
-                          getAudio().play("jinnangSelect"); // 选中音(选中可逆,取消不出声)
-                          setReactShare(null); // 换选即清份(份随牌走)
-                          setReactSelection((cur) =>
-                            cur?.scope === reactScope && cur.key === selection.key
-                              ? null
-                              : { ...selection, scope: reactScope },
-                          );
+                          if (!interactive) return;
+                          if (selectedReaction?.key === selection.key) {
+                            setReactSelection(null);
+                            return;
+                          }
+                          getAudio().play("jinnangSelect");
+                          setReactSelection({ ...selection, scope: reactionScope! });
                         },
                       }
                     : undefined
@@ -824,7 +844,7 @@ function GameScreenLive({
           breathe={rackBreathe}
           nudgePulse={rackHidden ? playNudge : undefined}
           onToggleRack={toggleRackHidden}
-          bookPlayReady={junshiUp && !junshiTargeting} // 己方出牌阶段卡牌段可用技能书
+          bookPlayReady={interactive && junshiUp && !junshiTargeting} // 己方出牌阶段卡牌段可用技能书
           onUseBook={(treasureId, heroId) => {
             getAudio().play("stamp");
             dispatchCommand({ type: "useBookSkill", treasureId, heroId });
@@ -850,22 +870,60 @@ function GameScreenLive({
             onCaptureDiagnostic={checkpointGameDiagnostics}
           />
         )}
-        {/* 动作条独立于牌架,收架仍可决策;卡牌段出牌/不出,目标段出/作罢。
-          未选牌的确认尝试触发 playNudge:架展开时提示可用牌,收起时提示锦囊钮。 */}
         {junshiUp && (
           <ActionBar
-            segment={junshiTargeting ? "target" : "card"}
-            playEnabled={
-              junshiTargeting
-                ? junshiCityTargeting
-                  ? junshiTargetTile != null // 城目标段:选中格点亮「出」
-                  : junshiTargetSeat != null
-                : junshiSelected != null
+            title={junshiTitle}
+            detail={
+              junshiSelected == null && !junshiTargeting && rackHidden
+                ? "点右下「锦囊」打开手牌"
+                : junshiDetail
             }
+            primaryLabel={junshiPrimaryLabel}
+            cancelLabel={
+              junshiPendingSkill != null
+                ? "作罢"
+                : junshiPendingCard != null
+                  ? "取消选牌"
+                  : undefined
+            }
+            canConfirm={junshiTargeting ? targets.canConfirm : junshiSelected != null}
+            locked={!interactive}
             onPlay={junshiConfirm}
             onPass={junshiPass}
-            rightShift={!junshiTargeting && junshiSelected != null}
+            onBack={junshiBack}
             onBlockedAttempt={() => setPlayNudge((n) => n + 1)}
+          />
+        )}
+        {reaction != null && reactionNotice != null && (
+          <ReactionBanner
+            key={reactionScope}
+            {...reactionNotice}
+            step={
+              reactTargetStep != null
+                ? reactionShare != null
+                  ? `保护 ${reactTargetStep.candidates.find((o) => o.id === reactionShare)!.label}`
+                  : reactTargetStep.domain === "city"
+                    ? "在地图上选一座城保护"
+                    : "在右侧席位区选一位诸侯保护"
+                : reactCardId != null
+                  ? `已选 ${reactCardId}`
+                  : rackHidden
+                    ? "点右下「锦囊」打开手牌"
+                    : "在下方手牌区选反应锦囊"
+            }
+            durationMs={reaction.windowMs}
+            deadlineAt={reactionDeadlineAt!}
+            confirmEnabled={
+              reactCardId != null && (reactTargetStep == null || reactTargets.canConfirm)
+            }
+            locked={!interactive}
+            onConfirm={() => reactRespond(true)}
+            onDecline={() => reactRespond(false)}
+            onMute={() => {
+              lastMutedAnswer.current = reactionScope;
+              setReactMute({ scope: turnScope, state: reactionMuteEngage(snapshot.activeIndex) });
+              reactRespond(false);
+            }}
           />
         )}
         {/* 战报抽屉(入口在设置内):条件挂载,常收零占位。 */}

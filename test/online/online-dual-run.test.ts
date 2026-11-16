@@ -686,9 +686,8 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
         }
         expect(view.wire.events.filter((event) => event.kind === "reactionAnswered")).toEqual([]);
         const opened = view.wire.events.find((event) => event.kind === "reactionOpened");
-        if (opened === undefined || opened.kind !== "reactionOpened")
-          throw new Error("缺少真实开窗事件");
-        expect(opened.queriedSeats).toEqual(seat === 0 ? [0, -1] : [-1, 1]);
+        if (opened?.view.kind !== "jinnang") throw new Error("缺少真实锦囊开窗事件");
+        expect(opened.view.queriedBySeat).toEqual(seat === 0 ? [0, -1] : [-1, 1]);
       }
       await host.request({
         kind: "sendCommand",

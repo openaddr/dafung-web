@@ -63,9 +63,8 @@ export const setCatchupScale = (scale: number): void => {
   catchupScale = scale;
 };
 
-/** 界面/节拍时长缩放(模块内约定俗成的 sc):只吃 e2e 键,追帧倍率不进门——反应窗
- *  倒计时弧必须与权威窗同长(scaleReactionMs),UI TTL、GHOST、bot 节拍(core/timings)
- *  都不是棋盘演出(追帧是播放侧治理,产出端节拍不配套,ADR-0029 判据基调)。
+/** 界面/节拍时长缩放(模块内约定俗成的 sc):只吃 e2e 键,追帧倍率不进门——
+ *  UI TTL、GHOST、bot 节拍(core/timings)都不是棋盘演出。
  *  无键时直通(不落地板,80ms 级短拍保持原值)。 */
 export const sc = (ms: number): number => {
   if (S === 1) return ms;
@@ -382,14 +381,6 @@ export const GHOST = {
     return sc(210);
   },
 } as const;
-
-/** 反应窗时长缩放包装(#281 引入,#284 单源收口):开窗时长的权威值是
- *  `ReactionView.windowMs`(引擎开窗时查 core/constants REACTION_WINDOW_MS 写入,
- *  随快照 view 走;联机权威侧可经服务器 env E2E_REACTION_MS 覆盖,两端同长自动成立)。
- *  UI 倒计时弧/横幅与单机权威侧定时器(LocalController)一律「取 windowMs → 过本函数」
- *  消费,不再各自引常量表(双源消灭);E2E_TIME_SCALE 缩放通道(#225)收口在此。
- *  只吃 sc 不吃追帧(F4 作用域拆分):倒计时弧必须与权威窗同长,追帧压缩会失配。 */
-export const scaleReactionMs = (windowMs: number): number => sc(windowMs);
 
 /** 界面层反馈节奏(#117 收编,非棋盘特效):提示/状态条的自动清除 TTL 与胜利屏
  *  交互件的延后挂载。UI 直改即生效的反馈,不吃编排链,独立于 FX/DICE 调参;
