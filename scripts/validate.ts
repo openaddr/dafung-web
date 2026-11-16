@@ -96,7 +96,7 @@ const DOMAINS: Record<string, { paths: RegExp; checks: string[] }> = {
   },
   scripts: {
     paths:
-      /^scripts\/(?:android-apk|apk-smoke|bot-driver|build-dist|bun-release|change-classification|check-[\w-]+|cli|command-log|context-read|cost-probe|dev-ports|dev|dist-freshness|engine-helpers|event-batch|fault-proxy|fetch-asset|frame-probe|generate-theme-tokens|mobile-context|online-client|play|pr-merge|procs|release|room-persistence|room-record|room|seat-projection|server|shot|sim-batch|sim-bench|sim-digest|sim-jinnang|state-digest|test-corpus|test-lock|validate|visual-compare|watchdogs|whole-game|wire|ws-new|ws-run)\.(?:ts|mjs)$/,
+      /^scripts\/(?:android-apk|apk-smoke|bot-driver|build-dist|bun-release|change-classification|check-[\w-]+|cli|command-log|context-read|cost-probe|dev-ports|dev|dist-freshness|engine-helpers|event-batch|fault-proxy|fetch-asset|frame-probe|generate-theme-tokens|mobile-context|online-client|play|pr-merge|procs|release|room-persistence|room-record|room|seat-projection|server|shot|sim-batch|sim-bench|sim-digest|sim-jinnang|state-digest|test-corpus|test-lock|validate|visual-compare|watchdogs|whole-game|wire|ws-integrate|ws-new|ws-run)\.(?:ts|mjs)$/,
     checks: ["typecheck:scripts"],
   },
   engine: {
@@ -315,7 +315,9 @@ async function run(selected: Plan, output: string | null): Promise<number> {
   const save = () => writeFileSync(receipt, JSON.stringify(result, null, 2) + "\n");
   writeFileSync(receipt, JSON.stringify(result, null, 2) + "\n", { flag: "wx" }); // 每轮独立证据,禁止覆盖。
   const runStart = performance.now();
-  console.log(JSON.stringify(selected, null, 2));
+  console.log(
+    `[validate] ${selected.base.commit}..${selected.commit}，${selected.changes.length} 个路径，检查 ${selected.checks.map(({ id }) => id).join(", ")}`,
+  );
   try {
     for (const check of selected.checks) {
       assertCurrent(selected.contentSha256);
