@@ -5,7 +5,7 @@
 //      纸色文字 + 金发丝边 + 墨影);② 去 Arrow(原型浮签无箭头);③ 去动画类
 //      (tw-animate-css 未入仓,原样保留只会是死类;浮签即时显隐同原型);
 //   ④ cn 别名修正为 @app/utils/cn(CLI 生成的是裸 "cn",本仓不可解析)。
-// 行为层(hover + 长按同效、贴缘翻面、文案结构)不在此文件——见 game/Tip.tsx。
+// 行为层(长按、贴缘翻面、文案结构)不在此文件——见 game/Tip.tsx。
 import type { ComponentProps } from "react";
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { cn } from "@app/utils/cn";

@@ -1,10 +1,7 @@
 /* 棋盘组件专属样式(与 tokens.css 同级;移植自 src/render/style.css 的棋盘段落)。
-   Tailwind 类无法表达的部分(keyframes / SVG 子选择器 hover / 伪动画)集中在此。 */
+   Tailwind 类无法表达的部分(keyframes / SVG 子选择器 / 伪动画)集中在此。 */
 
 /* ── 城池 ── */
-.bv-tile {
-  cursor: pointer;
-}
 /* 需求2·无主档:整城 0.92 的"安静感"——比有主城略退后,视线自然落在有主/都城上。
    双类名提高优先级,确保不被 Tailwind 单类 .opacity-40(isTaken 灰阶)意外覆盖。 */
 .bv-tile.bv-unowned {
@@ -14,20 +11,16 @@
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-out);
 }
-.bv-tile:hover .bv-tile-hilite,
-/* M-2 触屏:无 hover,:active 由 touch 按压激活,给出等效按压反馈 */
+/* 触屏按压反馈。 */
 .bv-tile:active .bv-tile-hilite {
-  /* #512 深底档:金盘 hover 从 0.5 压到 0.35——玄墨底上金盘天然显眼,反馈够读即可 */
+  /* #512 深底档:金盘反馈在玄墨底上保持适度亮度。 */
   opacity: 0.35;
 }
-/* #557 悬停反馈穿透遮挡:金盘 hilite r62 大半被 104×88 铭牌盖住,只露 ≈3px 边缘——
-   hover 时铭牌描边同步升亮金,反馈从遮挡里读得出来(CSS stroke 压过 SVG stroke
-   展示属性);限定 rect 只命中地产铭牌卡,三族事件格(bv-tile-border 挂在 <g> 上)
-   不吃此规则。触屏 :active 与金盘同口径。 */
+/* 金盘大半被铭牌盖住,按压时同步提亮铭牌描边。限定 rect 只命中地产铭牌卡,
+   三族事件格的 bv-tile-border 挂在 <g> 上,不吃此规则。 */
 .bv-tile rect.bv-tile-border {
   transition: stroke var(--dur-fast) var(--ease-out);
 }
-.bv-tile:hover rect.bv-tile-border,
 .bv-tile:active rect.bv-tile-border {
   stroke: var(--color-gold-bright);
 }

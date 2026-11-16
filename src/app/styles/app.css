@@ -183,9 +183,9 @@ body {
   --safe-left: env(safe-area-inset-left, 0px);
 }
 
-/* ── S2(#35) 键盘焦点全局圈:虚线墨圈,与首页 H-4 同一口径 ──
+/* ── S2(#35) 可见焦点全局圈:虚线墨圈,与首页 H-4 同一口径 ──
    :where() 零特异度:组件想要别的焦点样式可无 specificity 代价地覆盖;
-   只有 :focus-visible 命中(键盘 Tab 导航),鼠标/触屏点击不出圈。 */
+   只在 :focus-visible 命中时显示,普通触屏点按不出圈。 */
 :where(button, a, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
   outline: 2px dashed var(--color-paper);
   outline-offset: 2px;
@@ -235,9 +235,6 @@ button:not(:disabled):active {
 ::-webkit-scrollbar-thumb {
   background: var(--color-gold);
   border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-gold-bright);
 }
 
 /* ── 纸纹(玄墨鎏金 #514 改版):深底鎏金噪点。
@@ -297,11 +294,10 @@ body[data-screen="game"] #app::after {
 /* ── 控件种(视觉重做 v2 → 玄墨鎏金 #514 深底重定义):全项目按钮/面板的「器物」基种。
    语义不变:墨=主行动(落子无悔)·朱=权与险·金=势(轮次/选中,不再作按钮底)·笺=次级。
    材质换深底等价物:墨钮=近黑漆底金边金字(漆器镶金)、笺=暗笺底发丝边、朱钮=沉朱底
-   近白字(深底上浅朱+白字对比不足,压深保 4.5:1)、印=漆金(印章漆金化,#506 拍板)。
-   悬停微反馈与对局屏同语言(S4 layout.css):金边/金圈提亮 + 底色微升,不动字色。── */
+   近白字(深底上浅朱+白字对比不足,压深保 4.5:1)、印=漆金(印章漆金化,#506 拍板)。── */
 
 /* 墨钮:近黑漆底 + 金发丝边 + 漆金文字,一切推进对局的主行动(行军/买/扩/结算/开局)。
-   渐变自 panel 沉到 bg-deep(比页面底更黑一档,靠金边浮出),hover 金边提亮。 */
+   渐变自 panel 沉到 bg-deep(比页面底更黑一档,靠金边浮出)。 */
 .ink-btn {
   background: linear-gradient(180deg, var(--color-panel), var(--color-bg-deep));
   color: var(--color-lacquer-gold);
@@ -310,24 +306,16 @@ body[data-screen="game"] #app::after {
     inset 0 1px 0 color-mix(in srgb, var(--color-gold-bright) 25%, transparent),
     var(--ink-shadow-sm);
 }
-.ink-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-lacquer));
-  border-color: color-mix(in srgb, var(--color-gold) 65%, transparent);
-}
 .ink-btn:disabled {
   filter: saturate(0.4) brightness(0.82);
 }
 
-/* 笺钮:暗笺底 + 发丝边,次级动作/工具;hover 底升一档 + 边缘晕金(金=势的预告)。 */
+/* 笺钮:暗笺底 + 发丝边,次级动作/工具。 */
 .note-btn {
   background: var(--color-panel);
   color: var(--color-paper);
   border: 1px solid var(--hairline);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-}
-.note-btn:hover:not(:disabled) {
-  background: var(--color-panel-hi);
-  border-color: color-mix(in srgb, var(--color-gold) 45%, transparent);
 }
 
 /* 漆金印(.seal-gold,#506「印章漆金化」):金箔底 + 玄墨字的小方章。

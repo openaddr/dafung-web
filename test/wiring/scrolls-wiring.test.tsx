@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
 import { GHOST, UI } from "@app/fx/timings";
+import { SHORT_LANDSCAPE_QUERY } from "@app/hooks/use-media-query";
 import { SCROLL_TESTIDS as T } from "@app/screens/game/scroll/testids";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
@@ -158,7 +159,7 @@ const docQ = (id: string): Element | null => q(document, id);
  *  #413 判词:必须无人持有,定都产出会撞车)+ 交涉挂起载荷(armVisitor)+ 停交涉相位
  *  (armPhase,decisionOwner=城主天然成立)。返回被访城 propertyId 与种子城 def 供价签
  *  期望核算。 */
-function plantTrade(handles: ReturnType<typeof startGame>): string {
+function plantTrade(handles: ReturnType<typeof startGame>, level: number | "max" = 1): string {
   const { engine, plant, snap } = handles;
   plant({
     kind: "giveTreasure",
@@ -172,7 +173,13 @@ function plantTrade(handles: ReturnType<typeof startGame>): string {
   const owned = new Set(engine.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
   const tile = engine.board.tiles.find((t) => t.propertyId != null && !owned.has(t.propertyId));
   if (tile?.propertyId == null) throw new Error("接线测试:无主城缺席(种植前提失真)");
-  plant({ kind: "grantProperty", seat: 0, propertyId: tile.propertyId, level: 1 });
+  plant({
+    kind: "grantProperty",
+    seat: 0,
+    propertyId: tile.propertyId,
+    level: level === "max" ? engine.catalog.get(tile.propertyId)!.maxLevel : level,
+  });
+  plant({ kind: "placePlayer", seat: 1, position: tile.index });
   plant({ kind: "armVisitor", propertyId: tile.propertyId, ownerSeat: 0 });
   plant({
     kind: "armPhase",
@@ -369,23 +376,42 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
   // 的 JSON 逐字对账,#799 基线后切片)→层随结算收口(幽灵帧走完)。结算细则归
   // test/treasure.test.ts(单测已钉,cmd 行=命令接线证据)。
   it("公道买卖:点选金描边+二段式成交,确认提交发 resolveTreasureOwner 命令", async () => {
+    // 宽裕横屏仍须在固定操作区显示城池结果,而不是随选宝网格滚走。
+    expect(window.innerWidth).toBeGreaterThan(window.innerHeight);
+    expect(window.matchMedia(SHORT_LANDSCAPE_QUERY).matches).toBe(false);
     const handles = startGame();
-    plantTrade(handles);
-    const { snap } = handles;
+    const propertyId = plantTrade(handles);
+    const { engine, snap } = handles;
+    const cityName = engine.board.tiles.find((tile) => tile.propertyId === propertyId)!.name;
+    const cityOutcome = `${cityName} +1 级`;
     expect(docQ(T.treasureScroll)).not.toBeNull();
+    expect(docQ(T.treasureScroll)!.textContent).toContain("按指导价出售,成交后城池 +1 级");
+    expect(docQ(T.treasureScroll)!.textContent).toContain("按城池等级加价出售,城池不升级");
     click(docQ(T.treasureModeFair)!);
     const pick = () => docQ(T.treasurePick);
     expect(pick()).not.toBeNull();
+    expect(pick()!.textContent).toContain(`按指导价出售,成交后${cityOutcome}`);
+    expect(pick()!.textContent!.split(cityOutcome)).toHaveLength(2);
     const item = () => docQ(T.treasureItem("seal"))!;
     expect(item()).not.toBeNull();
     // 价签:未选=指导价;指导价单源 core/treasures(不写第二事实源)
     expect(item().textContent).toContain(`指导价 ${formatMoney(guidePriceOf(3))}`);
     const confirm = () => docQ(T.treasureConfirm)!;
+    const actionArea = () => q(pick()!, TESTIDS.modalFooter)!;
+    expect(actionArea()).not.toBeNull();
+    expect(q(pick()!, TESTIDS.modalScrollBody)!.contains(actionArea())).toBe(false);
+    expect(actionArea().textContent).toContain(cityOutcome);
     expect(confirm().hasAttribute("disabled")).toBe(true); // 未预选不可成交
     // 点选=金描边上浮:aria-pressed 翻真 + 价签转「成交 · 至 N 两」
     click(item());
     expect(item().getAttribute("aria-pressed")).toBe("true");
     expect(item().textContent).toContain(`成交 · 至 ${formatMoney(guidePriceOf(3))}`);
+    expect(actionArea().querySelector('[aria-live="polite"]')!.textContent).toBe(
+      `卖出 传国玉玺 · 入账 ${formatMoney(guidePriceOf(3))}`,
+    );
+    expect(pick()!.textContent!.split(cityOutcome)).toHaveLength(2);
+    expect(actionArea().contains(confirm())).toBe(true);
+    expect(actionArea().textContent).toContain(cityOutcome);
     // 二段式:第一段=预选态点亮确认,不提交(层不关、相位不动、零命令)
     click(confirm());
     expect(confirm().textContent).toBe("确认成交");
@@ -403,10 +429,48 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
       type: "resolveTreasureOwner",
       action: { type: "fair", treasureId: "seal" },
     });
+    expect(snap().players[0].properties.find((h) => h.propertyId === propertyId)!.level).toBe(2);
+    expect(snap().players[1].treasures.some((t) => t.id === "seal")).toBe(true);
     // 层随结算收口(幽灵帧 210ms 走完;命令留痕已被钉住,层收跟拍不吃竞速)
     await clock.advance(GHOST.frameMs);
     expect(pick() === null, "选宝层应随结算收口").toBe(true);
     expect(docQ(T.treasureScroll) === null, "交涉卷轴应随结算收场").toBe(true);
+  });
+
+  it("满级城公道交易说明封顶，预览与成交等级一致", () => {
+    const handles = startGame();
+    const propertyId = plantTrade(handles, "max");
+    const { engine, snap } = handles;
+    const maxLevel = engine.catalog.get(propertyId)!.maxLevel;
+    const cityName = engine.board.tiles.find((tile) => tile.propertyId === propertyId)!.name;
+    const cityOutcome = `${cityName} 维持 Lv.${maxLevel}（满级）`;
+    expect(docQ(T.treasureModeFair)!.textContent).toContain("满级不升级");
+
+    click(docQ(T.treasureModeFair)!);
+    const pick = docQ(T.treasurePick)!;
+    expect(pick.textContent).toContain(`按指导价出售,成交后${cityOutcome}`);
+    expect(pick.textContent!.split(cityOutcome)).toHaveLength(2);
+    click(docQ(T.treasureItem("seal"))!);
+    const summary = pick.querySelector('[aria-live="polite"]')!.textContent!;
+    expect(summary).toBe(`卖出 传国玉玺 · 入账 ${formatMoney(guidePriceOf(3))}`);
+    expect(pick.textContent!.split(cityOutcome)).toHaveLength(2);
+    expect(pick.textContent).not.toContain("+1 级");
+    expect(pick.textContent!.split("满级")).toHaveLength(2);
+
+    const logLenBefore = snap().log.length;
+    click(docQ(T.treasureConfirm)!);
+    click(docQ(T.treasureConfirm)!);
+    const cmdLine = snap()
+      .log.slice(logLenBefore)
+      .find((line) => line.category === "cmd");
+    expect(JSON.parse(cmdLine!.detail)).toEqual({
+      type: "resolveTreasureOwner",
+      action: { type: "fair", treasureId: "seal" },
+    });
+    expect(snap().players[0].properties.find((h) => h.propertyId === propertyId)!.level).toBe(
+      maxLevel,
+    );
+    expect(snap().players[1].treasures.some((t) => t.id === "seal")).toBe(true);
   });
 });
 

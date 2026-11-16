@@ -1,9 +1,9 @@
 // 根组件:按 store.screen 路由(setup 首页 / solo-setup 单机配置 / lobby / game)。
 // 正式开局流程:首页「单机模式」→ SoloSetupScreen.onStart → loadMapById → LocalController → GameScreen。
-// 联机流程(阶段 8):首页「联机模式」或 ?online=1 → 占位图 + OnlineController
-// → LobbyScreen(建房/加入);?room=CODE 直连自动加入;开局由服务器首帧 snapshot
+// 联机流程(阶段 8):首页「联机模式」→ 占位图 + OnlineController
+// → LobbyScreen(建房/加入);开局由服务器首帧 snapshot
 // 驱动 online.ts 切 GameScreen(对照旧 main.ts enterOnline)。
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { loadMapById } from "@core/map-source";
 import { getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
@@ -11,7 +11,6 @@ import { OnlineController } from "@app/controllers/online";
 import { setController } from "@app/controllers/registry";
 import { returnHome } from "@app/screens/shared/return-home";
 import { useGameStore } from "@app/store/gameStore";
-import { useNetStore } from "@app/store/netStore";
 import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
 import { HomeScreen } from "@app/screens/home/HomeScreen";
 import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupScreen";
@@ -37,12 +36,6 @@ function urlSeed(): number | undefined {
   const raw = new URLSearchParams(location.search).get("seed");
   const n = raw === null ? NaN : Number(raw);
   return Number.isFinite(n) ? n : undefined;
-}
-
-/** ?room= 房间码(联机直链;?online=1 与之共同构成 enterOnline 的 URL 入口)。 */
-function urlRoom(): string | null {
-  const raw = new URLSearchParams(location.search).get("room");
-  return raw ? raw.trim().toUpperCase() : null;
 }
 
 export function App() {
@@ -92,45 +85,23 @@ export function App() {
   );
 
   // ── 联机入口(对照旧 enterOnline):加载默认内置图为占位 → OnlineController → 大厅屏。
-  // roomParam 非空 = ?room= 直链,入座后自动加入该房(旧流程无此参数,React 版补齐 e2e/分享链接场景)。
-  const handleOnline = useCallback(
-    async (roomParam?: string | null) => {
-      try {
-        // 图源走进程级单例(#1273 归位):绕开单例的那只私有实例退役,清单/地图缓存
-        // 与单机路径共用一份(同图双取双析在此一并消失)
-        const source = getMapSource();
-        const mapId = await getDefaultMapId();
-        const map = await loadMapById(source, mapId);
-        // registry 的 MapData 取同图原始数据(单源缓存命中,不再二次 fetch):
-        // BoardView 在换图前先有东西可画
-        // 服务器地址由 LobbyApi 在调用时取 server-base 单源(#279):默认同源,大厅可改(APK 真机联机)
-        const controller = new OnlineController(map, mapId);
-        setController(controller, await source.loadMapData(mapId));
-        setScreen("lobby");
-        if (roomParam) {
-          // 直链加入:失败提示但停留在大厅屏(手填房间码重试)
-          await controller.joinRoom(roomParam).catch((err: Error) => {
-            useNetStore.getState().pushHint(`加入失败:${err.message}`);
-          });
-        }
-      } catch (err) {
-        pushHint(`进入联机失败:${(err as Error).message}`);
-      }
-    },
-    [pushHint, setScreen],
-  );
-
-  // URL 直达:?online=1 / ?room=CODE(只消费一次:StrictMode 双挂载 + 按钮入口都防重复)
-  const urlConsumed = useRef(false);
-  useEffect(() => {
-    if (urlConsumed.current) return;
-    const params = new URLSearchParams(location.search);
-    const room = urlRoom();
-    if (params.has("online") || room) {
-      urlConsumed.current = true;
-      void handleOnline(room);
+  const handleOnline = useCallback(async () => {
+    try {
+      // 图源走进程级单例(#1273 归位):绕开单例的那只私有实例退役,清单/地图缓存
+      // 与单机路径共用一份(同图双取双析在此一并消失)
+      const source = getMapSource();
+      const mapId = await getDefaultMapId();
+      const map = await loadMapById(source, mapId);
+      // registry 的 MapData 取同图原始数据(单源缓存命中,不再二次 fetch):
+      // BoardView 在换图前先有东西可画
+      // 服务器地址由 LobbyApi 在调用时取 server-base 单源(#279):默认同源,大厅可改(APK 真机联机)
+      const controller = new OnlineController(map, mapId);
+      setController(controller, await source.loadMapData(mapId));
+      setScreen("lobby");
+    } catch (err) {
+      pushHint(`进入联机失败:${(err as Error).message}`);
     }
-  }, [handleOnline]);
+  }, [pushHint, setScreen]);
 
   // 退出联机回设置屏:销毁 controller(关 WS)+ 清房间态,避免残留泄漏到单机局
   const handleExitLobby = returnHome;

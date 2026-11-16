@@ -4,7 +4,7 @@
 // 口径:轻点 = click 且长按未触发 → onTap;长按 = 按满判定窗触发 onLongPress,触发后
 // 置 fired,随后的合成 click 由 onClick 首行吞掉(同一动作绝不发两次,use-long-press 同源)。
 // 消费差异走配置:onLongPress 为 null = 本次起按不武装(窗态牌仅选中态武装「长按=取消」)、
-// ms 可调(Tip 触屏 400ms)、onContextMenu 在拦菜单后追加动作(窗态牌右键=取消选中)。
+// ms 可调(Tip 长按 400ms)。
 // 个别事件需在拦截之外追加自有动作时(如 Tip 触屏抬起即收签),在 spread 之后覆写同名
 // prop,先调本件再补自己的。
 import { useRef } from "react";
@@ -19,8 +19,6 @@ interface TapOrLongPressOptions {
   onLongPress?: ((trigger: HTMLElement) => void) | null;
   /** 长按判定窗 ms(缺省走 useLongPress 单源默认 500)。 */
   ms?: number;
-  /** contextMenu 拦掉浏览器菜单后的追加动作(窗态牌:右键=取消选中)。 */
-  onContextMenu?: () => void;
 }
 
 export function useTapOrLongPress(opts: TapOrLongPressOptions) {
@@ -49,8 +47,7 @@ export function useTapOrLongPress(opts: TapOrLongPressOptions) {
       onPointerCancel: () => press.cancel(),
       onPointerLeave: () => press.cancel(),
       onContextMenu: (e: ReactMouseEvent<HTMLElement>) => {
-        e.preventDefault(); // 长按/右键不出系统菜单(三处同口径)
-        latest.current.onContextMenu?.();
+        e.preventDefault(); // 长按不出系统菜单(三处同口径)
       },
       onClick: () => {
         if (press.fired.current) {

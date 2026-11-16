@@ -289,15 +289,7 @@
   white-space: nowrap;
   color: var(--color-paper);
 }
-/* 技名 chip = 全览弹框入口(#605):热区沿 chip padding(触屏可点);hover 金框提亮
-   表达可点(§4.6 状态表达,无文字标牌);点击分流归消费方(data-skill 判定)。 */
-.hface.compact .bd[data-skill] {
-  cursor: inherit;
-}
-.hface.compact .bd[data-skill]:hover {
-  border-color: var(--color-lacquer-gold);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-gold) 35%, transparent);
-}
+/* 技名 chip = 全览弹框入口(#605):热区沿 chip padding,点击分流归消费方。 */
 .hface.compact .bd .fu {
   width: 0.62em;
   height: 0.62em;
@@ -311,72 +303,59 @@
   transform: rotate(45deg);
 }
 
-/* ── 技能卡装配档(skill,#818):出牌窗主动技的牌形态——技能为维度、名将为载体。
-   载体三件(画心立绘/名带/将章)沿用家族制式不裁;主技名大字竖章叠
-   画心左缘(本卡代表的技,一眼定身份,与右缘将名带「左技右将」对读);技能区 =
-   ◆ 冷却注+该技 desc 一句话。技数角标与技名 chips 行不再上卡(每张牌只显示本卡
-   代表的技,同将多技就绪即多卡各显各技;全技对照归点主技名开的技能全览弹框,
-   #605 池+已授)。形制双方案比选(tmp/ui-shots/skillcard-a|b/,shot.mjs 844×390
-   实拍)定案 B 案:竖章胜出——双卡远看可辨、desc 常态 4 行不截、左技右将正合
-   维度/载体分野;A 案(主技名横章入技能区)废弃。 ── */
-.hface.skill .m-name {
-  font-size: 1.9em;
-}
-.hface.skill .skz {
-  margin: 0.4em 0.55em 0.5em;
-  padding: 0.4em 0.55em;
-  gap: 0.28em;
-}
-/* 主技名大字(方案 B):竖章叠立绘左缘——writing-mode 竖排,漆底金字金边
-   (m-name 名带同语镜像:带自承底色不依赖画,文字可读红线不破);锚画心内
-   左下(「将」章占左上,竖章自下缘起排,两不相扰),与右缘将名带构成
-   「左技右将」双维对读。data-skill=全览入口(#605/#818),热区沿章 padding
-   (触屏可点);hover 金框提亮表达可点(§4.6 状态表达,无文字标牌);
-   点击分流归消费方(data-skill 判定)。 */
-.hface.skill .zhang-ming {
-  position: absolute;
-  left: calc(0.55 * var(--u));
-  bottom: calc(0.55 * var(--u));
-  z-index: 3;
-  writing-mode: vertical-rl;
-  font-family: var(--font-brush);
-  font-size: 2em;
-  line-height: 1;
-  letter-spacing: 0.14em;
-  color: var(--color-lacquer-gold);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-panel-hi) 94%, transparent),
-    color-mix(in srgb, var(--color-lacquer) 92%, transparent)
-  );
-  border: 1px solid rgba(217, 185, 92, 0.55);
+/* ── 技能卡:技名横签、立绘、将名纵向排列。技名可换行并保留 40px 触区,
+   长名称不裁切;技名和选牌各自是可聚焦按钮。 ── */
+.hface.skill .skill-name {
+  flex: 0 0 auto;
+  min-height: 40px;
+  margin: 0.25em 0.3em 0;
+  padding: 0.1em 0.25em;
+  display: grid;
+  place-items: center;
+  writing-mode: horizontal-tb;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font: 2em / 1.15 var(--font-brush);
+  color: var(--card-ink);
+  background: var(--card-paper);
+  border: 1px solid color-mix(in srgb, var(--card-ink) 50%, transparent);
   border-radius: 0.22em;
-  padding: 0.5em 0.18em;
-  box-shadow:
-    0 0.2em 0.5em rgba(0, 0, 0, 0.4),
-    inset 0 0 0 1px color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
-  cursor: inherit;
 }
-.hface.skill .zhang-ming:hover {
-  border-color: var(--color-gold-bright);
-  box-shadow:
-    0 0.2em 0.5em rgba(0, 0, 0, 0.4),
-    inset 0 0 0 1px var(--color-gold-bright),
-    0 0 0 1px color-mix(in srgb, var(--color-gold) 35%, transparent);
+.hface.skill .skill-name:focus-visible {
+  outline: 2px dashed var(--card-ink);
+  outline-offset: -3px;
 }
-.hface.skill .shead .cd {
-  margin-left: 0.42em;
+.hface.skill .skill-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
 }
-.hface.skill .sdesc {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
+.hface.skill .stage {
+  align-self: stretch;
+  margin: 0.35em 0.55em 0;
 }
-/* 灰置:desc/冷却注让位原因印条(desc 藏身是 .hface.off 既有口径;冷却注同让——
-   实例剩余轮数由 .reason 单源携带,双数同屏互斥);主技名/载体仍可辨(身份不失) */
-.hface.skill.off .cd {
-  visibility: hidden;
+.hface.skill .reason {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0 0.44em;
+  padding: 0.2em 0.15em;
+  font-size: max(10px, 1.25em);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+.hface.skill .skill-hero-name {
+  flex: 0 0 auto;
+  padding: 0.18em 0.25em 0.26em;
+  color: var(--card-ink);
+  font: 1.9em / 1.15 var(--font-title);
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 /* ── 微旋(reduced-motion 退场,.jinnang-card 同款兜层)── */

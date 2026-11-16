@@ -8,7 +8,7 @@
 // 健康/恢复的公开状态均读两端引擎与各自 store 四向对账,私密手牌和询问集逐端核对。
 // 恢复仅在 guest 的公开 socketFactory/timer/random 边界控制真 WS 与退避回调,
 // 不替换 socket 语义或全局时钟。稳定读数停在固定种子的注册真人门,零弃试重跑。
-// 反应窗 seed2849/魏 的既有谱使用固定宽窗(长于本例总超时),每次有效手答/拒重复均
+// 反应窗 seed2849/魏 的既有谱验证生产默认宽窗(长于本例总超时),每次有效手答/拒重复均
 // 以真实下行事件或 error 历史立屏障,超时代答无法在本例预算内替代手答。
 //
 // 纯传输故障归 protocol-online;真实设备交互由用户在 APK 验收。
@@ -28,9 +28,10 @@ let serverMod: ServerModule | null = null;
 let tmpDir: string | null = null;
 let serverBase = "";
 const savedEnv = new Map<string, string | undefined>();
-function setEnv(key: string, value: string): void {
+function setEnv(key: string, value: string | undefined): void {
   savedEnv.set(key, process.env[key]);
-  process.env[key] = value;
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
 }
 let roomId = "";
 let hostToken = "";
@@ -337,7 +338,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     setEnv("EXTENSIONS_DIR", join(tmpDir, "extensions"));
     setEnv("JIYU_CONFIG", realpathSync(join(import.meta.dir, "..", "fixtures", "jiyu-off.json")));
     setEnv("E2E_BOT_STEP_MS", "0");
-    setEnv("E2E_REACTION_MS", "30000");
+    setEnv("E2E_REACTION_MS", undefined); // 实测生产默认,清除外部覆盖并在 afterAll 还原
     setEnv("DECISION_TIMEOUT_MS", "0");
     setEnv("RETENTION_WINDOW_MS", "0");
     serverMod = await import("../../scripts/server");
@@ -652,7 +653,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
 
   // #453/#1316 的落盘腿迁至独立端,补齐原共享装配无法成立的每端座位/私密询问集。
   // 红证明:共享装配 guest 入座即把 host 的真实 netStore.mySeat 从0覆为1。
-  // 宽窗30s > 本例总预算15s,手答后等事件屏障再发重复;不允许超时代答冒充有效手答。
+  // 生产默认窗30s > 本例总预算15s,手答后等事件屏障再发重复;不允许超时代答冒充有效手答。
   it("隔离双人类反应窗:有效应答、明确拒重复、两座恰一次与结算落盘", async () => {
     await withIsolatedPair("automatic", async (pair) => {
       const [host, guest] = pair.clients;

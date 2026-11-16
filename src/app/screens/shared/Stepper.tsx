@@ -1,7 +1,7 @@
 // 组件收口:保留现实现(语义达标,动到时才评估收口)(细则 docs/design/组件收口.md)
 // 步进器(X10 #29):小范围数值调节(诸侯数 2-8),替代原生 select——
-// − / + 夹数字;两钮各 40×40(触达达标),到界禁用 + title 说明原因;
-// 按钮原生 Tab/Enter,键盘可控。
+// − / + 夹数字;两钮各 40×40(触达达标),到界禁用;
+// 按钮使用原生交互语义。
 // data-testid 契约:数值 = testid,按钮 = `${testid}-minus` / `${testid}-plus`。
 export function Stepper({
   testid,
@@ -20,7 +20,7 @@ export function Stepper({
   onChange: (value: number) => void;
 }) {
   const btn =
-    "flex h-10 w-10 items-center justify-center rounded border border-paper/25 bg-bg/60 font-brush text-lg leading-none text-paper cursor-pointer transition-colors hover:border-gold/60 disabled:cursor-not-allowed disabled:opacity-40";
+    "flex h-10 w-10 items-center justify-center rounded border border-paper/25 bg-bg/60 font-brush text-lg leading-none text-paper transition-colors disabled:opacity-40";
   return (
     <div className="flex items-center gap-1.5">
       <button
@@ -28,7 +28,6 @@ export function Stepper({
         data-testid={`${testid}-minus`}
         aria-label={`减少${ariaLabel}`}
         disabled={value <= min}
-        title={value <= min ? `最少 ${min}` : undefined}
         onClick={() => onChange(value - 1)}
         className={btn}
       >
@@ -42,7 +41,6 @@ export function Stepper({
         data-testid={`${testid}-plus`}
         aria-label={`增加${ariaLabel}`}
         disabled={value >= max}
-        title={value >= max ? `最多 ${max}` : undefined}
         onClick={() => onChange(value + 1)}
         className={btn}
       >

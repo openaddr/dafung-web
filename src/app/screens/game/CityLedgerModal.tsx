@@ -102,7 +102,8 @@ export const CityLedgerModal = memo(function CityLedgerModal({
                 className={
                   GRID_COLS + " city-ledger-row border-t border-gold/15 py-1.5 first:border-t-0"
                 }
-                title={`棋盘第 ${tileIndex} 格`}
+                role="group"
+                aria-label={`棋盘第 ${tileIndex} 格`}
               >
                 {/* 行首缩略图(#623):真实格渲染与棋盘同源,状态推导在 TileThumb */}
                 <TileThumb tile={tile} def={def} tileIndex={tileIndex} players={players} />

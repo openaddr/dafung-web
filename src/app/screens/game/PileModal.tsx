@@ -144,7 +144,11 @@ export function PileShell({
         <ScrollArea className="pile-body" data-testid={TESTIDS.modalScrollBody}>
           {children}
         </ScrollArea>
-        {footer != null && <div className="pile-foot">{footer}</div>}
+        {footer != null && (
+          <div className="pile-foot" data-testid={TESTIDS.modalFooter}>
+            {footer}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -174,7 +178,6 @@ export function treasureFace(t: SnapshotPlayer["treasures"][number]) {
       desc={t.desc}
       art={image != null ? <img src={image} alt="" /> : undefined}
       className="pile-cell-card"
-      title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
     />
   );
 }
@@ -187,11 +190,9 @@ export function treasurePrice(t: SnapshotPlayer["treasures"][number]) {
 /** 珍宝弹层内容:已持有全件的装裱卡大格网格(陈列档 7.6px 基=114×152),
  *  每格 = TreasureCardFace(品级角标+题签+鉴藏印)+ 指导价名牌;画心 = 目录
  *  image(#521 画心批,快照行按 id 回查 TREASURES),目录行缺 image 时走缺省回退
- *  (远山肌理;技能书不在静态目录,恒走回退);指导价同时进 title 浮签(名称/品级/
- *  风味文一行看全)。技能书可点态(#1146):己方出牌阶段(bookPlayReady)+麾下可学
+ *  (远山肌理;技能书不在静态目录,恒走回退)。技能书可点态(#1146):己方出牌阶段(bookPlayReady)+麾下可学
  *  (skillBookLearners 单源)时为真 button——1 名可学直发用书命令、多名开选人弹窗;
- *  0 名可学=不可用态(书=纯交易物照常陈列),非出牌阶段同理,原因进 title 浮签
- *  (状态表达原则:禁用即不可点,不另立文字标牌)。
+ *  0 名可学=不可用态(书=纯交易物照常陈列),非出牌阶段同理,原因显示在书格内。
  *  空网格(#851 空态器物化):裸网格空洞退役,接 #768 斜放朱印制式(单源
  *  ArtifactEmpty,MapStrip 先例);计数行如实报 0 口径不变。 */
 function TreasureGrid({
@@ -230,12 +231,17 @@ function TreasureGrid({
             const book = t;
             const learners = skillBookLearners(player, book.skillId);
             if (!bookPlayReady || learners.length === 0 || onUseBook == null) {
-              // 不可用态:非出牌阶段 / 无人可学(书=纯交易物)——静态陈列,原因进 title
-              const why = !bookPlayReady ? "出牌阶段可研读" : "麾下无人可习此技(可交易变卖)";
+              // 不可用态静态陈列,原因随书格可见且可被读屏读取。
+              const why = !bookPlayReady
+                ? "出牌阶段可研读"
+                : learners.length === 0
+                  ? "麾下无人可习此技(可交易变卖)"
+                  : "此处不可研读";
               return (
-                <div className="pile-cell" key={`${book.id}:${i}`} title={why}>
+                <div className="pile-cell" key={`${book.id}:${i}`}>
                   {face}
                   {price}
+                  <span className="pile-book-reason">{why}</span>
                 </div>
               );
             }

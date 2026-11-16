@@ -80,18 +80,12 @@
   font-size: 12px;
   line-height: 1;
   color: var(--color-paper-dim);
-  cursor: pointer;
 }
 /* 触达制式(#745 高2):视觉 26px 环不动,透明命中垫扩到 44×44(inset −9)。 */
 .zl .zl-close::after {
   content: "";
   position: absolute;
   inset: -9px;
-}
-.zl .zl-close:hover {
-  color: var(--color-paper);
-  border-color: var(--color-gold-bright);
-  transform: scale(1.02);
 }
 
 /* ── 十列行(原型 .srow 制式;#1097 起九列实排+钻入件轨加宽,见文件头偏差注)── */
@@ -213,7 +207,6 @@
   margin: -5px -4px;
   background: none;
   border: none;
-  cursor: pointer;
   font: inherit;
   color: inherit;
   text-align: left;
@@ -237,12 +230,6 @@
   color: var(--color-gold);
   font-size: 10px;
   line-height: 0.6;
-}
-.zl .zl-drill:hover .zl-face {
-  border-color: rgba(217, 185, 92, 0.85);
-}
-.zl .zl-drill:hover .zl-cityslot {
-  border-color: var(--color-attr-city-bright);
 }
 
 /* 城池 chips:黛青,超 3 折叠「+N」(原型 .citynames/.cityslot/.more)── */

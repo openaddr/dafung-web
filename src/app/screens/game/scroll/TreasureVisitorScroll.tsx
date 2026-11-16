@@ -39,11 +39,17 @@ interface TreasureVisitorScrollProps {
 
 type Mode = "fair" | "premium";
 
-/** 模式名与口径句(Step 1 按钮注记 / 弹层语境条同一份,不写第二事实源)。 */
-const MODE_META: Record<Mode, { label: string; terms: string }> = {
-  fair: { label: "公道买卖", terms: "按指导价出售,成交后城池 +1 级" },
-  premium: { label: "坐地起价", terms: "按城池等级加价出售,城池不升级" },
+/** 模式名、价格和城池条款共用;公道选宝的具体等级结果由语境行呈现。 */
+const MODE_META: Record<Mode, { label: string; priceTerms: string; cityTerms: string }> = {
+  fair: {
+    label: "公道买卖",
+    priceTerms: "按指导价出售",
+    cityTerms: "成交后城池 +1 级（满级不升级）",
+  },
+  premium: { label: "坐地起价", priceTerms: "按城池等级加价出售", cityTerms: "城池不升级" },
 };
+
+const modeTerms = (mode: Mode) => `${MODE_META[mode].priceTerms},${MODE_META[mode].cityTerms}`;
 
 export function TreasureVisitorScroll({
   role,
@@ -105,27 +111,22 @@ export function TreasureVisitorScroll({
               >
                 暂不交易
               </BannerButton>
-              <BannerButton
-                testid={T.treasureModeFair}
-                onClick={() => setMode("fair")}
-                title={MODE_META.fair.terms}
-              >
-                公道买卖
+              <BannerButton testid={T.treasureModeFair} onClick={() => setMode("fair")}>
+                <span className="block">{MODE_META.fair.label}</span>
+                <span className="block font-wenkai text-xs leading-snug">{modeTerms("fair")}</span>
               </BannerButton>
-              <BannerButton
-                testid={T.treasureModePremium}
-                onClick={() => setMode("premium")}
-                title={MODE_META.premium.terms}
-              >
-                坐地起价
+              <BannerButton testid={T.treasureModePremium} onClick={() => setMode("premium")}>
+                <span className="block">{MODE_META.premium.label}</span>
+                <span className="block font-wenkai text-xs leading-snug">
+                  {modeTerms("premium")}
+                </span>
               </BannerButton>
             </div>
           </>
         ) : (
           /* Step 2 本体在选宝弹层;卷轴只留语境(弹层盖住它,关层即回 Step 1)。 */
           <p className="m-1 mb-3.5 text-center text-sm text-paper-dim">
-            {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length}{" "}
-            件珍宝,在弹层中点选要出售的。
+            {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length} 件珍宝。
           </p>
         )}
       </BannerShell>
@@ -136,7 +137,11 @@ export function TreasureVisitorScroll({
           sub={`${ownerGuohao} · 卖出的珍宝离手入${visitorGuohao}`}
           context={
             <p className="treasure-pick-context">
-              已选 <b>{MODE_META[mode].label}</b> · {MODE_META[mode].terms}
+              {mode === "fair"
+                ? `${MODE_META.fair.priceTerms},成交后${tileName} ${
+                    cityLevel < property.maxLevel ? "+1 级" : `维持 Lv.${cityLevel}（满级）`
+                  }`
+                : modeTerms(mode)}
             </p>
           }
           treasures={treasures}
@@ -156,10 +161,9 @@ export function TreasureVisitorScroll({
             const guide = guideOf(t);
             const price = priceOf(guide);
             return mode === "fair"
-              ? `卖出 ${t.name} · 入账 ${formatMoney(guide)} · ${tileName} +1 级`
+              ? `卖出 ${t.name} · 入账 ${formatMoney(guide)}`
               : `卖出 ${t.name} · 指导价 ${formatMoney(guide)} + 加价 ${formatMoney(price - guide)} = 入账 ${formatMoney(price)}`;
           }}
-          hint="点选要出售的珍宝"
           confirmLabel="成交"
           testids={{
             container: T.treasurePick,

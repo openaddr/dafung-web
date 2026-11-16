@@ -293,10 +293,17 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     const toggleRack = () => click(q(el, TESTIDS.jinnangToggle)!);
     const pickCity = () => click(el.querySelector(TESTIDS.cityTarget(tileIndex))!);
 
-    expect(banner()!.textContent).toContain("火烧连营");
+    expect(banner()!.textContent).toContain(`${engine.players[1].guohao} 用「火烧连营」`);
     expect(banner()!.textContent).toContain(`受击城 ${cityName}`);
+    expect(q(el, TESTIDS.reactionMute)!.textContent).toBe("本回合不再询问");
+    expect(q(el, TESTIDS.reactionDecline)!.textContent).toBe("不出");
     expect(confirm().textContent).toBe("出牌");
     expect(confirm().hasAttribute("disabled")).toBe(true);
+    expect(q(el, TESTIDS.reactionStep) == null).toBe(true);
+    toggleRack();
+    expect(q(el, TESTIDS.jinnangRack)).toBeNull();
+    expect(q(el, TESTIDS.reactionStep) == null).toBe(true);
+    toggleRack();
     const openedTimer = timer();
     expect(Number(openedTimer!.textContent)).toBeGreaterThan(0);
     expect(Number(openedTimer!.textContent)).toBeLessThanOrEqual(4);
@@ -304,10 +311,13 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
 
     click(q(el, TESTIDS.jinnangCard("识破诡计"))!);
     expect(q(el, TESTIDS.jinnangRack)).toBeNull();
+    expect(banner()!.textContent).toContain("已选 识破诡计");
+    expect(banner()!.textContent).toContain("在地图上选一座城保护");
     expect(confirm().hasAttribute("disabled")).toBe(true);
     pickCity();
     expect(el.querySelector(TESTIDS.cityTargetPicked(tileIndex))).not.toBeNull();
     expect(banner()!.textContent).toContain(`保护 ${cityName}`);
+    expect(banner()!.textContent).toContain("已选 识破诡计");
     expect(confirm().hasAttribute("disabled")).toBe(false);
     pickCity();
     expect(el.querySelector(TESTIDS.cityTargetPicked(tileIndex))).toBeNull();
@@ -360,8 +370,6 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     expect(banner()!.textContent).toContain("影响 3 位诸侯");
     click(q(el, TESTIDS.jinnangCard("识破诡计"))!);
     expect(q(el, TESTIDS.seatTarget(1))).toBeNull();
-    act(() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "1" })));
-    expect(q(el, TESTIDS.reactionConfirm)!.hasAttribute("disabled")).toBe(true);
     click(q(el, TESTIDS.seatTarget(0))!);
     click(q(el, TESTIDS.seatTarget(2))!);
     expect(banner()!.textContent).toContain(`保护 ${engine.players[2].guohao}`);

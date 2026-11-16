@@ -1,4 +1,4 @@
-// 对局诊断按局读归档，沿用 Tauri 系统保存与网页开发下载。
+// 对局诊断按局读归档，经 Tauri 系统对话框保存。
 import { loadArchivedGame } from "./gameLogArchive";
 import type { ArchivedGame } from "./game-diagnostic-record";
 
@@ -68,10 +68,6 @@ export async function buildDiagPerfText(gameId: string): Promise<string> {
   });
 }
 
-export function usesNativeDiagnosticSave(): boolean {
-  return "__TAURI_INTERNALS__" in window;
-}
-
 /** 复制诊断包文本到剪贴板。异步 Clipboard API 为主通路;WebView 未授权/非安全
  *  上下文(安卓端 tauri.localhost 走 http)时 API 缺席——此时只允许小文本走
  *  textarea+execCommand 回退(大文本 select 同步冻结主线程数秒,真机实锤),
@@ -101,36 +97,19 @@ export async function copyDiagText(text: string): Promise<void> {
 }
 
 /** Tauri 的系统对话框可返回 content URI；取消返回 null。 */
-export async function exportDiagnostics(
-  gameId: string,
-): Promise<{ path: string } | "downloaded" | null> {
+export async function exportDiagnostics(gameId: string): Promise<{ path: string } | null> {
   const record = await requireArchivedGame(gameId);
   const version = record.appVersion === null ? "" : `-v${record.appVersion}`;
   const fileName = `dafung-diag-${gameId}${version}.json`;
-  if (usesNativeDiagnosticSave()) {
-    const [{ save }, { writeTextFile }] = await Promise.all([
-      import("@tauri-apps/plugin-dialog"),
-      import("@tauri-apps/plugin-fs"),
-    ]);
-    const path = await save({
-      defaultPath: fileName,
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (path === null) return null;
-    await writeTextFile(path, JSON.stringify(buildDiagBundle(record), null, 2));
-    return { path };
-  }
-
-  const blob = new Blob([JSON.stringify(buildDiagBundle(record), null, 2)], {
-    type: "application/json",
+  const [{ save }, { writeTextFile }] = await Promise.all([
+    import("@tauri-apps/plugin-dialog"),
+    import("@tauri-apps/plugin-fs"),
+  ]);
+  const path = await save({
+    defaultPath: fileName,
+    filters: [{ name: "JSON", extensions: ["json"] }],
   });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = fileName;
-  try {
-    a.click();
-  } finally {
-    URL.revokeObjectURL(a.href);
-  }
-  return "downloaded";
+  if (path === null) return null;
+  await writeTextFile(path, JSON.stringify(buildDiagBundle(record), null, 2));
+  return { path };
 }

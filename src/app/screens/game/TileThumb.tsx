@@ -13,8 +13,8 @@
 // ③ 包围盒自算:Tile 以 translate(格心) scale(TILE_SCALE,自 Tile.tsx 导入)落位,
 //    局部包围盒(格坐标)取格内容极值(见 THUMB_BBOX 注),× TILE_SCALE 平移到板
 //    坐标即 viewBox——四态共用同一盒,行内缩略图等大对齐。
-// 非交互由壳承担:pointer-events:none 后 board.css 的 :hover/:active 系(cursor/
-// 金盘/描边升亮)摸不到不可命中元素,天然失效;Tile 的 `tile-${index}` id 与棋盘
+// 非交互由壳承担:pointer-events:none 后 board.css 的按压反馈不生效;
+// Tile 的 `tile-${index}` id 与棋盘
 // 重复无害(消费面只有 CSS 类选择器与 data-tile,无 getElementById 依赖)。
 import type { TileDef } from "@core/board";
 import type { PropertyDef } from "@core/economy";
@@ -72,7 +72,7 @@ export function TileThumb({
       aria-hidden="true"
       /* 板坐标盒:格心 + 局部包围盒 × scale;宽高比 308:360.8,基准高 96px 时宽约
           82px。高度走 city-ledger-thumb 规范类(单源 pile-modal.css,基准 96px/
-          矮屏档 48px):#708 行高自适应,缩略图不再把清单行高钉死在桌面档。 */
+          矮屏档 48px):#708 行高自适应,缩略图不再把清单行高钉死在高视口档。 */
       viewBox={[
         tile.position.x + THUMB_BBOX.x * TILE_SCALE,
         tile.position.y + THUMB_BBOX.y * TILE_SCALE,

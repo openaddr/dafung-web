@@ -63,7 +63,7 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
         <p className="font-wenkai text-danger text-sm">加载失败:{error}</p>
         <button
           onClick={reload}
-          className="note-btn min-h-[40px] cursor-pointer rounded-[3px] px-4 font-wenkai text-paper"
+          className="note-btn min-h-[40px] rounded-[3px] px-4 font-wenkai text-paper"
         >
           重试
         </button>
@@ -114,13 +114,11 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
             className={
               // py-1.5(#761 ⑥):条带整块带高压到 62px 档(原 py-2 ≈66-70px,
               // 844×360 零滚动预算),字级行高不动
-              "min-w-0 shrink-0 snap-start rounded-[3px] border px-2.5 py-1.5 text-left transition-colors cursor-pointer " +
+              "min-w-0 shrink-0 snap-start rounded-[3px] border px-2.5 py-1.5 text-left transition-colors " +
               // H3(#751):flex 1 0 160px;max-w 280 仅在基准排溢出时保留(#843,见头注)
               (fitByBasis ? "flex-[1_0_160px] " : "flex-[1_0_160px] max-w-[280px] ") +
               // 选中语言与 MapSelectPanel/SegmentedSelect 统一:金框 + gold/25 势档
-              (selected
-                ? "border-gold bg-gold/25"
-                : "border-paper/25 bg-bg/60 hover:border-gold/60")
+              (selected ? "border-gold bg-gold/25" : "border-paper/25 bg-bg/60 ")
             }
           >
             <div className="flex items-baseline justify-between gap-1">

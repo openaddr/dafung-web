@@ -128,11 +128,13 @@ function HeroInspection({
             </ScrollArea>
             {onDismiss !== undefined && (
               <div className="hero-inspection-actions" data-testid={TESTIDS.heroInspectionActions}>
+                {!dismissReady && (
+                  <span className="hero-inspection-dismiss-reason">己方回合可遣散</span>
+                )}
                 <Button
                   data-testid={TESTIDS.heroDismiss(current.heroId)}
                   className={"hero-inspection-dismiss" + (armed ? " armed" : "")}
                   disabled={!dismissReady}
-                  title={!dismissReady ? "己方回合可遣散" : armed ? undefined : "再点一次确认"}
                   aria-label={`${armed ? "确认遣散" : "遣散"}${heroById(current.heroId).name}`}
                   onClick={() => {
                     if (armed) {

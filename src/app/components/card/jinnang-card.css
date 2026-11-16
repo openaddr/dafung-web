@@ -512,7 +512,7 @@
   padding: 0.45em 0;
   letter-spacing: 0.08em;
 }
-/* 键盘焦点:金色虚线(压过 app.css 的 :where() 零特异度全局圈) */
+/* 可见焦点:金色虚线(压过 app.css 的 :where() 零特异度全局圈) */
 .jinnang-card:focus-visible,
 .hface:focus-visible {
   outline: 0.3em dashed var(--color-gold-deep);

@@ -8,7 +8,7 @@
 // #766 双列改版:矮横屏档(844×390 一类,断点同 setup/home/对局屏 A 档)卡片
 // 420px 单列 → min(720px,94vw) 双列栅格——未入座左列=建房组+高级折叠、右列=加入组+
 // 一键重进+返回;已入座左列=房码/文案/地图行/离开、右列=座位表+开局(sticky 钉底)。
-// 桌面/竖屏档信息架构不变(单列 420),只共享构块。构块化 JSX 手筋同 SoloSetupScreen #751。
+// 高视口/竖屏档信息架构不变(单列 420),只共享构块。构块化 JSX 手筋同 SoloSetupScreen #751。
 // 服务器地址单源 src/app/net/server-base.ts(#279):默认同源 location.origin(网页与引擎
 // 同源部署,scripts/server.ts 托管 dist),localStorage 可覆写——APK 打包 origin 无引擎,
 // 真机联机在大厅改指 LAN 主机/部署服务器;网页用户不碰零影响。
@@ -139,7 +139,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const prevTakenRef = useRef<Map<number, boolean>>(new Map());
   // L-7:复制态自清定时器(卸载必须清,否则离开大厅后仍 setState)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // #766:矮横屏档双列重排开关(未入座/已入座两态各有一套双列分栏;桌面档零重排)
+  // #766:矮横屏档双列重排开关(未入座/已入座两态各有一套双列分栏;高视口档零重排)
   const isShortLandscape = useIsShortLandscape();
 
   useEffect(() => {
@@ -228,7 +228,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
   // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/加入/建房共用基类,只改尺寸)
   const btnBase =
-    "rounded border px-4 py-2 font-brush text-paper cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+    "rounded border px-4 py-2 font-brush text-paper transition-colors disabled:opacity-40 ";
   // R3-B11(#83):输入框与 Stepper(h-10)/按钮等高——建房排三控件同高,「诸侯数/目标身价」不再错位
   const inputBase = "h-10 rounded border border-paper/30 bg-bg px-2 py-2 font-deco text-paper";
 
@@ -278,7 +278,6 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         <button
           data-testid={LID.create}
           disabled={busy || targetErr != null}
-          title={busy ? "处理中…" : undefined}
           onClick={() => {
             // L-2 零兜底:提交前再校验一次,非法则阻止并显示原因(不静默吞掉)
             const err = validateTarget(target);
@@ -312,7 +311,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       data-testid={LID.serverToggle}
       className="group rounded border border-paper/25 bg-bg/40 open:bg-panel-hi/40"
     >
-      <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-2 py-1.5 font-wenkai text-sm text-paper [&::-webkit-details-marker]:hidden">
+      <summary className="flex  select-none items-center justify-between gap-2 px-2 py-1.5 font-wenkai text-sm text-paper [&::-webkit-details-marker]:hidden">
         <span className="shrink-0">
           <Sym
             name="expand"
@@ -363,7 +362,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
   // 加入块:凭码占第一个空 human 座位;X14(#33) form 包裹——回车即提交(等价点「加入」;
   // 空码/处理中不动,与按钮禁用同口径)。小屏键盘弹起时按钮随 #13 滚动容器可达。
-  // #766:矮横屏档双列下左右列自然分隔,桌面单列保留 border-t 分隔线。
+  // #766:矮横屏档双列下左右列自然分隔,高视口单列保留 border-t 分隔线。
   const joinBlock = (
     <form
       className={
@@ -400,8 +399,6 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           type="submit"
           data-testid={LID.join}
           disabled={busy || !joinCode.trim()}
-          // F1:busy 灰要说明「处理中」;未填码的灰不言自明,不额外打扰
-          title={busy ? "处理中…" : joinCode.trim() ? undefined : "请输入房间码"}
           // R3-B11(#83):h-10 py-0,与房间码输入框等高
           className={btnBase + " note-btn h-10 py-0"}
         >
@@ -409,7 +406,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         </button>
       </div>
       {/* #766:disabled 原因内联(F1 的触屏赎回)——空码灰时钮下 12px 原因行,
-          照「需先选择地图」既有内联范式,不再依赖 hover;busy 期钮面文案已直陈
+          照「需先选择地图」既有内联范式,busy 期钮面文案已直陈
           「处理中…」,不另设行重复。 */}
       {!busy && !joinCode.trim() && (
         <div className="mt-1 font-deco text-xs text-paper-dim">请输入房间码</div>
@@ -425,7 +422,6 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const rejoinBtn = lastRoom ? (
     <button
       disabled={busy}
-      title={busy ? "处理中…" : `重进房间 ${lastRoom}`}
       onClick={() => {
         void guard(async () => {
           await controller!.joinRoom(lastRoom, localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined);
@@ -469,7 +465,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   }
 
   // ── 未入座:建房 / 加入 ──
-  // #766 分栏策略:桌面/竖屏单列 420 信息架构不变(建房→加入→重进→hint→高级→返回);
+  // #766 分栏策略:高视口/竖屏单列 420 信息架构不变(建房→加入→重进→hint→高级→返回);
   // 矮横屏档双列 min(720px,94vw)——左列=建房组+高级折叠,右列=加入组+重进主钮+返回,
   // hint 常驻卡底横贯。内容量实测 844×390 收在 ~300px 竖向预算内,一屏零滚动(根容器
   // 仍保 overflow-y-auto:E1 #13,小屏键盘弹起时可滚达)。
@@ -523,7 +519,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 </div>
               </div>
             ) : (
-              /* ── 桌面/竖屏档:信息架构零变化(竖屏同构,根容器滚动兜底 E1 #13)── */
+              /* ── 高视口/竖屏档:信息架构零变化(竖屏同构,根容器滚动兜底 E1 #13)── */
               <>
                 {createBlock}
                 {joinBlock}
@@ -567,13 +563,11 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         type="button"
         data-testid={LID.roomCode}
         onClick={copyRoomCode}
-        title="点击复制房间码"
         aria-label={`房间码 ${roomId}，点击复制`}
-        // R3-B13(#85):hover 用底色反馈不动字色;玄墨版(#514):房码签上下改金线裱边
-        //(金=势,房码是开局第一步的「势」件),hover 金晕同语言
+        // 玄墨版(#514):房码签上下金线裱边。
         // #838:房码是拉丁字母(A-Z),font-brush 花笔钩连转述字形自证性差,改 font-deco
         //(囗部四空芯码位已剔出其 unicode-range,拉丁字母不涉);金裱边与 0.4em 字距保留
-        className="block w-full rounded-[3px] border-y-2 border-gold/40 py-1 text-center font-deco text-4xl tracking-[0.4em] pl-[0.4em] text-paper cursor-pointer hover:bg-gold/10"
+        className="block w-full rounded-[3px] border-y-2 border-gold/40 py-1 text-center font-deco text-4xl tracking-[0.4em] pl-[0.4em] text-paper "
       >
         {roomId}
       </button>
@@ -637,7 +631,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               {s.guohao != null && (
                 <span
                   data-testid={LID.seatGuohao(s.seat)}
-                  title={`预设国号「${s.guohao}」`}
+                  role="img"
+                  aria-label={`预设国号「${s.guohao}」`}
                   // 玄墨版(#514):国号章漆金化(.seal-gold,#506 印章漆金化)
                   className="seal-gold inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] font-title text-[13px] leading-none"
                 >
@@ -650,7 +645,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               {!s.taken ? (
                 <>
                   <span
-                    title="虚位以待"
+                    role="img"
+                    aria-label="虚位以待"
                     // #559:text-paper-dim/70 → 全值 ink-dim(4.18:1 → 7.6:1,panel 上达 AA)
                     className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-paper/25 font-title text-[11px] leading-none text-paper-dim"
                   >
@@ -693,7 +689,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
   // host 控件:选图 + 开局(需先选图;开局后由首帧 snapshot 切屏)。
   // #766:矮横屏档开局排 sticky 钉右列可视底(.lobby-actions,8 席内滚时恒在场,
-  // su-actions #751 同款);桌面档照旧文档流居中。
+  // su-actions #751 同款);高视口档照旧文档流居中。
   const hostActions = isHost ? (
     <div
       className={
@@ -704,7 +700,6 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         <button
           data-testid={LID.selectMap}
           disabled={busy}
-          title={busy ? "处理中…" : undefined}
           onClick={() => setShowMapSelect(true)}
           className={btnBase + " note-btn text-sm min-h-[40px]"}
         >
@@ -713,8 +708,6 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         <button
           data-testid={LID.start}
           disabled={busy || !mapId}
-          // F1:disabled 必须解释原因——未选图还是请求进行中,hover 可知
-          title={busy ? "处理中…" : mapId ? undefined : "需先选择地图"}
           onClick={() => {
             // dogfood ISSUE-010:选图面板开着时点开局静默无响应(面板遮挡+未确认),
             // 玩家以为开局坏了。面板开着 → 先收面板并提示确认地图,不发命令。
@@ -740,7 +733,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           {busy ? "处理中…" : "开局"}
         </button>
       </div>
-      {/* F1:按钮下方 xs 原因行(title 之外的无障碍旁注,不依赖 hover) */}
+      {/* F1:按钮下方 xs 原因行 */}
       {!mapId && !busy && <div className="font-deco text-xs text-paper-dim">需先选择地图</div>}
     </div>
   ) : null;
@@ -753,7 +746,6 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     <button
       data-testid="lobby-leave"
       disabled={busy}
-      title={busy ? "处理中…" : undefined}
       onClick={() => {
         if (!busy) onExit();
       }}
@@ -765,7 +757,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
   return (
     // E1(#13):同未入座态——根节点滚动容器 + 内层 m-auto(8 座位满员时离开按钮也可滚达)。
-    // #766 已入座分栏策略:桌面/竖屏单列 420 不变(房码→座位→地图→开局→离开);
+    // #766 已入座分栏策略:高视口/竖屏单列 420 不变(房码→座位→地图→开局→离开);
     // 矮横屏档双列 min(720px,94vw)——左列=房码/文案/地图行/离开,右列=座位表+开局排
     // (host 时 sticky 钉底)。8 席竖向预算 ~340px,844×390 下 ≤1 屏,两列各自内滚兜底。
     <div
@@ -801,7 +793,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               </div>
             </div>
           ) : (
-            /* ── 桌面/竖屏档:信息架构零变化(竖屏同构,根容器滚动兜底 E1 #13)── */
+            /* ── 高视口/竖屏档:信息架构零变化(竖屏同构,根容器滚动兜底 E1 #13)── */
             <>
               {roomBlock}
               {seatsBlock}

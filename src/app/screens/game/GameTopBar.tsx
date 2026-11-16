@@ -63,7 +63,6 @@ export function GameTopBar({ snapshot, warUnread, onOpenSettings }: GameTopBarPr
         <button
           type="button"
           data-testid={TESTIDS.settingsButton}
-          title="设置"
           aria-label={warUnread > 0 ? "设置,战报有新条目" : "设置"}
           aria-haspopup="dialog"
           onClick={onOpenSettings}
@@ -83,7 +82,6 @@ export function GameTopBar({ snapshot, warUnread, onOpenSettings }: GameTopBarPr
         <button
           type="button"
           data-testid={TESTIDS.topbarOverview}
-          title="详情"
           aria-label="详情"
           aria-haspopup="dialog"
           aria-expanded={overviewOpen}

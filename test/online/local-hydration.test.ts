@@ -192,7 +192,7 @@ it("连环计返回改选经真实下行保留首选，最终提交才消耗并�
 });
 
 it("目标锦囊最终提交后，下行副本从目标段进入反应窗", async () => {
-  const { registry, room, token, replica, messages, sendCommand } = await playingRoom(
+  const { registry, room, token, engine, replica, messages, sendCommand } = await playingRoom(
     (authority) => {
       giveJinnang(authority, 0, ["缓兵之计"]);
       giveJinnang(authority, 1, ["识破诡计"]);
@@ -208,7 +208,12 @@ it("目标锦囊最终提交后，下行副本从目标段进入反应窗", asyn
     expect(replica.pendingJinnang).toBeNull();
     expect(replica.players[0].jinnangHand).toEqual([]);
     expect(replica.turnPhase).toBe("AwaitingReaction");
-    expect(replica.pendingReaction?.view).toMatchObject({ kind: "jinnang", targetSeats: [1] });
+    expect(engine.pendingReaction?.view.windowMs).toBe(30_000);
+    expect(replica.pendingReaction?.view).toMatchObject({
+      kind: "jinnang",
+      targetSeats: [1],
+      windowMs: 30_000,
+    });
     const events = messages.flatMap((msg) => (msg.type === "events" ? msg.events : []));
     expect(events.map((ev) => ev.kind)).toEqual(["jinnangAnnounced", "reactionOpened"]);
   } finally {

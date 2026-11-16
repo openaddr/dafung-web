@@ -175,33 +175,49 @@ it("主页默认最近游玩、局中默认当前局，保存只含选中局的�
   const recent = { gameId: "recent-game", mapId: "zhongyuan", mode: "online" } as const;
   await archiveGameLog(earlier, [logLine("历史局专属记录", now - 500)], now - 450);
   await archiveGameCapture(earlier, capture("2026.10.12", now - 400, 12));
-  await archiveGameLog(
-    recent,
-    [logLine("最近局开局", now - 200), logLine("最近局第二行", now - 190)],
-    now - 150,
-  );
-  await archiveGameCapture(recent, capture("2026.11.10", now - 100, 90));
+  const recentLog = [logLine("最近局开局", now - 200), logLine("最近局第二行", now - 190)];
+  const recentCapture = capture("2026.11.10", now - 100, 90);
+  await archiveGameLog(recent, recentLog, now - 150);
+  await archiveGameCapture(recent, recentCapture);
 
+  const originalTauri = Object.getOwnPropertyDescriptor(window, "__TAURI_INTERNALS__");
+  const contentUri =
+    "content://com.android.externalstorage.documents/document/primary%3ADownload%2Fdiagnostic.json";
+  let saveMode: "cancel" | "fail" | "save" = "cancel";
+  let dialogCalls = 0;
   let text: string | undefined;
   let fileName: string | undefined;
-  const createObjectUrl = spyOn(URL, "createObjectURL").mockImplementation((blob) => {
-    if (!(blob instanceof Blob)) throw new Error("诊断下载须导出 JSON 文件");
-    void blob.text().then((result) => {
-      text = result;
-    });
-    return "blob:diagnostic";
-  });
-  const download = spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
-    this: HTMLAnchorElement,
-  ) {
-    fileName = this.download;
+  let writtenPath: string | undefined;
+  Object.defineProperty(window, "__TAURI_INTERNALS__", {
+    configurable: true,
+    value: {
+      invoke: async (command: string, args: unknown, options?: { headers: { path: string } }) => {
+        if (command === "plugin:dialog|save") {
+          dialogCalls++;
+          fileName = (args as { options: { defaultPath: string } }).options.defaultPath;
+          return saveMode === "cancel" ? null : contentUri;
+        }
+        if (command === "plugin:fs|write_text_file") {
+          if (options === undefined || !(args instanceof Uint8Array)) {
+            throw new Error("原生保存缺少文件路径或文本数据");
+          }
+          writtenPath = decodeURIComponent(options.headers.path);
+          if (saveMode === "fail") throw new Error("模拟写入失败");
+          text = new TextDecoder().decode(args);
+          return;
+        }
+        throw new Error(`意外的 Tauri 命令 ${command}`);
+      },
+    },
   });
   const saveSelected = async (): Promise<string> => {
     text = undefined;
+    writtenPath = undefined;
     await until(() => find<HTMLButtonElement>(GAME_DIAG_TID.save)?.disabled === false);
     await click(GAME_DIAG_TID.save);
     await until(() => text !== undefined);
     if (text === undefined) throw new Error("所选局未生成诊断文件");
+    expect<string | undefined>(writtenPath).toBe(contentUri);
     return text;
   };
   try {
@@ -212,21 +228,51 @@ it("主页默认最近游玩、局中默认当前局，保存只含选中局的�
       ),
     );
     await click(HOME_TID.diagExport);
+    await until(() => find<HTMLButtonElement>(GAME_DIAG_TID.save)?.disabled === false);
+    await click(GAME_DIAG_TID.save);
+    await until(
+      () => dialogCalls === 1 && find<HTMLButtonElement>(GAME_DIAG_TID.save)?.disabled === false,
+    );
+    expect(find(GAME_DIAG_TID.save)?.textContent).toBe("保存文件");
+    expect(find(GAME_DIAG_TID.dialog)?.querySelector('[role="status"]')).toBeNull();
+    expect(writtenPath).toBeUndefined();
+
+    saveMode = "fail";
+    await click(GAME_DIAG_TID.save);
+    await until(
+      () => find(GAME_DIAG_TID.dialog)?.textContent?.includes("保存失败：模拟写入失败") === true,
+    );
+    expect(writtenPath).toBe(contentUri);
+
+    saveMode = "save";
     const recentText = await saveSelected();
     expect(fileName).toBe("dafung-diag-recent-game-v2026.11.10.json");
+    expect(writtenPath).toBe(contentUri);
     expect(recentText).not.toContain("历史局专属记录");
-    expect(JSON.parse(recentText)).toMatchObject({
+    expect(JSON.parse(recentText)).toEqual({
+      kind: "dafung-diag",
+      schemaVersion: 2,
       gameId: "recent-game",
+      mode: "online",
+      mapId: "zhongyuan",
       appVersion: "2026.11.10",
       capturedAt: now - 100,
+      exportedAt: expect.any(Number),
       logSource: "room-authority",
       logCapturedAt: now - 150,
-      log: [{ brief: "最近局开局" }, { brief: "最近局第二行" }],
-      perf: { startedAt: 90 },
+      device: recentCapture.device,
+      client: recentCapture.client,
+      connection: recentCapture.connection,
+      errors: recentCapture.errors,
+      archiveFailures: [],
+      missing: {},
+      log: recentLog,
+      perf: recentCapture.perf,
     });
 
     await click(GAME_DIAG_TID.game(earlier.gameId));
     const earlierText = await saveSelected();
+    expect(fileName).toBe(`dafung-diag-${earlier.gameId}-v2026.10.12.json`);
     expect(earlierText).not.toContain("最近局");
     expect(JSON.parse(earlierText)).toMatchObject({
       gameId: earlier.gameId,
@@ -278,8 +324,8 @@ it("主页默认最近游玩、局中默认当前局，保存只含选中局的�
       archiveFailures: [{ kind: "log", message: "对局归档事务已中止" }],
     });
   } finally {
-    download.mockRestore();
-    createObjectUrl.mockRestore();
+    if (originalTauri) Object.defineProperty(window, "__TAURI_INTERNALS__", originalTauri);
+    else Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
     await archiveGameLog(earlier, nextLog, now);
   }
 });

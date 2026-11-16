@@ -21,7 +21,6 @@
   color: var(--color-paper);
   font-family: var(--font-brush);
   text-align: left;
-  cursor: pointer;
   transition:
     background-color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
@@ -31,7 +30,6 @@
   border-bottom-color: transparent;
 }
 
-.manual-treasure-row:hover,
 .manual-treasure-row:focus-visible {
   background: color-mix(in srgb, var(--color-panel-hi) 60%, transparent);
   box-shadow: inset 2px 0 var(--color-gold);

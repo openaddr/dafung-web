@@ -8,7 +8,7 @@
 // Esc/点外关闭)与本底件保持一致。
 // 题名拖动(#674):底件系弹窗出厂即带——本体外挂 --drag-x/--drag-y 变量消费位,
 // 拖拽逻辑单源在 hooks/use-dialog-drag;shell 经 <DialogDragHandle> 组件把手摊在
-// 题名行上(PileShell/ConfirmDialog/MapSelectPanel/JinnangDetailSheet 桌面形态),
+// 题名行上(PileShell/ConfirmDialog/MapSelectPanel/JinnangDetailSheet 宽裕屏形态),
 // 业务弹窗(children)零改动。遮罩随拖离中心减淡,色值单源在 hook 文件。
 import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";

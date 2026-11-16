@@ -61,7 +61,7 @@ interface BannerShellProps {
    *  钮即内容或无可拍板)不传,槽不占位、零余白。 */
   footer?: ReactNode;
   /** 只有可放弃的弹层(详情/确认/等待视角)才传;抉择类必须选,不误关(旧卷轴同策略)。
-   *  传了 onClose 即支持:点遮罩空白关闭 + Esc 关闭(与 ConfirmDialog 的 Esc 惯例一致)。 */
+   *  传了 onClose 即支持点遮罩空白或关闭钮收起。 */
   onClose?: () => void;
   /** 外层容器上的 data-testid(各决策弹层用自己的 id;e2e 契约:scroll-* 前缀保留)。 */
   testid?: string;
@@ -84,17 +84,14 @@ export function BannerButton({
   onClick,
   primary,
   testid,
-  // UI F1:决策类按钮可能不可选(银两不足、满级)——disabled + title 原因,
-  // 口径与引擎选项集注册表一致,由壳统一观感
+  // UI F1:决策类按钮可能不可选，原因由正文呈现。
   disabled,
-  title,
 }: {
   children: ReactNode;
   onClick: () => void;
   primary?: boolean;
   testid?: string;
   disabled?: boolean;
-  title?: string;
 }) {
   // #90:幽灵退场帧里的按钮一律 disabled——e2e/用户的选择器(如
   // `button[data-testid^="action-"]:not([disabled])`)在 210ms 退场窗口内
@@ -102,9 +99,6 @@ export function BannerButton({
   // #93(R3-C6)决策按钮主次权重:primary 升档为墨钮(漆底金字)+加大字号
   // 与内边距;secondary 降半档只缩字号。并排时主次一眼可辨。disabled 两类口径不变
   // (disabled:opacity-40);次级笺钮在横幅上的描边/衬底收口见 banner.css(.banner-shell .note-btn)。
-  // 键位角标退役(#761 ③):G-19 的 1/2/3 上标随 DESIGN「本作不设键盘快捷键依赖与
-  // 键位角标」裁定删除(桌面触屏同删);数字键监听属存量交互语义(DESIGN §4.6
-  // 快捷键退场条「不扩面、不复制」),仍在 DecisionScrolls,不随展示件连坐。
   const isGhost = useContext(BannerGhostContext);
   return (
     <Button
@@ -112,11 +106,10 @@ export function BannerButton({
       data-testid={testid}
       onClick={onClick}
       disabled={disabled || isGhost}
-      title={title}
       className={
         primary
-          ? "ink-btn relative cursor-pointer rounded-[5px] px-5 py-2.5 font-brush text-[17px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-          : "note-btn relative cursor-pointer rounded-[5px] px-4 py-2 font-brush text-[15px] transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
+          ? "ink-btn relative rounded-[5px] px-5 py-2.5 font-brush text-[17px] transition-colors disabled:opacity-40"
+          : "note-btn relative rounded-[5px] px-4 py-2 font-brush text-[15px] transition-colors disabled:opacity-40"
       }
     >
       {children}
@@ -135,7 +128,7 @@ export function BannerShell({
   className,
   sideOrnament,
 }: BannerShellProps) {
-  // #90(R3-C3)收起:×/遮罩/Esc 统一走 requestClose——先置 closing(壳体挂退场类、
+  // #90(R3-C3)收起:×/遮罩统一走 requestClose——先置 closing(壳体挂退场类、
   // 遮罩淡出并放行点击、aria-hidden),210ms 后(退场动画 var(--dur-fast) =150ms 已走完)
   // 再调真 onClose 卸载。「播完再移除」模式照抄 useDeltaFloat 的定时出列;
   // 零兜底:只有一个明确的 setTimeout,不设超时兜底分支。
@@ -146,7 +139,7 @@ export function BannerShell({
   const exiting = closing || isGhost;
 
   const requestClose = useCallback(() => {
-    // 计时器在途 = 已在收起,忽略重复出口(Esc 连按/遮罩二次点击)
+    // 计时器在途 = 已在收起,忽略重复点击
     if (!onClose || closeTimerRef.current !== null) return;
     setClosing(true);
     closeTimerRef.current = setTimeout(() => {
@@ -170,18 +163,6 @@ export function BannerShell({
     if (isGhost) return;
     getAudio().play("scrollOpen");
   }, [isGhost]);
-  // #34:可关弹层补 Esc 快捷键(与 ConfirmDialog 的 Esc 惯例统一)
-  useEffect(() => {
-    if (!onClose) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        requestClose();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, requestClose]);
   // #90:收起途中同实例换了内容主体(如详情弹层 A 未收完就点了城 B)则撤销收起——
   // 否则退场动画的 fill forwards 会把新内容也钉在 opacity 0 上,弹层永久隐身。
   // 内容身份由题名承载(详情题名带城名,A→B 题名必变),不再另设内容键。
@@ -223,9 +204,8 @@ export function BannerShell({
         exiting ? "banner-anim-out" : ""
       } ${className ?? ""}`}
     >
-      {/* 题行:金印 + 笔书题名,兼拖动把手(#674):把手事件/触屏隔离/抓取光标由
-          handleProps 承担;行内 X 钮自带豁免(起点命中按钮不启动拖)且自身
-          cursor-pointer 类在钮上恒胜继承的 grab。题印漆金化(#492 决议①「印章漆金化」):
+      {/* 题行:金印 + 笔书题名,兼拖动把手(#674):把手事件与触屏隔离由
+          handleProps 承担;行内 X 钮自带豁免(起点命中按钮不启动拖)。题印漆金化:
           漆底金字,朱砂保留给危险/破产语义与按钮;题名金字(漆金题)对漆底 ≥8:1。 */}
       <div
         {...drag.handleProps}
@@ -247,7 +227,7 @@ export function BannerShell({
           {title}
         </h2>
         {onClose && (
-          // #64:44px 热区不变,视觉为漆金发丝描边圆钮;hover 用 group 让整个热区点亮。
+          // #64:44px 热区不变,视觉为漆金发丝描边圆钮。
           <button
             type="button"
             data-testid={T.scrollClose}
@@ -257,11 +237,11 @@ export function BannerShell({
               requestClose();
             }}
             disabled={isGhost}
-            className="group absolute top-1/2 right-[-8px] flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center disabled:cursor-default"
+            className="absolute top-1/2 right-[-8px] flex h-11 w-11 -translate-y-1/2 items-center justify-center "
           >
             <span
               aria-hidden="true"
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.35)] text-paper-dim transition-colors group-hover:bg-[rgba(217,185,92,0.12)] group-hover:text-gold-bright"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.35)] text-paper-dim transition-colors "
             >
               <Sym name="close" size={13} />
             </span>
@@ -324,7 +304,7 @@ export function BannerShell({
   // 与关闭还焦;role/aria-modal 由壳体自带。刻意不用 Dialog.Content——它内部强制
   // Portal 到 body,会破坏 #scroll-layer 定位栈与幽灵帧协议。挂载不夺焦(封装内置
   // onMountAutoFocus preventDefault:× 关闭钮在 DOM 首位,默认首焦会落在它上,Enter
-  // 误关)。Esc/点外关闭沿用窗级 Esc 监听 + 遮罩点击,与 ui/dialog.tsx 行为口径一致。
+  // 误关)。可放弃的弹层支持关闭钮及点遮罩关闭。
   return (
     <div
       className="banner-overlay absolute inset-0 z-30 flex items-center justify-center"

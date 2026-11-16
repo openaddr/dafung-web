@@ -95,7 +95,6 @@
   padding-inline: 12px;
   border-radius: 3px;
   font-size: 14px;
-  cursor: pointer;
   transition:
     background-color var(--dur-fast),
     border-color var(--dur-fast);
@@ -121,16 +120,11 @@
 }
 
 .su-encounter-summary {
-  cursor: pointer;
   list-style: none;
 }
 
 .su-encounter-summary::-webkit-details-marker {
   display: none;
-}
-
-.su-encounter-summary:hover {
-  color: var(--color-gold-bright);
 }
 
 .su-encounter-body {
@@ -148,7 +142,6 @@
   border-radius: 3px;
   background: var(--color-bg);
   font-size: 14px;
-  cursor: pointer;
 }
 
 /* 整行标签已接管触区，开关的扩区不再延伸到摘要与说明。 */
@@ -263,11 +256,9 @@
   margin-inline: var(--su-gutter);
   border-radius: 5px;
   font-size: 19px;
-  cursor: pointer;
 }
 
 .su-start:disabled {
-  cursor: not-allowed;
   opacity: 0.6;
 }
 
@@ -318,7 +309,6 @@
   border-radius: 2px;
   font-size: 18px;
   line-height: 1;
-  cursor: pointer;
   transition:
     color var(--dur-fast),
     border-color var(--dur-fast);
@@ -334,11 +324,6 @@
 
 .su-pool-key[aria-pressed="false"] {
   color: var(--color-paper-dim);
-}
-
-.su-pool-key[aria-pressed="false"]:hover {
-  color: var(--color-paper);
-  border-color: var(--color-gold);
 }
 
 @media (max-width: 640px) {

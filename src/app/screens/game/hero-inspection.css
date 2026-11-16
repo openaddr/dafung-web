@@ -31,7 +31,6 @@
 }
 .hero-inspection button {
   font-family: var(--font-brush);
-  cursor: pointer;
 }
 .hero-inspection button:focus-visible {
   outline: 2px solid var(--color-gold-bright);
@@ -202,9 +201,17 @@
 .hero-inspection-actions {
   flex: none;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
   padding-top: 6px;
   border-top: 1px solid var(--hairline);
+}
+.hero-inspection-dismiss-reason {
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-paper-dim);
 }
 .hero-inspection-dismiss {
   height: 40px;
@@ -222,7 +229,6 @@
 }
 .hero-inspection-dismiss:disabled {
   opacity: 0.45;
-  cursor: default;
 }
 .hero-inspection-empty {
   flex: 1;

@@ -13,7 +13,6 @@
   align-items: center;
   gap: 22px;
   padding: 26px 8px 14px;
-  cursor: pointer;
 }
 
 /* ── 翻面单元:牌背(漆木底)→ 牌面,3D 翻转入场,第 i 张错峰 --dur-fast;

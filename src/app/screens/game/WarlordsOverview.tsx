@@ -121,13 +121,13 @@ function OverviewRow({
       </button>
       {/* 名将列(可点钻入件→名录):麾下名将名 chips 朱砂(信息公开),空槽画空格
           (HERO_CAPACITY 单源 core/constants,上限恒 3 槽不折叠)。槽位原生读(#786):
-          名按 heroId 回查名将表单源;全名进 title 浮签防截断失读。 */}
+          名按 heroId 回查名将表单源,可达名包含全名。 */}
       <button
         type="button"
         className="zl-drill"
         data-testid={TESTIDS.warlordsHeroes(seat)}
         aria-haspopup="dialog"
-        aria-label={`${p.guohao}麾下名将 ${p.heroes.length},点开名录`}
+        aria-label={`${p.guohao}麾下名将 ${p.heroes.length}${p.heroes.length > 0 ? `，${p.heroes.map((slot) => heroById(slot.heroId).name).join("、")}` : ""},点开名录`}
         onClick={() => onOpenDetail(seat, "hero")}
       >
         <span className="zl-face">
@@ -141,7 +141,7 @@ function OverviewRow({
               );
             const name = heroById(slot.heroId).name;
             return (
-              <span key={slot.heroId} className="zl-hnslot" title={name}>
+              <span key={slot.heroId} className="zl-hnslot">
                 {name}
               </span>
             );

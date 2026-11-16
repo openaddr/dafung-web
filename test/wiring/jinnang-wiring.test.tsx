@@ -16,29 +16,35 @@ import {
   armHero,
   armPhase,
   giveJinnang,
+  giveTreasure,
   grantProperty,
   pinDice,
   placePlayer,
+  setCash,
   setJinnangUsedTags,
   setStamina,
 } from "@core/planter";
 import { skillOptionId } from "@core/choices";
+import { makeSkillBook } from "@core/treasures";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
 import guanzhongData from "../../public/maps/guanzhong.json";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { installControlledClock } from "./controlled-clock";
 (globalThis as Record<string, unknown>).__APP_VERSION__ = pkg.version;
 
 /** 晚绑模块型(late binding,红线见头注第 0 步;type-of-import 类型面静态引用,
  *  求值面零触碰,不破晚绑)。 */
 type GameScreenModule = typeof import("@app/screens/game/GameScreen");
+type TipModule = typeof import("@app/screens/game/Tip");
 type RegistryModule = typeof import("@app/controllers/registry");
 type GameControllerClass = import("@app/controllers/controller").GameController;
 type ExtractModule = typeof import("@app/fx/event-extract");
 type OrchestratorModule = typeof import("@app/fx/orchestrator");
 type SinksModule = typeof import("@app/fx/sinks");
 let GameScreen: GameScreenModule["GameScreen"];
+let Tip: TipModule["Tip"];
 let setController: RegistryModule["setController"];
 let extractBatchEvents: ExtractModule["extractBatchEvents"];
 let present: OrchestratorModule["present"];
@@ -85,6 +91,7 @@ function seedPlayingEngine(): GameEngine {
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
+let clock: ReturnType<typeof installControlledClock> | null = null;
 
 /** act() 内挂 GameScreen;卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -161,6 +168,7 @@ it("连环计上一步经在途锁保留首选，改选后第二步需重新选�
   expect(seat(1).getAttribute("aria-pressed")).toBe("true");
   click(confirm());
   completeCommand();
+  expect(q(el, TESTIDS.actionbar)!.textContent).toContain(`已选 ${snap().players[1].guohao}`);
   click(seat(3));
   click(q(el, TESTIDS.actionbarPrevious)!);
   expect(useGameStore.getState().interactive).toBe(false);
@@ -186,7 +194,7 @@ it("连环计上一步经在途锁保留首选，改选后第二步需重新选�
 
 it("地图选择收架，可重开并保留目标，取消后仍能以同一入口发动火攻", () => {
   const city = tileIndexOfProperty(MAP.board, "prop-xianyang");
-  const { el, snap } = startGame((e) => {
+  const { el, engine, snap } = startGame((e) => {
     for (let seat = 0; seat < e.players.length; seat++) {
       giveJinnang(e, seat, seat === 0 ? ["火烧连营"] : []);
     }
@@ -199,6 +207,11 @@ it("地图选择收架，可重开并保留目标，取消后仍能以同一入�
   click(q(el, TESTIDS.jinnangCard("火烧连营"))!);
   click(q(el, TESTIDS.actionbarPlay)!);
   expect(q(el, TESTIDS.jinnangRack)).toBeNull();
+  const unowned = engine.board.tiles.find(
+    (tile) => tile.propertyId != null && engine.findOwner(tile.propertyId) == null,
+  )!;
+  click(el.querySelector(TESTIDS.cityTarget(unowned.index))!);
+  expect(q(el, TESTIDS.actionbar)!.textContent).toContain(`${unowned.name}(无主,作火源自身免伤)`);
   click(el.querySelector(TESTIDS.cityTarget(city))!);
   click(q(el, TESTIDS.jinnangToggle)!);
   expect(el.querySelector(TESTIDS.cityTargetPicked(city))).not.toBeNull();
@@ -266,6 +279,7 @@ beforeAll(async () => {
   const orchMod = await import("@app/fx/orchestrator");
   const sinksMod = await import("@app/fx/sinks");
   GameScreen = screenMod.GameScreen;
+  Tip = (await import("@app/screens/game/Tip")).Tip;
   setController = registryMod.setController;
   extractBatchEvents = extractMod.extractBatchEvents;
   present = orchMod.present;
@@ -336,11 +350,14 @@ afterEach(() => {
     act(() => root!.unmount());
     root = null;
   }
-  container = null;
   setController(null); // registry 换局销毁契约:控制器随例释放,不留活口
   useGameStore.getState().reset();
   useNetStore.getState().reset();
   useFxStore.getState().resetFx();
+  container?.remove();
+  container = null;
+  clock?.restore();
+  clock = null;
 });
 
 afterAll(async () => {
@@ -351,6 +368,175 @@ afterAll(async () => {
 });
 
 describe("手牌架内容与临时显隐", () => {
+  it("非己方回合说明遣散限制，回合开始后可确认遣散", async () => {
+    const { el, engine, writeEngine } = startGame((e) => {
+      armHero(e, 0, "caopi", ["fangzhu"]);
+      armPhase(e, { activeIndex: 1, turnPhase: "Roll" });
+    });
+    click(q(el, TESTIDS.pileHeroes)!);
+    await settle();
+    const actions = () => modalQ(TESTIDS.heroInspectionActions)!;
+    const dismiss = () => modalQ(TESTIDS.heroDismiss("caopi"))! as HTMLButtonElement;
+    expect(dismiss().disabled).toBe(true);
+    expect(actions().textContent).toContain("己方回合可遣散");
+
+    writeEngine((e) => armPhase(e, { activeIndex: 0 }));
+    expect(actions().textContent).not.toContain("己方回合可遣散");
+    expect(dismiss().disabled).toBe(false);
+    click(dismiss());
+    expect(dismiss().textContent).toBe("确认遣散");
+    click(dismiss());
+    expect(engine.players[0]!.heroes).toHaveLength(0);
+  });
+
+  it("技能书不可研读时说明原因，可研读后仍能使用", async () => {
+    const book = makeSkillBook("huogong");
+    const { el, engine, writeEngine } = startGame((e) => {
+      giveTreasure(e, 0, [book]);
+      armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    });
+    click(q(el, TESTIDS.pileTreasures)!);
+    await settle();
+    const modal = () => modalQ(TESTIDS.treasureModal)!;
+    expect(modal().textContent).toContain("麾下无人可习此技");
+    expect(modalQ(TESTIDS.bookUse(book.id))).toBeNull();
+
+    writeEngine((e) => {
+      armHero(e, 0, "zhouyu", ["yingzi"]);
+      armPhase(e, { turnPhase: "Roll" });
+    });
+    expect(modal().textContent).toContain("出牌阶段可研读");
+    expect(modalQ(TESTIDS.bookUse(book.id))).toBeNull();
+
+    writeEngine((e) => armPhase(e, { turnPhase: "AwaitingJinnang" }));
+    click(modalQ(TESTIDS.bookUse(book.id))!);
+    expect(engine.players[0]!.heroes[0]!.skillIds).toContain("huogong");
+    expect(engine.players[0]!.treasures).toHaveLength(0);
+    await settle();
+  });
+
+  it("手指移出签面后取消长按，重新长按仍可查看浮签", async () => {
+    clock = installControlledClock();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    act(() => {
+      root = createRoot(container!);
+      root.render(
+        <Tip tip={{ name: "签面", detail: "点数" }} testId={TESTIDS.diceFace}>
+          签
+        </Tip>,
+      );
+    });
+    const trigger = q(container, TESTIDS.diceFace)!;
+    const pointer = (type: string) =>
+      new PointerEvent(type, {
+        bubbles: true,
+        pointerType: "touch",
+        pointerId: 1,
+        isPrimary: true,
+        relatedTarget: type === "pointerout" ? document.body : null,
+      });
+    act(() => {
+      trigger.dispatchEvent(pointer("pointerdown"));
+      trigger.dispatchEvent(pointer("pointerout"));
+    });
+    await clock.advance(401);
+    expect(modalQ(TESTIDS.attrTip)).toBeNull();
+    act(() => {
+      document.body.dispatchEvent(pointer("pointerup"));
+      trigger.dispatchEvent(pointer("pointerdown"));
+    });
+    await clock.advance(401);
+    expect(modalQ(TESTIDS.attrTip)).not.toBeNull();
+    act(() => trigger.dispatchEvent(pointer("pointerup")));
+  });
+
+  it("不可发动的技能仍可查看技名详情，收放手牌保留已选技能", () => {
+    const { el, engine } = startGame((e) => {
+      for (let seat = 0; seat < e.players.length; seat++) giveJinnang(e, seat, []);
+      armHero(e, 0, "huatuo", ["zhenji"]);
+      armHero(e, 0, "zhangxingcai", ["leigu"]);
+      setCash(e, 0, 0);
+      armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    });
+    const unavailable = q(
+      el,
+      TESTIDS.jinnangCard(skillOptionId("huatuo", "zhenji")),
+    )! as HTMLButtonElement;
+    const available = () => q(el, TESTIDS.jinnangCard(skillOptionId("zhangxingcai", "leigu")))!;
+    expect(unavailable.textContent).toContain("银两不足");
+    expect(unavailable.getAttribute("aria-label")).toContain("华佗·赈济");
+    expect(unavailable.getAttribute("aria-label")).toContain("银两不足");
+    click(available());
+    expect(available().getAttribute("aria-pressed")).toBe("true");
+    click(unavailable);
+    expect(available().getAttribute("aria-pressed")).toBe("true");
+    expect(engine.pendingSkill).toBeNull();
+    const toggle = q(el, TESTIDS.jinnangToggle)! as HTMLButtonElement;
+    click(toggle);
+    expect(q(el, TESTIDS.jinnangRack)).toBeNull();
+    expect(engine.pendingSkill).toBeNull();
+    click(toggle);
+    expect(available().getAttribute("aria-pressed")).toBe("true");
+    const inspect = q(el, TESTIDS.skillCardInspect("huatuo", "zhenji"))! as HTMLButtonElement;
+    expect(inspect.getAttribute("aria-label")).toContain("赈济");
+    click(inspect);
+    expect(modalQ(TESTIDS.skillGlossary)).not.toBeNull();
+    expect(modalQ(TESTIDS.skillGlossaryRow("zhenji"))).not.toBeNull();
+    expect(available().getAttribute("aria-pressed")).toBe("true");
+    expect(engine.pendingSkill).toBeNull();
+  });
+
+  it("不同名将的同名技能各自选牌并打开对应名将的全览", () => {
+    const city = tileIndexOfProperty(MAP.board, "prop-xianyang");
+    const { el } = startGame((e) => {
+      for (let seat = 0; seat < e.players.length; seat++) giveJinnang(e, seat, []);
+      armHero(e, 0, "zhouyu", ["huogong"]);
+      armHero(e, 0, "zhugeliang", ["huogong"]);
+      placePlayer(e, 0, city);
+      grantProperty(e, 1, "prop-xianyang", 1);
+      armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    });
+    const zhouyu = q(el, TESTIDS.jinnangCard(skillOptionId("zhouyu", "huogong")))!;
+    const zhugeliang = q(el, TESTIDS.jinnangCard(skillOptionId("zhugeliang", "huogong")))!;
+    click(zhouyu);
+    expect(zhouyu.getAttribute("aria-pressed")).toBe("true");
+    click(zhugeliang);
+    expect(zhouyu.getAttribute("aria-pressed")).toBe("false");
+    expect(zhugeliang.getAttribute("aria-pressed")).toBe("true");
+    click(q(el, TESTIDS.skillCardInspect("zhouyu", "huogong"))!);
+    expect(modalQ(TESTIDS.skillGlossary)!.textContent).toContain("周瑜");
+    expect(zhugeliang.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("卡牌段收架只留阶段提示，展开后恢复选择并继续出牌", () => {
+    const { el, engine } = startGame((e) => {
+      for (let seat = 0; seat < e.players.length; seat++) giveJinnang(e, seat, []);
+      giveJinnang(e, 0, ["横征暴敛"]);
+      armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    });
+    const toggle = () => click(q(el, TESTIDS.jinnangToggle)!);
+    const card = () => q(el, TESTIDS.jinnangCard("横征暴敛"))!;
+    const expectCollapsed = () => {
+      expect(q(el, TESTIDS.jinnangRack)).toBeNull();
+      expect(q(el, TESTIDS.actionbar)!.textContent).toBe("出牌阶段");
+      expect(q(el, TESTIDS.actionbarPass)).toBeNull();
+      expect(q(el, TESTIDS.actionbarPlay)).toBeNull();
+    };
+    toggle();
+    expectCollapsed();
+    toggle();
+    expect(q(el, TESTIDS.actionbarPass)).not.toBeNull();
+    click(card());
+    expect(card().getAttribute("aria-pressed")).toBe("true");
+    toggle();
+    expectCollapsed();
+    toggle();
+    expect(card().getAttribute("aria-pressed")).toBe("true");
+    click(q(el, TESTIDS.actionbarPlay)!);
+    expect(engine.players[0].jinnangHand).toEqual([]);
+  });
+
   it("同一出牌窗遣散命令在途与回包都保留手动收架", async () => {
     const { el, engine, snap, completeCommand } = startGame((e) => {
       for (let seat = 0; seat < e.players.length; seat++) giveJinnang(e, seat, []);

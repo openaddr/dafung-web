@@ -52,7 +52,7 @@ const TABS: ReadonlyArray<{
 /** 签行按钮公共形制:真 button;触达制式(#751)视觉不足 40px 以 after 垫扩区
  *  (PileShell 关闭钮同手筋);选中=金描边+上浮 2px+底色抬档(§4.6),过渡走 token。 */
 const TAB_CLS =
-  "relative flex-none cursor-pointer rounded-[3px] border px-3.5 py-1 font-brush text-[15px] " +
+  "relative flex-none rounded-[3px] border px-3.5 py-1 font-brush text-[15px] " +
   "tracking-[0.2em] transition-[border-color,color,background-color,transform,box-shadow] " +
   "duration-[var(--dur-fast)] ease-[var(--ease-out)] after:absolute after:-inset-2 after:content-['']";
 
@@ -107,7 +107,7 @@ export function ManualModal({ open, onClose }: ManualModalProps) {
               data-testid={MANUAL_TID.close}
               aria-label="关闭"
               onClick={requestClose}
-              className="relative ml-auto flex h-[26px] w-[26px] flex-none cursor-pointer place-items-center rounded-full border border-gold/35 text-[15px] leading-none text-paper-dim transition-[color,border-color,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:scale-[1.02] hover:border-gold-bright hover:text-paper after:absolute after:-inset-[9px] after:content-['']"
+              className="relative ml-auto flex h-[26px] w-[26px] flex-none place-items-center rounded-full border border-gold/35 text-[15px] leading-none text-paper-dim transition-[color,border-color,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] after:absolute after:-inset-[9px] after:content-['']"
             >
               ×
             </button>
@@ -132,7 +132,7 @@ export function ManualModal({ open, onClose }: ManualModalProps) {
                     TAB_CLS +
                     (selected
                       ? " -translate-y-0.5 border-gold-bright bg-panel-hi/60 text-paper shadow-[0_3px_10px_rgba(0,0,0,0.35)]"
-                      : " border-transparent text-paper-dim hover:text-paper")
+                      : " border-transparent text-paper-dim ")
                   }
                 >
                   {t.label}

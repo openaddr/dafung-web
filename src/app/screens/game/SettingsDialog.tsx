@@ -88,7 +88,7 @@ export const SettingsDialog = memo(function SettingsDialog({
         aria-label="设置"
         className="settings-dialog w-[270px] max-w-[92vw] gap-0 rounded-[10px] px-4 pt-3 pb-2"
       >
-        {/* 题名行拖动把手(ADR-0031):透明条覆盖题名行一带,hover 显 grab */}
+        {/* 题名行拖动把手(ADR-0031):透明条覆盖题名行一带。 */}
         <DialogDragHandle
           aria-hidden="true"
           className="absolute inset-x-0 top-0 z-0 h-[40px]"

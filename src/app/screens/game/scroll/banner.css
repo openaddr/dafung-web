@@ -90,9 +90,6 @@
   background: var(--color-panel-hi);
   border-color: rgba(217, 185, 92, 0.38);
 }
-.banner-shell .note-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-panel-hi) 72%, var(--color-gold-bright) 28%);
-}
 
 /* ── 价值表高亮行行尾角标(#92 ValueTable 购地/扩军/城池详情共用):角标盒是行
    flex 尾项,右缘与表内容缘零间隙,表容器 overflow-hidden 在亚像素舍入下削边
@@ -152,7 +149,7 @@
 
 /* ── 短横屏遮罩升格(#239 T4 收口,沿旧 scroll-anim-overlay 同款):板区被手牌架
    压到 ~240px 时 absolute 遮罩随板区裁切,决策瞬间模态优先级高于牌架,升格 fixed
-   盖全屏;桌面/竖屏维持 absolute 随板区居中。无层级规则天然压过 Tailwind utilities ── */
+   盖全屏;高视口/竖屏维持 absolute 随板区居中。无层级规则天然压过 Tailwind utilities ── */
 /* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   .banner-overlay {
@@ -223,14 +220,12 @@
   border: 0;
   background: transparent;
   color: inherit;
-  cursor: pointer;
 }
 .bankruptcy-pages > button:last-child svg {
   transform: rotate(180deg);
 }
 .bankruptcy-pages > button:disabled {
   opacity: 0.3;
-  cursor: default;
 }
 .bankruptcy-grid {
   display: grid;
@@ -251,7 +246,6 @@
   background: var(--color-bg-deep);
   color: var(--color-paper);
   text-align: left;
-  cursor: pointer;
 }
 .bankruptcy-asset:is(.bankruptcy-selected, [data-selected]) {
   border-color: var(--color-gold-bright);
@@ -260,10 +254,6 @@
 }
 .bankruptcy-asset:disabled {
   opacity: 0.4;
-  cursor: default;
-}
-.bankruptcy-duplicate {
-  cursor: default;
 }
 .bankruptcy-art {
   width: 42px;
@@ -334,11 +324,9 @@
   color: var(--color-gold-bright);
   background: transparent;
   font-size: 22px;
-  cursor: pointer;
 }
 .bankruptcy-stepper > button:disabled {
   opacity: 0.3;
-  cursor: default;
 }
 .bankruptcy-stepper > output {
   min-width: 22px;

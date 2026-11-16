@@ -61,9 +61,7 @@ class SynthAudioPlayer implements AudioPlayer {
   protected ensureCtx(): AudioContext | null {
     if (this.muted) return null;
     if (!this.ctx) {
-      const Ctor =
-        window.AudioContext ??
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      const Ctor = window.AudioContext;
       if (!Ctor) return null;
       try {
         this.ctx = new Ctor();

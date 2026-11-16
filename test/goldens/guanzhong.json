@@ -41,7 +41,7 @@
           "rngState": 3335852342,
           "logHash": "ccc3598b7331e0155e410eefdd1dec8604ab1a0d3ad69d0c00607ae4aa0449a4",
           "logCount": 37,
-          "stateHash": "a817cbcb34585f8c830211b3e848f6c253967ab3b2a9c82c8d323c7a2f189291",
+          "stateHash": "42622ff035a2a9bea8ca7b204a29c56278ca9ab554d378fade6591ad2804e288",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -389,7 +389,7 @@
           "rngState": 3456158436,
           "logHash": "218220af682e17e99b8aa392d2c78b3142f2b83197967d281acab171ff3e97e3",
           "logCount": 117,
-          "stateHash": "516d24545d98109fa220e31cf021ac098b879be8d6905acf73279b756807035e",
+          "stateHash": "fa435e24421257656286deb787117f9bedae197b272f8629a0f3d9377d3d7443",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -845,7 +845,7 @@
           "rngState": 857298259,
           "logHash": "188d61bb65020e54cff8ce19ff407f13d7f3fdbc74687767e5899adf2d441716",
           "logCount": 215,
-          "stateHash": "8a8634016ece20bd57d6dcc9ff39584c174846c9880c91894fe086bd8486f384",
+          "stateHash": "624d3e080e232f59ed532511df8b3e63903580951ce3d157ffd5e11ec1253328",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -1021,7 +1021,7 @@
           "rngState": 1737322417,
           "logHash": "c08abb60962e464fdb11180b312b2ff33c2adae8aaad5f1d706fd52df1f3aa88",
           "logCount": 256,
-          "stateHash": "e469470841ebbe0e6af5b4fc6dbac575c21bcf5b6992542a7c639a77b1438925",
+          "stateHash": "ef62bc0437273e1a67b6476db6adabe3ab1cf66bcab56847a47ad6036abdbc7b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -1184,7 +1184,7 @@
           "rngState": 3881017915,
           "logHash": "05d8739b117e9b2906c348853dcd6d6f21a148c541e458fee04987ac9d8dbdbc",
           "logCount": 292,
-          "stateHash": "51e5ed5a0b0ba10ea5bf07b7d05ef77e9bb5cce74cfb36a217c6f8d12596d2ad",
+          "stateHash": "0df70ccdc4c512252138f7fabae875774daae97e8fc2ef19abe312c3477a5cb4",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -1371,7 +1371,7 @@
           "rngState": 593957171,
           "logHash": "aecb4565edc0b4eacf7d4265c441d647d9b0aa671ddc68866659a2fc5b0b7bd3",
           "logCount": 339,
-          "stateHash": "619a63cc8fde53953d966af2d5477e3a8c9737a4d25b4689ab81576810e99d08",
+          "stateHash": "1434882759dbd975d4f5d55b4185e9783741805db82cb2e88c13e67695bff39e",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -1419,7 +1419,7 @@
           "rngState": 1729746117,
           "logHash": "8c5523907fd0ae90e60abef9f4d42d15be6245b02808c7d815da6fce98c2d018",
           "logCount": 352,
-          "stateHash": "f48eefe9586488f7a21c00cb07dcd61586cef1b1c4e726528003d41f315eea5f",
+          "stateHash": "6cc29e2fed7c12c7d74b7177ff0205a481af32ec455ea3301a2f7d1b81a9892f",
           "kinds": [
             "jinnangAnnounced",
             "diceRolled",
@@ -1675,7 +1675,7 @@
           "rngState": 1346098935,
           "logHash": "8aca0bc14aa76365ea0bec5bfa741124feeb4b5eb8cae6b9658331a645177b3a",
           "logCount": 417,
-          "stateHash": "b0590cd8f8c3ffab39b9d97f370dd8a5bca1feea3f5b5922100b6c4a2b14b7d8",
+          "stateHash": "ab71d7341188bd494a1997d8da5d3331ca44afc214f6618fd6663adcce5e3bc5",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -1805,7 +1805,7 @@
           "rngState": 1218216541,
           "logHash": "50295e42c113d15008e8ce115d43cd53806cbc47ca006712cbb64fa60158e117",
           "logCount": 451,
-          "stateHash": "2086d19fba7fb5c1a286121bd4431ad2091e37c2cd758f1523a9b4b5822b8f29",
+          "stateHash": "aef1f9e3a9be712e1ac3e0b0445581717c7f35db6482759d1aca1eb195397afa",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -1881,7 +1881,7 @@
           "rngState": 3553735630,
           "logHash": "6f4a8a93327b11f78747a3aff8cfcbecb5dc834621e8a7bce847c91c478e0704",
           "logCount": 473,
-          "stateHash": "92f06ca33236987c798bbe4da4fde249158f8f81fe9552ef13e9d336472bfda3",
+          "stateHash": "d87e1fd68282173f04774ef9a567c4751e501ad256ddef6e6885faf82d47485a",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -2194,7 +2194,7 @@
           "rngState": 10910098,
           "logHash": "6782f73e7abc2d83009474944ee08acf236056a35881a4599feb8b2020538ed0",
           "logCount": 552,
-          "stateHash": "acd3d24a39f83644720573dd15ad252dece3a9dc249c3662013e2ba0e44fb984",
+          "stateHash": "05f2d0b5bd852dfc8342c27297f363597aa6ff64b7f714d9659447c5ce55b911",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -2821,7 +2821,7 @@
           "rngState": 1011240350,
           "logHash": "d4c0dcb6859f07b513279e5b9618c9f0ed70373f14059bd49f250404c73cd975",
           "logCount": 710,
-          "stateHash": "db7675201e2d3349ece0dd7bd4327ce9d03af07f8c7c6ab12fe73231250399c0",
+          "stateHash": "a129e70cbd9cb7836cac31e99a31d1f00a3c2ccd7af63a50a234194917550522",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -4828,7 +4828,7 @@
           "rngState": 3628583924,
           "logHash": "bbe5af87baf76ceac9a884d9e4db3761020f63bad1b880b47339db55b6e6bc75",
           "logCount": 1209,
-          "stateHash": "6e5c6cc633a6dce13910f2ab0d3512b0e0d94368bccb3ee86aa460310969c18f",
+          "stateHash": "49a37334f14be02e339da61625851dd89e741aced2088f8b1a3d0012e540f49d",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -4879,7 +4879,7 @@
           "rngState": 1101241244,
           "logHash": "0e4a7f2b7868726d7bdc1834432e589465ed6fe0c37173db3189714cccb5b0fa",
           "logCount": 1228,
-          "stateHash": "b0817204ca6c7303de9a2aca179498c5c74ef53e16192f8cb59097d17aee7d5f",
+          "stateHash": "11543eb15002be4de30d2b6dbb91a0052b5617c809bc1bff029129163379e089",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -4933,7 +4933,7 @@
           "rngState": 1037300047,
           "logHash": "730b8ee86487d0e4401f25e81727be8c5c89735707c278cfd00de6aeab5766d6",
           "logCount": 1241,
-          "stateHash": "f49105b7be43eff6ff51257913ab6f2658a0f7c786a9b2efd44c4a5a4ad9d32f",
+          "stateHash": "c404a5ddfd35e366650b67ddf1f67c40e390a7f7721c8f8aee086872295f3ee2",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -4959,7 +4959,7 @@
           "rngState": 2237030190,
           "logHash": "9d9d1195461ef8a96bd8007ff517daea2a775b0d100c484a5d81bf89b62bd6d9",
           "logCount": 1257,
-          "stateHash": "1cbd0f76e1101688b9dea4b4ea120305362302f998e4885a02065e6056799402",
+          "stateHash": "2556ed7f7789787a6262671dbc411eb526d8265a1ba7f70aa21e453c7cc4834e",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -5043,7 +5043,7 @@
           "rngState": 2109147796,
           "logHash": "9961e36876b6a42e759f3187317b1ecd9c765a299591c21ab93743158f4e2c2a",
           "logCount": 1278,
-          "stateHash": "9a56ebae1687a5c5c56ca359e45cf593254b68092202c7fac2b4d9065aa50b69",
+          "stateHash": "047e1c0b9ad46839dec09c63f24b69484caac55beca34794de20700fd079563b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -5241,7 +5241,7 @@
           "rngState": 1853383008,
           "logHash": "1afba056e77b6cc46087beae8029d586c5d1ad143e70f9736361e3d1a88f4f1c",
           "logCount": 1327,
-          "stateHash": "a5c1a310a283a67105ff157710746fb42e23d2f1487187e79eb5418d59102789",
+          "stateHash": "11f54d2ebaf3b952652475cb2d650fdc9c55c956e8f5490ce066502fae9b984c",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -5364,7 +5364,7 @@
           "rngState": 1661559417,
           "logHash": "35ac0ddd25b5180d4c837fd09825c3a550d05341fcc4a4a535cc047f852ace14",
           "logCount": 1361,
-          "stateHash": "c6fb5f7b2f5938eaf5b1dfeb5a3280aa4c11fcfd0b0f7442b8258b5876c48d5f",
+          "stateHash": "9e077004ba9f47356e6aef652e45fdd694f3d2edfbd6e9dd045ba261fe9bfdf0",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -5415,7 +5415,7 @@
           "rngState": 1597618220,
           "logHash": "bdec4b0f23dadd6165285f2223bbbab302435b51876adcb535d52d5e3eaff567",
           "logCount": 1374,
-          "stateHash": "0174bf5a8e3118d714f5afb246078ab101fd0e4021a85f3b7f8e90af9bdf9dac",
+          "stateHash": "4e848bb149ed31484aa033e092f60d11fcd9105d9633b18db7f4700df0f76a8d",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -5489,7 +5489,7 @@
           "rngState": 901841353,
           "logHash": "e5cf5d9229ca6ff0bd83cd234c6b941152df7226f9fc2bcf68cb24344c1d082f",
           "logCount": 1392,
-          "stateHash": "24e179e0364a6a504ede11be80b22217ded0ee3c104f5ab3d3f0be16e42423c9",
+          "stateHash": "e83de47c5cc6acb04f117b8690b1d64d2a1f5f663c322eb0a9c4e3f665827d4c",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -5562,7 +5562,7 @@
           "rngState": 1405794629,
           "logHash": "bf29e6681fee5e49ed3ba9e94673c013881364679ba2eceea5c94a206894f662",
           "logCount": 1414,
-          "stateHash": "f2f373f66a28239007f4c92c56404febe94317439e10a10e9ff029aaf7b9d59a",
+          "stateHash": "731a6d95ddf93e75cc7fa5d56c109abc54ac0bb03691542771912954f6aef8c0",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -6107,7 +6107,7 @@
           "rngState": 1270335935,
           "logHash": "0f4cba4b3fc22688f600ba145612ffd8658e83edada19dc3040c466ae8a1cf10",
           "logCount": 1543,
-          "stateHash": "932a2029ea720eaab552c993154a9cf31132f081dd21ac3aef360a1883f810be",
+          "stateHash": "28e6c102e45246a8c9fdc9cb91493fa1a1e84507c0704076724738da38f53049",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -6375,7 +6375,7 @@
           "rngState": 3350090236,
           "logHash": "cfbe1864e39830251a1db40a2bef8867ff553566848a832b97234c3fd2407b96",
           "logCount": 1607,
-          "stateHash": "144fd5183a2adeab35c01dd20f77f5ba9888edc9f95b992530cb8e6db1097e51",
+          "stateHash": "324bc429a0f4434aada907dd27b4315cf964eec427b17682187490ef7230876e",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -6923,7 +6923,7 @@
           "rngState": 4286479291,
           "logHash": "fb4bbee6b7af34d2fa6ac4afd3c8b6418fddfb6b3fc41483dbdb6e5a73c1683d",
           "logCount": 1761,
-          "stateHash": "92949cb9254e352349f46fc2d5e7a4ef00721820a044d68362921f8467010ab8",
+          "stateHash": "396e7453ef8fd85fd1906b35f8ba8cac2adee7e4a897cb1cdea9093c1f95591d",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -7851,7 +7851,7 @@
           "rngState": 4207385494,
           "logHash": "4410d8579d5f1efa37fdf6e395a3b1f0d253167db213949d0ba59b9a8259b860",
           "logCount": 2009,
-          "stateHash": "0c65dfdc3643b12a87706d3cf18ebc0d2da8e8c1fff36d3b2f437ae9243267a9",
+          "stateHash": "b89361754ef0c93c0028c44cbdcc90148650bc5206e387029220fe42fab4f2e0",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -7878,7 +7878,7 @@
           "rngState": 480312671,
           "logHash": "ee58aa42a787c722b98ac349c6483d5f602c86e53cad508bb52c8ae59da2f5bc",
           "logCount": 2024,
-          "stateHash": "6b1952af6fb6fdb7cc57824c0f0e036646b7c5564aa6748d58e1f11567ed5e3d",
+          "stateHash": "bf8c1c3875df18da9340da08cee7fb6427adb28d225ce055da1c988aa822552c",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -8187,7 +8187,7 @@
           "rngState": 2432184578,
           "logHash": "b53a30fe2f0ce5fa79f1d2c6853c45a015b8bac4b455b056a428aba9ab2ef957",
           "logCount": 2107,
-          "stateHash": "fe25873752d6bd8580d30dba350ca9996bd88ea76df011eaa3f6ab879ec3a497",
+          "stateHash": "055395c752e82ade6b199962c9c2310a875c1adcbe77b83b9cb3f9560dc55637",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -9401,7 +9401,7 @@
           "rngState": 1401549126,
           "logHash": "220f2aef4c55d4eeb702b8dfdffa5a37e6f598c7604660038b6289922dc7c134",
           "logCount": 2420,
-          "stateHash": "4e2481411c92f713275c51b9e07ab7ae47f7d037f26964690b66e215018e71c6",
+          "stateHash": "f627a46a7a8a71d3b30b06c2d5c9c3dbb08cd2933db451de80f0611b1a822643",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -9504,7 +9504,7 @@
           "rngState": 1905502402,
           "logHash": "6f023037212b708d6fbe0eda85537bf1343801a333a7ff72cdbe0fb95d331488",
           "logCount": 2447,
-          "stateHash": "f9d09343212ecf1ff10c57fdddf5a31e8198005f77ac3f43bed307f382f115fa",
+          "stateHash": "4848faa2a76d24a3debaf3186956c9fadf4fbe0e35300dd9b74a8e1cd773c1df",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -9534,7 +9534,7 @@
           "rngState": 3105232545,
           "logHash": "dfbb363c79d784a02974fde178d8f157638b9e1df08fdaa1aad9ca723473bead",
           "logCount": 2459,
-          "stateHash": "382cc503dbfa2246fe0c9c4cce262c5c3fde082cee8adc7c56ed90c0b2c2aebc",
+          "stateHash": "7eb96aec8bfddd67ae987c94815fbd8ebfb6a9036c3752063fca8aa6a31f2c22",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -9583,7 +9583,7 @@
           "rngState": 3041291348,
           "logHash": "740131c1f22dab6043e0a2d45b19be65a28356e29c3df6a42c92400f394d5987",
           "logCount": 2472,
-          "stateHash": "7fa89e9820c7463d5f6edcc153a6509b48acdcb77ea6dc672efe24c40c75195b",
+          "stateHash": "01aaa4a3150956ad2d9e22568cb6b6f7f9f80ffa48149edb80aaa5e72a8029a4",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -10172,7 +10172,7 @@
           "rngState": 1010325644,
           "logHash": "17b21b15b6b9931183bbdd39d4eace10b14a863f0f45cb6f4813f0754d4d7323",
           "logCount": 2615,
-          "stateHash": "bbc0b78fac592847549c935029f5d844044b04ebe07e5338b6daa5e4324c59f3",
+          "stateHash": "4677e42f64294e2c32f74be9c8cbadf8327c36044b787d35407fc4adfd0b8c54",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -10349,7 +10349,7 @@
           "rngState": 3849798009,
           "logHash": "c790ac9de4f8453e9addd5aef6b920af57e59c09c4c444aed217860c05e85e25",
           "logCount": 2660,
-          "stateHash": "f130608f3c9c61f17ee3a0e99b9df29eb914119eb489076a0384ab7ff926c026",
+          "stateHash": "56c54a5c8b64cf433bdac0430c1efcb95f714cd43314200e731624de14bfa821",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -11675,7 +11675,7 @@
           "rngState": 233038890,
           "logHash": "51fdb22aa7df6f07cb6fa845e6eb1635b8d39e9d1ce1bd15358eab9d3ea69b6b",
           "logCount": 90,
-          "stateHash": "67ef185d956b0af7869f4dee564a80c5aa00899ae3362d9b59c716f00b747c73",
+          "stateHash": "31367b5908c9c639ea948617bcab58d03611f5654538293d5efd2d8a112e1653",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -12019,7 +12019,7 @@
           "rngState": 3256758546,
           "logHash": "f42dded62f41f11bfd17e8a52cbc966a26e8e2f71622cd4c91afd2190244f659",
           "logCount": 161,
-          "stateHash": "9b01537e7913c0ee868de41eb656bab6031f47cf2e55f33f133cbb3ecaf4a35d",
+          "stateHash": "c796d4f32856da9522eee81c8e4bcf4c7cc413d490ec350bcfdda9ba94ae973b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -12135,7 +12135,7 @@
           "rngState": 1297310339,
           "logHash": "49c1fe98e12658db0603d2629bb22d76bc9dc165343e8ba4da8f9c11967b58fe",
           "logCount": 195,
-          "stateHash": "e8357858659c3537632c9d08c18dbd41caa6d1e9940daaf3dedfb21c5a0ecdc7",
+          "stateHash": "659e242edcbace6dfe8ff76cc5835bf7b1a4f67dbc12a9a2b77f70dbf66d0954",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -12345,7 +12345,7 @@
           "rngState": 977604354,
           "logHash": "b2cbddb96703c48d25087f551464ce43d6e3b0ee5e84eb1dc2863f4a811225c3",
           "logCount": 243,
-          "stateHash": "cbe9d35f30fc0f00ebe24e2f856d7ddbc75f594ac9e95e134eb763d59b53f17d",
+          "stateHash": "108c3bd02b04b34fce2f79eb9a95c49acd584f7c3fcdcc05a65e04f65140baee",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -12404,7 +12404,7 @@
           "rngState": 281827487,
           "logHash": "c659cda242aa35528913270aed1f186309607e70384f4ece5d77302aeee3e7a9",
           "logCount": 260,
-          "stateHash": "4660b886a756640f33afef78365749856a7821a3856e36bc13d7d489d3f34709",
+          "stateHash": "172bc323332dcdd2a32e2489038c173d6c5754c5ed9ed243a4db91f7a757f3bd",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -12521,7 +12521,7 @@
           "rngState": 3185241049,
           "logHash": "2845795e78924af0734facd0be53776d395f51089b6aeb87eca78b26ac333a92",
           "logCount": 291,
-          "stateHash": "59619037e0eca3d020ce607e5b67db5c95e05d1347b64feb26016b76cd81ac26",
+          "stateHash": "c853440aed2c2af4baeecc4655626141d8dd03015e661f0c0cfa54da9c3daaef",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -12572,7 +12572,7 @@
           "rngState": 530015975,
           "logHash": "5ff411ff77c2fa3ba973ad5811d44ef9510072c2e5bde240df6b20898dd331c2",
           "logCount": 306,
-          "stateHash": "d291547136e0ebe523f81727aaa4a71205607d70015a60e74daa23597fdae549",
+          "stateHash": "4ab337af7f9aa3de1dd7f12dbaa9f517c9f15094222fe1eab3057b2d85cdc2b5",
           "kinds": [
             "jinnangAnnounced",
             "diceRolled",
@@ -13736,7 +13736,7 @@
           "rngState": 3538583031,
           "logHash": "36342ae71ebe46163a90e9715adf9455f043da7ef03d7370b71885684a11d8b8",
           "logCount": 583,
-          "stateHash": "f21b853f72c74871f5d4bfaaba58a735981dd5b1ea58534d132db153288d7905",
+          "stateHash": "2ee1d33c9ed3b7ad662381d1a9eaced8e97db19f49048c474e0d3c373ca503ae",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -14035,7 +14035,7 @@
           "rngState": 3154935849,
           "logHash": "1363834e1f37cf7bb1793b7e2edb9dfb672982291caf18c77e184fe3d527a818",
           "logCount": 665,
-          "stateHash": "ed376767dcf271e09c6db062196b56af2b1f9a4442779f201c4683ffdfebf43b",
+          "stateHash": "8af370c84bced09d2d2fe633abc4adcb0daefae4a5805a29a9f276f54e8eacbf",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -14130,7 +14130,7 @@
           "rngState": 2395217785,
           "logHash": "d531e9d41114717523eeac9b7ea38a022af703750ab75ad036f7fc3235b1cd65",
           "logCount": 690,
-          "stateHash": "c587b85c7e2d2f48e7989dc91321c6a455de882e294fcbc44e235744a3e88771",
+          "stateHash": "4bb74b3570e6c36b265a6d673541c84ee0eadb5a7eab003da22c1335939757b9",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -14389,7 +14389,7 @@
           "rngState": 1251852539,
           "logHash": "c46c5ff53a5d5f798c021f929da0eb3f541d0a7c3da4a3a1057de059384769cc",
           "logCount": 769,
-          "stateHash": "5196e9e101d50691432b2b8d6e3ea4e27f815a3c5530595d24ffc4e8cadc39f6",
+          "stateHash": "5d850dcc288835b7f07a6970553436c10fd0624a1d11175562be3d6bae489fd2",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -18091,7 +18091,7 @@
           "rngState": 1631254218,
           "logHash": "4152f662deb496b316c7daac101e80fe2224671b12d444f3f74525c29ac3993d",
           "logCount": 1792,
-          "stateHash": "afc3909d77d7e6c1fb80646e9b573a7212ecfa07e5100edc78c25aa5221e3f98",
+          "stateHash": "eafe2fae4701937e5d10ea031349d072939e6a5df53a6e6a6cdf25a289bef25e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -18118,7 +18118,7 @@
           "rngState": 2830984361,
           "logHash": "c61b7b0732b87e471175c70914f777b89fddd8e817fb4e9fb0fa81d6db0d6ffc",
           "logCount": 1802,
-          "stateHash": "7348ab88c4a15b626fc6b90057b7d0df5c9a3a40ab814bde267bc8f14664c9e1",
+          "stateHash": "d10676d79b742b62343fb190b40a105f6b4cd187ed2351caa7e30da074a7dad3",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -18307,7 +18307,7 @@
           "rngState": 3207055243,
           "logHash": "fa677d1d0bc5fa43309a1526034b084491ded5e7996a0a5e05673fc3d85462bb",
           "logCount": 1858,
-          "stateHash": "f52ad469225202d6c63bd9a6082a2b4224f99d623ad4f5ec29a58b111c2acd8d",
+          "stateHash": "f4bf3c4b0663e6b26015b003b80754f13f12f89aacef28c1bb06f1e5653965b3",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -18393,7 +18393,7 @@
           "rngState": 3711008519,
           "logHash": "ae336131b7fe63b44897cc16fb587e8d6a22489a7693d6d34a5356724c1f93eb",
           "logCount": 1879,
-          "stateHash": "9fcbc5e408959d57fabf28aec2eea6a335eadc5ae4c168f2bfa81628d602a485",
+          "stateHash": "17f4be477e12254e2101c16af5af6ebdb58a57ea2842f7d4a8a70f7f68cec19a",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -18448,7 +18448,7 @@
           "rngState": 1183665839,
           "logHash": "bd8f6c377e8de1adf2079deb95e261d903ef385611be4d77fb7f5b95fa10114a",
           "logCount": 1900,
-          "stateHash": "054fbf443c86cb24106439ab11bdf7a1fa1f64d90850126bcfed7283b9081fad",
+          "stateHash": "8408f2fc5cbbb4d2c83b51eada18f81f9c0667204b44864b3dfcc43a5ecdce69",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -18505,7 +18505,7 @@
           "rngState": 487888972,
           "logHash": "fae34dc8a8310c282f51c754b8440710f3388ba172a2cc3d29f2730088b28c05",
           "logCount": 1918,
-          "stateHash": "621cf3094f72881922793abd7af311071447d83cd9b20db9a706ebe6ded4a8f3",
+          "stateHash": "6463ec9bbf904fe12eec396a8b1034f76fc120b6e73c74e19871adc7d4a2982b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -18661,7 +18661,7 @@
           "rngState": 2191572391,
           "logHash": "41087991c02b09e11dd18452a9807175a64a995275df6a87cc31ed1fcce86272",
           "logCount": 1958,
-          "stateHash": "e51cd5a2dedb0242c7d6f885ce2c8d42cf30522020ee69b470587e0135af0a75",
+          "stateHash": "9e41d99d2e9b73e415107cb8bdd887288c9e6564a8ea76b436c8b29368bf9764",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -18713,7 +18713,7 @@
           "rngState": 3959197007,
           "logHash": "26068f461aecc6e4ee36cf0c0947bbe946d8ddef7879803c6006d483c531c405",
           "logCount": 1974,
-          "stateHash": "701c527126a7308eaeb9df89858c511ff11550b565e0b8692def4f9114f8e077",
+          "stateHash": "7604c53b33b2c1e90a89fc5b093929c508c6d4a1abf0f2a224eb5b7b84c74a96",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -18743,7 +18743,7 @@
           "rngState": 232124184,
           "logHash": "f70ec22219d89c14a05f7469e2b7af497713d4dbbdab7eaea831454fa75b5bf4",
           "logCount": 1983,
-          "stateHash": "644e5edc9d93d3d4401e981a456d69a31a11048196017bca80368245fc50aa50",
+          "stateHash": "8fa9c9f14ba9c25785e42619f799f47bbe7a82e6cda329d76244edb933dfe54f",
           "kinds": [
             "jinnangAnnounced",
             "treasureGained",
@@ -18908,7 +18908,7 @@
           "rngState": 1240030736,
           "logHash": "480f6c5f59ccb19632488d12640b89fcdb04c55efec54cfbd09b69207be62dfd",
           "logCount": 2036,
-          "stateHash": "af5e728d35c6e6107b97edd4149e605ea4c268b71da7189c6457487f8f6a2169",
+          "stateHash": "b64b03c3991c67e6224a71fd29a5d115af921c4434e74e3d1df968691cb061dd",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -18969,7 +18969,7 @@
           "rngState": 1743984012,
           "logHash": "5c2661ad72ac7e536bc38ba2fd4cac961aed20fdf18c32ce7450fb782c25c64d",
           "logCount": 2054,
-          "stateHash": "cbb716554564897f6610a400f5b6d6acd1fc43f32ac32347bee0809eb05b33f2",
+          "stateHash": "40e0e04feb7c781121030d21a0cff2671fb80e6177bcca064fe93dccf1f1f1c5",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -19072,7 +19072,7 @@
           "rngState": 1616101618,
           "logHash": "2336291206bbb46b7c764c06eb71dae868ca1a187948031bf79a67d9aa83b6ed",
           "logCount": 2081,
-          "stateHash": "51be9bbaa7ee9f22a8ae3d26b9b48d7d02f6327500d3bdb4bb24c160b449de9b",
+          "stateHash": "0c8a826045989732cbf99bea7cc5dbe803bc5e34fddeb365aca5d64ac074ba8e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -19097,7 +19097,7 @@
           "rngState": 2815831761,
           "logHash": "6d15feba95d5fdb2d6de5014f10abb4596ecadddbf4488af65bef3fdb50019b1",
           "logCount": 2094,
-          "stateHash": "eb9d4c8795f1766d83f8d8fa5e39c6d89e792d0689f30b99c634ed38bcf16ee5",
+          "stateHash": "59ebd65fd97ec84d410df2523c96fd22ab2a0d26acc26745ed72c8afc4311fdb",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -19128,7 +19128,7 @@
           "rngState": 2751890564,
           "logHash": "e6a84c959c49c89fc3f33cfc1e9cf67fb5eab447ffd8056f775a789cbeaed54e",
           "logCount": 2104,
-          "stateHash": "7cd359ae1c8ce33a14256a2e094962aae084dff7ca947576cea461bfdba4cca0",
+          "stateHash": "fd463f7b8291da95512ac583b27676d39e53d0e913d205473cd942e4db08e138",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -19266,7 +19266,7 @@
           "rngState": 3191902643,
           "logHash": "e982091fa1300f3bdee3c9fa3fd0339b2d6ef9db61e234255bab234282d83672",
           "logCount": 2149,
-          "stateHash": "909f7aa17c6f93d38ada02593fe1538bf891b9dc73c3368583d6695a077007c9",
+          "stateHash": "3345dc7dc29cc363a59d58c56154ebc2b7094cc21c00221073dced75c669fc32",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -19358,7 +19358,7 @@
           "rngState": 3064020249,
           "logHash": "645a7687f9eb2bb7819caf1585accf4f6a81ff91f0dc513ebefa8a31f7973880",
           "logCount": 2180,
-          "stateHash": "88403803f65e938cb7cf96d48193290fb2d612e64870f5d3f12a2351a07c40dd",
+          "stateHash": "d2fed016d35bf4da56d8a482585766583385b4780489a789978f26ef510b30d7",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -19469,7 +19469,7 @@
           "rngState": 2304302185,
           "logHash": "64e62215b75f3e5fdb4d59f94352060e454700101ec3885523352bb6c1d05cf9",
           "logCount": 2215,
-          "stateHash": "73deaea729e019da0f40dff7815f928121fa82d1dc5ae6aafbeea58060ffff53",
+          "stateHash": "1bbe4904cfd216f6f3481dacbec5f4f9e94d57351d0f5f0dd1eb39dd4dea15f5",
           "kinds": [
             "jinnangAnnounced",
             "jinnangInflicted",
@@ -19561,7 +19561,7 @@
           "rngState": 2808255461,
           "logHash": "42b6a74239d59110b7fb179c38303907fe7b5561262dc567d9437fd164815202",
           "logCount": 2240,
-          "stateHash": "cead4266b414a62b3b9683e38e48f4d708170c613411e66e0f0eabeb8c5bc01d",
+          "stateHash": "53611148dd3e3f07830091d7fa8849594039ed9bf0056e00711a8139f1d86d16",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -19587,7 +19587,7 @@
           "rngState": 3376149934,
           "logHash": "9b319243743be2a2edbc62dc5052a803df073e12deb2d3ad90cb5ea39e92b85a",
           "logCount": 2249,
-          "stateHash": "84224e536681238e8723bd8a485794462f18975c9d187525e00a6763e2878bbb",
+          "stateHash": "99ad5f5c41080cf34b9fd65c74ce1174c424450750459f03dd3d6f9a39a56da1",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -19663,7 +19663,7 @@
           "rngState": 3880103210,
           "logHash": "659057c1ab81d707a7d590390b6a1f44072800284740d5a8ff47d53b8883ff0e",
           "logCount": 2271,
-          "stateHash": "9fe3a48cd9c4791992dada687b43b3f5fa6190d51ca54cef9483677176868806",
+          "stateHash": "2e91b5b788be86188819fa2a5c2f8dedd7da5e3b63ef24b4da64f775a93451d5",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -19694,7 +19694,7 @@
           "rngState": 153030387,
           "logHash": "2e40601c658cc3c76e470f927cbae71c1185f31085988d21e6b28cb1a01663b4",
           "logCount": 2282,
-          "stateHash": "5873e7d21394827c99d105037ab69e447fe31a08b91d9a2bda15582891adc00b",
+          "stateHash": "3fcdf0075616656380889e429cf6dc158a55cd7b8f0c5c9a4deeffc1b3eb09a1",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -19751,7 +19751,7 @@
           "rngState": 1288819333,
           "logHash": "2882351495894d0e7309225f0a1b73c0275086ddd27715b2d870e5ac40b748ce",
           "logCount": 2300,
-          "stateHash": "95576c9a6ee6905581060f6a8aa6af2587585b1d03048bdb5d07a03714eaf3f2",
+          "stateHash": "6b166bc64e6d65be34871e7096338e8435c73a070acd8a34314cf5b2e50d10d3",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -21105,7 +21105,7 @@
           "rngState": 1202149236,
           "logHash": "649c16718d52adefa73890e704dfa29f3d5df840148b57ce58948a9d1a3410f2",
           "logCount": 2675,
-          "stateHash": "edaeb25074aecf994eca2751b2c742aa259f568953f40b1f26c0afd4ace812ff",
+          "stateHash": "1d23adaff4a2830e1c69e4af5bd5e9f4ab885e650ddc2d082ca97ee31653b0cf",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -21134,7 +21134,7 @@
           "rngState": 2401879379,
           "logHash": "70ef609fa838d414828f1e2bb014b46bd36e37b63b42ec628ff4d7d39a5f76ab",
           "logCount": 2686,
-          "stateHash": "81606a01bbe4a0a26652d28a6467572acda4bd4cae564dd2a640daa61216d44b",
+          "stateHash": "c6e9ac7fa0d341f5aa578b068f79546246e131c383d50b7062791bb5c68aa6bf",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -21163,7 +21163,7 @@
           "rngState": 2969773852,
           "logHash": "c6eb4918d69a36eed7b3db72fd719821ef02077b8948393a7844be5dac44cb7e",
           "logCount": 2700,
-          "stateHash": "d3adffa09836df3965f5b5a04cb5b64139903902f4bd5e67ae531a5b8cc70853",
+          "stateHash": "4b6ff6586c950cad10067c5dd24ea386a21d69e70af3f908fd67c5a6f46aa512",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -21197,7 +21197,7 @@
           "rngState": 2905832655,
           "logHash": "e914df7a1679fa4174f7a44de145173aa61017264244fb2073b787414fbe3392",
           "logCount": 2712,
-          "stateHash": "11405a0bc07f8960529475ba6dff5419ab405acfe5df4a8af2256c74c526438f",
+          "stateHash": "8bba3f2648e632e22843c470d75f9f51f14a864458e2be84b1fb62debab1eccb",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -21512,7 +21512,7 @@
           "rngState": 58783990,
           "logHash": "7dde4995e89ee576f76039720254a5b80710feb9a6edfec127f06a486c84dcfc",
           "logCount": 2811,
-          "stateHash": "6a4c4a55660b51f9eae8d45df302dbb9d126ac9e41c3db269cb5d283c4f5ae6f",
+          "stateHash": "c46a8b354da871930a5c161b8dbd4a5ff753c5049f34d68d31f08548cb5d725e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -21576,7 +21576,7 @@
           "rngState": 2458244276,
           "logHash": "7737b8605ae50fbd722f637846118c704d8540a7893d706159685a71285dfb74",
           "logCount": 2830,
-          "stateHash": "3661281f1cd51ea503717a4ededa1959f4c50ba45cddd32dc4c16e6ad3e36ef7",
+          "stateHash": "d8d2eb9840d88e442eb26569a2c499b7e712db4521ee1a8a1ba802808164e9ec",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -21656,7 +21656,7 @@
           "rngState": 498796069,
           "logHash": "02b015068174b430af6ff7e6ae64abb2f4210495404dca773718f591573fe64e",
           "logCount": 2860,
-          "stateHash": "b48cef1c67b1bb1962d1fceb81c75c41885dce8d0be525d71ee11a4b346e4fef",
+          "stateHash": "a4246ddc915ea36f9e269e943baad5beaf73d6793fdcb94cda1d5c0a4cd2e9c5",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -21686,7 +21686,7 @@
           "rngState": 1698526212,
           "logHash": "ce0e48998814cfbde33493b67f4f09dd49eb6f952484d4bbfd83da09aaeaf2bc",
           "logCount": 2869,
-          "stateHash": "0b15bc76303adfc92a2b116739e6e33ecb6280e256f06dcecf4721434a6dd6fa",
+          "stateHash": "6b196aebd483954bc320e6ee9a1fa46d18ea45f0ea52db2da93d0730118b08c4",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -21713,7 +21713,7 @@
           "rngState": 2266420685,
           "logHash": "5159a5e48b60401c70d46f0a240681e6e9a0ef768a5041fcf2190f183a39f055",
           "logCount": 2882,
-          "stateHash": "2ef1363baf2f66909c2fa05770fbe0158441dcf772be9ad768c274533dad1f25",
+          "stateHash": "92eafd2b7d994430aea04b14305f192bb962569e20647ddf06b42f6118e9775c",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -21769,7 +21769,7 @@
           "rngState": 1570643818,
           "logHash": "58a55730a95394e937c490a8865bb63c7b2405cb103d1db681bf4ee94159d4fd",
           "logCount": 2901,
-          "stateHash": "ed557e8fc68e87c48013c90d5c653ad2f14f4fd9312ee9d3ff1213a7e0e7964e",
+          "stateHash": "7b5bb26b7828697153750d0926fb1fcd64fce45f151c4fddade6492799d2cf8a",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -21802,7 +21802,7 @@
           "rngState": 2770373961,
           "logHash": "c46bebbd5fdc4ed87a7bc653dac8961761bca2d709b5595b06816a411adc3dd7",
           "logCount": 2909,
-          "stateHash": "1eeb9d11c671affa1467d8b8d66e034d7bef97a39cc21dbf5af85a9c0535dd04",
+          "stateHash": "a290b9e4891910acf34686fe5965153fc6bb1b91ff8df3fc5d38fb10686d232e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -21829,7 +21829,7 @@
           "rngState": 3338268434,
           "logHash": "16ba822cf38239f2914dc3f2b0f9e5a8bed56120e4e6952eb45dc0b4418ec323",
           "logCount": 2925,
-          "stateHash": "c604e84b2d60749e0a8566457da717dace3bdb89b1bdcc576d8a0929adde2766",
+          "stateHash": "eda8e44771822724a38be3563d9a2982bcaf600b0c577c5a7995a0798348a575",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -21927,7 +21927,7 @@
           "rngState": 1378820227,
           "logHash": "f099b0d6c3867b1b23bd8e32b66ac844423c3ac6fa7bde2f04f9dba907fcd786",
           "logCount": 2959,
-          "stateHash": "1c68df6ade4df4cb5cb31bf9cf652a3e2abc6817c2098eaabf669d1acd1c7f0a",
+          "stateHash": "c8b1749c7be0246b17532fcb594f2db79951d4b0c7f63315421b8f80330a95d8",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -21959,7 +21959,7 @@
           "rngState": 2578550370,
           "logHash": "130072bde80bde3fb0cfc64140f8880e07916431025f8a6bd8d2b508c274299d",
           "logCount": 2968,
-          "stateHash": "de5f0a5ea7b0fa5dcfe5ada0dd312521136b64483f857504f2535c746117a09d",
+          "stateHash": "f217c3d3c9e35b337c47935b51bc7c5ecf3645be609daee489a40f91aec26fcf",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -22014,7 +22014,7 @@
           "rngState": 51207690,
           "logHash": "51eb3c54c8972a4f29b72f468d1892fc9f4c1d97806841987340bf88c9cf0e8e",
           "logCount": 2988,
-          "stateHash": "02ba95f64894eab1b23afeb08d55be5110f46a09f98fb0d486865eb83da1b41a",
+          "stateHash": "068d8cf79294eae3bf9b60f544c1b893c0a4926eea20fd937940a96ef79867c9",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -22065,7 +22065,7 @@
           "rngState": 1818832306,
           "logHash": "d70f0627fc8617406699701d0c21d52e6debc8a9d4dbbee3946bbd38eb5f8230",
           "logCount": 3006,
-          "stateHash": "727193fa8b6b107b32d35093c1bf6c494150f4c25eb700cfe2b13b6fc409fee8",
+          "stateHash": "dcbe1425d34ac738cb7d6821ee66e900cb5cd274517a4d5844fb4418507637c7",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -22153,7 +22153,7 @@
           "rngState": 2322785582,
           "logHash": "17642acc1f2065d1cb5dbee0941b169c83a995c5d3469b261ac00b448158921d",
           "logCount": 3039,
-          "stateHash": "00635014a38c30754725a2b23931a9d24e52ec15b63c6f8d18576041796f2ab2",
+          "stateHash": "65a339a2139f02007221769862d909a7b5da633c9eb1c9471bbc24e88abcc3f4",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -23105,7 +23105,7 @@
           "rngState": 2875527455,
           "logHash": "bef5c7d2853de275c4686ac515881d6faa6ad3ca484d6551346c467e04f63c20",
           "logCount": 3307,
-          "stateHash": "371477bdf29fe952300c5c967aaedada6268ee209f989785bc33cd413b950efd",
+          "stateHash": "c4692b523ea1550617ea0fd9cfe43c007077539ffc4f22e277d732533e4f6e1a",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -26643,7 +26643,7 @@
           "rngState": 3510693922,
           "logHash": "3858c6f9c5b90f1d776f84e2c92d02c6fc62330e36574f4a4694319e130faef3",
           "logCount": 4311,
-          "stateHash": "768b80541be388886b0a2f205c720763432ebd815d9c610698e1e5ed2ecfeac0",
+          "stateHash": "be2c3708138dac840132820506c926a7a361c289632710b4b29cf4118d822046",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -26718,7 +26718,7 @@
           "rngState": 2183081385,
           "logHash": "fbf717cccf920c000b751f900f95d4d22b8dcdd13e74c20ae3c9726d463ed304",
           "logCount": 4334,
-          "stateHash": "39ea940a41f6957cc7d195d9a92ad8c402badaa8b5ccb9b0a37740380cf00edd",
+          "stateHash": "a56516d4c0e02fc2fc3fccdec29d3f8a710ba9337e702c5cabee9dd27351b52e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -26750,7 +26750,7 @@
           "rngState": 4014647198,
           "logHash": "a81fb4033e4501a59a9f045830fb7a35bc03a9e4ddb2debca24ecac24f1999bb",
           "logCount": 4341,
-          "stateHash": "7274959d6c8a0868091da547579f0583a6625b2a3bc835567e300dc6593e7b5c",
+          "stateHash": "e9003b1e6a510c21cf85299f0249061ab86b65cdd3fb9c021252475051c2eca8",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -26773,7 +26773,7 @@
           "rngState": 287574375,
           "logHash": "096b968ba055234b07596be12ac3e0de5c11d99119f5895f0542d2ef4dc26cc6",
           "logCount": 4350,
-          "stateHash": "1d4a8702bc9da56399274cd808bb2db7e9628bfa23aaa5cef6ff0c6fdc75766d",
+          "stateHash": "819782f8b21f6c78fcdc30f9296c586fccbc2318abfc8595fbdb83f73ed11e18",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -26928,7 +26928,7 @@
           "rngState": 95750784,
           "logHash": "3a04157a96cdeb3e37b9c1f6dcacb2e63ad5fd15b53ceae0ae88a2b88e493c1b",
           "logCount": 4394,
-          "stateHash": "28d0b6990748317d8914e3e0f5b4968b9d0f71c0b2f09521448a70c370f7e158",
+          "stateHash": "7f2dd03db9bcc6f304f0132123b8b43fe5dd62c497f89484eb2c57acce50aeaa",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -26983,7 +26983,7 @@
           "rngState": 1863375400,
           "logHash": "b3df98668a59e5b34a1cf960f34fc795277b365c4e9719c6a281cc6eb25071fc",
           "logCount": 4413,
-          "stateHash": "20e89e86150f8d28c6418854366d82ca29644cd9dd7d560f0b1579717e3c9d9d",
+          "stateHash": "3e15e25037bcdcd17d9cd8a540ad4b033b421a0f4d1e764c85c3ef001915ddbf",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -28495,7 +28495,7 @@
           "rngState": 1456999318,
           "logHash": "630b9fbb8fbb70d424a3ae502767a58449e29c06af5e8c7fe55f489c7fee380d",
           "logCount": 4864,
-          "stateHash": "ef15294750415e212a0a0e259fa46f2004f3b8519326853f159340828d0e7e0d",
+          "stateHash": "39011b8d14a5b91bd3a68ccf61b6c8b777311534cb271f33a8102fc41759515a",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -28519,7 +28519,7 @@
           "rngState": 2656729461,
           "logHash": "19d1182ef3c134a0eb301092ec89b7e1f1f7fd33fee1e7cbde9713d29b75c1e0",
           "logCount": 4873,
-          "stateHash": "e5db30436ccc29e85cd60a589912b150e4a827ae7d24cc27f410e86818c69e67",
+          "stateHash": "7600657307b0aa3572152bad6fedbadf395cae7d0d04a93a393c9e33d93a9c3c",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -28744,7 +28744,7 @@
           "rngState": 2273082279,
           "logHash": "fa4231ccb636f8be12f9e4889da47a8b574ca60c83933a67f4994c9741700cf7",
           "logCount": 4943,
-          "stateHash": "819c53864b1b45de84e024e74ba6ded60db04a1bf4c8c659ba8f1c551bccf975",
+          "stateHash": "8206c97cd7c120e56ec38fba5c917fb157a7bad470446979dd66d8ad83ebfa45",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -28868,7 +28868,7 @@
           "rngState": 3344930028,
           "logHash": "da299b2462a6b380fd2baa0e5787f2d1b26d735374e1d3066ffdf22a7e678f86",
           "logCount": 4978,
-          "stateHash": "9af83d0a997eb8aba24413fad3d7fa772f6a82d7c2c065f052c4d7a9996cff6a",
+          "stateHash": "61cdd0d8206c9176eff1a0be4c6ddeb417ca73394ccadd3be9d2ca3aa21e4e2b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -29336,7 +29336,7 @@
           "rngState": 2073682388,
           "logHash": "87f6bb9b3251917dc01ccf38b301a9804133cb88c926228b33cfbb4ac2fb77a2",
           "logCount": 5106,
-          "stateHash": "c3a1e01f734f9e83720adf26cd4e04bc79bc065a0b4ea6d9aa065385a1ef3b25",
+          "stateHash": "6b6e52040fed9ac9e3581fe2321336dc992ac3ee9d0f6d17c8aab471197bdb0e",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -30986,7 +30986,7 @@
           "rngState": 3696770626,
           "logHash": "a26192172683752d07c804e6929b3f4437b7d46a32ed95eae4312db7c6a5de53",
           "logCount": 276,
-          "stateHash": "ad9e54c47af8e1f9cc23ac82720c641b3718d24f444e52244c500375dc003fde",
+          "stateHash": "893e322ddc28f44fffce70932f86324525580121fc95f6012564f016ea162c74",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -31089,7 +31089,7 @@
           "rngState": 2305216892,
           "logHash": "6272ac8b9f258f6d517786e6a21aeae9173c3278ad409802f341556c57c04b95",
           "logCount": 304,
-          "stateHash": "6065bdb6f1bdb21e135aa4719bd4c759c7acc06f555ec055e66d621e60a79fac",
+          "stateHash": "cb8c4ac94bf7ccb36448df568b7883042d2510ad9f4ee475658b56499afb7b31",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -31166,7 +31166,7 @@
           "rngState": 4008900311,
           "logHash": "b1c7e100d91348fb0d731c649f5c7b2bfd64eaf4205bd17c30982758da50cac1",
           "logCount": 323,
-          "stateHash": "608fcb0fbbbf2f7e9018fe1779f1f7a1462c0b3f62be9ff8bbba5b72537f0eae",
+          "stateHash": "3784f185d932b6d3ab6edc3609270b8448e28db54b86c0cb4d2988ece9f675f8",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -31261,7 +31261,7 @@
           "rngState": 217886291,
           "logHash": "0cbaf7315ccb0779ad396ecd74e8ea4b187af92a165d34d059aea66039804247",
           "logCount": 352,
-          "stateHash": "0ffe2dfa8268d90750ce145f7b9b19e2010243fdd57e540d07ff8d91616e5d65",
+          "stateHash": "2cb9d8f0852ce2730db3442139c3477caa8fa1470df76cdf3549ebae04ab5644",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -31313,7 +31313,7 @@
           "rngState": 1985510907,
           "logHash": "c67af0a8ec06e84efec1e855bf8a8fcdb97333a79826e4aeb83b71dad21d6666",
           "logCount": 371,
-          "stateHash": "0c98cd3b2a21d78bc716b15ef9ee95d4248713e3051ceb9e9aa9cb830f6b6658",
+          "stateHash": "e391c03c3fb865a0e8d2c25e13263344fc8f4ae4f53d792cd533ac783046f846",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -33847,7 +33847,7 @@
           "rngState": 3963442511,
           "logHash": "5f725885e2b6403ac6c2ee164d7272bb49b9704ced73accd8b64385034d4067a",
           "logCount": 996,
-          "stateHash": "4ae075915e4e710e21a6a2e5f6afafe10a125e6c5adbb0fe1ff0434acacb2877",
+          "stateHash": "5585b53a2b1b7aa74165edb7739b462b99466ee67f7f46d3378130077fc66b11",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -33875,7 +33875,7 @@
           "rngState": 236369688,
           "logHash": "ddde560598bc4522349fc6364b8b38c3b297c089d1ae396828c31d9d8dd7a011",
           "logCount": 1015,
-          "stateHash": "562f282559ce7c8440288d56c4b792895c5df3d39ab9c2317f02001ef421438c",
+          "stateHash": "a10bc61c9849ae6b11e9c872c436aee7f39a79afc76117ae903f2e957d5d5aab",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -33975,7 +33975,7 @@
           "rngState": 1940053107,
           "logHash": "aed90cd0dc72d49890ca37b03bbd50800069efde35c232fe35b70732f3f99347",
           "logCount": 1044,
-          "stateHash": "0b6dea9a8c0429e17fddba56b5f7820b5920d368a1f317484afe134cbd74bb13",
+          "stateHash": "985f59ef89b90b7e1c0bf201813c2cc951bfd793b16d995022e53dbd4011e130",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -34027,7 +34027,7 @@
           "rngState": 3075842053,
           "logHash": "7a28aab0173880d1f1166412f4f173c01c2667326bc7185762ef3a593fddbc87",
           "logCount": 1062,
-          "stateHash": "e1d18694332d271c0fbf019d339786b29feb1c9b5454073fa9208b51b1331aff",
+          "stateHash": "0eae66f7526725754bdbc796a49fc7edc1ba866c013bba0c68053a4941083bbd",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -35317,7 +35317,7 @@
           "rngState": 3244936744,
           "logHash": "fab11255f133f1bcf6f4cc1c35cb9d28986e1e74fe216658f0488fd8e91887bd",
           "logCount": 1419,
-          "stateHash": "e37f4ba664824a33f3d90e0802d4bc9484a2d7e3266bf50172305bab1bd936ce",
+          "stateHash": "6d7eb731d9b9503b3599a7a04543b3ad8cce4fc55cf10218bfac83fae96d5ee6",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -35370,7 +35370,7 @@
           "rngState": 717594064,
           "logHash": "0863a330b70b622f34f1faeb13e8d78a1bf089104ec9fda964b90181c4d43e2e",
           "logCount": 1436,
-          "stateHash": "a394d554a09fd3be7386134bde207dc92cbaece8c2bfe6b22eb55a84e837628a",
+          "stateHash": "24a0701fe7faaedbe2ae9ee18753c52e9a2b44bab57948f362c54bb1d393295d",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -35454,7 +35454,7 @@
           "rngState": 3684948823,
           "logHash": "171f6c2dd8eb9d5bfad0569ce1370f142089659ec5902355bfc0ab4cacb944f3",
           "logCount": 1463,
-          "stateHash": "5abf0fdc6df4a0fb41594c5196d6e1738cf942e9f09e685a38bdfc4b9544a34a",
+          "stateHash": "d2120bc048808dc6e755941eb4b6557e234440557fb0ae1a3b21a8d769bf7740",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -35517,7 +35517,7 @@
           "rngState": 1725500616,
           "logHash": "dab327fe827467d69c9a329ff132607ea1620edc609961b9cad98b01943e3f5c",
           "logCount": 1485,
-          "stateHash": "5552243b2b3ff848b0202cb5f005e90c922d99364c1d7a0d302309c3f9680c30",
+          "stateHash": "8a07327e166aea97eeca5caf1eb9d82586e5f7005ee6b6fed708654bb9276f97",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -37417,7 +37417,7 @@
           "rngState": 2582795874,
           "logHash": "7cf9ac5cee335f5022af471b02a01aa35de639ecc18c105cd254a7fd4338743c",
           "logCount": 2010,
-          "stateHash": "7b1606d02279fa9d237d6b0082a25440aa3aece0170724a25e1e0959654779f0",
+          "stateHash": "d30d05f79ce9c1a7d7e764a3e9ee757f12fc7aafec3219566ae3907c66686601",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -37442,7 +37442,7 @@
           "rngState": 119394391,
           "logHash": "e408ac96702ec3cc532eb3bbe4ecc656dac4f4c0e3ed4c1864f0753dddb457ac",
           "logCount": 2021,
-          "stateHash": "a7ba57a041d00743a29bd722e55427a0843529f2e12b756389ed746102de3e0c",
+          "stateHash": "c61c5170d574bd29f17fd1a5e23a936a909c9361384d325c505c9c9c141a0588",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -37469,7 +37469,7 @@
           "rngState": 1319124534,
           "logHash": "6a0f61b8d631eedbb220cd7e6d4057f12fcd3e35a9f47422867de58a828f1b4b",
           "logCount": 2031,
-          "stateHash": "09140d29c534a662edeee0770d25e1ace4e8900375f017d0a925213ccc340ee0",
+          "stateHash": "23d9dae749ffb4d29a70b3e57138b96850af463e322a1a4714654ee41a83750f",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -37526,7 +37526,7 @@
           "rngState": 623347667,
           "logHash": "69f5bb8dbde8b03a6a77a52e6cc3b4f93aee735b4a86ab67e44638fc6a6bd1f4",
           "logCount": 2048,
-          "stateHash": "fd71a38ac3a724c138f6fe99b18cbbefbc9e120b3750e5c0a38087421f24d5dc",
+          "stateHash": "1a91dab82bdf31b598e2dbe8e285b8f9960439efb58d9eed9a9e02d6217a2518",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -37591,7 +37591,7 @@
           "rngState": 1759136613,
           "logHash": "07f7c1f8aa4825302995594d271edc62a0f0a3d39273ce561a60509b041a4bde",
           "logCount": 2072,
-          "stateHash": "7bdf7d72eb0ffb42eba5f968b29f59fefb0d5bf406b592a17eb38b3b21a12e69",
+          "stateHash": "34ee81b6d5dc7bf63a74a5fb335b006243c6a14770d7ce12b5b24b16c8db929b",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -37653,7 +37653,7 @@
           "rngState": 431524076,
           "logHash": "e0022e11c36f98d8a37f442bed511973fbc198ab9758d8fe814b38ce68a64e2d",
           "logCount": 2097,
-          "stateHash": "59b3cf970a408405f24b7dbf47233747ed62f4d85e9d77a4535f72ae599064e1",
+          "stateHash": "e779c69880fe39266ba7f2e301e5d93cf2b5e843869ff683b68d131eab92239e",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -37872,7 +37872,7 @@
           "rngState": 3838890914,
           "logHash": "2ce77a9b10e22c1a1c6a88e693de89c6e37b0028db0ee1da3d0be9e1411e0366",
           "logCount": 2157,
-          "stateHash": "218271f71559cfe925fca322752d80c6ce40c5281b1ae336748449c6d60e87e9",
+          "stateHash": "af7d5fa8814540b9cfddad722c92be21b9f686f966fa2422864ad1d99f0a0507",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -38353,7 +38353,7 @@
           "rngState": 2631584471,
           "logHash": "d5ecc475447935c28d960e164bdc852677dd60c406578d95d9db27f35a05b2fd",
           "logCount": 2294,
-          "stateHash": "3c3850f2f3f324cc79f0b45b45c96e5f5d2ca771315e406c1feef1b04a47bb65",
+          "stateHash": "3ae55b5c6385dc3d648e62d556dbf7c13ea1ff94616c20db1713f1f62ee9eeea",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -38573,7 +38573,7 @@
           "rngState": 3007655353,
           "logHash": "1c2816e1a20d778aa08f4efafd2a9e71da68a345f0d7ae070cf4213e52b82312",
           "logCount": 2362,
-          "stateHash": "703e93d92d04ea29cb097dbdd9586ea5f98f591f0c2e07034ea745d6f6314d42",
+          "stateHash": "c849a5a8e6671307d0e9e2a77a41f453adf1f33cfdd8b1d290940f4132901296",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -39757,7 +39757,7 @@
           "rngState": 2168843492,
           "logHash": "bd68cff152be596875d57f18dd619540323207b8b2b17467e6b15e31656d2f24",
           "logCount": 2683,
-          "stateHash": "96d531d88c9cba593b630c0e2085e88d9739e6e65f9c8c3d91a49ad773815520",
+          "stateHash": "2d2ac54326960f4e624d884874b7318ff2a1b0faf31a02d44aa437d4d69d3981",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -40579,7 +40579,7 @@
           "rngState": 1713678813,
           "logHash": "d3ee51ae21c13925a8ab0cbf4a8647053c6dfb326ea2ac02b91e819d32b79bc8",
           "logCount": 2904,
-          "stateHash": "756e4a6a8a6360b3066f73d4be2f24b3160ec4f2b42a945469357baebf38213f",
+          "stateHash": "eb2b8d63987dc6bf707625291bd0ae62ae9e25081ba3c3b18938ebcc0c0b43f4",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -41323,7 +41323,7 @@
           "rngState": 3409785932,
           "logHash": "bd000f825b7e4b461b1826de1d70d8856b82f7883ecb3cf7d4357983b7bde591",
           "logCount": 3104,
-          "stateHash": "0480b36acabc58d794cce06d3700f039d97874ec3bb9f20bd75af06fc1441b45",
+          "stateHash": "02eb5a820d2a3dd8f791bf67a1a9874d7bba65e91d8c4af4d6c8518a3d3c0f9f",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -41796,7 +41796,7 @@
           "rngState": 1066690543,
           "logHash": "fbc2205d48374889209cc643c89f9f9f3ef50e153139e546776a2959c7d78987",
           "logCount": 3226,
-          "stateHash": "070a677360b1a4bf9c80b51acdbd35e94d6202f9803cf81c846e182cbf466cf5",
+          "stateHash": "fd9ff7f9a490b597ac71ebe3d52cb65228f36207253931adc32a66b52e607e26",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -41948,7 +41948,7 @@
           "rngState": 2770373962,
           "logHash": "164bf54861f05cb65786dc854580cc538a701791087c6a044ab7dcc92a60bb7f",
           "logCount": 3264,
-          "stateHash": "99f1c17b52b2f6084c212fad34c0e3760946268717dd01170c5ee30c56141c0e",
+          "stateHash": "8464f5516e6a5a9595863b467bcea230a7d298ed10068990637d6a845a61bfcc",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42001,7 +42001,7 @@
           "rngState": 243031282,
           "logHash": "f7bd9b00dbeeed6d020083059cd66bad5c133a14fc594d15f7488acc6f97bbcd",
           "logCount": 3282,
-          "stateHash": "2af528e305631b81707ebf70b1b876d8bffb716ff1ac257bfe2ea1fe1dfb81ec",
+          "stateHash": "2f70efa9e0233c92872af823af4f83d0e9ce3f96a1daa44cb5a49aaa13e96f3b",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -42034,7 +42034,7 @@
           "rngState": 1442761425,
           "logHash": "e886afd16afc4b204aa9fa1b05c1dd7b0cd0065c696bfbd2062efa2c0cf0f15b",
           "logCount": 3290,
-          "stateHash": "8b5150a4a0a956c4bfb943417bcf6af4077de8393200fc51e1c20029d43e1b17",
+          "stateHash": "3933005677b099da3bf1d697c70412b9a48b7d716c019e3f803671f8a9f9449e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42062,7 +42062,7 @@
           "rngState": 2642491568,
           "logHash": "b9669b95cdfc424ae0ddacb11f9d8cc1b3b5997f1ba61b2faca553b4771f010d",
           "logCount": 3296,
-          "stateHash": "10ccd1d49373b2c65758711d675e7998ad2d98871c115feb1d437074862b341e",
+          "stateHash": "b48a58e04a55a6e3fd797dc515f3019c7c86c9b3783894dff7473d32eb1e80af",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42114,7 +42114,7 @@
           "rngState": 115148888,
           "logHash": "8b629b5e27960db5f22011669613f8b56618d64a512f895b5e1283f2dd1e5ccb",
           "logCount": 3323,
-          "stateHash": "3057338308d4fabc4df106d5bb05f0d19d6325f848819cdd807b5b07d00e12af",
+          "stateHash": "6f68f00fb7209e53d47a72db8968861e9eaf7adae61a1992f3988eb75a3523ac",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -42178,7 +42178,7 @@
           "rngState": 2514609174,
           "logHash": "cbe368a1d2154f1dc61ca3a0d9a1d20f8446896ba8e96142424ac89474b89947",
           "logCount": 3337,
-          "stateHash": "d1aebbd6124fa572e5b5bec4016db71d90ea7defe61422ea9eba5c5d13edf380",
+          "stateHash": "dbbb9c7d8519a3d4b69bec3f3314fe604238911ba7f066447d826612a3f9a2be",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42236,7 +42236,7 @@
           "rngState": 1250937834,
           "logHash": "370916ba469f14cf903fee3eab3f487b4c0db09b70f48afba7bdc1da1fd2a482",
           "logCount": 3356,
-          "stateHash": "b39e51139a85bd1403713872e98a5c5efd0b0d56f5a4b74a96b17841308238c5",
+          "stateHash": "2b2cd3a0109daa7e5815f9577f8eadbeb431de8d8bc9fc2e0f5de458ec9608a2",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -42284,7 +42284,7 @@
           "rngState": 3650398120,
           "logHash": "43b7b15e3d1832d9a5b7b71d0dd07eeb64ceaefce55815861e3f3e97c1df6553",
           "logCount": 3375,
-          "stateHash": "c98a79d8dd3c55f0c67d775dfaaf51c9a7bcc41dc226419f037257e4471e9883",
+          "stateHash": "5c4cc5dfa44330b4a14f5149d21b30897e85e1f4f24efc574690f75ed6696931",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -42343,7 +42343,7 @@
           "rngState": 491219770,
           "logHash": "f30dad24c0056a6f97b189b3c14369f3fee2624bc4ec42f206bf81b98be82b26",
           "logCount": 3392,
-          "stateHash": "3dd3f57eb710d72cd1ec3102f08c66233af9979c3581d91c695e31cfa0fb583c",
+          "stateHash": "ff55e18468bcffd938985d1b2aa9f06efb65075e34179e5d0aa22fb64c719c3e",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -42372,7 +42372,7 @@
           "rngState": 1690949913,
           "logHash": "1402a8de875cd0f3ba2d79c40bf052edacfc3c19bdbd97a31e6340ec6069bdc9",
           "logCount": 3402,
-          "stateHash": "d28d27358aca6562b8e7397242f409df67b4e297c00e766264019585243e2a43",
+          "stateHash": "993034b760156ec156a3a9a7d7d98564df14126369ffa436398611e759bee438",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42494,7 +42494,7 @@
           "rngState": 363337376,
           "logHash": "24c3561ab7ba594be17135c206b57d706b9c4b96b987737aaffc48c05b14f200",
           "logCount": 3432,
-          "stateHash": "b95a6771c6b27a2b02546b78eaf8c61b3baef8377ec6a41bb4449f66169c9c9b",
+          "stateHash": "738b71df8dbb74d57e0b8a26eb65b97ea71765653be38c4ba974e1911125dc64",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42569,7 +42569,7 @@
           "rngState": 3330692135,
           "logHash": "752f9084c88b91e2511af811f51a0ef0abac77531c41d509eae4ad24fb0a7fa7",
           "logCount": 3459,
-          "stateHash": "f18a41d7f4735951335dcd600c93abe2727d3ba707851054225ae55b1b0aef72",
+          "stateHash": "003b825f6e9ea351c674e5c2356f107439818666d5db9863045db197ece9ad2f",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42603,7 +42603,7 @@
           "rngState": 235454982,
           "logHash": "82607918fe8a468613674e6099dd2c4717d2fe2744137e8ad83a40ae8ff037a8",
           "logCount": 3477,
-          "stateHash": "4b9a2ee5e72d2b8b5945d7ddfe3ebbb3a933db01b4dc20b6f1b56dc30967beb8",
+          "stateHash": "c8754ecc8d6b7cf6dc489e3ded0ac759eaa1fc8dafab2df6a301606dc69866a9",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -42693,7 +42693,7 @@
           "rngState": 3834645411,
           "logHash": "0f629240f444ad19b650ce2147aa3fa970f0f6e68fe04f94a851375d04c7ddc3",
           "logCount": 3496,
-          "stateHash": "94a4003872db1f7b8fff005577704d5aeb9f1892c6d7e227a662c1f2abb8939c",
+          "stateHash": "a07ef3ae4024b0f1697e88363a8f856df3d8ad37e9730509317913ee00d4ca33",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42721,7 +42721,7 @@
           "rngState": 1371243928,
           "logHash": "f8bbc9d157dc68d62a1fae5ce9e36a3b6867a3bec04f6f5d2c7d934ee17b34bc",
           "logCount": 3504,
-          "stateHash": "d7b668e7a4bf49a300626a5d48304fdc623e07ed0fd51e4786f2d33eed3734a4",
+          "stateHash": "a2875a86c16bce29ef36a62dd77797da88ca28b81f455f914796b1b8ddcfb6c5",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42769,7 +42769,7 @@
           "rngState": 1307302731,
           "logHash": "639820377b93017beba3c65b4df8a8b01ab781f40c1cafb0f7cebb44c5cd672d",
           "logCount": 3521,
-          "stateHash": "b1e03f90907360b69fa9408cabc1594df001007fe9eb012541a7a1e6f4ddc169",
+          "stateHash": "735baff9a4a934b76cbf4b1db06718ea74dc05250a4593ec7eada7dd35b1c189",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -42800,7 +42800,7 @@
           "rngState": 3138868544,
           "logHash": "f4011d1f5a4bd2ee2e425536f5255765f182ca39ae19ed9544dfc7d747cf23b8",
           "logCount": 3528,
-          "stateHash": "be3e5ad4928aae59352719fdfa2c1b8e409e4d75cc0dc36aeae7bd97f6b889bd",
+          "stateHash": "70b68ea4fac0d776c2029a086133415d47c3c38e1c2cfdd90b9dc424ccb82df5",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -42823,7 +42823,7 @@
           "rngState": 43631391,
           "logHash": "049bf192de185741817d4ed5692b3ae822a9637bf9d1e3f9d2da9284993fa171",
           "logCount": 3542,
-          "stateHash": "dfff02b9faeab3ad7daecd944d01932e7e296e2f1a5de19d1fd03db88cbe43e4",
+          "stateHash": "22e121a4caaee082e6ebcfa7c47fa7cbcaa71837642f674333516980bc0b0b34",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -42965,7 +42965,7 @@
           "rngState": 1747314810,
           "logHash": "469d9af932cc7d3bfc2621fa5a9384564dfec89a31e69f7e10d348cd3de0b5d9",
           "logCount": 3586,
-          "stateHash": "ba26ea13e9c6ae39135c675fe506a297e7d8a39b5804ea3ca3f567de5cac5053",
+          "stateHash": "e06629b89849464518f6a3d63e25c15d784960a95ae6d6aaf900357d3428001c",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -42996,7 +42996,7 @@
           "rngState": 3578880623,
           "logHash": "da2f29ff1b54f6e72c47cf85f445750e253e33fbbeb97f1cf9027a9dd1094c26",
           "logCount": 3596,
-          "stateHash": "a204af99adbc39e1c18697c83423ae4d4b4372839677d38ef500c3d50644ed7e",
+          "stateHash": "616bbbca8982179b7d460d597c10939f1def5f287aa5fc64416ff77507598a45",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43046,7 +43046,7 @@
           "rngState": 1683373613,
           "logHash": "01d8fc93bb9ce72c7dbe0b3fe30d6236a98bb9032a2da45892812661ee331608",
           "logCount": 3611,
-          "stateHash": "f87fcfe8c4765735386f13c3c1037679c393f2ec83016bacba6a9b0b18f8016f",
+          "stateHash": "ac43c8f5d417c3e5dc2d6cb2e292a53bd9f93b110b7aae3f6dc4a89045cc6a5f",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -43074,7 +43074,7 @@
           "rngState": 419702273,
           "logHash": "3a89046e9892ab1be20ace9e1a9b4108696f7b61262d7ca8b197b626571811b0",
           "logCount": 3621,
-          "stateHash": "840e507c6c3b6f48639342869c2d1182404081f5894673271592cd18f65fd6fe",
+          "stateHash": "1f45208f1d9a7d8e1402bf16852117dbe9ed038682af3a1db5d770bf79b82a06",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43128,7 +43128,7 @@
           "rngState": 3450998229,
           "logHash": "ddd1b203b7507003beea49b98927feb503d528678c252ed31626df70cb207ba3",
           "logCount": 3635,
-          "stateHash": "38f930c75ed0690561ff56dbe55f34f3c47d0edfbe802b740b9771d30e793131",
+          "stateHash": "615b59fdab4f9fb44ebdd077859652d0d3b96aed9ab677e4ac1ad10f1cd801f3",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -43155,7 +43155,7 @@
           "rngState": 355761076,
           "logHash": "fea70f15ac77a3cbb8fd1e1657c03651312a32234ac002b58fcadde8042a6c2b",
           "logCount": 3644,
-          "stateHash": "b22c833ae48966928b2de4813a24043c5a865b3851424551943f290964dee193",
+          "stateHash": "4302f80716c2b70fc5627fb3ca580235158d1483cb2ffe968dc23e72222b4fc5",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43180,7 +43180,7 @@
           "rngState": 2187326889,
           "logHash": "f9be3cf860147182d9e4299b393cb14b6246c83867d464fea6538bc8edf1b4eb",
           "logCount": 3651,
-          "stateHash": "7f5a50faff8fb3901d5260c7f2a185929365f4b83a5fb63e6ec0b513a469a796",
+          "stateHash": "8e15c73f9d81670485a3b76626d0eb21e784ab54ed81ba200c1733a4e58a3c3c",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43229,7 +43229,7 @@
           "rngState": 291819879,
           "logHash": "c28b74a815bde7c0957839402d31a4ecfa2f2d9514e0a064c5020d9e7b315a72",
           "logCount": 3666,
-          "stateHash": "6cbdf6f6d8a90f3d23c487531781718929584b7384ce3b829be3199516dedc17",
+          "stateHash": "47184c4ddecf88c0efd819e02d1b431514765c98cc646f4c555632350a0b4a09",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -43257,7 +43257,7 @@
           "rngState": 1491550022,
           "logHash": "f32849d9650c56e6071f78b97a2155ee42f6f3f8484c9f79ce6aebf1c542fd2f",
           "logCount": 3675,
-          "stateHash": "a204e8d96248c884a7a015a36be3538c08b83a211a5e1f0688d98453b0996cc2",
+          "stateHash": "6cb34624caeeb2e53bb7c5f6f8355098c11a0acfadc2753759c481b8afb9effa",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43283,7 +43283,7 @@
           "rngState": 2691280165,
           "logHash": "9cc318ce01e6e3f31264bef4eb66e3d550d745a21ae1939a2ef82d54a2411f05",
           "logCount": 3686,
-          "stateHash": "358404a94f9961cb2adb44c75d6da1a31ef35217b6e994d7d32029d50139d75c",
+          "stateHash": "38375cd3d3a511a625ef5f1ce586a567d23f980fabd890582490681f3b5179d5",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -43363,7 +43363,7 @@
           "rngState": 163937485,
           "logHash": "87c227eb0480ce809609843778ef7109da61a2624b9762cab94c8515ba7fa21a",
           "logCount": 3708,
-          "stateHash": "f05c7607cbe80f420cacc4c3c0aa95cea5c25dc146c6b50e17fbca37cbc39116",
+          "stateHash": "ba6b3125d8c0b683bf2d03687f19bed936b098f9f80af7de01de88bd3c010e81",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43390,7 +43390,7 @@
           "rngState": 1363667628,
           "logHash": "dc55c58873359cb95f908c6d58979408a309f2f0b602bab5036694d0c11e4589",
           "logCount": 3717,
-          "stateHash": "0e83e8755a5599f756feba1da4da8799923bb3995866fa43063addf0ab8cebc9",
+          "stateHash": "d5d6f1645966b0dd87900de0132cf2d534ea8b1a89bb6242e03a4118dcbb5156",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43421,7 +43421,7 @@
           "rngState": 1931562101,
           "logHash": "60fd385391e591fd55f7af9c6bb993e45229a60989ee7d1637a4df48a0a0765d",
           "logCount": 3728,
-          "stateHash": "03911553649940fd3196509cb788c1747e154264793514ead36d4f5c60d5ec8f",
+          "stateHash": "64d606e186ee766a6d7fd722ffdb0f62de38fb8f1193d4264b49f91278c4ad5f",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43449,7 +43449,7 @@
           "rngState": 3763127914,
           "logHash": "4e9ee907470e5180272185db2b9806b1c0a7b38b54d3177d702ec4fd26d7aa47",
           "logCount": 3738,
-          "stateHash": "1b4f04fb4df6eeb59043c10568db69e17190c009de0c02d415a6a258a4366457",
+          "stateHash": "12c29f830b974dd4eabbedd7208e9aabdd37835174d8203e6614fbcf6cba6346",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -43547,7 +43547,7 @@
           "rngState": 4267081190,
           "logHash": "b48af5d4c9e52e4d7ba8fb92f4cf12b8dec06dd75aa58555ee39f0176b6d240b",
           "logCount": 3766,
-          "stateHash": "7e6846fab92747351844cefebc44583ba47bff96c1895fddb59aac9de9f34b27",
+          "stateHash": "3684af68985d020bb229fac166e0d81580be18e28e51aca470dd9e4620e09654",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -43575,7 +43575,7 @@
           "rngState": 1803679707,
           "logHash": "f26dec4b6ab1db95e0cd5035a0b836d0a0eca4bb66b561314cf980dcbac7c75b",
           "logCount": 3774,
-          "stateHash": "d8d7a8c6f7a5b3e0a0000c48461f8bdfa05debd290c655e5dfbeae127b917f61",
+          "stateHash": "2226e0d9318ff77954992b15e890290404621755fbc385cf50921a7ef8cd6d49",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43644,7 +43644,7 @@
           "rngState": 1739738510,
           "logHash": "852cd013359633980a988385597e9584be88f64609547c1e42c4409fc842a2c2",
           "logCount": 3796,
-          "stateHash": "1d8332ea4681f801db7a1e092514d845f74e8e52a284aecdb4eda10547ace000",
+          "stateHash": "3ce60f14849232ff454cff3bf5a6f342554fd05932b3ec83074b725041b9f51c",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -43674,7 +43674,7 @@
           "rngState": 2939468653,
           "logHash": "c07f8de6a96e507241ca982abb22cba84e8b602bfcd9be93687d5e359cd3b7be",
           "logCount": 3804,
-          "stateHash": "5f8b953a10708ed7e05ec4ce9d8c586529b8e74807a7f10e13946b4daeedc6e6",
+          "stateHash": "2640db00a315ff489d8883c54b51aea4d290014c67ad37794429044b34374836",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -43750,7 +43750,7 @@
           "rngState": 2243691786,
           "logHash": "4a791078937b4af4579f9976ad5c0022c2531e9d8acf7e656570e33a7737972c",
           "logCount": 3828,
-          "stateHash": "e6676b1a6209bb67f0e52c61a592dae0c755c3c62de129cf43fd37806aa4649b",
+          "stateHash": "221a235d2c0616acef5f79a4eb7486d0b285ee5c2643b4cf012cb8bddf1c24f6",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -43785,7 +43785,7 @@
           "rngState": 980020446,
           "logHash": "6711521456851cd54a1c6cbf393da957ba03e21281f0e6e61085dd208ef071dc",
           "logCount": 3838,
-          "stateHash": "f794bda3fdf969739a491580a22e085ecfadaf77820756ce4ce1320a324bdf7d",
+          "stateHash": "0383bdf1107ffc8552e3f25dd512fb7671f4d4a8ca22a22a0cfa352239ba5663",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -43815,7 +43815,7 @@
           "rngState": 2179750589,
           "logHash": "af71c3f528b914dfdfddf41671ab6d9128e53a97ea70920696ba134c08fe8728",
           "logCount": 3848,
-          "stateHash": "f12b7a7bb367a811e339fefe825afed49027ffce92ae36ea89a12666a1843fc9",
+          "stateHash": "d4da8424e7ab33bd658a8d1c4d1c10cfa77fe5fcbbfad6beb769ca5d9cc055d1",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -43963,7 +43963,7 @@
           "rngState": 1420032525,
           "logHash": "660d908b49c648207b87a3e5c5c73d8aed13c08f52fe4fcd437b0b22db890360",
           "logCount": 3885,
-          "stateHash": "c34c83ed1f20f23eb6dce24b6ff3312a493196021493744d45212124128797a1",
+          "stateHash": "b9096fc35b295916ed1326aae561ce21c1e110be602f9dc63f85919518380de0",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -43986,7 +43986,7 @@
           "rngState": 2619762668,
           "logHash": "5e4937bd25d1cc76db7bfcd994fceac89fdefcf8e599babd0c226ffbe9540cac",
           "logCount": 3895,
-          "stateHash": "f68f8849aa0963d3f5811d129e7389400acffb7dcb3ef11602c00b41ea9c26c6",
+          "stateHash": "5d1d8a593f681af1237a8e8bdd5f98c6e6e6322625d4e24cc2c2290c0a5a20cf",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -44041,7 +44041,7 @@
           "rngState": 1356091328,
           "logHash": "164f2036fb76301159c1930ba0a1cc9263d2bab4b28bab84e031bdecbc5e1b6d",
           "logCount": 3910,
-          "stateHash": "1a7812d5c70f9e7a02d943d4ec8f2828bf61943830ca5796dfee0822dfafd056",
+          "stateHash": "9d804637a30765e0ac189af295ff8fcac4a5d24665c90d887b656eb8dfbfb68c",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -44066,7 +44066,7 @@
           "rngState": 2555821471,
           "logHash": "a064ea0c2687373ac7efac8af98a1e463628ca73c65c6ac2a3ffd564e4f4e7bc",
           "logCount": 3918,
-          "stateHash": "3c712a6609fb90152335a722b6bd028af575c0915cf61ee84cad3f919b23d7be",
+          "stateHash": "7980e9621929267591fe02ec48e88d1c4513f966d8e8bb7b84fb954f3b78764e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -44122,7 +44122,7 @@
           "rngState": 660314461,
           "logHash": "cfdee81ca80847117e4f289112509ca850a6f0a09d4c64168e3e00f8acbc0599",
           "logCount": 3938,
-          "stateHash": "c42afe67eefcf35382a6dc787b3a9b74bd758aedcdc1257aa8495123eb8cc703",
+          "stateHash": "74227d8ee6bc87e85530ce5c6ede7677d94ba946bbc731e22580696cc8c80dc1",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -44152,7 +44152,7 @@
           "rngState": 1860044604,
           "logHash": "7f345fe5370d972d02fba36ce300a2a796f756e26d86b44e5e97112ad604f251",
           "logCount": 3948,
-          "stateHash": "17b4f273d1d23824ad2c6639598a4b15c881917478c897d9269dc780243a75cd",
+          "stateHash": "8cb067e952e5c9346485c364b744897996dac212e432b012875fea2530bbc614",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -44232,7 +44232,7 @@
           "rngState": 1164267737,
           "logHash": "00accd9dc9e53372ed81f84b1ae87c1517eb249f4f90e93408689ac6c2a64824",
           "logCount": 3969,
-          "stateHash": "357270ec71677c74ca9b9b9243b681801e9fb296e708ef172629bd49889ded73",
+          "stateHash": "237468af1a60b95580a8ba844c2fe711dd0be5d04488e2b6f537041969681986",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -44257,7 +44257,7 @@
           "rngState": 2363997880,
           "logHash": "e73cbe1a36dfd4c95af7e2c07fedcfeae2caaf15fd8535ebdbc1608913852d37",
           "logCount": 3982,
-          "stateHash": "54920c13eb71c87ce328caac64acd10d70a57bdcb112d15c6af5314f2ada9139",
+          "stateHash": "fc654e816c2b8aa1dff99e8124fb2a353c456bfa4d04a96c674204c3f546b82c",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -44313,7 +44313,7 @@
           "rngState": 1100326540,
           "logHash": "16b871bd8d2414dab1c53ddb3a08c3329411834b3bcba2de03119496511c01e2",
           "logCount": 3997,
-          "stateHash": "3d3c0c9f14e9a56a8a892beb9cee30f9a935836a91f435c186a86ea09bd1047a",
+          "stateHash": "b7188fa6baee5ed43075ae420bdc7b7fce636c69fcaa4465baf3e1a4a4ec5843",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -44340,7 +44340,7 @@
           "rngState": 2931892353,
           "logHash": "2646d44c6961e505268dab4a5e139e8b9859b5513770b8829da94c2f0d0ec55c",
           "logCount": 4004,
-          "stateHash": "9e26a3177a8d9d5407881e2da63e6a228edf90c221db243843c401194430bcb8",
+          "stateHash": "0f6540cb65a0ae77ca39657f0fa852debfc06a61829048e0b9fe71073691ff2c",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -44420,7 +44420,7 @@
           "rngState": 4067681299,
           "logHash": "8b9fc0acf34e5ef5949c48bf1673f13106e25aba898bf8014d789386b16f64a0",
           "logCount": 4029,
-          "stateHash": "22ea892bb4896372a4b6fbe3a3f2bdf101cb53cb35fbbe6800f091d1376e92cb",
+          "stateHash": "69b8a8db8dc461dc22958752d82bba7be07793d3e6ca115f3c7bf4d4017cbba4",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -44452,7 +44452,7 @@
           "rngState": 972444146,
           "logHash": "bb658be74aef3e99698fa1dc3ff08a696a1b1f4780451a1644c7438e00357a0e",
           "logCount": 4035,
-          "stateHash": "f32939d9ae68efe4ceca92967a65123e8d80ad6f9b75d3acba96a516dad0022c",
+          "stateHash": "e863cb0b1c3f0d68fc8409dfcbf1547672f64bc1c5c18baf02d67b82cfa1beee",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -44476,7 +44476,7 @@
           "rngState": 2172174289,
           "logHash": "4043392f74205ae3b316c842972e927955f79060536d5b9682761145a2ab22ea",
           "logCount": 4043,
-          "stateHash": "7ea0ac51889975f159cc732c4da42faecd09f1f598de5ff97f3b7aff637f7fc5",
+          "stateHash": "b3dbd43879ed092d55cee92e383c9168deb2ceb48a01c8946d5e11b7a3089595",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -44527,7 +44527,7 @@
           "rngState": 276667279,
           "logHash": "7353a60e153169c560fcd07d7443490630809d66e6ce9ba68477c4a8d3e0fb89",
           "logCount": 4057,
-          "stateHash": "886447b90fd355673c0e7c3dd54c019f4c88587addc46ee929df09467ae6c9f0",
+          "stateHash": "a1f74e7b4e7810024359af8d96497df48d0b8dac75f4862982cbe46f35c10ae4",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -44630,7 +44630,7 @@
           "rngState": 2612186368,
           "logHash": "3b913610d98882a9edf67db0792a691f3bdc8413e63b2e26d267adcbc9f167ef",
           "logCount": 4088,
-          "stateHash": "99dafca366208d24662ac741e79bd1db297b5db53c9727cc7e970b51694e7f42",
+          "stateHash": "273a19a7d337abe878dca8fc5b9f3b0dc768f53f507ee24012b2a1cc9321a27e",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -44684,7 +44684,7 @@
           "rngState": 716679358,
           "logHash": "38a42ae5458698f4b9531e6b3308b23abcf20169a21557639f19033e9eab7b64",
           "logCount": 4103,
-          "stateHash": "1cbb07fbfa79322aaf32f509a649ee2cc885830baa8b79824aa1b9238a675f76",
+          "stateHash": "ee64e7274e42d7a1281bc3e15ee195ae9e4d11953457d52428410ed4d6e35302",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -44735,7 +44735,7 @@
           "rngState": 1852468304,
           "logHash": "590c6006b4a33a5bf91d81df5ac72f205b5e5e547790fd4beb905b4084b60d7b",
           "logCount": 4131,
-          "stateHash": "c1b8c4c39a7f12c644613cecf4fb25a8dd901a4ddc51ffd2223fd83fc798ccaf",
+          "stateHash": "764bc1423228aa8cbedf25fe24f7f1bf65235f7efb4bb3dff55e6b760ef8d201",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -44778,7 +44778,7 @@
           "rngState": 3052198447,
           "logHash": "453e1f9f528f112e7d1e4eb47a5bac725c4754d39c59d59a16ec7ff6353b0013",
           "logCount": 4140,
-          "stateHash": "ec41d6adac9d9465e360851a0b648205ce2e3bd6db870fbcef20194411125976",
+          "stateHash": "8231f44e851b09f9712af5fc534600fbab63b3b41eb460e2149e7d26084d9f9d",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -45539,7 +45539,7 @@
           "rngState": 3967688015,
           "logHash": "efa080884874486c2bb4d562ea5cf0b984f616a8b9b87f1e5c6cb42bd738fea9",
           "logCount": 27,
-          "stateHash": "afecd80f5ec6996d4bb3cf17694bb4d1411833d4123931b15da04ae1c24e497c",
+          "stateHash": "65e842b14b8e4bded4eb840b0e3d5d8a8e7d957cdc4091f2e8b224b8e790e931",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -45564,7 +45564,7 @@
           "rngState": 2704016675,
           "logHash": "5c6fbbb29d3dedb09e3627a6d67b9008a48f6f5d54d0008a6aae5d4fac86a083",
           "logCount": 35,
-          "stateHash": "a800a75a09d5b5412d1b72522717afc007ae2221c27a3374faf3677d88b5c790",
+          "stateHash": "a8d83ea5237bd60685e997c151e9396700f75c0bc82e670cd08c4c6a704b3666",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -45817,7 +45817,7 @@
           "rngState": 3584040833,
           "logHash": "0263be9886b401c3bb0ce1a3e24adcb927aa66dbc144e51ce124f1e22860d1b7",
           "logCount": 90,
-          "stateHash": "cf152b376dc0acd1a6318a23b6a1bd5e077449f516c157349772f33dac25f8c6",
+          "stateHash": "5944a77e14d6c1ce0197f03c75ee9894a15bb137fdc25294dd6a9bc4eed4804f",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -45964,7 +45964,7 @@
           "rngState": 2760381572,
           "logHash": "00d3a0633f14387e383134c7042107e27c25a4bc4c4212b3f808702cfab1a3ba",
           "logCount": 131,
-          "stateHash": "f32b034b20bbcc88c74e114450198fff77103dc22ed6b253227bff5235b5201c",
+          "stateHash": "a19809372fc9a0277a9e7f6c24b84beb1cd01ea0712e1e2d7e5e9ac4dfc7a168",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -47755,7 +47755,7 @@
           "rngState": 2978264860,
           "logHash": "ae75ada2b45041b246b3194ea9f9f010d6ada80742b828f6b6c591d61f6fa917",
           "logCount": 621,
-          "stateHash": "26066dc8bfb45963d44198acf5668faed227cd34dc53d577a6e45705c0ba45ca",
+          "stateHash": "f16f2d8b64b050292bd3b45a3c3972a6c298cdcef16e7ae214606cb37f5974a5",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -47811,7 +47811,7 @@
           "rngState": 4114053806,
           "logHash": "4fe3e78c0aaea651985cacd21d84a5d5a35b12899c47cdec98e7750566b19a70",
           "logCount": 645,
-          "stateHash": "4c11d23ce3442704ad0eafb12ea72f8f3ea275d72bb22fe55e7c9d9eca7e797a",
+          "stateHash": "c86be6a0249c77eea0851e7b7fe9ca60ca2411ab7d1543cf5232406d85d32bd3",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -48904,7 +48904,7 @@
           "rngState": 1507617329,
           "logHash": "39e42f28d1885f32356f623072e49d071c6e430355bc1eebb9c84d0598e1ad28",
           "logCount": 976,
-          "stateHash": "eac9e10f1cc6e398ec0a929b4cfe3d7f89a9ba0514caa299cd6d2d22795a2a61",
+          "stateHash": "6fbb8b823b45c5a3ba018e5579ed78b73a6b4e45571c4bd2b640a18af0931a5a",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -48962,7 +48962,7 @@
           "rngState": 3907077615,
           "logHash": "5900094021b1607decd6ab8de5cd60b46b0231f2f38886fa6e95efee0aa0fc77",
           "logCount": 996,
-          "stateHash": "a371ce1fbd39de6fbdf2542b7fd977cb262df2269e8cd161d721f0b16902c2cb",
+          "stateHash": "24ec5efcb5fffd9447d6e4ea6d682f9cf1b7a1449bbb12cce126f36d42e7fead",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -51205,7 +51205,7 @@
           "rngState": 2989171957,
           "logHash": "a25d32f04c55079434729c4ab3167b202c494ebe3e6ce8955a03f25ddb2a833f",
           "logCount": 1660,
-          "stateHash": "6a31d09ef137891b3fecf491118c424008c87e31f6b7eef12843efd322216a66",
+          "stateHash": "5cdfc6cfd99116413fbe510017e4e26bae2d4cdb1178552364699a568e9cc515",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -52904,7 +52904,7 @@
           "rngState": 3278572742,
           "logHash": "19d48728599a80b4727b909ff0d497d69cde8a39219af57a7e1573d3952eb1a5",
           "logCount": 2195,
-          "stateHash": "ee0cc9532004dc01185d13744f186dde4b5d9c08b0cd2fc2a5f11499c7d2ad37",
+          "stateHash": "b5a70cf7c60521dcadcc7dcd7e2e0cc90d2e9fbca76f75b52639df8e8d9ee354",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -52993,7 +52993,7 @@
           "rngState": 1950960205,
           "logHash": "c5e667f574461f9a6f71b832bb5ca00072c2d970f5a0c250758d87c04d8b0d45",
           "logCount": 2221,
-          "stateHash": "616924858ec5166b999b8bb4593e71ee5acd53e32f436654d482e470940f8ff1",
+          "stateHash": "e612ae0feb9d4e3f9d87e44c2782960fd468669f8e0e373906b6adbd0f04a933",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -54215,7 +54215,7 @@
           "rngState": 3447667433,
           "logHash": "d0fa3cf984d6db66e3da5f4f0eaa162e9e5f928eed56cdcd074c1e7157d7caed",
           "logCount": 2599,
-          "stateHash": "4df90e0e4d8d0069c638379d2f8ce1570348a299f457d81381319914906f33a9",
+          "stateHash": "b22b60386131b89646ef68da6af912709a13182c84c1a029d7f2e30f44478fab",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -54274,7 +54274,7 @@
           "rngState": 288489083,
           "logHash": "12a3bd0367c0132716f04c1e0580b6438a54564875f27f4403e538436f34fa08",
           "logCount": 2618,
-          "stateHash": "77231ae90675e23477826b9abb69ad5335a675bfd54aad74da2fc898c49ac045",
+          "stateHash": "c33cb86ba0ee0019e66e544b60ee9f60560b7190131f82bc5d8f4132793d2055",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -56941,7 +56941,7 @@
           "rngState": 4105562800,
           "logHash": "db14b513f2a9eb147752a3c8ababe4b023ae1ffb5dd0f15eb0c9f1e03dbcfd9a",
           "logCount": 3406,
-          "stateHash": "eb6a207d07986b76ebfe6d035417e3be524f72fc7d4608dea2a43370c2757b7f",
+          "stateHash": "48143b539d45a659b157118e50d378f5ed93cc9b0d48d33a02f80a4bc649477c",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -56974,7 +56974,7 @@
           "rngState": 1010325647,
           "logHash": "76aa6b90d7a9fd5ffd5836d97bb14a649a6afa243f538bebe6bd2edaa45fa910",
           "logCount": 3417,
-          "stateHash": "6d82654a118cf6324d8d66bfa134974b0d9c83b7829d30008572274c48277e77",
+          "stateHash": "22bc4e55d04b1670672d9d307b53ba02b00e509a9243e1e736d4167ab0567a2b",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -57434,7 +57434,7 @@
           "rngState": 2330361884,
           "logHash": "9d2daa33546fe6af1464ccdc377b232f89f5e9be1a7b7e232fb44308fc51cd0b",
           "logCount": 3554,
-          "stateHash": "d8bc224ce7a5c56904b2ac4919e11c47eec4e2f15d961c05aba9b99b2926fab8",
+          "stateHash": "e12a66b43c0f9bb859300f5bc36ae7eab58d786f8f8bdee74d566a611eaa2df1",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -57464,7 +57464,7 @@
           "rngState": 4097986500,
           "logHash": "ca9bd17b5054c10d1f587bd30d0e85ed7e8cd43e01f3e9775f19a15aede4d670",
           "logCount": 3569,
-          "stateHash": "c2e17ded2e195d05bde275f508e500be3fc1afc139b4ef0a840695893130b134",
+          "stateHash": "22331d6d18804c642c1c9a97d39bb0a08a0ed7c42cf5ea1ce7d32f6f7011a86f",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -58129,7 +58129,7 @@
           "rngState": 3394633333,
           "logHash": "2d58d1c09218566ca1c04020be4d7cd33269847e0bd1e87750e3bcc5277a0b05",
           "logCount": 3771,
-          "stateHash": "114b5d78914c6a010764d4618f385409a9c3f38ffb1fecfb2393056222b41b49",
+          "stateHash": "003d870c627b0a6199510a6cd523139083439e063797ec9a26afd072eb26960a",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -58335,7 +58335,7 @@
           "rngState": 3642821821,
           "logHash": "0007076731049ee3f343083d3f9e79cc34247e96bfbdc50e61f66791f2fbda61",
           "logCount": 3838,
-          "stateHash": "0a285aca4d9f4ad14d5ccd82ac45255c56a3ad55762290c80220b65ce89973d8",
+          "stateHash": "fbd792cde26f4fbb091734c67bf227393ed0c314c13bd64f44719fa9cd63a57a",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -59299,7 +59299,7 @@
           "rngState": 3315539536,
           "logHash": "51977afcc53cedb74be8e6a0ac0d5603a6bdcd4b0c354dc49468a8147c621892",
           "logCount": 4103,
-          "stateHash": "796a6d2ee332b6c456638eaa23057134c2c1ba5045ae146629f36881a6b5c0a3",
+          "stateHash": "dbc87d3fde7de59c7298b87737de8f1d1825bce4e9777d6a576543f4dfe58650",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -59330,7 +59330,7 @@
           "rngState": 852138053,
           "logHash": "133884472f3adcf3372ec9ed1d4e244379c46c6ad8fde9794bc03fde5c6e8f70",
           "logCount": 4114,
-          "stateHash": "75faa2a4752769bd8689dec827ad0e8cc8c52ce7a6baa30b793b64d4b875dbb3",
+          "stateHash": "c0dcf06b848ef6b597429ae1be9e74f940d8f6eb00525c171a7e853889f5b525",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -59357,7 +59357,7 @@
           "rngState": 2051868196,
           "logHash": "2a9e7cd64d08394246cca88ada80a9f2b51351babd29c292e6fa6a4d53a35d44",
           "logCount": 4128,
-          "stateHash": "98456bae07f8aa18ec177428a2bff856eeca6694093e74c70a3be4da6482e563",
+          "stateHash": "2cb8dd452607eaba6706bab16596f993f6eba06780c0a21ef2e23b6e402d2194",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -59415,7 +59415,7 @@
           "rngState": 156361186,
           "logHash": "12cccf78eb495c58d3d6b8395fd25dc8b1408861b1193d200b88a675f2d0e3f7",
           "logCount": 4142,
-          "stateHash": "66deb26fc572e04230d8b958866345042af75a65eb74babe4c9269f8fca27571",
+          "stateHash": "46f6349acbf8f8edba2dca89532b8c1b717b5ddc0d3326320f6854163dc20331",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -59444,7 +59444,7 @@
           "rngState": 724255659,
           "logHash": "eedc0ffaf402036dbd35f1fede29cc75657d3c912ec9401b2fa859df9fdfa664",
           "logCount": 4156,
-          "stateHash": "e9b708e71b32a33e92b812db09af126b0255f7640cd60e244b43a1a0fd89cdf9",
+          "stateHash": "f4434215e35320abbd57a63c96b725e8d6241c9a1edc2d68e0d253efbd067379",
           "kinds": [
             "jinnangAnnounced",
             "duelResolved",
@@ -59808,7 +59808,7 @@
           "rngState": 1496710233,
           "logHash": "59dce75c5f50f2a2efd1a1d539548cf7ea44c40e6c2d5c6a765900c0bb0963c1",
           "logCount": 110,
-          "stateHash": "1ebece62b31871f1cbb516abde6c598fd8d6beaff92eb18864fcda22026e41df",
+          "stateHash": "148ea0f6b9eb7bf3f6c00281d65af7057ef5277039e134e06a23bf0f6c8b3e4c",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -59859,7 +59859,7 @@
           "rngState": 3896170519,
           "logHash": "b1f2068dd0de223bd0e01d3f6a3cb81ec9a8c2a2708eea62ceab97dda86ce8d1",
           "logCount": 122,
-          "stateHash": "f8b373db9be85ca2c5a496ac3bf0f2c65cc46bfb0e12213a6f09edf517fcc528",
+          "stateHash": "e889a601c0e3b2523e66a46e34f438c0d249881ddaff6b26eff858f8df12158d",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -59931,7 +59931,7 @@
           "rngState": 105156499,
           "logHash": "c94a7dff2208aa8e2273cd508ab3d62216d1b97ec277c76df0d17feaf16af112",
           "logCount": 141,
-          "stateHash": "5f4f40dd484b4d3710c1dfd4fa92b5de637e615f3010193082aa4531da8a6fda",
+          "stateHash": "94ab13d707f40805e2302b404a15a9373efa1ff635df02d50f84bd00770710cf",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -60113,7 +60113,7 @@
           "rngState": 2944628864,
           "logHash": "ef3d74fb0edf2ff27db19f32df3e3937872cb092fb8a94c5e1c20aa16aa5b3f2",
           "logCount": 184,
-          "stateHash": "c04df87749e92bb79799a38647fc532471571bd0566442ed1684765842595b3b",
+          "stateHash": "e42a7a725adb7e9e05fde4caf8755ebfdc2335452bf591d60bb7a96d95674440",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -60139,7 +60139,7 @@
           "rngState": 4144359007,
           "logHash": "aebae53ea311d82415f9f37242cee315ee3c3717c9f11c6e7be5af6bdebc60e2",
           "logCount": 190,
-          "stateHash": "124f2edd5424989e2c76e90059808c60d81ae955c860b6a5e53f5e8d2412ab41",
+          "stateHash": "e5ffca1096fcc0b38e5184b6c9f78b31d75467fe40065515d883158c9bf7f808",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -60166,7 +60166,7 @@
           "rngState": 1049121854,
           "logHash": "3cd45fd3eb4b9724da510961f7ca206d04c3aa63ea55c44568d6e2db5e0b6054",
           "logCount": 197,
-          "stateHash": "17a59fbaf0a1e57fa0334feb7a901c4d1aed80c80ed62ab453f69673b354bbd7",
+          "stateHash": "2de7ac4cccd7a6b1e89f8d08b3ae80de70fa2ef8b884cb442c95979737e7e857",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -60553,7 +60553,7 @@
           "rngState": 1545498830,
           "logHash": "9c9bff19dc72a415719fa0acb89f9807560878709940b61d6e2403265ffb9596",
           "logCount": 285,
-          "stateHash": "1ad0fbb63887e7b4fb50184dbe7f96c2b4e409c8fdbbc9ba0be33916f00c9135",
+          "stateHash": "66141e6357e0909a068afd21b65c12625e6ba9793150f02e03104a86ae07b1fe",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -60731,7 +60731,7 @@
           "rngState": 1289734042,
           "logHash": "53ac0411370e0d7995fe8ee2f3b106a4622264125c2872639af374f021a01ece",
           "logCount": 330,
-          "stateHash": "8e5ab1f9972ac12eb2be5507feffda39759033e02ca4280e3d94fb327e8c8d02",
+          "stateHash": "e5b81c8275d42b5456e2b92056ac49d95dcc908e1f0012d3ba1b2bde49e04830",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -60809,7 +60809,7 @@
           "rngState": 2929476264,
           "logHash": "60191dc1608b1411fc224043302007546c384e1fa115c9dc2eb2181eb201fb66",
           "logCount": 356,
-          "stateHash": "923766f9d6781af5a9a91e95c7098de006fa79659bb94d33e0a5e0d49bd83874",
+          "stateHash": "25650a21321ac8fee26240d0147001e346a088a2b4fce246948ebdc8347ac07e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -60841,7 +60841,7 @@
           "rngState": 1665804924,
           "logHash": "30e5a4d23c27a40afe508612f8d82933aea8745b975f9aa3c529677be34692c8",
           "logCount": 363,
-          "stateHash": "db7e9a1f43d12c21c137641306fb88939fac2511b07f9eae38928d6e9eb41ddd",
+          "stateHash": "d1cc7d4c8b178ab30d737b8173da4e6bf2ff48ac7002e54e2b0bdb2b222b836d",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -60867,7 +60867,7 @@
           "rngState": 402133584,
           "logHash": "2bfef6e45fb24fa2620bb08b8582189a0569a20a20b1ed1ca58731b4f8edf35f",
           "logCount": 371,
-          "stateHash": "aad86001849aec9db3a2d6b28888abc49eee213a99e0993df3ab76d2b9b24619",
+          "stateHash": "5b0779447378711c8bed82fc9f89e462a068248c4aef7503bfa041bb4174fe41",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -60919,7 +60919,7 @@
           "rngState": 2169758200,
           "logHash": "5269a601c8cfba14933fda06de5220a145297d1ffe1e206b82be783691decf47",
           "logCount": 389,
-          "stateHash": "4cad9ae5f816d06fe9d7399eb2d830908f33fd3adb82c095c85c8d518c3ce417",
+          "stateHash": "fbe4d497bfb13d370b0cbe7c5400cc39fe2ac6848738cf43919c87244f0bdefa",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61023,7 +61023,7 @@
           "rngState": 2041875806,
           "logHash": "67df563ae11491492f89602840db40234cc82144f7f4515cf161620a178f5abb",
           "logCount": 414,
-          "stateHash": "c0068d0838b57de10f8378c50b58429a37e600a0cef9ab1162c9cc3b1b069d6a",
+          "stateHash": "70fbe4c963e78a3ca5885f07694c0c0363daac08e60df01fe5b6bc2b075256c7",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61049,7 +61049,7 @@
           "rngState": 3241605949,
           "logHash": "8e0a7dc47cc39fd3ea9ed57179972b32ef7d1df21716ee603f52bfad2f88365c",
           "logCount": 421,
-          "stateHash": "65cb0b6a9b93c62fd7d821739ff868d3ac9a742a5c1ae60a269f4fa74f85fc28",
+          "stateHash": "8b82677457a2781e4c979b1bc51f7681243c7923f3fddde73ba0cd1090cd3adc",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61076,7 +61076,7 @@
           "rngState": 3809500422,
           "logHash": "05153058f97325facaa57f225ffe98533d8bb993974f3dab84065e95fe72c9c7",
           "logCount": 428,
-          "stateHash": "7bb963e91b3183efe4b1ee1e5626c2bcaf5089183e10a589b28eff9b8155253e",
+          "stateHash": "293c197338e17ffb8b3cece454d29d97380671b226a752ab2c13da1b2ad67430",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61126,7 +61126,7 @@
           "rngState": 1282157742,
           "logHash": "67878c519d692d130d427f6c04c81f64739c579fda26628ebe244207904acbc7",
           "logCount": 448,
-          "stateHash": "14cb4ba252bed7aae43c2a961e61dd2e00b64569d3d25202844dec057ce33475",
+          "stateHash": "64a4e8711cba87180c33cffb36d12a96d8d0b3b871561a865cbb1e23c0bbeada",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -61481,7 +61481,7 @@
           "rngState": 2098240703,
           "logHash": "a7ec66cab94b6cb781c50dabbdbbbaf7195c5107fc823eb85c127768aa60138b",
           "logCount": 543,
-          "stateHash": "fb972eb71ad23db2c9d0c9d23a6967f91f73f37232edc364849cf0d005cbe463",
+          "stateHash": "517d9d159db68e41ebe46bc411e38d2b0c1b4854a3e68e5e85b69641d7334df4",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61666,7 +61666,7 @@
           "rngState": 642745772,
           "logHash": "b52d11d3a8a9a45ea04463a0b4595806f54e6dadc8e568017f74fdd59106ab3c",
           "logCount": 589,
-          "stateHash": "fb38097af847b99349611d159e7f04e4c71a6f7c7fa0e1dd55f5f5dda2ec552c",
+          "stateHash": "1bab0896b6b654594f089d252e78434f511f53c9c22bcb29c90344773955229b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61700,7 +61700,7 @@
           "rngState": 1842475915,
           "logHash": "37998df1235aa57400ece725468b32bccd55c1c47d5526bbf56971b9f75d6383",
           "logCount": 596,
-          "stateHash": "f1669ffba01df475e64e77085d6ff1bd4abe75c33fae7ab8775366106a33273d",
+          "stateHash": "cc93eac8a1b7a24e1f43fe0ebe3149cea2619a06e5c9b6c6fa4d976c8e4ec6c1",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61747,7 +61747,7 @@
           "rngState": 2978264861,
           "logHash": "6a0b21d7e61765052cb7bb9bb159f88fe3df7ffaf84b046d95bdc64ed8b11fe9",
           "logCount": 618,
-          "stateHash": "63a6b43b622d57e6bc80e5622304e13e83d8fa4cc16e5dc2c338de56523eb072",
+          "stateHash": "837c89ddb24fa9b605328ee03190b3183525aba9d4ba86de268866ae8add3edd",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61785,7 +61785,7 @@
           "rngState": 1082757851,
           "logHash": "5033bc7063784effdb94cf917389864e55785b1ab0be69b98a14954149235edf",
           "logCount": 629,
-          "stateHash": "4c165bb13fe6d8f72b9e6f418782489548f20c8941405d2c5832772be38b2207",
+          "stateHash": "179886a93fc53d42d2f8ee39523b558eee7630ff3905adb94efe0aa13de767dd",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61967,7 +61967,7 @@
           "rngState": 826993063,
           "logHash": "6ab03d2b9682201895246d123ab6231002a155436d59394fcb817b40953cf304",
           "logCount": 671,
-          "stateHash": "2850644ee7022c21ec3812ca5886c1f71b852f8698590ec71f35570376bdfdb1",
+          "stateHash": "7ba96a780e0b4a89c968b98d80ab7dd6160ed71449a98bf39d11acc119b32fa6",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -61992,7 +61992,7 @@
           "rngState": 67274999,
           "logHash": "adf5e783d1b3ddbe29f8008b4d0f5f3845755db4a039d30c196d52f1c5883390",
           "logCount": 683,
-          "stateHash": "4cd36d443bdf4456b00e0f6d9b9501b367ccd2cf14dd4cdf8bad0cbfbafe17f6",
+          "stateHash": "a2694d10653dd5c37c1a174e4642e329ae9ed44357bdebdcd4b6fab6d34277be",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -62924,7 +62924,7 @@
           "rngState": 52122399,
           "logHash": "0d870bedbbd456be36adb80ef7256c0dc96bf1e685fab156f411e75d0f82359e",
           "logCount": 913,
-          "stateHash": "fc296110e4fdf72d1950c3bc4be79604df2318f811e3c5f1a32cbd608c4e8b4c",
+          "stateHash": "aa540aed835bfa609e2961c88e96043584d9df968da99a8bce96d44b3de9d701",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -63208,7 +63208,7 @@
           "rngState": 3899501316,
           "logHash": "fb067ff12ce4165bc6e700431de6b10aa93b6897d071d0eff9a07047f80b1697",
           "logCount": 994,
-          "stateHash": "71069acfe9603be9fccc5ea4ee3b14d7900d298f41d1537c05c3a1a4ab810598",
+          "stateHash": "f0b952166f14918ed2fe1fda50ecea89ac2f6b7b9be4438d5bf1d1f3b1673d09",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -63310,7 +63310,7 @@
           "rngState": 3139783252,
           "logHash": "8cd18ccc241e14d028bed3c39a6931fc51ea0284cc08e9e527e1a8befa911313",
           "logCount": 1019,
-          "stateHash": "452ff1d6dc2c88f44783c008d44e81babfb8b09af60e7740b880e821893b8f22",
+          "stateHash": "4f2f04b868d6cab7acdf06f5b339d3b5cc7f06a04e1f31fa463b9f51bca36e90",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -63339,7 +63339,7 @@
           "rngState": 3707677725,
           "logHash": "cda815aad1c2173555ba462f5ba7f506ae563883334ab6746f4ccebeb7971fdb",
           "logCount": 1031,
-          "stateHash": "5da1b9b1ac64bf2d1a75a392f9ba7e82490e5b45c11a4850ec6080e75b0e5711",
+          "stateHash": "923db5639fe9063555b0ef99217f2bba9df6b68e169bd204636c409b41f48c42",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -63395,7 +63395,7 @@
           "rngState": 548499375,
           "logHash": "cc6f01afc6b43ebfbf47a835c1cde6336f67eb45997f513df33a981c4f8fa039",
           "logCount": 1049,
-          "stateHash": "75c2e8d2578fa4f65da62c0ed25a4a3e9714e6865addce018ac7c020dbe480cd",
+          "stateHash": "045f1b0fd5c4abbdbc3e73417c0c177addc53b781a30279f25eccef908952c0f",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -63524,7 +63524,7 @@
           "rngState": 4083748607,
           "logHash": "515f4763fbc9c944d3ed32b7983b920d9be1f1b2ef2abe0cb1aeb38a09f3720a",
           "logCount": 1092,
-          "stateHash": "9ed9b5aa4860a552598a22986a15b63cfa5b8b1db2a6639338880ef65126b230",
+          "stateHash": "af166305dbbd969011045d597ecb2d7fd1b3298ef55f20b252a381dff24a8b43",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -64183,7 +64183,7 @@
           "rngState": 1293064839,
           "logHash": "81c74edb3bd181f295edba46000051bdce36822fc6ccdba3f0674383f036dfa7",
           "logCount": 1258,
-          "stateHash": "3115163cf018059862cb1c58f0ad1c3d768e0dbf192fb0d45cf5efde09135ce4",
+          "stateHash": "1ec0bad92510d136044ae167ed605f2051a2088581fc499247b48109081f999e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -64416,7 +64416,7 @@
           "rngState": 1605194524,
           "logHash": "a6bace44a42f6660db1a810ebf22b10eb30817cccd949c8b0ee4147f67f270dc",
           "logCount": 1320,
-          "stateHash": "49aad93899be602cf0ade15d74dba070eff8bc0a6c568e5ca9e9dd79e93fa3ce",
+          "stateHash": "44be997c71565e821f25abaadcf7dbaf4d11e974866dcc09295cc3f1818d286b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -64471,7 +64471,7 @@
           "rngState": 909417657,
           "logHash": "a15d79b6de06322ca31f7bde3f323f2870252dc475621ea836bd742f6a0ba620",
           "logCount": 1337,
-          "stateHash": "7396fdc02d589d2b073807d303156bc65ba536888a43673d91a77ee019e4b026",
+          "stateHash": "105f728167c8c44707d3cf530219afa89dcf217dac65b12b8d7cc5dd8ce3e8ad",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -64576,7 +64576,7 @@
           "rngState": 149699593,
           "logHash": "d204c08514df53fa692a818245d5221cebdf373b9f9ab147d149951df3acb943",
           "logCount": 1371,
-          "stateHash": "ab06a7b13343159b32bed858b6ec0381d48697caa7e372f3a445937493ba74c1",
+          "stateHash": "fb82d9019173045f85d9fd458fd0748bca64e8682be3646daed0650580715adf",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -64610,7 +64610,7 @@
           "rngState": 717594066,
           "logHash": "727716ea859187dcf48cea1723850cf3eced1e29081054b719ae29bbe2a9a349",
           "logCount": 1381,
-          "stateHash": "38cd8f86851aaadbb6bb8794530d90105d7a2de891b8dbc4851deeba724848c0",
+          "stateHash": "afc1340d1a5f6cecb1064224a03f7bcafd6cdf1b8c0a079cb7f8b601fd96c6b4",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -66345,7 +66345,7 @@
           "rngState": 2710678270,
           "logHash": "13ca257831900ddca52504eb62c5eea3eab5400165a5b42e02af997c2a7abe94",
           "logCount": 1886,
-          "stateHash": "211018aea402528d7ae33bf71ff52f592c2731fe5d26ae433fb4283ecb91e0a7",
+          "stateHash": "4b66c6feec6bb0e9a2b9e6e60f2f2531314191188a7221cbea43a412b8d3529d",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -66400,7 +66400,7 @@
           "rngState": 183335590,
           "logHash": "9598095541acf1f9c4bd34c873f7882cf660e710da48f1e5d58a2fb53777e4bb",
           "logCount": 1903,
-          "stateHash": "195b2aab55c53f435998038339ded1d21e51d1cec2317676496eb283e5a25cd8",
+          "stateHash": "c7cbb014b0e5d2c5bf5df9510cfa953bc0d6603364b9300709fc3751e40bceab",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -66454,7 +66454,7 @@
           "rngState": 3782526019,
           "logHash": "de436e8a199b1d27664386f0da79c4ff0fd871138cf65959fc84e3fdb7459ce3",
           "logCount": 1926,
-          "stateHash": "20983e2d0ba541641bb7637049a7e7b30c37842f709971d2d94deb889d0e077e",
+          "stateHash": "ed860fe4dea0cdfa6288e45fa072222add0b21c7dcaf0a59a7ce91bfb7909793",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -66491,7 +66491,7 @@
           "rngState": 55453196,
           "logHash": "66cd80f131cacf609c1f1af592f6640153a938aa29ca19b9845d4f87aa8a1662",
           "logCount": 1936,
-          "stateHash": "158054199c26666c7cf911a1615b538e238d0ab6272d731f987b567272bce54c",
+          "stateHash": "221ae2b0637a9af2d11b479ff9223296f7f8af19dec2ced067083fac67783255",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -67042,7 +67042,7 @@
           "rngState": 2447337182,
           "logHash": "20dcd765248e745a423104d0d8b0fca14f116e37049d7acbb100aee3427e79a7",
           "logCount": 2093,
-          "stateHash": "b3b022fc5b40438c9a0d48cda8361ddac6effe482ce298a57a1e2cdf5698def3",
+          "stateHash": "4eefc82a0f33aa0d51a08badc19bfb5fe6145cd0725dc4bde161d8c839cc6fbc",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -67137,7 +67137,7 @@
           "rngState": 2319454788,
           "logHash": "eed82c429603dd99092ca62209fc1dd6c112f4f51403008ce90650eaf64f5303",
           "logCount": 2123,
-          "stateHash": "98037928f617f2ac725274b312a7f059679960db420e713ba70658c30a18660a",
+          "stateHash": "af8c5434b63b5f1291eb32d04b838dc71c144f069a7fc7d01ec3d04c57925379",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -68121,7 +68121,7 @@
           "rngState": 2432184582,
           "logHash": "5629ad4ce074bf3d693712aa209dfbb83a3c3586390bb5cef218bd791e68b7bd",
           "logCount": 2388,
-          "stateHash": "8c6c9f81f98bcc3ce0aa1bd4dd42d1d7c5a7624b5d1fa059ee1ba21834964312",
+          "stateHash": "f59dc96a3987bb9f034ea0211f81ed5541811d81b1b16ec44b6d79d3102cd77d",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -68398,7 +68398,7 @@
           "rngState": 3880103213,
           "logHash": "bf863cc09c7a106db6d348c94497efa82add6cf8be1f186fdc20fa265ac6bc8b",
           "logCount": 2474,
-          "stateHash": "96ca1b004952946183f4fcb4de28e0fb8968d8b40ac84ce4eb06812999dca151",
+          "stateHash": "ca8f75119c8abf7226901116175d1282de4d9585c217172843ebb80886bd8967",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -68530,7 +68530,7 @@
           "rngState": 1856713809,
           "logHash": "a367be2a87e6fa4fd246a8158124e6a41f1f4e80bf105fc4108ee6d233761d89",
           "logCount": 2515,
-          "stateHash": "798a522b3fa0be6cb52e319b148c96396d5e55d3b03c90629c5ba42a723dc5af",
+          "stateHash": "8b421d9f9075c92f035494977295a5a61a775e0167ce434ee083d84fdd3b8156",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -68563,7 +68563,7 @@
           "rngState": 1792772612,
           "logHash": "3ad3ead2851e7a1b5a587026a4b2548b06f03ff863dc83605beed52ea30c5ca6",
           "logCount": 2527,
-          "stateHash": "32180e7256dd1988d131b95b3c602afbc4776940f9d743e89ad17c78fa3ecfc6",
+          "stateHash": "198d5762555b882f2cbe179f502a2062263514f37b4ebc9fa535c464fcd89f2d",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -68872,7 +68872,7 @@
           "rngState": 2040961100,
           "logHash": "649d56cf49691cd1ccb9037908c2860fb5204e0dd5285eda22926d1a0bc1b733",
           "logCount": 2612,
-          "stateHash": "b1a075fd3ec56e9a7f436db25230d28e16b9ebc86b3bb4738ee6fc6d7eb52dca",
+          "stateHash": "9e88a9718cc0f4e64b8b575387b2c4c94f333912ece8803dc9f7b4f9b8e81ca3",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -69567,7 +69567,7 @@
           "rngState": 3041291352,
           "logHash": "a8e9b851a3ccbdfde02f48539ce76cd4d034080e097f447040a70ab358bf702a",
           "logCount": 2826,
-          "stateHash": "b6ac937af1d5c4ad4b4bff1e6b003a16f5edc920e2a2e02892ec3bb52966b09a",
+          "stateHash": "a02a70c9895872adc5a9309388ecb639cb5ae52be7b9186145668ebc6779801e",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -70013,7 +70013,7 @@
           "rngState": 3729491919,
           "logHash": "b9a2d16cd426ed5da4afee348f8f6258350494a13e7d7cc56f871c755a18327e",
           "logCount": 2951,
-          "stateHash": "2a1572e2e7adeaa5ef97b4f391dc64cc930d14238c2ccd41fc119762cc351f4d",
+          "stateHash": "56f875ba8f937a6f13747f1d365c3fac496bae63b20a1641121d3c65bc0ba616",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -72456,7 +72456,7 @@
           "rngState": 2200063401,
           "logHash": "7743097cd9455b9ecc8da9e3fe0bd9958040ab7fc3db281b3a50ed5d20332af4",
           "logCount": 27,
-          "stateHash": "b16db47b9ede931791d20ad711c87abb781a15d63d3ba07437d0792c0b154339",
+          "stateHash": "446189a6a42f760ffc413999359a1f2a0d26a646fee2afd5b0967d69873034f4",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -72480,7 +72480,7 @@
           "rngState": 2767957874,
           "logHash": "36b5cf6b00ccdc59812c3b023252c2c6beb601e6f231d0ad337cf08d0c7a890a",
           "logCount": 36,
-          "stateHash": "7046aa0e51749b75ff6d8f87026231841c364b9f2be9194442a1614fc32a38de",
+          "stateHash": "5c0ade20ae7cae6068f88a7774579cf161d4062ebe37c89aa4ca1f01be65ec37",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -72505,7 +72505,7 @@
           "rngState": 1504286534,
           "logHash": "acb9ea0e0633b9b0e4d1fe346594c501f73701db38af4a82a9cba653e2d415dd",
           "logCount": 49,
-          "stateHash": "3e4d81c11443f7518eedac26c5986ce910d48d1150959c298a39d7b50943741b",
+          "stateHash": "e868a6d061fa31f13050db0f32b710ad942df3742af0513db271ad3d7bd4d204",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -75169,7 +75169,7 @@
           "rngState": 3333803,
           "logHash": "e0367455f3ae80b57ef4da0a465c8ba53f79b180720f06e085428f5fda0268df",
           "logCount": 719,
-          "stateHash": "c6ec72f134772269718b1e313736eb3adece05d145ad510cd07c88b480eb40f1",
+          "stateHash": "7b3099974a9e4489b431b6f5d67f6fab86a27b58a807aeb162629cb65470b0a1",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -75200,7 +75200,7 @@
           "rngState": 571228276,
           "logHash": "03922b7fa8c5f309f6c3f57e137accfbfa7dc317fad5f1c0d779a2cae59492a7",
           "logCount": 731,
-          "stateHash": "da37c026133066e60eaec850cd3f6c910eb4d2e10f1501e0e9b840e124383761",
+          "stateHash": "1f2e084082aa98ed16856f21e5aa3c592a9ab86a4de03bac85b3e062e1518b44",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -75313,7 +75313,7 @@
           "rngState": 443345882,
           "logHash": "087e0e1b5c39d19c51a8f72fb645a386134d78f9b95a341ebcb3ba6adc35c122",
           "logCount": 770,
-          "stateHash": "57a686c424324d583a6c33c07127a6f7ee696cf2e25af9278ab625c27f98e3b0",
+          "stateHash": "816154c48ed72d52f3550fd4e6135c34de1aadf3440ff42ae442c373399515bc",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -75341,7 +75341,7 @@
           "rngState": 2842806168,
           "logHash": "1706cb772690bbd7ed67e527e3823709c15984b68cf530d9e0a57ee34a8fa49e",
           "logCount": 782,
-          "stateHash": "1233a680d32f8fb2869d3f8c61e13de4362707f668953bde72e297b9d2a261f5",
+          "stateHash": "1228c2d630ab9e836cd064ace4bb38c095d8dbbe9f1254a88da5b4f6bc8dc87b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -75395,7 +75395,7 @@
           "rngState": 2778864971,
           "logHash": "8d22fbd296ddc47cf9bcfb074060c214b74cb8429d0c461c1c56ff84f10a6dff",
           "logCount": 796,
-          "stateHash": "4e083669cd63bff9571e241042ab1ab1c1c9296817fee1a92bad3968b14454e1",
+          "stateHash": "8755cd8a9928b1a1ed2c3b30c586c3d4c90a6127b33a50b8a0390b50d61e832f",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -75425,7 +75425,7 @@
           "rngState": 2083088104,
           "logHash": "5622737effe6d5b6c72f44d5eb476a7e9da7e347ae815edb03dfe558d07a1100",
           "logCount": 808,
-          "stateHash": "9330e08d90b8c1277855f56d45bad9cfbb5b2a0140a919bf7ae470a00136581f",
+          "stateHash": "beeb8dd8332b9ea2cbb74c36b0d3a30f94bd0c273106fb6dfd811d9276ab663c",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -75483,7 +75483,7 @@
           "rngState": 1387311237,
           "logHash": "251475b7acd5b2a7befbcec056e393b67ef1dcf89c7e4098740bfdd5d4995206",
           "logCount": 828,
-          "stateHash": "45f58f7ce03da67c2c6dc1485dfdf94bcde1a497c8ec856b2e8434d7de26f797",
+          "stateHash": "2c47839bc81894a4320a60b6a6afafedd9241aa460c5e5369f3553eb9b024cca",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -75569,7 +75569,7 @@
           "rngState": 2523100183,
           "logHash": "a55760d2a807646c57cafbb55a29d5dbada9a3653cb1a34468c40d974bc9a855",
           "logCount": 858,
-          "stateHash": "d7a5b34b60a3cf4a1911bfec25343dc9874a9985b0025af28163f38d09b1ab43",
+          "stateHash": "2b7d5c059dc844d0523946776a7eeb578a73e2d660184699e012a6112488332f",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -75707,7 +75707,7 @@
           "rngState": 1699440922,
           "logHash": "fcce05ac087d6ee1cf20b2c1509a48195f9be743be9c94cbc801eeef251802db",
           "logCount": 909,
-          "stateHash": "765175457718346191028cd9b6a29d89fdca862cb93af3ffb4f774b36d316ed4",
+          "stateHash": "885eb07b6236851ebacdf8c68f1f13d5e2169847195a5c799e167280009cdc26",
           "kinds": [
             "heroSkillActivated",
             "skillFired",
@@ -75773,7 +75773,7 @@
           "rngState": 3467065538,
           "logHash": "a2ede7baeaa7079352b332c3e32f25cc9ae686b631f37fd1afca7362ad9b4f10",
           "logCount": 929,
-          "stateHash": "9676023b8b8e16033db8d9e5e8dd06c5be95af5bedd8de7430f7c6e3ba2e386b",
+          "stateHash": "6487b93e4e15dd03eecf6150a72b708add760e575ba876d44d16138026bbc51b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -78646,7 +78646,7 @@
           "rngState": 646076570,
           "logHash": "f7bbe5ff21d49cb82875c88d37740676c4726368d06211d1794cb62d123b0c14",
           "logCount": 1800,
-          "stateHash": "ecd0237614801950190a610ed439399f4197c59a9a23827ce582ab35c6e352ba",
+          "stateHash": "0f07b5b4f53adefe83545ed8c423f507a0f56b0901e2578affa0079891b86287",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -79709,7 +79709,7 @@
           "rngState": 63029497,
           "logHash": "a5c5918eea5556a6876e181febf95717cfd9447fecb24f66cf60c37c6abe7906",
           "logCount": 2114,
-          "stateHash": "e680a04df305c58955af9aeb8e6ceb3a5700dd033900a7d82626fbb2f5e0eb2b",
+          "stateHash": "cd990927ffb7ea98bd65c06fd6f942dabe05ede31344e5f3ded9492e613d759b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -79886,7 +79886,7 @@
           "rngState": 375159182,
           "logHash": "43cfba3d5139fe56858ab5347de1dec6dede44d6206b52197c6f9fe581b3ca3a",
           "logCount": 2177,
-          "stateHash": "a2ab8eab8d4b0516a3c49a2c148c2370f3791278e939c7d3b59ec93d846a9319",
+          "stateHash": "4e268a476d041079ed07e39bbb49faeb5ccfa8a8927ba998bedab19d5dd735e2",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -79920,7 +79920,7 @@
           "rngState": 1574889325,
           "logHash": "7f3657f82eb8d2e1e5fdeb7abda66386a3353ec96818a67a757107e05d278fbc",
           "logCount": 2190,
-          "stateHash": "90b5123b1e5e879ee49d51ccc2ebe47af859aa2f55c79cfa7f8a5b7d115ad0fe",
+          "stateHash": "a616748d80e268865a1125c8d9cc682d1a88bf51c4cc2b41d3f5d7854abc6fdb",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -79949,7 +79949,7 @@
           "rngState": 1510948128,
           "logHash": "39a32f29f4f6db13b8b5305d1a57646c9507c21d24a0bc7f27ec83717272d2ad",
           "logCount": 2207,
-          "stateHash": "397332130f05f507327a222384570134f9eec5c049cac4513578cdd0e281908c",
+          "stateHash": "b69b901002c2b2505dc10a2ad9fda8abd3772721d2fa031b401637fcc2c9d491",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -85744,7 +85744,7 @@
           "rngState": 3266750941,
           "logHash": "69268379a2f919f5f4edaea909e51fc3cde438717b00079f186eef2aba547255",
           "logCount": 3933,
-          "stateHash": "9f95e537271293d64c971b8bead83c0bf4486f5c390e0855868387511d287319",
+          "stateHash": "d48e3c74f35e97ac7c34fdf61df22639b4ef04c56ef560bb9c21879b6e2fc1c9",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -86296,7 +86296,7 @@
           "rngState": 923655552,
           "logHash": "78c3f1891e7de2921271b62d4ad05b7dd2d9cbb52eddf8779609935e1cb9af3e",
           "logCount": 4080,
-          "stateHash": "3c66c06bf67e792f106a3a841f44240e1c3d6d802972df170ae18bbdd73d3520",
+          "stateHash": "6419ce084f6fd07e8e4a87959fff3b69a3f703071276ac3308543f182c52adad",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86352,7 +86352,7 @@
           "rngState": 859714355,
           "logHash": "9299733fdd84b87a7cdae79791f08399678538f16d4076ac0a931c2c282b1b3f",
           "logCount": 4097,
-          "stateHash": "7c4f781656afc1cbeb9df8dd4fb4a726b7df7576a10f92c9b506e45877700263",
+          "stateHash": "5d7fe00b95787ecf50a7a32e4c05f21828e99c41194868669c53d1a8b7ee56ba",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86412,7 +86412,7 @@
           "rngState": 795773158,
           "logHash": "7845c340ffc637ff8b31d75875ca5cd7033426225eeaf6c60c537e106513bbaf",
           "logCount": 4114,
-          "stateHash": "82b153bdcb574083f4d8732a83b676f1722320c398b0c623acf996af1dff8faf",
+          "stateHash": "12b26e186777863f5475d5c93f621fa58960182fbbb96942a699e6f4277a7f26",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86440,7 +86440,7 @@
           "rngState": 2627338971,
           "logHash": "c330cdf4cfe489707e63ec0e391e7073cacefc5fe297645246901f60f6eda297",
           "logCount": 4124,
-          "stateHash": "ea066352bf646c5eea8f27ec8d831e9b1db6199e30aa260661d48dd4c9bb1ccb",
+          "stateHash": "a0d1ef9cac32516009e33a590573d8fea1604902e15dfc78bde28f5d3442894c",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -86465,7 +86465,7 @@
           "rngState": 163937488,
           "logHash": "04ac9545084dd03c5aa696e2b6c756dbfb53b5264728328e965f1f974c8f65ed",
           "logCount": 4137,
-          "stateHash": "c8a3c66368cd8931ca5b60c1a9eff075366a154d49636634ad953cb8ab2f5746",
+          "stateHash": "c6eb38deda93d3e2e245b2d2cd7c2d9c50d33d6558751dc53610be07f1a4af68",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86580,7 +86580,7 @@
           "rngState": 3699186720,
           "logHash": "a9af7995f4b2e927e3afad061a0cb1b7756dfbfcfd662846486a871cf89371bd",
           "logCount": 4177,
-          "stateHash": "0b140fc105ff86f98fc50c4c57363fb97fd261f9ad135f53b13fc64b35e3227b",
+          "stateHash": "3a1c653557439dda6c0147946a41aa7e35efdb050fb95479b5c14ca085c226b6",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86645,7 +86645,7 @@
           "rngState": 2435515380,
           "logHash": "9f23dcbb493726604262fd2557f9e122e91e695cc1b903c3a34fd1703075a6a9",
           "logCount": 4190,
-          "stateHash": "de13137f4396a4e7fd6e512ce4d327651a55265da21682483c3c54df6e1452dc",
+          "stateHash": "506ddd19842a7c32a60c3c5165fb5985bc344093244db4c77acd3e5e4abb5741",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86671,7 +86671,7 @@
           "rngState": 3635245523,
           "logHash": "f2182d375c075911eb77cac7b0528a6d3774b1f2fe72cfe02ea5ceec9989a54e",
           "logCount": 4202,
-          "stateHash": "24a1282a06f3a52d4576e3668f3c5f36ddf595c1c4f3aa896be63c3bedc0c028",
+          "stateHash": "770f159050fe2bdae554dfa9570e3502871268fa4a0a0ffacd31e65054764b92",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86701,7 +86701,7 @@
           "rngState": 4203139996,
           "logHash": "baea3d773fb640a131c4c29522c07454a166099de65ac226ae268a8924262112",
           "logCount": 4214,
-          "stateHash": "7f5726b9c872e642fd921c247221e58a3aa1bd6110998ec3a83a96e31dcf45a6",
+          "stateHash": "a4dad84067040804c821306e48547b39b4f53c9e49dc16e78fdd2af18ee2a3f3",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86820,7 +86820,7 @@
           "rngState": 1611856119,
           "logHash": "87e01e6df22e7ef8869d067472f4edcab753ba19d643b7d1e7509b0eeb251004",
           "logCount": 4246,
-          "stateHash": "7faaf07fff561d5ed0ebac48c389d39631c418d472412f2fe360d91bac7c88d9",
+          "stateHash": "c29df350f533839fb9d1e91d4215b8d39e5d0d8a56634723e9dadf986ec60c23",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86897,7 +86897,7 @@
           "rngState": 1547914922,
           "logHash": "f678192ec09259f398488df22cd862e4dd4e79f5a81793d0764af0959a650561",
           "logCount": 4266,
-          "stateHash": "4d4030fcf89436fe0628b990f7aed7d1cdf2b8b258f4e7449d00df01ad0a4d97",
+          "stateHash": "2207b74b4962ebd2f7eb686095f17d6286a0b45afefa5d29a7062eb3659c686c",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -86979,7 +86979,7 @@
           "rngState": 3947375208,
           "logHash": "d81cbe98c7d6b124f2628a859ef3faeba7e4f832df5ff172391fbaa775eb0cd4",
           "logCount": 4294,
-          "stateHash": "052ac22ca66a8f7d5ed9a61d22a7cbf0dede1c928d23d5d8b805b5804213664d",
+          "stateHash": "2ebe3ebfcdef882ad91c2e01ebd1f4e23068a1c8f9a28c317fdc13c7bd3067b6",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87043,7 +87043,7 @@
           "rngState": 2051868198,
           "logHash": "ee8bdbdd7153dfe99e4633fbb19f2008287b209dfb9fe537d5543151f3097899",
           "logCount": 4316,
-          "stateHash": "4f94b38cbd596a5f339084aed607297480d3354b30449efe7594be8e60fa5eec",
+          "stateHash": "ad5c8401eb4d8efaba3e4f6190b96e07483c33eedc457c094810216060b832ae",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87104,7 +87104,7 @@
           "rngState": 3819492814,
           "logHash": "bee87f24768c629f9365362955f0bb1ab902a2521ec3ffef4e2ec731405225c4",
           "logCount": 4337,
-          "stateHash": "43a5d47c85ad37cefb60cad73d19dbe5551c2f88835cce8597b30a1f78ed5882",
+          "stateHash": "713b47cb138e83b53e8267e26ec8d0f066f649791edd1667c88f378488cc8878",
           "kinds": [
             "jinnangAnnounced",
             "jinnangInflicted",
@@ -87185,7 +87185,7 @@
           "rngState": 3755551617,
           "logHash": "f2a8e979acdbe92f8aded6492d7f99260b8339210fffda20537e2953365d2a82",
           "logCount": 4365,
-          "stateHash": "1c8e205f7d127f19a206db0b34bf396648939211a1b2fc571d246ecb49c0757a",
+          "stateHash": "b6746682005c04e0268cc643e152695636715bd4a6356ee08f221099f6dae181",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87219,7 +87219,7 @@
           "rngState": 28478794,
           "logHash": "c174f3cf0e48b693d3ee0c2bf736d6b11e848bca3d20fee8e2f5c5e3caea449f",
           "logCount": 4385,
-          "stateHash": "88b9a49b30ade420419843d7615db056681f08afa46cc2bc1170d161ba2a44df",
+          "stateHash": "184995d753168412a1cb2faac3973cd9fac072957ad8e4a77c8739ce993e5027",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87260,7 +87260,7 @@
           "rngState": 1228208937,
           "logHash": "b205deb16634ddbce2524f4b0492cd76cab7d5244758d19ed0c21cd384d0fe18",
           "logCount": 4399,
-          "stateHash": "b59127fe0f3742e11add5ddede3c22ab3c53e7c66fea196a39acfcc75593d877",
+          "stateHash": "2572a6306dd35dc5328709f3bdb9deef683107c0ad0c12ec95345149b9d1aea6",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87292,7 +87292,7 @@
           "rngState": 1796103410,
           "logHash": "02edec986dae124318cd72d654089f9a6474e8ed62a6b08bc138935363edfd90",
           "logCount": 4409,
-          "stateHash": "5474a84bdcf3379b4912a2f03b94a8b77f66998635227ebf61ca2de935840317",
+          "stateHash": "a8a5d8248aebc20efc34bcc8bc00766fa87dad1846d2fe8ec18a2bdf9fdad1a6",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -87349,7 +87349,7 @@
           "rngState": 4195563696,
           "logHash": "a36c951382e9cd520dfb746ad6344aeb6947da50ced349089a6960169be33914",
           "logCount": 4428,
-          "stateHash": "16473b44a2a1d361716670ea5e774ad9900da2e4a68efcb5babfc1eeff001a75",
+          "stateHash": "5bb8475935d695d3362b1d327b392a5281c9eadf33c590cd423d2fef44b55d60",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87404,7 +87404,7 @@
           "rngState": 4003740105,
           "logHash": "a0696bd08b297e2adedd2fcabc99f09549939f4c7272978e812dd8dcc736596a",
           "logCount": 4446,
-          "stateHash": "600fa1abdd7ddb81e21db50298e8f19f5b14b81af02dc31007b97086fb26cf95",
+          "stateHash": "c22a9cd0d4e68071643c528f1a027e8889fa76fabcf01ccad7e966e51f36c34f",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -87437,7 +87437,7 @@
           "rngState": 908502952,
           "logHash": "cbcbc9c5a477efd9b79fbc86d7194d5a81ce00b8dd354845bf3fbfd59f737c3c",
           "logCount": 4453,
-          "stateHash": "ef55842f0a3d680c9c7db329f0fc4a6842aff98a018ffed98fb9d43f47acd069",
+          "stateHash": "19ad7071e323d8c42281e31694c0ff99bf46fd4a55ffd759b8429d0da57c14db",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87489,7 +87489,7 @@
           "rngState": 3939798908,
           "logHash": "39ec457f1eb5f7cfd4986966646666babc38cb791e5b0521106b2aa7ba01ddd7",
           "logCount": 4467,
-          "stateHash": "06de773bb10853c9f7df54f24da78d3e239c834659f8ff97206e9cbb4f348e38",
+          "stateHash": "c2d8ef96f9bc18e2b5cd8079c7870a9c9b4bade732421937cfce1ab41113b028",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87565,7 +87565,7 @@
           "rngState": 3875857711,
           "logHash": "45939c9417326ccc2301bb8631e9569d18bc7307e0f3cbadb0d1be9efd56dfd3",
           "logCount": 4489,
-          "stateHash": "bb05b4d9e4cee6402a52f81e02c927253559f511964df96c51a1399b2a539b12",
+          "stateHash": "69e27117e055f2df5a4a1794dfcd5dc60e9e46010027c9fb3776a5b211e06e94",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -87679,7 +87679,7 @@
           "rngState": 1916409504,
           "logHash": "7db10249c8646a82fd73984fa705bcd55a2c8b6fd97c2c1513f0876c8fd178f1",
           "logCount": 4520,
-          "stateHash": "dee2568937b89ae7105f6117ba288eb8904f4cd331c9d131928eaee8448f8b67",
+          "stateHash": "a82bf1fb2c9dbedf975ca0983efc8872fe9dfe80befd16da68e7432fad66fc98",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87705,7 +87705,7 @@
           "rngState": 652738164,
           "logHash": "6c5412942b8d404864de909f87ee51f02325713a67e637db1609276e95563106",
           "logCount": 4530,
-          "stateHash": "d8e18604d9e685b55390dfb5f5a9fc9d3d061665bf62f34d78b10b2b5f18fd98",
+          "stateHash": "dccf06032c221673d37f1e0ef3ba9c45d64102ae876e1b32f3a7735ff87ee68a",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -87811,7 +87811,7 @@
           "rngState": 1156691440,
           "logHash": "f0ddcaf9b05f9e39cb8f5f26e740fd5bf3e439498eaa2ec163c787eb0422c71b",
           "logCount": 4555,
-          "stateHash": "221afd8defae1f36dd4c4a79a470a63fb62a18bd122b9449aed3de5d84d9aab8",
+          "stateHash": "0f9de9184bc40746bee543d27ea7793c68a4d8be1d11ea49fd010285f4e21710",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -88054,7 +88054,7 @@
           "rngState": 1816416220,
           "logHash": "6a14eafefce679ba03357273b2401afa50018b4e3ce36e37137ff09db3aa73a0",
           "logCount": 61,
-          "stateHash": "70a56f90001a74b14777a7946136f85aeee8e486a96be8088e902bbc1bed4c45",
+          "stateHash": "f3e20ebc83e2736f2d60edf9ec00a6f89c294893d35fa4056f974e38fec922ad",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -88146,7 +88146,7 @@
           "rngState": 3520099639,
           "logHash": "4d4b3bdf8e936a905640167a4f98b69fd5857af19c5a492d71ff4128aab0bb7f",
           "logCount": 77,
-          "stateHash": "bc5cf220e5f276ab25ea99a46589e60044caeb546055573e08448f569592c9ae",
+          "stateHash": "3e0fce239562837d4d85c4cd837fab0631410c1cd1ce4d492ad22589c2a79419",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -88352,7 +88352,7 @@
           "rngState": 3264334851,
           "logHash": "09053ec510b92fd84d23f10e54ce5762505a0a5215cf1d52a495981314e52f54",
           "logCount": 125,
-          "stateHash": "6229ebc766e182da2b3fb9c113ac0b04c602f250c8737d1a64cf54eccef7bf5e",
+          "stateHash": "67a46b19ba33d451e4993a8c8f90ebe7c81ba3ff433aa3b80739a197721c40e6",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -88450,7 +88450,7 @@
           "rngState": 2376734393,
           "logHash": "4f82f60e464058857b7a6556e57dc8f19eec9901432b015857dc2fe8528b224a",
           "logCount": 153,
-          "stateHash": "d4cc550b2b8ef6576067b22d461ff9a329077a7a24e7edcf1a8812fccdd11cbc",
+          "stateHash": "3fa6fc91bae6ec65b253a0b1bcd9ef6a3abbf743972d8d2c57ec3bbc2f145d3b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -88568,7 +88568,7 @@
           "rngState": 2184910802,
           "logHash": "be43934b51f740ee7b14df564dcfe000d3e94fcd188ea648a0e2e47acb4716af",
           "logCount": 182,
-          "stateHash": "11db62bdb5d66c121275417cadf2bcff5f2ada342c88d11bd7375d9a38ce3447",
+          "stateHash": "890fe31752596eb01f8e9be7d1a5287c98981d89993fc2712b1bcc14b0f30a97",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -88623,7 +88623,7 @@
           "rngState": 857298265,
           "logHash": "90aa61e92a5355a848b8c21f0d14dc73afe36856220de72bd7da693509ca88a7",
           "logCount": 199,
-          "stateHash": "ca677b1911bc6c28056bc0216b711a03626a77a8a7d30d3b2ff045193d605771",
+          "stateHash": "c6b5fa61b3c0fcb0c64a3178bcc6b1ed237af3c05507a042ba9a1b61b3159b44",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -89019,7 +89019,7 @@
           "rngState": 3377064645,
           "logHash": "6a488b535ac40b4a013cff773f700969a387bcf367d3db3361ba921dc66b1cbb",
           "logCount": 284,
-          "stateHash": "766702cadb519f4aec8d7bbab56a1a172b0e46824fdb1b9f0c3c2a1c25a469e7",
+          "stateHash": "a167838f7d27d3d459b1f0de228a30ed9a980aae75b2e67fb24029df240edfbf",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -89116,7 +89116,7 @@
           "rngState": 3249182251,
           "logHash": "ed08a6da946c5b8b9b50bb81a39fc3502ccb8825efaa3172658b5aeb1e78413a",
           "logCount": 312,
-          "stateHash": "6009df08bd4c14ad583b027a1b411403cda4663ec3298c67ed3e56e3ffee00e8",
+          "stateHash": "539c92f5b52316aaaeac624ce048eac49faf68d4bfbda2d24a8fab84d8f27014",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -89373,7 +89373,7 @@
           "rngState": 2737652675,
           "logHash": "85a0e2b3c34902352b499774baeb381e0f8cf0d735dd50734decd3726f0281a6",
           "logCount": 372,
-          "stateHash": "e38b599a5f2d2a2ab45481414a0f3db543bb1fbdcef81fe10f1cbae7327a2310",
+          "stateHash": "1c7793021d17335fa500ea651e1bbd172cf7ab827477e02c94fe379aad23bcae",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -90797,7 +90797,7 @@
           "rngState": 691534371,
           "logHash": "9a89dd7e8090c70ca4227d40a0cb417e238dc6ec0dab94f45fbffb270a387433",
           "logCount": 740,
-          "stateHash": "3eaf8e07b1a933e91c50774bf3d3a2a21f2c20dfdd04ee8e5b4f37dd736f6db3",
+          "stateHash": "4cb041261b900cadf65520b61c9335c3879c89f3717864cfdb5f6089ac9bd098",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -90822,7 +90822,7 @@
           "rngState": 3722830327,
           "logHash": "2316768919a971a8c333f8a19bd5bf8baf2bb8736db7ac11be8fc3fa4240ddfc",
           "logCount": 750,
-          "stateHash": "5ee0d55d0afedaa49c0eed1d82b1c2afafd2d1e55d5224aa95e84c1f47d29ec6",
+          "stateHash": "65b9f4266e5e853bf7c2b8a20ed7e2bb907119ea00922f08bfd36527f740986f",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -90955,7 +90955,7 @@
           "rngState": 4162842406,
           "logHash": "44e94271f0e8c999788dcba59999d500884a4b1a06acf7c4eb8d05bd69cb5371",
           "logCount": 795,
-          "stateHash": "f0824265999932c99b111bf3627c63eece5ec32b7f7a69dab1b8631f0b7cd345",
+          "stateHash": "5a54e73f59beb277e730236c89672de437d1df96a69d35b40626f091c4bb82b0",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -90985,7 +90985,7 @@
           "rngState": 435769583,
           "logHash": "fa06602128d2f99ea0dee7c573754ef518f78b154a37ee4c683b61e98aee9a19",
           "logCount": 809,
-          "stateHash": "2a9b45285a13119ca9cbc525e382fdd96fbb3bfc8c45ed7a43517ad9624c99f3",
+          "stateHash": "a9f80e8933fe1dc775f257f288003f0c39c5884967915d29aa307caf840bc416",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -91865,7 +91865,7 @@
           "rngState": 1684288323,
           "logHash": "edff1a76d5af973f5a3a6afb32dabc81f7e0d70d28bbfde343c05974dc8a608b",
           "logCount": 1042,
-          "stateHash": "3a5a0dea346df94dac269e4583c07406ae1e029fe36aef17b1f921b3781fbafc",
+          "stateHash": "70658cfd6b84243c990376ac4dd5416987453f77f250213d990ad2f1516607db",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -95335,7 +95335,7 @@
           "rngState": 3455243736,
           "logHash": "f138e188f5d375b2dc57c52e0f58f5514629bc08b4104dabf084fd6f9199845c",
           "logCount": 2041,
-          "stateHash": "ccbddf0bf42b7a6b6be88d436216a9d4d9ad02d07119d989840412c604b030b3",
+          "stateHash": "bd0e0b10742541a4fefb2f2ffe29aa55529818c6c37f2e31ea30cc86f738e061",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -95360,7 +95360,7 @@
           "rngState": 4023138209,
           "logHash": "15ed824ee28675ca3cf0bac430ec335e419257fa1bee8a178eaab1c68356467e",
           "logCount": 2053,
-          "stateHash": "920d709722d3217c1bcc38f9c71c0322b5ce686a9faf30b11790bf5e104f4368",
+          "stateHash": "80315289c4b4fc8f1f0091bb2e823d85e04d0d63fd468f3d9a0479f0fb24b0e6",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -96754,7 +96754,7 @@
           "rngState": 593042471,
           "logHash": "6916ad5598e7cccb146d3b7ffffeacfec6a5de4971b0f2b1e7bc5173f8769495",
           "logCount": 2442,
-          "stateHash": "83f091e291037e6baa24ee0fec63fc5bc6b0bd7c4eaa95d52a0155edf9e01aa2",
+          "stateHash": "0590abf5d8cdec16b584a7799fba3429a6b914e664036d5288e743e441f45468",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -96788,7 +96788,7 @@
           "rngState": 1792772614,
           "logHash": "e7d8872e7525852c21c5ac5c396d04223ffd5ccc591a3ec0b923898a58cfc38d",
           "logCount": 2458,
-          "stateHash": "1d87f12de051bb05d540122eed972e278da42458912725fda1615d0f8513d73d",
+          "stateHash": "296562373847cd88328fc9ef0f02373f1bb235139421b6d875415189edcc63ca",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -96882,7 +96882,7 @@
           "rngState": 2296725890,
           "logHash": "c3ab64791c9321f4921f4c34a0dbf74b2e24c21e4bc1c0e925eff66b7da0fcdd",
           "logCount": 2488,
-          "stateHash": "ef701f75f570b69bd9fa1da07c68fc98a5702c47b8984193801218c650f7e3ca",
+          "stateHash": "ff20b26e3beeba59702c8b080a0acc1bc4953a3893bb7edce894933a44f6a101",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -96938,7 +96938,7 @@
           "rngState": 401218880,
           "logHash": "c87d35acaf1e45b845e3b770f438d9d222ed5fc93ea58c4b2b2763cee936f597",
           "logCount": 2502,
-          "stateHash": "ea6662485f41dec383a6ea88e5f38e178623742d024eeba3cc3fbc3d30540ee6",
+          "stateHash": "a2e2e293a2a5977ca9cc297b06e53a0ac660f5e6d8af0deb31e1fb8efbbbeb36",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -96993,7 +96993,7 @@
           "rngState": 969113353,
           "logHash": "45b49cfbc751fc5b46d16358bfad2566a5d2302ea06f5739ca64604454af4b5e",
           "logCount": 2517,
-          "stateHash": "a550e995093d9d480f82d9b803f31295e56d41065f3e0290b5ca295bd5d7d68b",
+          "stateHash": "30e62432c0a5ddb04466249159e4902571f6b444e80826b9b7d8eb946412add1",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -97168,7 +97168,7 @@
           "rngState": 777289762,
           "logHash": "4313a3952826eaffd7b3a2cfc7e0696adbb23f7f227f9714193668b46b08fdd9",
           "logCount": 2561,
-          "stateHash": "0deff22112eff44e996811fa27a1ad3e237b99a2341f545ce95e50e75f52634f",
+          "stateHash": "574ad9b3b0f701b194c2502696ed23e8fb71e70a3db29533d88671a38712f233",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -97220,7 +97220,7 @@
           "rngState": 3808585718,
           "logHash": "3b0b204d24cc75c2ae400f8a34774d737172e7e2a418b313a77dfb95f812fff0",
           "logCount": 2575,
-          "stateHash": "c78aef3127e88f9cdaca9e37e1aa0d90c739799de353ddff2cb7a60de8d66061",
+          "stateHash": "607c726712b2a0e3e7532014b89c75d4539cef380aa00dce7c5c338f6b38ce84",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -97403,7 +97403,7 @@
           "rngState": 521524974,
           "logHash": "e0d4e1dcb3a55679b860a73a978e576b1984e5db42f3c44e50a340314e7678fd",
           "logCount": 2637,
-          "stateHash": "ea6b31af1b107b31c341cb0ab1641480c5eccbe8171654389a70653ef57f00d6",
+          "stateHash": "0c40ec28b994eaeeee6694d6698963ab56afcf10ac491382c83a606abeb9759e",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -97431,7 +97431,7 @@
           "rngState": 1089419447,
           "logHash": "b567ab5bab9d447b73b1a0ee8faea8a640006fa9a895a484825d5e490443a360",
           "logCount": 2650,
-          "stateHash": "f3522041a8859514d196ed42d8761cf3c848efe43b9e4814e9378e2544420074",
+          "stateHash": "31ee61558aa5e9f033a311518ba96bc4515bd459843028ad88dde6a6659a2d43",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -98957,7 +98957,7 @@
           "rngState": 1002749350,
           "logHash": "2d30011261300c039a8e79a6e62c5582fd87c5e1cd183e1e94e625786b93c31d",
           "logCount": 3102,
-          "stateHash": "20c3fc2bc5af6ce175d57f11a0f38d216ae975293c8505f08ed80a893723d380",
+          "stateHash": "1264e3d802de2489aef935f16dfede4fea5b9f641b23121f9bd47ee88039c91a",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -99209,7 +99209,7 @@
           "rngState": 1314879035,
           "logHash": "e6e907df8c54d79d3b91659195e13667d85741ef941c330ba0357ab2d640dca5",
           "logCount": 3186,
-          "stateHash": "e357b085733565f46f4bde3eed91185fa1cee5b97af568f12e8acb0c25bded05",
+          "stateHash": "44abba3c9bab146dcb3ae8ee599be1a65df831a32c766c0ad1a77ef8ba20a816",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -100300,7 +100300,7 @@
           "rngState": 289403793,
           "logHash": "1b772bf7d2bc4a6c92141c32311159a3f0663b6f7652c5a610b855c04c9f0c9c",
           "logCount": 202,
-          "stateHash": "96ac75e0fe45ac661f8fa9365d6b743073062baeda0c7ac79354f2207fc3bf5d",
+          "stateHash": "c23fece9d8a8f82452017f133de8d859967bb7ec1e563741387cd68de265f570",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -100906,7 +100906,7 @@
           "rngState": 3121299858,
           "logHash": "2e071f56e85f04940b13d240cbb7a3456a3953c9f6928ae6361a5ae2d641255e",
           "logCount": 349,
-          "stateHash": "953cee9e44deea72eaecd37fc7096b2b6773cd22cf83492c1092892afe5c2fea",
+          "stateHash": "ce01d27fd9f91daaf0d5a64570e7c843702b7ef7a9a8013f53e7decfa998c2f7",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -102515,7 +102515,7 @@
           "rngState": 4042536313,
           "logHash": "6a40e8d52b90dcd456e71007e50747d004411b9fff5bcd924cfdb37c0fa73b73",
           "logCount": 784,
-          "stateHash": "715bd7bec45f0572b8bd1b7deb95bba12ace820f18e53b97f2258229f4b1767a",
+          "stateHash": "4102413cd860719833582c45a8bb4b862d69182c8c591f880beb73772dd3f544",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -102572,7 +102572,7 @@
           "rngState": 2147029303,
           "logHash": "6ed77b1618170d9a0c823fce98008779a92e90eabc111a0e6fe1a5d3ad764d3a",
           "logCount": 805,
-          "stateHash": "45e44eeee1819775421fb08acb9f11d8cf60024db3cbe055ba6c8133c00270c9",
+          "stateHash": "030af7f91045a00e9ae93db8b7ee278dbe5fca1a64dea0a6249d8c203d214ded",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -102665,7 +102665,7 @@
           "rngState": 1451252436,
           "logHash": "5304dd4658944dafc0b5e365efec81229c44c99299f7f8cf6262fb2bcf23298c",
           "logCount": 833,
-          "stateHash": "2343a0f0cb4ec3f6d4eea7ed85593114f04bf52030b9df7c603d81878f39cb9e",
+          "stateHash": "40619d02dd7a370227b508956b7fffc616e51cca31a7daa3591e6ca2c293cbe4",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -102694,7 +102694,7 @@
           "rngState": 3218877052,
           "logHash": "d670ab358cabb1682070691bc5ad14f8658db34a087ae42c803351deb1b776ee",
           "logCount": 846,
-          "stateHash": "261f5f7771a430a685a439b4c58c3eda7792a2830d09818320e579d39f573cd1",
+          "stateHash": "11b005e247a3cd28bb886f5d7363ae17f99fee747844fd13089e232d5920bf38",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -108464,7 +108464,7 @@
           "rngState": 3127961452,
           "logHash": "c91742fe18646afeb5e8c9d327e0f664b40fd9e26ae097a5f20555a11607acc8",
           "logCount": 2626,
-          "stateHash": "8d2c4e5f7fbc5df6eb19e469b7444e17e6123ff7912121cf4aa88c2035f3232b",
+          "stateHash": "b054b4080ed51b6b7539f5602231ce2af0b63fa0783285d4458db4599622e4b7",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -108524,7 +108524,7 @@
           "rngState": 3631914728,
           "logHash": "eafd48cd6b6bb328b5bca321af177d174ef487cc0cb608ed944729120ebf655e",
           "logCount": 2652,
-          "stateHash": "bcee08dee49a6426ad7cae1062985a0dcbfec6c45c240d51f451ed65d33ed202",
+          "stateHash": "839ecabbeaaa6b5dc5987eb7c33262fe5ed06e032ba407b2bd284b2e773ae0b0",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -108984,7 +108984,7 @@
           "rngState": 3399793547,
           "logHash": "80fbe704e7ce2c3d30ae3db828e8b4defd6a574d8e6070b0ca7b90681441dd74",
           "logCount": 23,
-          "stateHash": "361ec76ed68f593a293b2d8858b82d44e6c1878b8f6f666a2009ff5f07313ca9",
+          "stateHash": "dddaa30af62b7f8e2e966beb0fe3ca984eba51b44b6f35d8223cc1ec91e04613",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -109007,7 +109007,7 @@
           "rngState": 3967688020,
           "logHash": "50f0fedb49a8f1debce3c0a16fc52c558ce467fc0f2ef402a29a394d90fccb4b",
           "logCount": 38,
-          "stateHash": "836955f8e7e12a1ed73718eae3bc4b05b6049842fec4ea68f056f4f79fff840b",
+          "stateHash": "f32dabbf7ad6ac69351e40ca6a6475861b7ed6d4cf895a26d1b905bd9ea1c1d4",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -109202,7 +109202,7 @@
           "rngState": 4279817705,
           "logHash": "3507eee1a3eaebd655f9b9692b183869d49c002ec68c29adbbee5cb82247dd3d",
           "logCount": 85,
-          "stateHash": "f775576b2c35375a9e10ab43d1eafb1e153f209b43116841e2a523ee382a241e",
+          "stateHash": "1ecd0596977080db9a8ccb06a5ac28c37b0e67f0f27389910d9cd0ed9f6cdc9f",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -110480,7 +110480,7 @@
           "rngState": 1850052219,
           "logHash": "443110b7e6283104d42a6b66b14925f13635c2b75537c22c9926767e2c3c5f60",
           "logCount": 399,
-          "stateHash": "b8eb77723990ba91cd76f7e8b2c4668cc50cb919f85a6dfb41b8c43e401691f4",
+          "stateHash": "1fa3f644246f3e3246caeb88191588a3a0b80eb810533968e887774428ef4160",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -110813,7 +110813,7 @@
           "rngState": 834569367,
           "logHash": "7d0da36bec0b3ccd4c362fca65bb60f8569d09a4aeea93370f5ed6eb9e777832",
           "logCount": 489,
-          "stateHash": "f76ac5425e1a66939e79a69209c4023d8c5daaf6aef09864dfee62511ad7367e",
+          "stateHash": "88cbcbda3a29235c556fb6bb7ceca0941f5942c0463da5364496e6b5c66c7370",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -111672,7 +111672,7 @@
           "rngState": 315463491,
           "logHash": "91227e092f1efaf40166404fdb170e94db01844f6830c0ed030cc8d1c3143b36",
           "logCount": 739,
-          "stateHash": "25b108ba7d7032be5087335ae397d57fa7627c143973d54fde97eeed9900314c",
+          "stateHash": "e2a940154ccc99f1ef9d576ac735169879e8d14cbb30c34504136c963f835f4b",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -111735,7 +111735,7 @@
           "rngState": 2083088107,
           "logHash": "a09a274738d0fed95d1e87548a63ed122160d5d78623cb1cf4df74d79ae9218c",
           "logCount": 763,
-          "stateHash": "f59da4a0ba705db0c8b2761b82905612733878895e2cf84bdbb3fc9f4f1218ef",
+          "stateHash": "0dee69d773c9bb5d8432632032439de6451500f486114a88ef37fb1552553898",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -112805,7 +112805,7 @@
           "rngState": 3771618926,
           "logHash": "03c6eceeac4eaa82366f6d62a9775d51b0a99a41609f7d1b5215c82d5fe82e22",
           "logCount": 1073,
-          "stateHash": "c628fc3c8493bf3279c7cb7122f17aaa4f97380bc227e2e86b4730407697eff5",
+          "stateHash": "114a23821b16372402c3787c1e957b124a0850ba2eca4e7dd0dbf3d453b39c48",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -112839,7 +112839,7 @@
           "rngState": 676381773,
           "logHash": "781c680a442135d315e1ccc0fc2faea527beb391c9e78558d62d27915c511ed9",
           "logCount": 1085,
-          "stateHash": "61cb233e2bfb9c68481319a2ceda252628b983b3d29e09922127cce7985bb091",
+          "stateHash": "5aabf8c2767d26c25c47e2510725a414dc173e9d2f8a2fafc8ea26a29fb5e6bd",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -112970,7 +112970,7 @@
           "rngState": 1748229522,
           "logHash": "be69bd41225d18500a3c0e8914f5502cc9c63cef9a7d5dd06ae30bce807c8b4b",
           "logCount": 1125,
-          "stateHash": "85d947f6b8ddb32598ddd49645df22c55355d5daa4cc23012ee7c12e17d73452",
+          "stateHash": "82f5d7e6cbeb75404843ec856d483353e367c3a939b0427dde49503efda844b6",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -113073,7 +113073,7 @@
           "rngState": 2820077271,
           "logHash": "37ef5400c0a30b5d9726af0267c56dbd2d67f1b22ace5541c9affdfb44acc1e1",
           "logCount": 1164,
-          "stateHash": "fc0f962b459881ed081560a6a31ed78bde8ed338a41661c4524163d56522b050",
+          "stateHash": "cb09396eb0ab27ad9e3822f67c5138cbb3c4b9536bcece3aa600604fcf7f13e2",
           "kinds": [
             "heroSkillActivated",
             "skillFired",
@@ -113295,7 +113295,7 @@
           "rngState": 3827983823,
           "logHash": "190efee0f68a12f24c57320f8f7833ea8091a37ebd7e5c2d0d2baef26930dc24",
           "logCount": 1231,
-          "stateHash": "aa6028de228d4f18f77956660d461c3ff0e02208d3cfafee07a4801210bff53e",
+          "stateHash": "bfea1381ad4fe5a2ff5dafa52e1963971b112020e35be4b1987ec664017c397d",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -113403,7 +113403,7 @@
           "rngState": 3700101429,
           "logHash": "6b0206af9e096f876e7c84194f08167974c466405bf52a88842491b4d3cd2698",
           "logCount": 1270,
-          "stateHash": "74cd71cfff2743b588dd686d578a542db4910173c9294be84fea7cbec9bf24db",
+          "stateHash": "1aadd5900600f501442a4442ef6f9c0aa9c75aae4a85551c3503ce76c8cf2547",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -113438,7 +113438,7 @@
           "rngState": 4267995902,
           "logHash": "de06f70ce19694ab0142df5b412cef73cd56dcdcf1eb7e22d9269691ea7e50f3",
           "logCount": 1280,
-          "stateHash": "db5fa2f40d31146738c9986db55d5d899cc4a745716428e7de0caa8a438a5f94",
+          "stateHash": "62491053d9d3c244e459c47d0955eb898780f3fbd8bddd1d0307cafa09655039",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -113628,7 +113628,7 @@
           "rngState": 285158291,
           "logHash": "01eb54f07dfcf63aa8df7c3af634e5c2da783f44e595bf831dae0d3226a35555",
           "logCount": 1344,
-          "stateHash": "c637ec0b908dde53b0553c332343a4550a5d791422531142bd2e0e4351577d4c",
+          "stateHash": "7afbec175c0a055b6649d3dd9a20b0f508cc6fcfd3be7be30d8c64894c8fac88",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -113660,7 +113660,7 @@
           "rngState": 1484888434,
           "logHash": "daed900a191c41e9ee4f4eea569923e0801d75e727008448fc07d0b2bd861728",
           "logCount": 1354,
-          "stateHash": "b6c5ff5b5cf3eb9b91e445965866231a24dbb2b1b97e6fce488e53bbf014a3b9",
+          "stateHash": "bad0095925a6f1a458fb8cee288f12e2792d597b3d5d88f8db627b8d3b41495d",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -113688,7 +113688,7 @@
           "rngState": 2684618577,
           "logHash": "424ad5b6a5457fcc84b4402d51576ec3b6ae237333ceeca849a61ff6d8a8e6b3",
           "logCount": 1365,
-          "stateHash": "47ad72726f99e2c5024964867d93ce14e6bc10fe8531160b99d57527dc5628b7",
+          "stateHash": "1f8d6cc68b2d4d4355bf69763bf75e726b9a9fe9fe5633e52057dd6e74650717",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -113771,7 +113771,7 @@
           "rngState": 3188571853,
           "logHash": "8897ea102f2c7a518c2fc43ca41ca2bdd26f5e3652718803491b46be4fd0effb",
           "logCount": 1386,
-          "stateHash": "9f2325dec40cc2907ae21c224f36a22ac4f65b8636e0aad606a0ddf269c705be",
+          "stateHash": "12cda8b5bce70535fba3b2bdb79d6130003de591d45135aa9a88cd5287757554",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -113854,7 +113854,7 @@
           "rngState": 1733076922,
           "logHash": "d07575b866b7fa438957c694a220c81e3a30f657d28ff3a55092f03463aa98eb",
           "logCount": 1417,
-          "stateHash": "d114b7ce9d8de8edf559f73a96ba867c9f02ef24e738afff256c696ad73103c8",
+          "stateHash": "0b8e1a6999c1d382aae3702e122f65f1db83da74b7dbdf306d72f04febe0c81b",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -113916,7 +113916,7 @@
           "rngState": 2237030198,
           "logHash": "64849c4497c041e1db92ab790e702d5f68a5447a20310ff587fe8370b16cfc7c",
           "logCount": 1444,
-          "stateHash": "c52e79231dcff6aec241a4c2b6666d755da5e4513d54149d0891ddac94a96066",
+          "stateHash": "8b03318b1e5b614365db4da949c96f5bf6f7f6a4480728cf3fdb397e64e16c7a",
           "kinds": [
             "jinnangAnnounced",
             "duelResolved",
@@ -113976,7 +113976,7 @@
           "rngState": 341523188,
           "logHash": "accc79835576ef73f73cb9b78e82a38d1c17e2bc7f31992248d940bbd2bc2641",
           "logCount": 1463,
-          "stateHash": "fc0fbbb6396fbd0afed1610d9474c3034f6db0c196230669bb9a9381379629e0",
+          "stateHash": "84448702ad7ae51aaa1531606bf6d8b1d3966f393984036009638d6354bfbf45",
           "kinds": [
             "heroSkillActivated",
             "skillFired",
@@ -114941,7 +114941,7 @@
           "rngState": 262429391,
           "logHash": "950db119bf8c044862d6d4d2506490fe6a63a3f8d06d0370e048dce2d777fd32",
           "logCount": 1744,
-          "stateHash": "14c2f1a2f8272fb2d4c43cc857ebc2dd8bfb9ccb7fc9d2a32f3a12e19fa18725",
+          "stateHash": "fc88e154bcbea6d3bdff083a9de799d0a7574e610f02b11fb09073f2d4262e1a",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -115104,7 +115104,7 @@
           "rngState": 3733737426,
           "logHash": "fba75d71181fc3f9c3dc52324a0ccad1e02822b89f9889a5f97445446e80c555",
           "logCount": 1795,
-          "stateHash": "26654430bfdff7ed4f2cd093064d56006df3bfe7ba6acd612790606989d5326f",
+          "stateHash": "07a6e19f7bb1ed729919662992203205531493f881d1209779d66707026fe89a",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -115159,7 +115159,7 @@
           "rngState": 1838230416,
           "logHash": "39fa8a1a44e889854ac46c858e85dde7059908ea6a52e36a03f533c0f8178768",
           "logCount": 1811,
-          "stateHash": "5570c3faa605cb42f06161cb1cb62e08736c642dc9a3e715358f0953c935209f",
+          "stateHash": "bacf7c19c622e246929e41569e4b14ec46fa964311ce7946a52cf6fbaf65c42d",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -115266,7 +115266,7 @@
           "rngState": 2278242495,
           "logHash": "47b494bde8904408a22fdb11775bb0e50da20c8ad276cbe5c38652367b8b91d9",
           "logCount": 1851,
-          "stateHash": "96dd387d4413c1c1bfd7d83d39fe957e94cda4db176e5c0d34f9206376af2ace",
+          "stateHash": "42ab1ae1f558a590b0e14ca0db8ccfea5d1ccf46db568940b725b441b55da568",
           "kinds": [
             "heroSkillActivated",
             "skillFired",
@@ -115331,7 +115331,7 @@
           "rngState": 4045867111,
           "logHash": "c2e5e5c5cfc5a7819d1f96af2fa419254e42b5e6ba122c6f6e90ac122b005b79",
           "logCount": 1867,
-          "stateHash": "0718fda81756b249b8c001493a01fc648ac6d68ea99030687c51d7c29cb53877",
+          "stateHash": "d6249ba05e3493e526d375d51475ed159bde4f44082f29407b6624cd849d6062",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -115383,7 +115383,7 @@
           "rngState": 3350090244,
           "logHash": "02f4f1d224d2d992a0d37a080c6c56fe338b633821d6eae1a79a6ff53b58547c",
           "logCount": 1883,
-          "stateHash": "8ed966775cedecea2fb3d5cf3f740d6627c77efb0c3b4754328ea4326a254315",
+          "stateHash": "a2b68054ce36bb67e475c1f871cbee2155c54db4d77491a3d5913fb6acf5f901",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -115435,7 +115435,7 @@
           "rngState": 822747564,
           "logHash": "6d27ab5ebd4a689bb6336f48b84bb22915bc9b740a2113efba30a27441a67338",
           "logCount": 1901,
-          "stateHash": "729a722cdf240c63272525aaf33e57e5ad2a7f8d5b54a188f888d3661c75e2ff",
+          "stateHash": "5a2eee523011149b72c58d659789aefb9088d4cd16005bcd19124a72387b17ac",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -115498,7 +115498,7 @@
           "rngState": 758806367,
           "logHash": "f9dae7215eca957eef12dfcae10300d5f13dfb93b530aacd875246759e84a8eb",
           "logCount": 1919,
-          "stateHash": "a38a2ded0b78d7a68b20679340a6b65426cfb6feae23c5bb435ff8c1f6c7b7df",
+          "stateHash": "a20763c25b5933f1be7aa17bf656fed9ed20be931301639e491dacfe333089a9",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -115526,7 +115526,7 @@
           "rngState": 3158266653,
           "logHash": "e0dc2db18a432ebffdb106c713deaf1be3d40fa66b60d40cd0eee1e4109653ac",
           "logCount": 1930,
-          "stateHash": "8bb924ee4d32c0ff4fcd8816ba605bb63ae98ab684b7a0d9d2d545830660f830",
+          "stateHash": "cb12fdb1d6c6b3d1541139e9d6795f96a90e97f1d71cb6f55ddac6db22ecb2c8",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -115556,7 +115556,7 @@
           "rngState": 63029500,
           "logHash": "90e9b052c1a38a889f2c176d87792beedca805d00465fbdc560ff936c3c2dc9f",
           "logCount": 1939,
-          "stateHash": "fe4a60979c1c3146a5217cf727c369c2568edef4063272a8d5ad8b8586c4b134",
+          "stateHash": "677ac6ccc6b5a097919fd219eed7bf6e958ae58cb9aed874d6dcd50aa326e647",
           "kinds": [
             "diceRolled",
             "cashChanged",
@@ -115643,7 +115643,7 @@
           "rngState": 4294055599,
           "logHash": "055a0fc277757deff8c750755fc3343cde3eda9e2f11117c329d98106a2113c4",
           "logCount": 1968,
-          "stateHash": "e3190b652d5bdd6a66838487914dce281b474216a4a98d04d85b886161a671ab",
+          "stateHash": "cc4bbbcecd1d89de5de2a15ec126990bb7cbdbd91f3c3ca2e2d1a5110c68de6b",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -115672,7 +115672,7 @@
           "rngState": 3030384259,
           "logHash": "b1978e75d0283f5a495569e38411dd49701458b8aac6291d909389837e6c06c0",
           "logCount": 1977,
-          "stateHash": "b6fc38a13976ada96cf4b537c27161a16609d0a0145b1a9303cce2d05479a807",
+          "stateHash": "3a30d1c971dd5cd4de73f2906e7a7acc4e49abc480969bd0ec6f587a4ac9d900",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -115761,7 +115761,7 @@
           "rngState": 1070936052,
           "logHash": "dac346cd4310996ccd9b9008072ef3dccd987acc19ba474af4cc3f73aef67661",
           "logCount": 2008,
-          "stateHash": "b7d444c8a00760280498189123c5d6da3a6b6b327409e970ed8228d4dd5fa6d9",
+          "stateHash": "2475a3cb098d37be41c83a067e5f32d3dd741905cfccbdee05914388b5c5a1ee",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -115843,7 +115843,7 @@
           "rngState": 1574889328,
           "logHash": "0e373a21d856bd1704dee3269475a4c1a9d2cdb31920ebc2c1a7273aed0e8b9a",
           "logCount": 2036,
-          "stateHash": "2c4ede4db3a73739205b253a9223edd944d6ca82c97b262376f521449369dfeb",
+          "stateHash": "494d6d40e87978b7f0288d87008da2231bfd14b66d4b8a08f7fd5786910ef302",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -116070,7 +116070,7 @@
           "rngState": 119394397,
           "logHash": "ac0253c0ff9295dfa3341f55045d0fbe9b0aa9e6eadfd75052bd818ab56b44c1",
           "logCount": 2107,
-          "stateHash": "c63ced7fef7284d74ab14fab966f0c682b503cf33a6b91c75fe782c02109a3c4",
+          "stateHash": "5a27bc56716c17a891f94a287ce48e5c2317025937c99954949ddd4e377eb14a",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -116150,7 +116150,7 @@
           "rngState": 3086749156,
           "logHash": "1276929d0237ebdfb8001bdc8d46801c4988c4eb236c0f97bb57c0c94e6ad2ae",
           "logCount": 2138,
-          "stateHash": "fc6ab2a0b1c3c23248d53e44bb2bcc325a278977374e3aee852cddbaec825ffc",
+          "stateHash": "861b37f7615ce934602b17ff9c67bf71f31dd65d424f2506f120a3c876dca6e9",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -116280,7 +116280,7 @@
           "rngState": 1759136619,
           "logHash": "f3bda5535ec1523b550489c842f3441bb98ed4e2a92fa6952c5a98421fcde37c",
           "logCount": 2174,
-          "stateHash": "c91ff25a0dfa7c633d8ff4b9baaf7443ae52655d1c88522df274532de96b2bc1",
+          "stateHash": "b24bf6cb3b103c6b094b966f788452e9b1a4c99999e30188bdc74209364a78e1",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -116553,7 +116553,7 @@
           "rngState": 3334937644,
           "logHash": "42bed5c7091e077afd6896c2b91aaf8bbe38939e5d241bd4ede4d6d408f5e4db",
           "logCount": 2255,
-          "stateHash": "5a08c3b7c551f47f5f89dad350d23fac169be5cb9fb87991174006094e8000d7",
+          "stateHash": "c21fffeb2ab8fdc8747b1268312607bc22a42dbc34d71b9b2682d51387594cc2",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -118671,7 +118671,7 @@
           "rngState": 1281243040,
           "logHash": "7bb9f875c6564e71915bf509b1076d7a3a524bef833e157204f5a18ff783acc5",
           "logCount": 2867,
-          "stateHash": "a4f11f3b703a61bc3364e6ae2005beff1ef96267637dff38c8b3dd8494405a9d",
+          "stateHash": "7112b19e376b0d37ad67732a0d5208eaa33629267712c08c6545129ab4807d87",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -119349,7 +119349,7 @@
           "rngState": 2473396883,
           "logHash": "da67471be6b33af2aacb091b6b0792636f88635679cbf0a8d76d9f6fc172beb4",
           "logCount": 3066,
-          "stateHash": "0816204b8b22c0993d14aa0d6a701d645b3a7223c32c46b6185ce79cdc9b8dc8",
+          "stateHash": "7b767c753b68526c6e230088f126b4da4bd8b5c8f27e070c63db0a77b4c423c4",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -119429,7 +119429,7 @@
           "rngState": 577889873,
           "logHash": "b4e90fbb5400a4a582f58d0e3421a950c52ae8955a5a38c6c9193eced6f7a790",
           "logCount": 3092,
-          "stateHash": "26d419c6d3967f254ab3ca690c50ff4e7a2bb25989ceb6cb1238f154b3ef4525",
+          "stateHash": "93d36af3af8947d022c787809cf80decd83c7dc5ce69d87eb19e7cf2a4ef4058",
           "kinds": [
             "heroSkillActivated",
             "skillFired",
@@ -119481,7 +119481,7 @@
           "rngState": 2977350159,
           "logHash": "5dcaaaa16a3a9c58199e0fc741aa66998a3de2b82eb3080e0ba6a5cce7f451d6",
           "logCount": 3108,
-          "stateHash": "a5fb23c09ee650edb6aa1ca09c09d661ab69ca87f91a934a53f83b815fa3c5e7",
+          "stateHash": "a1390f2160b7fec6143e34348b21a14c3ecc5e9427e7b9a77ecfdb32aa6dd8ce",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -119741,7 +119741,7 @@
           "rngState": 1248521750,
           "logHash": "dfe0fd4d2808fc433df01e81d7858c97978400cc5ecf02ee947967bf608cd801",
           "logCount": 73,
-          "stateHash": "0d7c8b88bd6f2fa7de34eff33d0e92bba435aef5c93aae4d76fd6f3d0012cbe1",
+          "stateHash": "3b4e23d045d38b118ced6d0d8914a5d7858910ab26262f82e72d145097c03426",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -119810,7 +119810,7 @@
           "rngState": 552744883,
           "logHash": "846e37fa04216d1aa32045aaecdccea24a95a129cc2a1c194b7d8f124cd6f053",
           "logCount": 88,
-          "stateHash": "3df5effb0ea48ff886b062837f59136c069f0f687869384e6e8b214c5211beda",
+          "stateHash": "af92ef1a9af1eaa2a00b94e4f81f08894e190173bf69fc29a9faad4e17d137bb",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -119926,7 +119926,7 @@
           "rngState": 4024052918,
           "logHash": "c984e15bb7c868efe52de7f5c8f428b3264aeee578df2440f92482ce307364bd",
           "logCount": 119,
-          "stateHash": "11af7d1a4ba80f93c1cd42db1d2370896f16b95622d5f86784e5bd0d9902059d",
+          "stateHash": "7b72cbb67b185c01473c76337f7a329b100c7d589a719f9a73d15f5fda71957f",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -120746,7 +120746,7 @@
           "rngState": 26062707,
           "logHash": "9ccb7ef08f21fecb72ed5983396e045e74538b9820e3d9dd8265ca3a6dc40491",
           "logCount": 300,
-          "stateHash": "589f7ba4de6ddbc06079b6367e5b188bffc32cf6c973987cf7cbefc22200a64e",
+          "stateHash": "0bac436dcc83f4ba7c26eced4b9e356a2f94561c1cc91faeb2f36c4ff1e7c0fd",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -121129,7 +121129,7 @@
           "rngState": 1977934614,
           "logHash": "b9907c2a7f8600f2289929eb72e4520d25b889f3f569a6a80d1ba67806ba59fa",
           "logCount": 391,
-          "stateHash": "1b547e6b1c85a7119a1181cd9731e393a6975b6b97cd4f22d96ad9cdffde0a4a",
+          "stateHash": "b04ae6ca40ff970ad00a17c98f785058b1533066d8b9429a3c4e36606251a332",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -121733,7 +121733,7 @@
           "rngState": 578804580,
           "logHash": "7c6b8c6f6fe876f2936d81866707711b47e16dd40bc21cf83804d0dbeccab343",
           "logCount": 544,
-          "stateHash": "3776787c0006e7daaa4ff5a1b358321018444cc491e289fb24d9f9d622d4d23f",
+          "stateHash": "cc84909573bee54011431cd0343bb100448baddf69af2024e16b1a0eb2623e4a",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -122503,7 +122503,7 @@
           "rngState": 819416768,
           "logHash": "3b89042a4b21d71faf543fd8ea7458795b98e4f30af0007a64e21c1d5663105b",
           "logCount": 738,
-          "stateHash": "91882e1b2a09f8ee3a0965ea35103a031983fbf4bc8d61e9e0e19590ce6dbbfb",
+          "stateHash": "b0e29328859bcdeecbe7c7e1189cf460f7785ccdb849bf540e0b9c042385055b",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -123061,7 +123061,7 @@
           "rngState": 3715254030,
           "logHash": "50f6265b878e8a4a19e00a7486c6ff9020cf9d20df3ffd1bb9f2b8ffd9c1b36f",
           "logCount": 883,
-          "stateHash": "146ad25e8f7d26a083bf2d1db2c85848f3e02e8d1fdcb80b5aa92c1530cc05a4",
+          "stateHash": "953ed3e855d486af6c978c1791f8d22bcb1dd9f6188b892429872ba8aa41ef3a",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -123211,7 +123211,7 @@
           "rngState": 428193286,
           "logHash": "50bd4313541b2148cf30acf8d5f977421053e8b9f74604981170d25927780cf2",
           "logCount": 921,
-          "stateHash": "41cce948cd9431d1689dfc47cded3b4fcdbd237e6a9b40e76af5d467a64619c5",
+          "stateHash": "989ba7624bf28fa26f7ef9b88135b898edf3b44fb8bf9b45e398782036b9efec",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -123740,7 +123740,7 @@
           "rngState": 1428523538,
           "logHash": "b234c459ab17f3c25b2ac57933a790023af822930034a21b87abcefeec087215",
           "logCount": 1050,
-          "stateHash": "ab0e862109be9eb96c58e7f6768846a814b643a54263aa2512f50d1ce26ed132",
+          "stateHash": "409fed4d81dbfa1e7c0a0e6ffff46d8d4955d48a88cfa987cb642c83bf638c89",
           "kinds": [
             "jinnangAnnounced",
             "reactionOpened",
@@ -123862,7 +123862,7 @@
           "rngState": 36969804,
           "logHash": "c480f8f2b41dca3a7310c41622890d16efaeb839ef7eff0d582818350985ea1c",
           "logCount": 1095,
-          "stateHash": "88b4dbc630be3251fab629fc4ef1cb3ca508b97aae931a42151e0e0ad74962c9",
+          "stateHash": "55644d7205bf23020088a16640d9c004a064429a2d31439608fe5f5f70caf9c2",
           "kinds": [
             "jinnangAnnounced",
             "cashChanged",
@@ -125727,7 +125727,7 @@
           "rngState": 1078512353,
           "logHash": "50c2893cd8cbbb1ac6b533488d17d408c72e3f9e186e389f66d239609e021652",
           "logCount": 1596,
-          "stateHash": "adb0a974cb84c7f2cb2171d8f085d7f44a56ff8b83a05a385a4f3f3144ee9502",
+          "stateHash": "93ffdf12800588f7d611fee1dd2532d027ad0a61e049e2a7faa391998a5ecd73",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -125758,7 +125758,7 @@
           "rngState": 3477972639,
           "logHash": "ea7d80f5c696ffffdfa86ba74e2426cb761fe0be29f7fb24abc369f9ba5694e1",
           "logCount": 1605,
-          "stateHash": "c7723f9ed90440ad21deb349a09ba33cc1ff035d8a4beed69e180668e45894e5",
+          "stateHash": "1487bfcbab496827da3643dce484b40e788e9b4089c4e84fb9ba321f8a0e5f25",
           "kinds": [
             "heroSkillActivated",
             "diceRolled",
@@ -125808,7 +125808,7 @@
           "rngState": 950629959,
           "logHash": "713e0d91bb8fa977d607c35d1b76966812fda8d46c02e822a3cf7249243375af",
           "logCount": 1625,
-          "stateHash": "54462d01e9917e6e4f1a6910e9786a6caf1fe5139dd8940b08382c347f59acdb",
+          "stateHash": "570d8605f235ac6171245dd3353614344a013ed2ff320f4eee14461029e80a31",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -125839,7 +125839,7 @@
           "rngState": 2150360102,
           "logHash": "3eca17c97f8e841d4d8ecfe53be229a315e6ca8f7ae6f33ee08b79a8c4577728",
           "logCount": 1631,
-          "stateHash": "f2a38dfad272291d7e9ff41fbf3ee31ae42686408002595c44fd322fc1807fb6",
+          "stateHash": "b87b7ca52e95412ccc6ec86814f929a024f1a8ffbcaae195457727b35c8a0c43",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -125866,7 +125866,7 @@
           "rngState": 2086418905,
           "logHash": "e2a9f04bbd5859dcc8011eea2e929219f5c6f67b1219674fb9ad3a64b38301d7",
           "logCount": 1643,
-          "stateHash": "9dbc9c7486a8c39f68dedb689a87e81a1e710b57fd1d0f80b648ad25a4c3df29",
+          "stateHash": "662cea42d6770db1ca7113b9b08a18bdb8cda1b68886a35f4b2a89c3ae137278",
           "kinds": [
             "diceRolled",
             "reactionOpened",
@@ -127330,7 +127330,7 @@
           "rngState": 2943714163,
           "logHash": "0b68af16e5d7063b1c5b55575b6051371736b6b89277b75b2600f72bc1f5051e",
           "logCount": 2029,
-          "stateHash": "078563f14f4b3c0fba49bc8fb1df29144a636a69a87c7db0df5cb5420683ad5a",
+          "stateHash": "f03dbb67753aa2f99e73aad18bd2c5280439e67d0589ea14927e8071e32c817f",
           "kinds": [
             "skillFired",
             "diceRolled",
@@ -127361,7 +127361,7 @@
           "rngState": 2879772966,
           "logHash": "d60b96f4199cb50c77bb0f06af0df5fe547bb1ac52a3df5a7af9778d2661ad9b",
           "logCount": 2039,
-          "stateHash": "815b54222b4602fe2316b4dd68c11292e2bd53093b9c911ef3c9127855bbc300",
+          "stateHash": "f16bce488a4f9597e027dfd5d2af59740cbd174570f35b4761c8631dcc688b34",
           "kinds": [
             "diceRolled",
             "reactionOpened",

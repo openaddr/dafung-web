@@ -123,7 +123,7 @@ export default function ManualEncountersTab() {
                   type="button"
                   aria-label={`机遇 ${e.id}`}
                   onClick={() => setOpen(e)}
-                  className="cursor-pointer border-none bg-transparent p-0 transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-0.5"
+                  className=" border-none bg-transparent p-0 transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] "
                 >
                   <EncounterCardFace encounter={e} data-testid={MANUAL_TID.card(e.id)} />
                 </button>
