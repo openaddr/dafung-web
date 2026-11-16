@@ -143,7 +143,13 @@ export function ReactionBanner({
         {text}
       </span>
       {shareSeats.length > 0 && (
-        <span className="reaction-shares">
+        <span
+          className={
+            import.meta.env.VITE_TOUCH_PROTOTYPE === "1"
+              ? "reaction-shares touch-prototype-shares"
+              : "reaction-shares"
+          }
+        >
           {shareSeats.map((share) => (
             <button
               key={share}

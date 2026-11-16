@@ -1,0 +1,58 @@
+/* #1402 决策样张，比较跨列常驻与弹层的 26 字布局。 */
+.touch-prototype-wide {
+  grid-template-rows: auto minmax(0, 1fr);
+  row-gap: 2px;
+}
+
+.touch-prototype-guohao {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 568px;
+  gap: 12px;
+  align-items: center;
+}
+
+.touch-prototype .su-pool,
+.touch-prototype-picker .su-pool {
+  grid-template-columns: repeat(13, minmax(40px, 1fr));
+  gap: 4px;
+}
+
+.touch-prototype .su-pool-btn,
+.touch-prototype-picker .su-pool-btn {
+  height: 40px;
+}
+
+.touch-prototype .su-pool-btn::after,
+.touch-prototype-picker .su-pool-btn::after,
+.touch-prototype .su-controls label [role="switch"]::after,
+label.setrow [role="switch"]::after {
+  content: none;
+}
+
+.touch-prototype .su-controls summary,
+.touch-prototype .su-controls label,
+label.setrow {
+  min-height: 40px;
+}
+
+.touch-prototype .su-controls summary {
+  display: flex;
+  align-items: center;
+}
+
+label.setrow {
+  cursor: pointer;
+}
+
+.settings-dialog:has(label.setrow) > div:has(> [data-slot="dialog-title"]) {
+  margin-bottom: 12px;
+}
+
+.touch-prototype-shares .reaction-seat-chip {
+  width: max-content;
+  min-width: 40px;
+  padding-inline: 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}

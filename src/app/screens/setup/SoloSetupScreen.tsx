@@ -36,6 +36,10 @@ import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
 import { Sym } from "@app/screens/shared/Sym";
 // 机遇开关(ADR-0035):Base UI Switch 原语套水墨皮(红线 6 表单控件收口,SettingsDialog 同款)
 import { Switch } from "@app/components/ui/switch";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@app/components/ui/dialog";
+import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
+import { RoundClose } from "@app/screens/shared/RoundClose";
+import "./touch-target-prototype.css";
 // S1(#34):配置卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
 import "@app/screens/game/scroll/scroll.css";
 // #497:本屏局部样式(起兵 busy 呼吸 + 矮横屏双列档),同 home.css 口径(screen 目录内自持)
@@ -104,6 +108,14 @@ export function SoloSetupScreen({
   const mapName = useMapName(mapSource, currentMap);
   // #751/S1:矮横屏档双列重排开关(左列配置/右列座位表+操作;桌面档信息架构零变化)
   const isShortLandscape = useIsShortLandscape();
+  // #1402 决策样张。只在原型工作区显式启用，供 844×390 横屏比较。
+  const variant =
+    import.meta.env.VITE_TOUCH_PROTOTYPE === "1" && isShortLandscape
+      ? new URLSearchParams(location.search).get("variant")
+      : null;
+  const widePool = variant === "wide";
+  const popupPool = variant === "picker";
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // P0-1:起兵 busy 态 —— await onStart(App 侧 loadMapById 异步)期间禁点防连击
   const [busy, setBusy] = useState(false);
@@ -201,7 +213,10 @@ export function SoloSetupScreen({
           key={ch}
           data-testid={TID.guohaoChar(ch)}
           aria-pressed={guohao === ch}
-          onClick={() => setGuohao(ch)}
+          onClick={() => {
+            setGuohao(ch);
+            if (popupPool) setPickerOpen(false);
+          }}
           className={
             "su-pool-btn font-brush cursor-pointer transition-colors " +
             (guohao === ch
@@ -212,6 +227,29 @@ export function SoloSetupScreen({
           {ch}
         </button>
       ))}
+    </div>
+  );
+
+  const setupGuohao = (
+    <div className="su-guohao-block flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <span className="font-deco text-sm text-paper shrink-0">你的国号</span>
+        {guohaoInput}
+        {popupPool && (
+          <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+            <DialogTrigger className="note-btn min-h-10 cursor-pointer rounded px-3 font-brush">
+              字盘
+            </DialogTrigger>
+            <DialogContent className="touch-prototype-picker w-[min(620px,96vw)] gap-3">
+              <DialogDragHandle aria-hidden="true" className="absolute inset-x-0 top-0 h-12" />
+              <DialogTitle>字盘快选</DialogTitle>
+              {pool}
+              <RoundClose />
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+      {guohaoHelp}
     </div>
   );
 
@@ -464,7 +502,15 @@ export function SoloSetupScreen({
             编辑位),右列「你的国号」区(2×13 字盘网格)+座位表+操作;起兵 sticky
             钉底恒在场。副标题/笺头在本档收纳退役(座次预算让位,home #707 降档同款)。 ── */
           <div className="su-card scroll-anim-unroll note-card w-[min(780px,94vw)] rounded-[8px] px-5 py-4 mt-3">
-            <div className="su-grid">
+            <div
+              className={`su-grid${widePool || popupPool ? " touch-prototype" : ""}${widePool ? " touch-prototype-wide" : ""}`}
+            >
+              {widePool && (
+                <div className="touch-prototype-guohao">
+                  {setupGuohao}
+                  {pool}
+                </div>
+              )}
               <div className="su-col su-col-left">
                 {/* 顶部回显当前地图(mapRow 单源,C10);S-3:「更换」就地唤起选图面板 */}
                 {mapRow}
@@ -474,21 +520,17 @@ export function SoloSetupScreen({
 
                 {/* 国号编辑位(本档归位):标签+输入框+帮助句,字盘已升右列(#765)
                   ——编辑与回显分置两列,输入即动(座位行/字盘钤印同步)。 */}
-                <div className="su-guohao-block flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-deco text-sm text-paper shrink-0">你的国号</span>
-                    {guohaoInput}
-                  </div>
-                  {guohaoHelp}
-                </div>
+                {!widePool && setupGuohao}
               </div>
               <div className="su-col su-col-right">
                 {/* 「你的国号」区(#765 右列顶部):2×13 字盘网格,选中态钤漆金印即回显;
                   横滑容器随网格化退役(竖向预算 26 格两行解,桌面档同构) */}
-                <div className="su-pool-block flex flex-col gap-0.5">
-                  <div className="font-deco text-xs leading-none text-paper-dim">你的国号</div>
-                  {pool}
-                </div>
+                {!widePool && !popupPool && (
+                  <div className="su-pool-block flex flex-col gap-0.5">
+                    <div className="font-deco text-xs leading-none text-paper-dim">你的国号</div>
+                    {pool}
+                  </div>
+                )}
                 {seatsTable(false)}
                 {actions}
                 {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}

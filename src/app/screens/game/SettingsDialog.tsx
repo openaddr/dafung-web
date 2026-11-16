@@ -64,6 +64,8 @@ export const SettingsDialog = memo(function SettingsDialog({
   const [confirmHome, setConfirmHome] = useState(false);
   const gameId = useGameStore((s) => s.snapshot?.gameId);
   const [diagnostic, setDiagnostic] = useState<CurrentDiagnosticGame | null>(null);
+  // #1402 决策样张，试点整行开关。
+  const SwitchRow = import.meta.env.VITE_TOUCH_PROTOTYPE === "1" ? "label" : "div";
   if (diagnostic !== null && diagnostic.gameId === gameId) {
     return (
       <GameDiagnosticDialog
@@ -113,7 +115,7 @@ export const SettingsDialog = memo(function SettingsDialog({
             开关皮单源回 ui/switch 底件桥接(#745 高4:.setsw 手写皮退役,on 态吃
             --primary=漆金,success 语义错位收口)。 */}
         {audio && (
-          <div className="setrow">
+          <SwitchRow className="setrow">
             音效
             <Switch
               data-testid={TESTIDS.settingsSfx}
@@ -121,13 +123,13 @@ export const SettingsDialog = memo(function SettingsDialog({
               checked={!audio.muted}
               onCheckedChange={() => audio.toggleMuted()}
             />
-          </div>
+          </SwitchRow>
         )}
         {/* 托管开关(#1097 收编,#1096 决议2;音效行同款形制):开=AI 代打(接管=
             自动托管,ADR-0028);autopilotSupported 门卫与旧托管钮/弹层行同款
             (联机/单机有)。开关皮单源回 ui/switch 底件桥接(#745 高4)。 */}
         {controller?.autopilotSupported && (
-          <div className="setrow">
+          <SwitchRow className="setrow">
             托管
             <Switch
               data-testid={TESTIDS.settingsAutopilot}
@@ -135,7 +137,7 @@ export const SettingsDialog = memo(function SettingsDialog({
               checked={autopilotOn}
               onCheckedChange={(next) => controller.setAutoPilot(next)}
             />
-          </div>
+          </SwitchRow>
         )}
         {/* 演出加速:信息展示(原型原样「标准」;用户档位切换无基建,不落假钮) */}
         <div className="setrow">
