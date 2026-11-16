@@ -36,7 +36,7 @@
   animation: home-btn-in var(--dur-slow) var(--ease-out) both;
 }
 
-/* hover 笔触下划线:2px 金色底边 scaleX 0→1。
+/* 可见焦点笔触下划线:2px 金色底边 scaleX 0→1。
    用伪元素画线而非 border(bottom border 会改变盒高/引起跳动),
    transform-origin 左起,像一笔从左划到右的笔锋。 */
 .home-btn-brush {
@@ -55,18 +55,15 @@
   transform-origin: left center;
   /* 笔触划入是刻意的绘制动画非即时反馈,归 --dur-med 而非 --dur-instant */
   transition: transform var(--dur-med) var(--ease-out);
-  /* hover 才显示;键盘 focus-visible 同样给(无障碍:不只鼠标路径) */
 }
-.home-btn-brush:hover::after,
 .home-btn-brush:focus-visible::after {
   transform: scaleX(1);
 }
 
 /* H-1 金底变体已退役(#497):主入口改墨钮后,原 .home-btn-gold 类名(金底,误导)与
-   「笔触线取反为墨线」的覆盖规则一并删除——墨钮与笺钮共用同一条金色笔触 hover 线
-   (金=势,hover 语言全屏统一),勿回加。 */
+   「笔触线取反为墨线」的覆盖规则一并删除——墨钮与笺钮共用金色焦点笔触线。 */
 
-/* H-4 键盘 focus-visible 轮廓:虚线墨圈(与笔触下划线并存,鼠标路径不受影响) */
+/* H-4 focus-visible 轮廓:虚线墨圈与笔触下划线并存。 */
 .home-btn-brush:focus-visible {
   outline: 2px dashed var(--color-paper);
   outline-offset: 2px;
@@ -85,7 +82,7 @@
    矮横屏窄带档(现 56px,#761 ⑥)只撤立绘不撤画心纹理,另定「完整一行字」裁切
    (见底部媒体查询 H1 判词)。
    .home-band-hero:周瑜立绘右端低透明亮相——纯装饰,mask 向左渐隐入深底,
-   静态无动效(§4.6 与方向 D:横带是氛围位不是演出位);#843 桌面档存在感提档:
+   静态无动效(§4.6 与方向 D:横带是氛围位不是演出位);#843 高视口档存在感提档:
    opacity 0.3→0.42、mask 全实点 42%→30%(立绘段宽一档)。
    .home-band-in:入场——画心自横向微舒展 + 淡入(与标题先行、按钮 stagger 的
    节奏衔接:标题 0ms → 横带 120ms → 按钮 300ms 起)。 */
@@ -156,7 +153,7 @@
    按压反馈(此处旧 0.97 规则特异度更低已实际失效,删除留注释防回加) */
 
 /* ── G1(#751/#742):safe-area 消费 ──
-   根容器左右 padding 与刘海/圆角 inset 取 max(桌面 env()=0 无感,真机横屏不贴边裸奔);
+   根容器左右 padding 与刘海/圆角 inset 取 max,横屏不贴边;
    未分层规则压过 utilities 层的 px-6/p-6,复合写法一行取大。四变量唯一取值口=app.css P0-9。 */
 .home-safe {
   padding-left: max(1.5rem, var(--safe-left));
@@ -169,12 +166,12 @@
    (MapStrip,JS 侧 useMediaQuery 同查询串分支挂载),二级选图弹层在该档裁切
    不可达(#684 实拍 home-844x390.png),随之「选择地图」入口与地图回显行退役。
    旧 max-height:480px 档(原 dogfood ISSUE-002 的纵向收紧)并入本档——
-   桌面大屏与竖屏不进此档,竖屏走根容器既有滚动(E1 #13)。
+   高视口横屏与竖屏不进此档,竖屏走根容器既有滚动(E1 #13)。
    #761 ⑥:844×360 零滚动收口——标题 36→30(组件侧)、横带 72→56、条带收带高。 ── */
 /* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   /* 根容器底缘让位手势条(#761 ①):py-4 的底档并入 --safe-bottom(env 缺省 0px
-     桌面无感;真机横屏地图条带不贴手势条)。取值口=app.css P0-9 唯一变量。 */
+     地图条带不贴手势条)。取值口=app.css P0-9 唯一变量。 */
   .home-safe {
     padding-bottom: max(1rem, var(--safe-bottom));
   }

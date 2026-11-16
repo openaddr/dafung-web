@@ -159,7 +159,7 @@ export function ConfirmDialog({
             {/* 传了专用 testid 时按钮随容器命名(<tid>-ok / <tid>-cancel),
                 e2e 无需知道通用/专用两套名字。danger 变体(#836):confirm 转
                 「认破产」同款朱砂警示钮(BankruptcyScroll footer 破产拍正例,
-                border-danger/70 + 透明底 + hover 淡朱),cancel 升墨钮主行动——
+                border-danger/70 + 透明底),cancel 升墨钮主行动——
                 权重对调但 DOM 序与 testid 不动。 */}
             {danger ? (
               <>
@@ -167,7 +167,7 @@ export function ConfirmDialog({
                   type="button"
                   data-testid={testid ? `${testid}-ok` : T.confirmOk}
                   onClick={onConfirm}
-                  className="cursor-pointer rounded border border-danger/70 bg-transparent px-4 py-2 font-brush text-base text-danger transition-colors hover:bg-danger/10"
+                  className=" rounded border border-danger/70 bg-transparent px-4 py-2 font-brush text-base text-danger transition-colors "
                 >
                   {confirmLabel}
                 </button>

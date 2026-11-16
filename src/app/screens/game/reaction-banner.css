@@ -1,7 +1,6 @@
 /* 顶部 B 分区。信息可跨行，倒计时、降噪口和出牌按钮保持各自的横向位置。 */
 .game-layout .reaction-action-bar {
-  min-height: 66px;
-  gap: 9px;
+  gap: 6px 8px;
 }
 
 .game-layout .reaction-action-bar:has(.reaction-timerbox.danger) {
@@ -9,7 +8,7 @@
 }
 
 .reaction-action-bar .target-action-copy {
-  flex: 1 1 auto;
+  flex: 1 1 10em;
 }
 
 .reaction-range {
@@ -24,8 +23,8 @@
   display: flex;
   align-items: center;
   align-self: stretch;
-  margin-inline-end: 5px;
-  padding-inline: 6px;
+  margin-inline-end: 2px;
+  padding-inline: 4px;
   border-inline: 1px solid color-mix(in srgb, var(--color-paper-dim) 22%, transparent);
 }
 
@@ -143,9 +142,6 @@
    谷值 outline 钉基态 + 亮金 ::after 叠环只动 opacity(layout.css .seat.active::after
    同款先例,合成器插值);叠环几何 = outline 外缘(-0.12em-0.22em),角部半径
    取 inherit 与卡同弧。front 卡 ::after 空闲(.back 变体才占用,伪元素查证)。 ── */
-.hand-rack-hand > button.reactive {
-  cursor: pointer;
-}
 .hand-rack-hand > button.reactive .jinnang-card {
   outline: 0.22em solid color-mix(in srgb, var(--color-gold) 55%, transparent);
   outline-offset: 0.12em;

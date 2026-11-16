@@ -2,7 +2,7 @@
 // 与 BannerShell 横幅系)共用同一份逻辑,单源在此。口径(规格逐条落死):
 //   - 模态语义零改动:遮罩仍拦指针、焦点陷阱/Esc/点遮罩关闭照旧,本原语只动位移。
 //   - 手势 = 仅题名行:pointerdown 命中题名行才启动,起点在 button 上(X/决策钮)豁免;
-//     位移 <10px 松手不算拖,原点击语义保留。桌面鼠标与触屏同款 pointer events,
+//     位移 <10px 松手不算拖,原点击语义保留。通过 pointer events 处理触屏手势,
 //     题名行 touch-action:none 防触屏滚动劫持(内容区滚动不受影响——手势只属题名行)。
 //   - 位移 = --drag-x/--drag-y CSS 变量,setProperty 命令式更新,不进 React state/
 //     渲染路径;消费方在本体 transform/translate 上组合变量(各壳自定,见 dialog.tsx /
@@ -86,7 +86,7 @@ interface DialogDragOptions {
 /** 一次拖拽原语会话暴露给壳的完整状态(handleProps 摊题名行、dimmed 联动遮罩)。
  *  命名避开局内同名把手组件 DialogDragHandle:类型=State,组件=Handle。 */
 interface DialogDragState {
-  /** 摊在题名行元素上的 props:ref + 四个 pointer 事件 + 抓取光标/触屏滚动隔离。
+  /** 摊在题名行元素上的 props:ref + 四个 pointer 事件 + 触屏滚动隔离。
    *  题名行内的 button 自带豁免(起点命中按钮不启动拖),无需另行摘除。 */
   handleProps: {
     ref: (node: HTMLElement | null) => void;
@@ -105,7 +105,6 @@ export function useDialogDrag({ popupRef, resetKey }: DialogDragOptions): Dialog
   const sessionRef = useRef<DragSession | null>(null);
   /** 当前偏移(会话之间存续;写变量与吸附判定都从这里出发)。 */
   const offsetRef = useRef<DragPoint>({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
   const [dimmed, setDimmed] = useState(false);
 
   const writeVars = useCallback(
@@ -178,7 +177,6 @@ export function useDialogDrag({ popupRef, resetKey }: DialogDragOptions): Dialog
         moved: false,
       };
       e.currentTarget.setPointerCapture(e.pointerId);
-      setDragging(true);
     },
     [popupRef],
   );
@@ -201,7 +199,6 @@ export function useDialogDrag({ popupRef, resetKey }: DialogDragOptions): Dialog
       const s = sessionRef.current;
       if (s == null || e.pointerId !== s.pointerId) return;
       sessionRef.current = null;
-      setDragging(false);
       // 位移不足阈值:不算拖,位置不动(setPointerCapture 下 click 仍落在题名行,
       // 遮罩关闭判定 e.target===currentTarget 天然不中,无目标转发问题)
       if (!s.moved) return;
@@ -225,9 +222,9 @@ export function useDialogDrag({ popupRef, resetKey }: DialogDragOptions): Dialog
       onPointerMove,
       onPointerUp: endDrag,
       onPointerCancel: endDrag,
-      // 触屏滚动隔离(手势只属题名行,内容区滚动不受影响)+ 抓取光标 + 拖拽途经
+      // 触屏滚动隔离(手势只属题名行,内容区滚动不受影响)+ 拖拽途经
       // 不选中文本(题名行是拖拽示意件,非选区目标)
-      style: { cursor: dragging ? "grabbing" : "grab", touchAction: "none", userSelect: "none" },
+      style: { touchAction: "none", userSelect: "none" },
     },
     dimmed,
   };
@@ -245,7 +242,7 @@ function useDialogDragContext(): DialogDragState {
 }
 
 /** 题名行把手节点(ui/dialog 底件系):消费所在 DialogContent 的拖拽原语,自身渲染
- *  为题名行元素并挂上 handleProps(ref + pointer 事件 + 抓取光标/触屏隔离)。必须
+ *  为题名行元素并挂上 handleProps(ref + pointer 事件 + 触屏隔离)。必须
  *  渲染在 DialogContent 子树内(provider 下游);元素类型随壳自选(题名行 = div/
  *  span/h3)。BannerShell 不走 Portal、不进本 context,直接调 useDialogDrag。 */
 export function DialogDragHandle({
@@ -266,7 +263,7 @@ export function DialogDragHandle({
   "style" | "ref" | "onPointerDown" | "onPointerMove" | "onPointerUp" | "onPointerCancel"
 >) {
   const { handleProps } = useDialogDragContext();
-  // handleProps 在前(事件/光标/触屏隔离归原语),调用方附加 props 与 testid 在后
+  // handleProps 在前(事件/触屏隔离归原语),调用方附加 props 与 testid 在后
   const Tag = as;
   return (
     <Tag {...handleProps} {...rest} data-testid={testid} className={className}>

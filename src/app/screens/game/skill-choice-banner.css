@@ -5,7 +5,7 @@
    联机停摆超时=看门狗代发「暂不发」,#1378 真修——呈现零自造定时)。
 
    裸色豁免登记(#510 后存留,同 reaction-banner.css 口径):rgba(200,161,58,·)/
-   rgba(217,185,92,·)=gold/gold-bright/lacquer-gold 通道。悬停微反馈统一(#490 微档)。 */
+   rgba(217,185,92,·)=gold/gold-bright/lacquer-gold 通道。 */
 
 /* ── 触发卡:浮置于架体(.hand-rack 为定位上下文)上缘带(反应窗同位);深墨面板
    + 漆金描边;宽度自适应(双锚 + margin auto + max-content,max-width 锁架体内)。── */
@@ -66,15 +66,10 @@
   background: var(--color-panel);
   border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   border-radius: 50%;
-  cursor: pointer;
   transition:
     border-color var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
-}
-.skill-banner-seat-chip:hover {
-  border-color: var(--color-gold-bright);
-  transform: scale(1.02);
 }
 .skill-banner-seat-chip.picked {
   border-color: var(--color-gold);
@@ -97,7 +92,6 @@
   padding: 6px 16px;
   border-radius: 4px;
   border: 0;
-  cursor: pointer;
   transition:
     transform var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out),
@@ -110,24 +104,14 @@
 }
 .skill-banner-btn.mo:disabled {
   opacity: 0.45;
-  cursor: not-allowed;
 }
 .skill-banner-btn.mo:not(:disabled) {
   box-shadow: inset 0 0 0 1.5px var(--color-gold);
-}
-.skill-banner-btn.mo:not(:disabled):hover {
-  transform: scale(1.02);
-  box-shadow: inset 0 0 0 2px var(--color-gold-bright);
 }
 .skill-banner-btn.qian {
   background: var(--color-lacquer);
   color: color-mix(in srgb, var(--color-lacquer-gold) 72%, var(--color-lacquer));
   opacity: 0.92;
-}
-.skill-banner-btn.qian:hover {
-  opacity: 1;
-  transform: scale(1.02);
-  box-shadow: inset 0 0 0 1.5px var(--color-gold);
 }
 
 /* reduced-motion:入场为直接状态变化(静态现形),同 reaction-banner.css 显式口径

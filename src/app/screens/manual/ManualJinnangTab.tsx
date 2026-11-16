@@ -4,7 +4,7 @@
 // JINNANG_FAMILY 族章字、面板五段=牌名/章行+目标域+牌库数/全文/脚注,样式随
 // jinnang-card.css 同文件自带)。卡面角注=牌库张数(copies,「×N」浅印,纸底画材色
 // 浅掺 --card-ink;children 槽挂入,卡面组件维持纯展示豁免)。
-// 交互语义(开合)归本件;选中语言=hover 金描边光圈(§4.6,名将签同款);
+// 交互语义(开合)归本件;
 // testid 消费 MANUAL_TID.card(id)/detail(id),id=目录中文牌名。
 import { useState } from "react";
 import { JINNANG_CARDS, jinnangCardOf } from "@core/jinnang";
@@ -40,7 +40,7 @@ export default function ManualJinnangTab() {
           <SelectableFaceButton
             key={def.id}
             data-testid={MANUAL_TID.card(def.id)}
-            title={`${def.id} · 牌库 ${def.copies} 张`}
+            aria-label={`${def.id} · 牌库 ${def.copies} 张`}
             onClick={() => setDetailId(def.id)}
           >
             <JinnangCardFace cardId={def.id} size="standard">

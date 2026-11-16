@@ -73,7 +73,6 @@ export default function ManualTreasuresTab() {
           <Button
             key={t.id}
             data-testid={MANUAL_TID.card(t.id)}
-            title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}`}
             onClick={() => setDetailId(t.id)}
             className="manual-treasure-row"
           >

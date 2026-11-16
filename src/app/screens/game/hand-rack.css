@@ -38,6 +38,13 @@
 }
 
 /* ── 手牌行:≤3 张全展(gap 3em,一期形态);≥4 张挂 .many 叠加压缩(#254,见下)── */
+.skill-rack-card {
+  flex: 0 0 auto;
+  width: 15em;
+  display: flex;
+  justify-content: center;
+}
+
 .hand-rack-hand {
   display: flex;
   gap: 3em;
@@ -69,7 +76,7 @@
   justify-content: flex-start;
   padding: 3em 2em 2em;
 }
-.hand-rack.spread-all .hand-rack-hand > button {
+.hand-rack.spread-all .hand-rack-hand > :where(button, .skill-rack-card) {
   flex: 0 0 auto;
   width: 15em;
   display: flex;
@@ -78,23 +85,14 @@
 }
 /* 扩的是选中牌的布局槽，卡面仍消费既有1.6倍状态。上缘承接放大高度与上移，
    额外2em保护微旋/描边；边缘留白随牌序一起滚，首末牌不会被滚动井裁边。 */
-.hand-rack.spread-all.junshi .hand-rack-hand:has(> button.sel) {
+.hand-rack.spread-all.junshi .hand-rack-hand:has(> :where(button, .skill-rack-card).sel) {
   padding-top: calc(20em * (var(--card-selected-scale) - 1) + 4em);
   /* 末牌也能滚到阅读中线，避开既有右侧拍板钮；选中结束即还原紧凑尾缘。 */
   padding-right: calc(var(--rack-avail) / 2);
 }
-.hand-rack.spread-all.junshi .hand-rack-hand > button.sel {
+.hand-rack.spread-all.junshi .hand-rack-hand > :where(button, .skill-rack-card).sel {
   width: calc(15em * var(--card-selected-scale) + 2em);
 }
-/* 常态的压缩挥出只在收纳架生效；全展仅保留窗态本身的可用/选中位移。 */
-.hand-rack.spread-all .hand-rack-hand.many > button:hover,
-.hand-rack.spread-all .hand-rack-hand.many > button:hover ~ button,
-.hand-rack.spread-all
-  .hand-rack-hand.many:has(> button:hover)
-  > button:not(:hover):has(~ button:hover) {
-  transform: none;
-}
-
 /* 牌面吃容器 em 基(standard 档默认 8px 被覆盖,降档时随容器走) */
 .hand-rack .jinnang-card {
   font-size: inherit;
@@ -102,7 +100,6 @@
 
 /* 可点:点/长按出详情(交互语义在弹层壳,牌面本体仍是纯展示) */
 .hand-rack-hand .jinnang-card {
-  cursor: pointer;
   /* 长按出详情:掐掉触屏长按的系统选中/呼出菜单,别和详情弹层打架 */
   user-select: none;
   -webkit-touch-callout: none;
@@ -113,22 +110,6 @@
 .hand-rack-back {
   transform: rotate(-9deg);
   /* 牌背纯装饰:读屏不念「锦囊」双字,空态语义由架首章承担 */
-}
-
-/* ── 常态牌悬停微反馈(#490 微档,#510 统一悬停语言):≤3 张全展态的牌悬停
-   微抬示意可点(亮金 hairline 印影随 .many/.junshi 各态既有口径;.many 挥出、
-   .junshi 上浮、.reactive 呼吸金边各自压过本块)。 ── */
-.hand-rack:not(.junshi) .hand-rack-hand:not(.many) > button {
-  transition: transform var(--dur-fast) var(--ease-out);
-}
-.hand-rack:not(.junshi) .hand-rack-hand:not(.many) > button:not(.reactive):hover {
-  transform: translateY(-0.35em);
-}
-.hand-rack:not(.junshi) .hand-rack-hand:not(.many) > button:not(.reactive):hover .jinnang-card,
-.hand-rack:not(.junshi) .hand-rack-hand:not(.many) > button.reactive:hover .jinnang-card {
-  box-shadow:
-    0 0.5em 1em rgba(0, 0, 0, 0.45),
-    0 0 0 1px color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
 }
 
 /* ── 短横屏降档(Android 短横屏 844×390 一类):em 基 8→6.4px(牌面 96×128),
@@ -158,12 +139,12 @@
     transform: translateY(14px);
   }
 }
-.hand-rack-hand > button {
+.hand-rack-hand > :where(button, .skill-rack-card) {
   animation: rack-card-in var(--dur-med) var(--ease-out)
     calc(var(--i, 0) * var(--dur-instant) * 0.75) backwards;
 }
 @media (prefers-reduced-motion: reduce) {
-  .hand-rack-hand > button {
+  .hand-rack-hand > :where(button, .skill-rack-card) {
     /* app.css M-4 全局兜层只压 animation-duration,不重置 delay——backwards 首帧
        透明,不归零会「先空白再逐张弹现」。delay 归零口径同 scroll.css 兜层先例。 */
     animation-delay: 0ms;
@@ -173,7 +154,7 @@
 /* ── 按压反馈(#239 T4):0.97 + --dur-instant。app.css #97 全局按压是 0.98 且
    特异度更低,按任务口径在此覆写;与入场动画不打架——动画进行中 transform 归
    keyframe 管(--dur-med 内),落定后交还 :active。 ── */
-.hand-rack-hand > button:not(:disabled):active {
+.hand-rack-hand > :where(button, .skill-rack-card):not(:disabled):active {
   transform: scale(0.97);
   transition: transform var(--dur-instant) var(--ease-out);
 }
@@ -181,9 +162,13 @@
 /* ── 焦点圈(#239 T4 走查修正):app.css S2 全局圈是墨虚线,落在漆木架底上近不可见
    (墨 #2b2317 对漆木 #332a1e ≈ 1.3:1)——架上牌钮焦点圈改鎏金虚线
    (金 #c8a13a 对漆木 ≈ 5.5:1,达标可见),与出牌阶段金虚线焦点语言同族。 ── */
-.hand-rack-hand > button:focus-visible {
+.hand-rack-hand > :where(button, .skill-rack-card):focus-visible,
+.skill-rack-card button:focus-visible {
   outline: 2px dashed var(--color-gold);
   outline-offset: 3px;
+}
+.skill-rack-card button:focus-visible {
+  outline-offset: -2px;
 }
 
 /* ── 长按微光(#768):按住 300ms(判定窗 500ms 的 60% 拍,时长单源 HandRack
@@ -192,7 +177,10 @@
    transition 由 jinnang-card.css 基座既有 box-shadow/transform --dur-med 承担,
    此处只写目标态。仅常态架挂(窗态长按语义是取消选中,不挂进度光);
    落影黑沿用本文件裸色豁免登记(中性黑影)。 ── */
-.hand-rack:not(.junshi) .hand-rack-hand > button.press-glow .jinnang-card {
+.hand-rack:not(.junshi)
+  .hand-rack-hand
+  > :where(button, .skill-rack-card).press-glow
+  .jinnang-card {
   transform: translateY(-2px);
   box-shadow:
     0 0.35em 0.9em rgba(0, 0, 0, 0.4),
@@ -201,59 +189,31 @@
 }
 
 /* ── 叠加压缩(#254,手牌无上限 #250):≥4 张挂 .many,负 margin 叠牌——每张露
-   --jn-step 窥条、末张全宽。三个 inline 变量由 HandRack.tsx 测量计算(拍板公式
-   spacing = min(卡宽,(可用宽−卡宽)/(n−1)),可用宽=架 content box,卡宽=15×em 基),
+   --jn-step 窥条、末张全宽。步距由 HandRack.tsx 测量计算(拍板公式
+   spacing = min(卡宽+3em,(可用宽−卡宽)/(n−1)),可用宽=架 content box,卡宽=15×em 基),
    本文件只消费;margin 里的卡宽差用 15em 表达(与变量同 em 基,降档自动随动),
    视觉基线 tmp/prototype-layout.html .rack-cards.many(--peek/--cw 的自适应版)。 ── */
 .hand-rack-hand.many {
   gap: 0;
 }
-.hand-rack-hand.many > button + button {
+.hand-rack-hand.many > :where(button, .skill-rack-card) + :where(button, .skill-rack-card) {
   margin-left: calc(var(--jn-step) - 15em);
 }
 
-/* ── hover 挥出(常时态;出牌阶段态金边上浮归 #256):悬停牌上浮全显
-   (translateY(-1.6em) scale(1.12)+深投影,原型 .many :hover 基线),邻牌让位移植
-   noname getSpreadOffset(GPL,noname/apps/core/noname/ui/index.js L187:右邻让满幅
-   cw−step、左邻让 2 成)。左邻用 :has(「身后有悬停牌」)表达;z-index 落 button
-   (position:relative)——牌面 isolation:isolate(#241 防章穿模)不回退,层叠在
-   button 一级解决。本块须排在上面 :active 之后(同特异度,压住按压反馈保全显)。 ── */
-.hand-rack-hand.many > button {
-  position: relative;
-  transition: transform var(--dur-fast) var(--ease-out);
-}
-.hand-rack-hand.many > button:hover {
-  transform: translateY(-1.6em) scale(1.12);
-  z-index: 9;
-}
-.hand-rack-hand.many > button:hover .jinnang-card {
-  box-shadow: 0 1em 1.6em rgba(0, 0, 0, 0.5); /* 悬停深投影(#510:墨影改中性黑影) */
-}
-.hand-rack-hand.many:has(> button:hover) > button:not(:hover):has(~ button:hover) {
-  transform: translateX(calc(var(--jn-spread-left) * -1));
-}
-.hand-rack-hand.many > button:hover ~ button {
-  transform: translateX(var(--jn-spread-right));
-}
-/* reduced-motion:挥出过渡由 app.css M-4 全局兜层压成瞬时(0.01ms)——「直接上浮」
-   口径,本文件无需另写(发牌入场的 delay 归零特例见上,那是 M-4 管不到的唯一缝)。 ── */
-
 /* ── 出牌阶段态(#256:旧弹窗退役,架即出牌面;原型 .playable 口径)──
    .junshi 挂架体(HandRack junshi 载荷在场)。状态语义:
-   - 可出=.usable 上浮+实金 hairline 金边+微光晕(#556 静态常驻,#841 刀②提显著),
-     hover 再升满幅;
+   - 可出=.usable 上浮+实金 hairline 金边+微光晕(#556 静态常驻,#841 刀②提显著);
    - 选中=.sel 放大 1.6× 金描边(牌面层交互态单源 jinnang-card.css,笺脚放开 4 行;
-     钮层只管层叠 z-index 与消隐自身 transform,避免与 .many hover 挥出叠加);
+     钮层只管层叠 z-index 与消隐自身 transform);
    - 不可用=.off 下沉置灰(disabled,原因印条 .reason 由牌面 children 承担,文案
      单源 choices);
    - 目标段=.played 已出计牌金描边上浮+「已出牌 · 待择目标」印条,其余 .off 灰置;
-   - 选中放大牌占中不遮动作钮:右让归动作条(layout.css .actionbar.right-shift)。
-   本块排在 #254 的 .many hover 挥出块之后(同特异性链上以更多类压过)。 ── */
-.hand-rack.junshi .hand-rack-hand > button {
+   - 选中放大牌占中不遮动作钮:右让归动作条(layout.css .actionbar.right-shift)。 ── */
+.hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card) {
   position: relative;
   transition: transform var(--dur-fast) var(--ease-out);
 }
-.hand-rack.junshi .hand-rack-hand > button.usable {
+.hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card).usable {
   transform: translateY(-0.9em);
   /* 可出金边(#556 兑现 HandRack.tsx「金边上浮」承诺;#841 刀②提显著):实金
      hairline 100%+微光晕静态常驻——原 color-mix 60% 弱档与灰置 .off 显著性倒挂
@@ -263,40 +223,27 @@
     0 0 0 1px var(--color-gold-bright),
     0 0 0.9em color-mix(in srgb, var(--color-gold-bright) 40%, transparent);
 }
-.hand-rack.junshi .hand-rack-hand > button.usable:hover {
-  transform: translateY(-1.3em);
-  z-index: 9;
-}
-.hand-rack.junshi .hand-rack-hand > button.sel,
-.hand-rack.junshi .hand-rack-hand > button.off,
-.hand-rack.junshi .hand-rack-hand > button.played {
+.hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card).sel,
+.hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card).off,
+.hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card).played {
   transform: none;
 }
-.hand-rack.junshi .hand-rack-hand > button.sel:hover,
-.hand-rack.junshi .hand-rack-hand > button.off:hover,
-.hand-rack.junshi .hand-rack-hand > button.played:hover {
-  transform: none;
-}
-.hand-rack.junshi .hand-rack-hand > button.sel,
-.hand-rack.junshi .hand-rack-hand > button.played {
+.hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card).sel,
+.hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card).played {
   z-index: 8;
-}
-.hand-rack.junshi .hand-rack-hand > button.off,
-.hand-rack.junshi .hand-rack-hand > button.played {
-  cursor: default;
 }
 /* 已出计牌(目标段):本体常色(进行时不是废牌),金描边上浮,不放大(原型目标态
    口径);「已出牌 · 待择目标」印条由牌面 children .reason 承担(组件侧)。 */
-.hand-rack.junshi .hand-rack-hand > button.played .jinnang-card {
+.hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card).played .jinnang-card {
   transform: translateY(-0.8em);
   outline: 0.25em solid var(--color-gold);
   outline-offset: 0.12em;
 }
-/* 窗态键盘焦点圈:架体钮层金虚线(既有 .hand-rack-hand > button:focus-visible
+/* 窗态可见焦点圈:架体钮层金虚线(既有 .hand-rack-hand > :where(button, .skill-rack-card):focus-visible
    规则已覆盖,窗态不改口径)。 */
 
 /* ── 详情弹层入场(一次性演出,无 infinite):底部滑入 + 淡入,
-   桌面面板与窄屏抽屉共用(壳定位差异在组件 className,动势同一条 keyframes)── */
+   居中面板与窄屏抽屉共用(壳定位差异在组件 className,动势同一条 keyframes)── */
 @keyframes rack-sheet-in {
   from {
     opacity: 0;
@@ -330,7 +277,7 @@
   box-shadow: 0 8px 10px -9px rgba(0, 0, 0, 0.5);
 }
 
-/* 详情壳抓手上条(窄屏抽屉形态;桌面面板不挂,由组件按形态渲染):漆金细条
+/* 详情壳抓手上条(窄屏抽屉形态;居中面板不挂,由组件按形态渲染):漆金细条
    (#510:墨影把手在深底上近隐形) */
 .jinnang-detail-grab {
   width: 44px;
@@ -341,62 +288,55 @@
 }
 
 /* ── 架尾计数章(#751 C2,触屏全显通路):.many 压缩态常驻,点按=全展检视
-   (再点/点外即收,逻辑在 HandRack.tsx);hover 挥出仍是桌面全显通路,章只入
-   pointer:coarse 档(#744 判词口径)。锚位:架右缘、抬出三圆钮区——pilebtns 在
+   (再点/点外即收,逻辑在 HandRack.tsx)。锚位:架右缘、抬出三圆钮区——pilebtns 在
    两档各探进手牌区右缘 ~48/72px,贴地绝对定位会被锦囊钮盖住点不到(实拍取证);
    bottom 8.5em 两档(6.4/9.6px 基)均越过钮区上界。章=漆木小圆章 + 文楷计数
    (数字=信息,§4.6 例外);全展中(.on)金边点亮=状态表达。
    视觉 36px 不变,透明命中垫扩到 44×44 制式(#761 ⑦,触达口径主行动档;
    ::after inset −4,topbar .tbtn 命中垫同惯例,绝对定位不进 grid 流)。 ── */
 .rack-spread-badge {
-  display: none;
+  position: absolute;
+  right: 0.5em;
+  bottom: 8.5em;
+  z-index: 9;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-lacquer) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
+  color: var(--color-lacquer-gold);
+  font-family: var(--font-wenkai);
+  font-size: 14px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
-@media (pointer: coarse) {
-  .rack-spread-badge {
-    position: absolute;
-    right: 0.5em;
-    bottom: 8.5em;
-    z-index: 9;
-    width: 36px;
-    height: 36px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--color-lacquer) 88%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
-    color: var(--color-lacquer-gold);
-    font-family: var(--font-wenkai);
-    font-size: 14px;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
-    transition:
-      border-color var(--dur-fast) var(--ease-out),
-      box-shadow var(--dur-fast) var(--ease-out);
-  }
-  .rack-spread-badge::after {
-    content: "";
-    position: absolute;
-    inset: -4px;
-  }
-  .rack-spread-badge.on {
-    border-color: var(--color-gold-bright);
-    box-shadow:
-      0 0 0 1.5px var(--color-gold),
-      0 0 10px color-mix(in srgb, var(--color-gold) 40%, transparent);
-  }
-  .rack-spread-badge:focus-visible {
-    outline: 2px dashed var(--color-gold);
-    outline-offset: 2px;
-  }
+.rack-spread-badge::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+.rack-spread-badge.on {
+  border-color: var(--color-gold-bright);
+  box-shadow:
+    0 0 0 1.5px var(--color-gold),
+    0 0 10px color-mix(in srgb, var(--color-gold) 40%, transparent);
+}
+.rack-spread-badge:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: 2px;
 }
 
 /* ── 出牌窗可用牌金圈脉冲一拍(#751 B1):未选牌点按「出牌」时,架上可用牌金圈
    亮一拍回落(seat-selglow 同族状态语言,一次性不呼吸;.nudge 类由 HandRack 按
    nudgePulse 计数挂摘)。usable 常驻金边是落点,脉冲从金边起伏(0%/100% 随
    #841 刀②的 100% 实金基线同步,脉冲首末帧不塌回弱档)。 ── */
-.hand-rack.junshi .hand-rack-hand.nudge > button.usable .jinnang-card {
+.hand-rack.junshi .hand-rack-hand.nudge > :where(button, .skill-rack-card).usable .jinnang-card {
   animation: usable-ring-once var(--dur-med) var(--ease-out);
 }
 @keyframes usable-ring-once {
@@ -411,8 +351,6 @@
   }
 }
 
-/* ── 名将技能卡(#818):出牌阶段态技能卡用 SkillCardFace 单技装配(技能为维度、
-   名将为载体:立绘与将名是载体,主技名大字+该技 desc+冷却注是本卡身份;#360 起
-   的紧凑档混排旧形随 #818 退役),样式单源 card/hero-card.css;卡基经 --hface-base
-   随架体 em 基走(声明在 .hand-rack 基础档/短横屏断点),15u×20u 恰好满槽位与
-   锦囊牌面同格。 ── */
+/* ── 名将技能卡:出牌阶段态用 SkillCardFace 单技装配,技名横排、立绘居中、
+   将名在下;技能描述和固定冷却周期归技能全览,不可用原因留在卡面。样式单源
+   card/hero-card.css;卡基经 --hface-base 随架体 em 基走,15u×20u 与锦囊同格。 ── */

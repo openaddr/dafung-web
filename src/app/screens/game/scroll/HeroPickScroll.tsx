@@ -3,10 +3,8 @@
 // 必须三选其一。
 // #360:三张 HeroCardFace 紧凑档(pick 档 7.6px 基 114×152,与手牌槽位同档)并排
 // 替换旧横排列表——归一后招贤/出牌阶段确认/府库同一张名将卡面(「选将是收将的第一
-// 眼」= 日后在府库摩挲的同一张);候选 Hover=金描边光圈(§4.6 状态变化承载)。
-// r5 裁定②快捷键退场:1/2/3 键位角标与监听一并撤除,选择交互=点选(本作不重视
-// 快捷键,DESIGN §4.6 邻域);卡 title 带全文(#605 起=技名 chips,全文走全览弹框,
-// 点卡/点技名都开弹框、弹框内拍板——先看后选)。
+// 眼」= 日后在府库摩挲的同一张)。
+// 点击卡面或技名都打开技能全览,在弹框内拍板——先看后选。
 // #787 预掷明牌(ADR-0036):候选行自带生成时掷定的授技子集(快照 offeredHeroes
 // 随行),卡面只亮预掷结果——招贤瞬间看到的授技,就是日后在府库摩挲的同一份。
 // #850 技能演出补课:①实授技 chips 入场后逐个钤落(fx.css fx-chip-slam,120ms 错拍,
@@ -15,7 +13,6 @@
 // 后再发 resolveHeroPick——卷轴随相位收场,「入麾下」落印即落定。
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { GameCommand } from "@core/authority";
-import { skillById } from "@core/skills";
 import { HeroCardFace, heroDefOf, skillIdFromClick } from "@app/components/card/HeroCardFace";
 import { SelectableFaceButton } from "@app/components/card/SelectableFaceButton";
 import { FX, UI } from "@app/fx/timings";
@@ -93,7 +90,6 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
               <SelectableFaceButton
                 key={h.id}
                 data-testid={T.heroPickOption(i)}
-                title={`${h.name} — ${h.skillIds.map((id) => skillById(id).desc).join(";")}`}
                 onClick={(e) => pick(e, i)}
                 style={{ ["--chip-skip" as string]: String(skip) }}
                 className="relative"

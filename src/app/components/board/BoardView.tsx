@@ -6,8 +6,7 @@
 //   令整张 SVG 每帧失效)
 //   取景 → 恒 computeFitView 总览定格(#946 平移缩放整退役:拖动/滚轮/捏合全形态删,
 //     viewBox 由 React 声明式下发,地图不变则视口不变,无手势无命令式句柄)
-import { memo, useCallback, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { memo, useCallback, useMemo, useRef } from "react";
 import type { BoardPos } from "@core/board";
 import { getControllerContext } from "@app/controllers/registry";
 import { AmbientLayer } from "./AmbientLayer";
@@ -106,30 +105,13 @@ interface BoardViewProps {
 
 const TileLayer = memo(function TileLayerInner({
   children,
-  onHover,
   onTileClick,
 }: {
   children: React.ReactNode;
-  onHover: (index: number | null) => void;
   onTileClick?: (index: number) => void;
 }) {
-  // 城池接近重叠时:悬停哪个提到最上层(SVG 无 z-index,后渲染=上层)。
-  // 仅在未按下按键(buttons===0)时重排 —— 按下期间的重排会把 pointerdown 目标节点
-  // 移走导致 Chrome 吞掉 click(旧 board.ts 已踩过的坑,忠实保留此守卫)。
-  const handleOver = useCallback(
-    (ev: React.PointerEvent<SVGGElement>) => {
-      if (ev.buttons !== 0) return;
-      const t = (ev.target as Element).closest(".bv-tile");
-      const next = t ? Number((t as Element).getAttribute("data-tile")) : null;
-      // flushSync 同步提交重排:高负载下 React 提交可能延迟到 pointerdown 之后才落地,
-      // 目标节点从指针下移走会吞掉 click(波3 e2e 8 并发实踩);同步提交保证 DOM 移动
-      // 发生在 pointerover 事件内,必然早于 pointerdown。
-      flushSync(() => onHover(next));
-    },
-    [onHover],
-  );
   // #1023 链 B:落格点击事件委托——onClick 挂本层 <g>,closest(".bv-tile")+
-  // data-tile 取目标(与 handleOver 同款现成模式)。原先 per-tile onClick prop
+  // data-tile 取目标。原先 per-tile onClick prop
   // 经 BoardView 派生、源头是 useCapitalPick 每渲染新建的裸函数,每次 sync 都换
   // 引用,44 城 Tile 的 React.memo 被逐个击穿;委托化后 Tile 不再持有回调 prop。
   // 点在城池之外 closest 为 null 不调,与 per-tile onClick 等价;#699 拖拽吞点击
@@ -144,7 +126,7 @@ const TileLayer = memo(function TileLayerInner({
     [onTileClick],
   );
   return (
-    <g id="bv-tiles" onPointerOver={handleOver} onClick={handleClick}>
+    <g id="bv-tiles" onClick={handleClick}>
       {children}
     </g>
   );
@@ -220,8 +202,6 @@ export function BoardView({
   // (驿道恒直线 #928/ADR-0044,绘制在 RoadsLayer 内做)
   const fit = useMemo(() => computeFitView(board.tiles), [board.tiles]);
   const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
-  const [hoverTile, setHoverTile] = useState<number | null>(null);
-
   // propertyId → 首见持有者(归属判定单源 tileOwnership.ts,players 变化才重算)。
   // #1023 链 A:每次照算但与上一份逐城浅等,内容不变复用上一份 Map 引用——
   // 归属没变(行军/换回合)时不给下游派生链制造新身份。
@@ -238,16 +218,6 @@ export function BoardView({
   // useCapitalPick 裸函数每渲染换新,形同虚设已删),点击收编 TileLayer 的 <g>
   // 事件委托,Tile 的 props 从此不随回调身份抖动。
 
-  // 悬停的城排到最后(=最上层),其余保持索引序,避免 hover 时整层乱序跳动
-  const orderedTiles = useMemo(() => {
-    const list = board.tiles;
-    if (hoverTile == null) return list;
-    return [
-      ...list.filter((t) => t.index !== hoverTile),
-      ...list.filter((t) => t.index === hoverTile),
-    ];
-  }, [board.tiles, hoverTile]);
-
   // X4(#23) 候选序号表:滚出顺序 → 1 基序号(Tile 内读作 壹/贰/叁 印)。
   const candidateOrder = useMemo(() => {
     const m = new Map<number, number>();
@@ -257,7 +227,7 @@ export function BoardView({
 
   // F1:TileVisualState 按 index 预生成并 memo——原先每次 render 内联新建对象,
   // 击穿 Tile 的 React.memo 导致 40 城全量重渲;现在只有 players/回合/可选集变化
-  // 才重建(state 对象身份稳定),hover 重排仅移动 DOM 节点、不触发各城重渲。
+  // 才重建(state 对象身份稳定)。
   // #1023 链 A:players 每 sync 换新引用,memo 依赖拦不住——照算之后逐城与上一份
   // 浅等,内容不变复用上一份对象引用;全部复用时整表返回上一份(下游 tiles/
   // capitalTileIndexes 派生链连重建都不必)。上一份存本组件 ref,复杂度不出 BoardView。
@@ -310,11 +280,11 @@ export function BoardView({
     cityPickedTileIndex,
   ]);
 
-  // F1:城池 JSX 整体 memo(依赖都是身份稳定的派生值),hover 等无关重渲不再重建 40 城 vnode。
+  // F1:城池 JSX 整体 memo(依赖都是身份稳定的派生值),无关重渲不再重建城池 vnode。
   const tiles = useMemo(
     () => (
       <>
-        {orderedTiles.map((tile) => {
+        {board.tiles.map((tile) => {
           // 严格 loadMap 下每格 propertyId 必入册(#826 全城池制),def 必非空——
           // 空值是 loader bug,直接炸出来(零兜底;tier 管道顺手收编旧 `??` 档)。
           const def = catalog.get(tile.propertyId)!;
@@ -331,7 +301,7 @@ export function BoardView({
         })}
       </>
     ),
-    [orderedTiles, catalog, tileStates],
+    [board.tiles, catalog, tileStates],
   );
 
   // 有主都城格序(氛围层光晕落点;tileStates 单源派生,与 Tile 的 isCapital 同口径)
@@ -362,9 +332,7 @@ export function BoardView({
         <BoardDefs fit={fit} />
         <TerrainLayer fit={fit} />
         <RoadsLayer board={board} />
-        <TileLayer onHover={setHoverTile} onTileClick={onTileClick}>
-          {tiles}
-        </TileLayer>
+        <TileLayer onTileClick={onTileClick}>{tiles}</TileLayer>
       </svg>
       {/* 棋子层(HTML 宿主,ADR-0042):每棋子一个合成器提升的包装 div(transform
           过渡走合成器)+ mini-svg 旗面/环原绘;宿主矩阵与底板 viewBox 同拍跟随。 */}

@@ -119,7 +119,7 @@ export function SoloSetupScreen({
             data-testid={TID.backTop}
             aria-label="返回首页"
             onClick={onBack}
-            className="note-btn flex size-10 cursor-pointer items-center justify-center rounded-[3px]"
+            className="note-btn flex size-10 items-center justify-center rounded-[3px]"
           >
             <Sym name="back" size={16} />
           </Button>
@@ -281,7 +281,6 @@ export function SoloSetupScreen({
               data-testid={TID.startGame}
               onClick={() => void start()}
               disabled={guohaoInvalid || busy}
-              title={guohaoInvalid ? "国号需为单个汉字" : undefined}
               className={cn("ink-btn su-start font-brush", busy && "su-busy")}
             >
               {busy ? "调兵遣将中…" : "起兵"}

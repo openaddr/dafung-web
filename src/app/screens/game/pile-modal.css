@@ -165,7 +165,6 @@
   font-size: 15px;
   line-height: 1;
   color: var(--color-paper-dim);
-  cursor: pointer;
   transition:
     transform var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
@@ -175,11 +174,6 @@
   content: "";
   position: absolute;
   inset: -9px;
-}
-.pile-modal .pile-close:hover {
-  color: var(--color-paper);
-  border-color: var(--color-gold-bright);
-  transform: scale(1.02);
 }
 
 /* ── 区签:朱砂菱点 + 计数 + 括注小字(r5 .zone-label 制式)── */
@@ -231,6 +225,13 @@
 .pile-modal .pile-cell-card {
   font-size: 7.6px;
 }
+.pile-modal .pile-book-reason {
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-paper-dim);
+  text-align: center;
+}
 .pile-modal .pile-price {
   /* 价签抬出渐隐带(#833):折叠下签面是决策关键数字,不被 28px 折叠提示带罩纱
      (带仍在签周提示「下面还有」,断头观感收边职责不损失) */
@@ -266,13 +267,11 @@
   border: 0;
   padding: 0;
   margin: 0;
-  cursor: pointer;
   border-radius: 6px;
   transition:
     filter 0.15s ease,
     box-shadow 0.15s ease;
 }
-.pile-modal .pile-hero-cell:hover,
 .pile-modal .pile-hero-cell:focus-visible {
   filter: brightness(1.08);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);

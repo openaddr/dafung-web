@@ -4,6 +4,7 @@ import { TESTIDS } from "./testids";
 
 interface ActionBarProps {
   title: string;
+  collapsed: boolean;
   detail?: string;
   primaryLabel: string;
   cancelLabel?: string;
@@ -17,6 +18,7 @@ interface ActionBarProps {
 
 export function ActionBar({
   title,
+  collapsed,
   detail,
   primaryLabel,
   cancelLabel,
@@ -29,6 +31,17 @@ export function ActionBar({
 }: ActionBarProps) {
   const targeting = cancelLabel != null;
   const [bump, setBump] = useState(false);
+  if (collapsed) {
+    return (
+      <div
+        data-testid={TESTIDS.actionbar}
+        className="target-action-bar target-action-phase"
+        aria-live="polite"
+      >
+        出牌阶段
+      </div>
+    );
+  }
   return (
     <TargetActionBar
       testId={TESTIDS.actionbar}

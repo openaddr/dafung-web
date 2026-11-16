@@ -3,7 +3,7 @@
      L8:key 已改为稳定座位号,触发方式是组件按上一帧 taken diff 条件加 .lobby-seat-in,
      上/下线·托管等状态翻转不再重放动画。
    - 底缘让位手势条(#761 ①):.lobby-safe 挂三态根容器,底部 padding 与
-     --safe-bottom 取大(p-6 底档 1.5rem;env 缺省 0px 桌面无感)——建房/入座/大厅
+     --safe-bottom 取大(p-6 底档 1.5rem)——建房/入座/大厅
      三态的按钮排不压进真机手势条。取值口=app.css P0-9 唯一变量。
    - 矮横屏档(#766):双列栅格 + 根部 padding 收紧,见文件尾同串媒体查询。 */
 @keyframes lobby-seat-in {

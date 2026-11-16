@@ -54,7 +54,6 @@ import {
   CONN_BANNER_BODY_H,
   useConnDown,
 } from "@app/screens/shared/ConnectionBanner";
-import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { TESTIDS } from "./testids";
 
 function reactionAnnouncement(
@@ -118,7 +117,7 @@ export function GameScreen() {
             type="button"
             data-testid={TESTIDS.notStartedBack}
             onClick={() => back("setup")}
-            className="ink-btn mt-6 rounded-[5px] px-8 py-3 font-brush text-xl tracking-[0.3em] cursor-pointer"
+            className="ink-btn mt-6 rounded-[5px] px-8 py-3 font-brush text-xl tracking-[0.3em] "
           >
             回到首页
           </button>
@@ -131,7 +130,7 @@ export function GameScreen() {
 
 /** 竖屏手机「请横屏」提示层:移动端只做横屏形态。
  *  常驻 DOM,显隐全交 layout.css 媒询(orientation: portrait + max-width: 700px +
- *  pointer: coarse 才全屏接管挡住对局;桌面窄窗口 pointer: fine 不触发)。 */
+ *  pointer: coarse 才全屏接管挡住对局)。 */
 function RotateHintOverlay() {
   return (
     <div className="rotate-hint" data-testid={TESTIDS.rotateHint}>
@@ -405,18 +404,12 @@ function GameScreenLive({
   }
   const levy = junshiSelected?.levy;
   const junshiDetail = junshiTargeting
-    ? [
-        "正在选目标",
-        stepHint,
-        ...(chosenLabels.length > 0 ? [`已选 ${chosenLabels.join("、")}`] : []),
-      ].join(" · ")
+    ? [stepHint, ...(chosenLabels.length > 0 ? [`已选 ${chosenLabels.join("、")}`] : [])].join(
+        " · ",
+      )
     : levy != null
       ? `对其余 ${levy.affectedSeats.length} 位诸侯各征至多 ${formatMoney(levy.maxPerSeat)}`
-      : selectedNeedsTarget
-        ? "确认后选择目标"
-        : junshiSelected != null
-          ? undefined
-          : "在下方手牌区选牌";
+      : undefined;
   const junshiPrimaryLabel =
     junshiPendingCard?.stage === "two-a"
       ? "下一步"
@@ -530,13 +523,6 @@ function GameScreenLive({
     }
     onTileClick(tileIndex);
   };
-  useDigitKeyPick(
-    interactive && targetStep?.domain === "seat",
-    targetStep?.candidates.filter((o) => o.available).map((o) => o.id) ?? [],
-    (seat) => {
-      if (interactive) targets.toggle(seat);
-    },
-  );
   const reactionShare = reactTargets.selected[0];
   const reactRespond = (use: boolean) => {
     if (!interactive) return;
@@ -586,7 +572,7 @@ function GameScreenLive({
       : [];
   const skillText =
     skillPending != null && skillDef != null
-      ? `${snapshot.players[skillPending.ownerSeat].guohao}「${skillDef.name}」可达发动条件,可指定目标或暂不发${
+      ? `${snapshot.players[skillPending.ownerSeat].guohao}「${skillDef.name}」可达发动条件${
           skillPending.targetSeat != null
             ? `,目标 ${snapshot.players[skillPending.targetSeat].guohao}`
             : ""
@@ -810,7 +796,6 @@ function GameScreenLive({
                             );
                           }
                         },
-                        onConfirm: junshiConfirm,
                       }
                     : undefined
                 }
@@ -873,11 +858,8 @@ function GameScreenLive({
         {junshiUp && (
           <ActionBar
             title={junshiTitle}
-            detail={
-              junshiSelected == null && !junshiTargeting && rackHidden
-                ? "点右下「锦囊」打开手牌"
-                : junshiDetail
-            }
+            collapsed={rackHidden && !junshiTargeting}
+            detail={junshiDetail}
             primaryLabel={junshiPrimaryLabel}
             cancelLabel={
               junshiPendingSkill != null
@@ -900,16 +882,16 @@ function GameScreenLive({
             {...reactionNotice}
             step={
               reactTargetStep != null
-                ? reactionShare != null
-                  ? `保护 ${reactTargetStep.candidates.find((o) => o.id === reactionShare)!.label}`
-                  : reactTargetStep.domain === "city"
-                    ? "在地图上选一座城保护"
-                    : "在右侧席位区选一位诸侯保护"
+                ? `${rackHidden ? `已选 ${selectedReaction!.optionId} · ` : ""}${
+                    reactionShare != null
+                      ? `保护 ${reactTargetStep.candidates.find((o) => o.id === reactionShare)!.label}`
+                      : reactTargetStep.domain === "city"
+                        ? "在地图上选一座城保护"
+                        : "在右侧席位区选一位诸侯保护"
+                  }`
                 : reactCardId != null
                   ? `已选 ${reactCardId}`
-                  : rackHidden
-                    ? "点右下「锦囊」打开手牌"
-                    : "在下方手牌区选反应锦囊"
+                  : null
             }
             durationMs={reaction.windowMs}
             deadlineAt={reactionDeadlineAt!}

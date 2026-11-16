@@ -7,7 +7,7 @@
 // (Base UI 底件),面板本体(内容/testid/水墨皮)原样保留。
 // #832:矮横屏(844×390)首帧可视两刀——①确认/取消行 sticky 钉弹层可视底
 // (配方抄 setup.css .su-actions:sticky+渐隐墨底,负 margin 出血到弹层左右缘,
-// 桌面档无外滚时自然收尾不表态),②预览收幅 40vh→20vh;MiniMap 换玄墨制式
+// 高视口档无外滚时自然收尾不表态),②预览收幅 40vh→20vh;MiniMap 换玄墨制式
 // (深纹底+主路双层描+城点方形小印,质感对齐 DESIGN §5.4 印盘/界格语言)。
 // 矮档密度收放(清单/预览段间距)单源 ./MapSelectPanel.css。
 import { useEffect, useState } from "react";
@@ -254,7 +254,7 @@ export function MapSelectPanel({
                 setPreviewError(null);
                 reload();
               }}
-              className="note-btn rounded-[3px] px-4 min-h-[40px] font-wenkai text-paper cursor-pointer"
+              className="note-btn rounded-[3px] px-4 min-h-[40px] font-wenkai text-paper "
             >
               重试
             </button>
@@ -268,7 +268,7 @@ export function MapSelectPanel({
 
         {entries && entries.length > 0 && (
           <>
-            {/* msp-list:矮横屏档密度收放锚点(MapSelectPanel.css 34vh,桌面档 38vh) */}
+            {/* msp-list:矮横屏档密度收放锚点(MapSelectPanel.css 34vh,高视口档 38vh) */}
             <div className="msp-list flex flex-col gap-2 max-h-[38vh] overflow-y-auto pr-1">
               {entries.map((e) => {
                 const selected = e.id === picked;
@@ -281,11 +281,11 @@ export function MapSelectPanel({
                     aria-pressed={selected}
                     // W2-包A:小控件圆角收敛 3px(DESIGN §4.2);选中=势(金)语义保留
                     className={
-                      "text-left rounded-[3px] border px-3 py-2.5 transition-colors cursor-pointer " +
+                      "text-left rounded-[3px] border px-3 py-2.5 transition-colors " +
                       (selected
                         ? // #497 ④:选中金色档与 SegmentedSelect 统一 gold/25(漂移收敛)
                           "border-gold bg-gold/25"
-                        : "border-paper/25 bg-bg/60 hover:border-gold/60")
+                        : "border-paper/25 bg-bg/60 ")
                     }
                   >
                     <div className="flex justify-between items-baseline gap-2">
@@ -314,12 +314,12 @@ export function MapSelectPanel({
             {/* #832 主行动钉底:配方抄 setup.css .su-actions(sticky 锚 bottom=
                 --safe-bottom + 渐隐墨底),内容外滚时确认/取消恒钉弹层可视底;
                 负 margin 出血到弹层左右缘(px-5 补回内容对齐),滚动清单从渐隐带
-                下穿过;桌面档无外滚时 sticky 不表态,自然收尾同旧。 */}
+                下穿过;高视口档无外滚时 sticky 不表态,自然收尾同旧。 */}
             <div className="msp-actions mt-4 sticky bottom-[var(--safe-bottom)] -mx-5 flex justify-end gap-2.5 bg-[linear-gradient(180deg,transparent,var(--color-panel)_35%)] px-5 pt-0.5">
               <button
                 data-testid={TID.mapCancel}
                 onClick={onCancel}
-                className="note-btn rounded-[3px] px-4 py-2 font-wenkai text-paper cursor-pointer"
+                className="note-btn rounded-[3px] px-4 py-2 font-wenkai text-paper "
               >
                 取消
               </button>
@@ -332,7 +332,7 @@ export function MapSelectPanel({
                 }}
                 disabled={picked === null}
                 // 主行动触达口径 44(#761 ⑧;次级「取消/重试」维持 40 档不动)
-                className="ink-btn min-h-[44px] rounded-[5px] px-4 py-2 font-wenkai cursor-pointer disabled:opacity-40"
+                className="ink-btn min-h-[44px] rounded-[5px] px-4 py-2 font-wenkai disabled:opacity-40"
               >
                 确认选择
               </button>

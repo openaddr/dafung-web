@@ -8,7 +8,7 @@
 // spec #107 C1(UI 半边选项集消费缝):三个弹层的可用性/不可用原因一律从快照
 // choices(choices.ts 注册表产出,ADR-0013)读取,UI 不再重推 canBuy/maxed/reason
 // ——全游戏不可购原因只有引擎一处口径。
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
 import { isOncePerGameEncounter, type EncounterTier } from "@core/encounters";
@@ -19,23 +19,6 @@ import { AffordRow } from "./AffordRow";
 import { ValueTable, type ValueTableProperty } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
-
-/** G-19:数字快捷键(1/2/3)触发选项 —— 挂载绑、卸载解;actions 顺序即选项序。
- *  Esc 不做(决策不可关是产品设定)。回调里的 disabled 判断由各卷轴自行收口。
- *  键位角标已随 #761 ③ 删除(DESIGN「不设键位角标」裁定);监听属存量交互语义
- *  (DESIGN §4.6「不扩面、不复制」),保留不连坐。 */
-function useNumberShortcuts(actions: Array<() => void>) {
-  const ref = useRef(actions);
-  ref.current = actions;
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1 && n <= ref.current.length) ref.current[n - 1]();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-}
 
 // ── 抉择机遇(AwaitingEncounter,#124):机遇文段 + 目录选项按钮 ──
 // 数据单源快照 choices(choices.ts 注册表产出):encounterId/encounterText 随选项携带,
@@ -85,12 +68,6 @@ export function EncounterChoiceScroll({
   // 奇遇身份(#1155):id 派生(isOncePerGameEncounter 单源),与档位正交
   //(奇遇三档皆有,分档皮肤照旧);宽卷+金穗只认身份,不认 human/bot。
   const isOncePerGame = isOncePerGameEncounter(encounterId);
-  // G-19 同口径:数字键 1..n 直选(不可选的选项按键无效)
-  useNumberShortcuts(
-    choices.map((o, i) => () => {
-      if (o.available) onCommand({ type: "resolveEncounterChoice", index: i });
-    }),
-  );
   return (
     // display:contents 包裹层只作皮肤选择器宿主,不改排版(SeatRail 同法先例);
     // 横幅 overlay 的 absolute 定位仍解析到原包含块,布局零位移。
@@ -109,7 +86,6 @@ export function EncounterChoiceScroll({
               key={o.id}
               primary={i === 0 && !isBadTier}
               disabled={!o.available}
-              title={o.available ? undefined : o.reason}
               testid={T.encounterOption(i)}
               onClick={() => onCommand({ type: "resolveEncounterChoice", index: i })}
             >
@@ -158,13 +134,6 @@ export function BuyDecisionScroll({
   const buy = choices.find((o) => o.id === "buy")!;
   // G-20:买不起时价值表默认折叠(决策已不可行,全表只是噪音);可点开查看
   const [showValues, setShowValues] = useState(buy.available);
-  // G-19:1=购地(不可购时无效)2=不取
-  useNumberShortcuts([
-    () => {
-      if (buy.available) onCommand({ type: "buyProperty" });
-    },
-    () => onCommand({ type: "endDecision" }),
-  ]);
   // #729:拍板两钮钉底(壳 footer 槽)——说明文段/主数值行/等级表/不可购原因留正文井,
   // 正文内滚浏览,「购地/不取」恒在场不随内容滚走(矮横屏实测钮曾被表压出视口)。
   return (
@@ -176,7 +145,6 @@ export function BuyDecisionScroll({
           <BannerButton
             primary
             disabled={!buy.available}
-            title={buy.available ? undefined : buy.reason}
             testid={TESTIDS.actionButton("buy")}
             onClick={() => onCommand({ type: "buyProperty" })}
           >
@@ -209,7 +177,7 @@ export function BuyDecisionScroll({
           // 触达热区垫(#761 ④):视觉字号不动,透明 ::before 上下外扩 12px(命中高
           // ≈43px ≥40 触达口径,DESIGN「视觉与热区可分离」;topbar tbtn ::after 同惯例,
           // 绝对定位不占布局、视觉零位移)
-          className="relative mx-auto mb-1 block cursor-pointer font-deco text-xs text-gold-deep underline before:absolute before:inset-x-[-8px] before:inset-y-[-12px] before:content-[''] hover:text-paper"
+          className="relative mx-auto mb-1 block font-deco text-xs text-gold-deep underline before:absolute before:inset-x-[-8px] before:inset-y-[-12px] before:content-[''] "
         >
           查看等级表
         </button>
@@ -254,13 +222,6 @@ export function UpgradeDecisionScroll({
   const addNext = property.tradeAdd[level + 1];
   const valueNow = property.valueByLevel[level];
   const valueNext = property.valueByLevel[level + 1];
-  // G-19:1=扩军(不可升时无效)2=按兵不动
-  useNumberShortcuts([
-    () => {
-      if (upgrade.available) onCommand({ type: "upgradeProperty" });
-    },
-    () => onCommand({ type: "endDecision" }),
-  ]);
   // #729:扩军/按兵不动两钮钉底(同购地),变化行与价值表留正文井
   return (
     <BannerShell
@@ -271,7 +232,6 @@ export function UpgradeDecisionScroll({
           <BannerButton
             primary
             disabled={!upgrade.available}
-            title={upgrade.available ? undefined : upgrade.reason}
             testid={TESTIDS.actionButton("upgrade")}
             onClick={() => onCommand({ type: "upgradeProperty" })}
           >
@@ -308,9 +268,6 @@ export function UpgradeDecisionScroll({
         second={isCapital ? "supply" : "sell"}
         highlight={{ level: level + 1, label: "扩军后" }}
       />
-      {!upgrade.available && (
-        <p className="mt-2 text-center text-xs text-paper-dim">{upgrade.reason}</p>
-      )}
     </BannerShell>
   );
 }

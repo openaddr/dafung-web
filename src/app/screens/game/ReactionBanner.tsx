@@ -7,7 +7,7 @@ import "./reaction-banner.css";
 interface ReactionBannerProps {
   text: string;
   range: string;
-  step: string;
+  step: string | null;
   durationMs: number;
   deadlineAt: number;
   confirmEnabled: boolean;
@@ -79,7 +79,11 @@ export function ReactionBanner({
       detail={
         <>
           <div className="reaction-range">{range}</div>
-          <div className="reaction-step">{step}</div>
+          {step != null && (
+            <div className="reaction-step" data-testid={TESTIDS.reactionStep}>
+              {step}
+            </div>
+          )}
         </>
       }
       actions={

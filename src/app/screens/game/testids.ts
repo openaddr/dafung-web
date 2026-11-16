@@ -49,7 +49,7 @@ export const TESTIDS = {
   settingsHome: "settings-home",
   /** Base UI Switch,经 useAutopilotOn 回读、controller.setAutoPilot 下发;操作本座托管。 */
   settingsAutopilot: "settings-autopilot",
-  /** 属性浮签内容件(Tip 组件的 Popup;hover/长按/聚焦三通路同签)。 */
+  /** 属性浮签内容件(Tip 组件的 Popup;长按/聚焦同签)。 */
   attrTip: "attr-tip",
 
   // ── 战报抽屉(设置内打开)──
@@ -69,9 +69,9 @@ export const TESTIDS = {
   heroInspectionSkills: "hero-inspection-skills",
   heroInspectionSkill: (skillId: string) => `hero-inspection-skill-${skillId}` as const,
   heroInspectionActions: "hero-inspection-actions",
-  /** 技能书格(treasureId=书实例 id):己方出牌阶段且可学时为 button;禁用原因进 title。 */
+  /** 技能书格(treasureId=书实例 id):己方出牌阶段且可学时为 button。 */
   bookUse: (treasureId: string) => `book-use-${treasureId}` as const,
-  /** 名将遣散钮(heroId=麾下将 id):己方回合可用,二段确认;禁用原因进 title。 */
+  /** 名将遣散钮(heroId=麾下将 id):己方回合可用,二段确认。 */
   heroDismiss: (heroId: string) => `hero-dismiss-${heroId}` as const,
   /** 多名可学时的弹窗容器与可学者按钮(heroId=麾下将 id)。 */
   bookLearnModal: "book-learn-modal",
@@ -81,6 +81,8 @@ export const TESTIDS = {
   modalDragHandle: "modal-drag-handle",
   /** PileShell 体部滚动容器。 */
   modalScrollBody: "modal-scroll-body",
+  /** PileShell 固定底部操作区。 */
+  modalFooter: "modal-footer",
 
   // ── 军情密探窥探弹层 ──
   /** 弹层容器(PileShell 壳;仅 viewer=本座渲染,关闭即清)。 */
@@ -100,6 +102,9 @@ export const TESTIDS = {
   /** 技名选择器,对应 HeroCardFace chips 与 SkillCardFace 主技名的 data-skill。 */
   skillChip: (skillId: string) => `[data-skill="${skillId}"]` as const,
   skillChipAny: "[data-skill]" as const,
+  /** 手牌架技能卡的独立详情入口,以名将和技能定位实例。 */
+  skillCardInspect: (heroId: string, skillId: string) =>
+    `skill-card-inspect-${heroId}-${skillId}` as const,
 
   // ── 名下城池清单(诸侯详情城池列打开)──
   /** 弹层容器(PileShell 壳,朱印「城」;只读清单,零操作项,随快照实时重渲)。 */
@@ -148,7 +153,7 @@ export const TESTIDS = {
   jinnangRack: "jinnang-rack",
   /** 点牌详情弹层容器,使用 ui/dialog 底件。 */
   jinnangDetail: "jinnang-detail",
-  /** 架尾计数章:.many 压缩态在粗指针设备显示,点按切换持续全展;计数含锦囊与技能。 */
+  /** 架尾计数章:.many 压缩态显示,点按切换持续全展;计数含锦囊与技能。 */
   jinnangSpreadBadge: "jinnang-spread-badge",
   diceFace: "dice-face",
   /** 决策卷轴内的操作按钮。 */
@@ -167,6 +172,8 @@ export const TESTIDS = {
   reactionBanner: "reaction-banner",
   /** 反应窗的来者和事件名称。 */
   reactionText: "reaction-text",
+  /** 当前反应所需的步骤或已选目标。 */
+  reactionStep: "reaction-step",
   /** 反应窗倒计时。 */
   reactionTimer: "reaction-timer",
   /** 「出牌」确认钮，按份牌须先确定保护对象。 */
@@ -202,7 +209,7 @@ export const TESTIDS = {
   /** 知会槽内常驻零宽锚点,位于回合胶囊右缘(ADR-0043)。
    *  宣告批被吸附时胶囊可不物化,因此掷骰签不能依赖胶囊瞬态节点。 */
   diceSignAnchor: "dice-sign-anchor",
-  /** 「请横屏」提示层常驻 DOM,显隐由 layout.css 媒询决定;桌面窄窗口不触发。 */
+  /** 「请横屏」提示层常驻 DOM,显隐由 layout.css 媒询决定。 */
   rotateHint: "rotate-hint",
 
   // ── 选都确认 ──

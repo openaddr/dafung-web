@@ -139,14 +139,6 @@ function marchUp(opts: { ownerCards: string[]; ownerTreasure?: boolean; ownerBot
   return { e, mover, moverSeat, ownerSeat, owner };
 }
 
-describe("反应窗配置表(#281/constants)", () => {
-  it("键=挂点时机,默认 15000ms;权威侧读取,E2E 缩放由消费方处理", () => {
-    expect(REACTION_WINDOW_MS.JinnangAnnounced).toBe(15000);
-    expect(REACTION_WINDOW_MS.MarchPassedCity).toBe(15000);
-    expect(Object.keys(REACTION_WINDOW_MS).sort()).toEqual(["JinnangAnnounced", "MarchPassedCity"]);
-  });
-});
-
 describe("识破诡计(JinnangAnnounced 反应窗)", () => {
   /** 火烧连营打向 victim 都城的布场(#1389 城指向):都城 Lv2(满防 3),前方 1、2 格
    *  清成无主(份清单=受击城=[都城格],断言面单一份不掺邻城)。 */
@@ -179,7 +171,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
       userSeat,
       targetSeats: [capTile], // 份清单=受击城 tileIndex(一份=一座受击城,#1389)
       queriedBySeat: [victimSeat],
-      windowMs: REACTION_WINDOW_MS.JinnangAnnounced, // #284:开窗时长随 view 走
+      windowMs: 30_000, // 权威开窗时长随 view 走
     });
     expect(e.pendingReaction!.seq).toBeGreaterThan(0); // #284:窗实例号单调分配
     expect(victim.properties[0].level).toBe(2); // 挂起中未结算
@@ -421,7 +413,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
       userSeat: moverSeat,
       ownerSeat,
       tileIndex: PASSED,
-      windowMs: REACTION_WINDOW_MS.MarchPassedCity, // #284:开窗时长随 view 走
+      windowMs: 30_000, // 行军途经城池使用同一时长
     });
     expect(mover.position).toBe(START); // 挂起中未落位
     scriptDice(e, { rollDies: [5, 3] }); // 拼点:城主 5 > 行人 3
@@ -785,6 +777,7 @@ describe("反识破链(#571/ADR-0060)", () => {
     const { e, userSeat, victimSeat, victim } = burnWithCounter();
     expect(e.turnPhase).toBe("AwaitingReaction"); // 链环窗(询问原使用者)
     expect(jinnangView(e).cardId).toBe("识破诡计");
+    expect(jinnangView(e).windowMs).toBe(30_000);
     expect(jinnangView(e).userSeat).toBe(victimSeat);
     expect(e.players[victimSeat].jinnangHand).toEqual([]); // 宣布环已扣账
     e.respondReaction(userSeat, true, "识破诡计"); // 救计(链环应答不带份)

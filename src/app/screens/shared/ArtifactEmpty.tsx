@@ -10,7 +10,7 @@ import "./artifact-empty.css";
 /** 斜放朱印空态:印文 char(单字)+ 短注 note;title 为可达名(视觉即器物,语义走它)。 */
 export function SealEmpty({ char, note, title }: { char: string; note: string; title: string }) {
   return (
-    <span className="seal-empty" role="img" aria-label={title} title={title}>
+    <span className="seal-empty" role="img" aria-label={title}>
       <i className="seal-empty-mark" aria-hidden="true">
         {char}
       </i>

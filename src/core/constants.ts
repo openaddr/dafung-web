@@ -39,10 +39,9 @@ export function isSingleCjk(s: string): boolean {
 }
 
 /** 反应窗时长配置表(#281,ADR-0017):键=反应窗挂点时机,值=默认时长(毫秒)。
- *  权威侧读取(单机=LocalController、联机=room 循环的倒计时/超时代发);引擎本身
- *  只认 respondReaction 命令、不计时。E2E_TIME_SCALE 缩放由消费方处理(读取后自乘),
- *  本表不做缩放。 */
+ *  引擎开窗时写入 view.windowMs,单机与联机按该值计时;测试可经 EngineConfig 覆盖。
+ *  权威反应窗不受演出 E2E_TIME_SCALE 缩放。 */
 export const REACTION_WINDOW_MS: Record<"JinnangAnnounced" | "MarchPassedCity", number> = {
-  JinnangAnnounced: 15000,
-  MarchPassedCity: 15000,
+  JinnangAnnounced: 30_000,
+  MarchPassedCity: 30_000,
 };

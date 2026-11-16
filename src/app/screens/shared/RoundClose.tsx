@@ -12,11 +12,11 @@ export function RoundClose({ testid }: { testid?: string }) {
     <DialogClose
       data-testid={testid}
       aria-label="关闭"
-      className="group absolute right-1 top-1 z-10 flex h-11 w-11 cursor-pointer items-center justify-center"
+      className="absolute right-1 top-1 z-10 flex h-11 w-11 items-center justify-center"
     >
       <span
         aria-hidden="true"
-        className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.45)] bg-[color-mix(in_srgb,var(--color-paper-hi)_85%,transparent)] text-paper-dim transition-colors group-hover:bg-[rgba(217,185,92,0.18)] group-hover:text-paper"
+        className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.45)] bg-[color-mix(in_srgb,var(--color-paper-hi)_85%,transparent)] text-paper-dim transition-colors "
       >
         <Sym name="close" size={13} />
       </span>

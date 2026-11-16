@@ -5,12 +5,7 @@ import { RadioGroup } from "@base-ui/react/radio-group";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
-import {
-  buildDiagPerfText,
-  copyDiagText,
-  exportDiagnostics,
-  usesNativeDiagnosticSave,
-} from "@app/diagExport";
+import { buildDiagPerfText, copyDiagText, exportDiagnostics } from "@app/diagExport";
 import {
   gameArchiveFailureText,
   type ArchivedGameSummary,
@@ -58,7 +53,6 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
     failures: readonly GameArchiveFailure[];
   } | null>(null);
   const [action, setAction] = useState<ActionState>({ phase: "idle" });
-  const nativeSave = usesNativeDiagnosticSave();
   const busy = action.phase === "saving" || action.phase === "copying";
   const selected = games?.find((game) => game.gameId === selectedGameId);
   const archiveFailures = checkedArchive?.gameId === selectedGameId ? checkedArchive.failures : [];
@@ -113,11 +107,10 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
     try {
       const result = await exportDiagnostics(gameId);
       if (result === null) setAction({ phase: "idle" });
-      else if (result === "downloaded") setAction({ phase: "done", message: "已发起下载。" });
       else setAction({ phase: "done", message: `已保存至 ${result.path}` });
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
-      setAction({ phase: "error", message: `${nativeSave ? "保存" : "下载"}失败：${detail}` });
+      setAction({ phase: "error", message: `保存失败：${detail}` });
     } finally {
       const failures = await waitForGameArchive(gameId);
       setCheckedArchive({ gameId, failures });
@@ -134,8 +127,6 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
       setAction({ phase: "error", message: `复制失败：${detail}` });
     }
   };
-
-  const saveLabel = nativeSave ? "保存文件" : "下载文件";
 
   return (
     <Dialog
@@ -197,7 +188,7 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
                       key={game.gameId}
                       value={game.gameId}
                       data-testid={GAME_DIAG_TID.game(game.gameId)}
-                      className="grid min-h-12 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded border border-[var(--hairline)] px-3 py-1.5 hover:border-gold/60 focus-visible:outline-gold data-[checked]:border-gold data-[checked]:bg-gold/15 data-[disabled]:cursor-default"
+                      className="grid min-h-12 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded border border-[var(--hairline)] px-3 py-1.5 focus-visible:outline-gold data-[checked]:border-gold data-[checked]:bg-gold/15 "
                     >
                       <span className="grid gap-0.5">
                         <time
@@ -226,7 +217,7 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
           <div className="flex flex-wrap items-center justify-end gap-2">
             {onBack !== undefined && (
               <Button
-                className="note-btn mr-auto min-h-10 cursor-pointer rounded px-3 font-brush focus-visible:outline-gold"
+                className="note-btn mr-auto min-h-10 rounded px-3 font-brush focus-visible:outline-gold"
                 onClick={onBack}
               >
                 返回设置
@@ -234,7 +225,7 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
             )}
             <Button
               disabled={selected === undefined || busy}
-              className="note-btn min-h-10 cursor-pointer rounded px-3 font-brush focus-visible:outline-gold disabled:cursor-default disabled:opacity-50"
+              className="note-btn min-h-10 rounded px-3 font-brush focus-visible:outline-gold disabled:opacity-50"
               onClick={() => {
                 if (selected !== undefined) void copyPerf(selected.gameId);
               }}
@@ -244,12 +235,12 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
             <Button
               data-testid={GAME_DIAG_TID.save}
               disabled={selected === undefined || busy}
-              className="ink-btn min-h-11 cursor-pointer rounded px-4 font-brush focus-visible:outline-gold disabled:cursor-default"
+              className="ink-btn min-h-11 rounded px-4 font-brush focus-visible:outline-gold "
               onClick={() => {
                 if (selected !== undefined) void saveFile(selected.gameId);
               }}
             >
-              {action.phase === "saving" ? (nativeSave ? "保存中…" : "下载中…") : saveLabel}
+              {action.phase === "saving" ? "保存中…" : "保存文件"}
             </Button>
           </div>
           {(action.phase === "done" || action.phase === "error") && (

@@ -75,7 +75,7 @@ function SheetContent({
           <SheetPrimitive.Close
             data-slot="sheet-close"
             aria-label="关闭"
-            className="absolute top-3 right-3 flex size-8 cursor-pointer items-center justify-center rounded-[3px] border border-gold/30 bg-panel text-paper-dim hover:text-paper focus-visible:outline-2 focus-visible:outline-dashed focus-visible:outline-gold"
+            className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-[3px] border border-gold/30 bg-panel text-paper-dim focus-visible:outline-2 focus-visible:outline-dashed focus-visible:outline-gold"
           >
             {/* × 符号走内联 SVG(Sym 同款口径:箭头/符号类不在字体栈内裸排,离线字体零 tofu) */}
             <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true" focusable="false">
