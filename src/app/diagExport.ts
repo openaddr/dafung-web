@@ -1,65 +1,75 @@
-// 诊断包导出(帧诊通道,ADR-0047):设置弹窗一键全量落文件——设备画像 + 全部历史
-// 对局日志(IndexedDB 归档,局中增量写,不挑终局;30 天保底内的都在)+ 当前帧诊缓冲。
-// 对局日志归档(gameLogArchive)与本件分文件:LogEvent 是 ADR-0014 类型化事件流,
-// 性能数据不混入 core schema;两把钥匙同挂设置弹窗。
-// 文件名 `dafung-diag-<发版号>.json`(发版号=版本单源,收包即知对方跑的哪个 release;
-// #981 原用构建戳,随 #952 拍板构建戳全链退役改用发版号,build 字段同步退役)。
-import { loadAllArchive } from "./gameLogArchive";
-import { collectFrameDiag, type FrameDiagDump } from "./frameDiag";
-import { VERSION } from "../version";
+// 对局诊断按局读归档，沿用 Tauri 系统保存与网页开发下载。
+import { loadArchivedGame } from "./gameLogArchive";
+import type { ArchivedGame } from "./game-diagnostic-record";
 
-export interface DiagBundle {
-  kind: "dafung-diag";
-  schemaVersion: 1;
-  appVersion: string;
-  /** 导出墙钟(epoch ms;帧诊内部时间戳是 performance.now 相对值,锚在此)。 */
-  exportedAt: number;
-  /** 设备画像:UA(WebView 版本可读)/DPR/视口。 */
-  ua: string;
-  dpr: number;
-  viewport: { w: number; h: number };
-  /** 当前帧诊(对局屏未挂载时 null=本会话无采样,如实缺)。 */
-  perf: FrameDiagDump | null;
-  /** 全部历史对局日志(单机;联机局日志在服务器 data/logs/,不在本包)。
-   *  移动端剪贴板小包(#1053)恒 []——剪贴板限长装不下全量,省略数见 gamesOmitted。 */
-  games: Awaited<ReturnType<typeof loadAllArchive>>;
-  /** 本包省略的历史局数(仅剪贴板小包>0;全量包/文件缺省=未省略)。 */
-  gamesOmitted?: number;
+function buildDiagBundle({
+  gameId,
+  mode,
+  mapId,
+  appVersion,
+  log,
+  capture,
+  archiveFailures,
+}: ArchivedGame) {
+  const missing: Partial<Record<"mapId" | "appVersion" | "capture" | "log" | "perf", string>> = {};
+  if (mapId === null) missing.mapId = "该局未记录地图。";
+  if (appVersion === null) missing.appVersion = "该局未记录版本。";
+  if (capture === null) missing.capture = "该局未采集客户端现场与运行环境。";
+  if (log === null) missing.log = "本机未保存该局的对局日志。";
+  if (capture?.perf == null) missing.perf = "本机未保存该局的帧诊。";
+  return {
+    kind: "dafung-diag",
+    schemaVersion: 2,
+    gameId,
+    mode,
+    mapId,
+    appVersion,
+    capturedAt: capture?.capturedAt ?? null,
+    exportedAt: Date.now(),
+    logSource: log === null ? null : mode === "solo" ? "local-authority" : "room-authority",
+    logCapturedAt: log?.capturedAt ?? null,
+    device: capture?.device ?? null,
+    client: capture?.client ?? null,
+    connection: capture?.connection ?? null,
+    errors: capture?.errors ?? null,
+    archiveFailures,
+    missing,
+    log: log?.lines ?? null,
+    perf: capture?.perf ?? null,
+  };
+}
+
+async function requireArchivedGame(gameId: string): Promise<ArchivedGame> {
+  const record = await loadArchivedGame(gameId);
+  if (record === null) throw new Error("所选对局的诊断记录已失效。");
+  return record;
 }
 
 /** 安卓剪贴板限长保守阈(ClipboardService 对大 clip 拒收/丢弃,量级 ~500KB);
  *  超阈文本禁走复制(尤其禁 textarea 回退——大串 select+execCommand 主线程冻结
  *  数秒,真机「点了没反应+弹层关不掉」实锤,#1053)。 */
-export const MAX_CLIPBOARD_CHARS = 400_000;
+const MAX_CLIPBOARD_CHARS = 400_000;
 
-export async function buildDiagBundle(): Promise<DiagBundle> {
-  return {
-    kind: "dafung-diag",
-    schemaVersion: 1,
-    appVersion: VERSION,
-    exportedAt: Date.now(),
-    ua: navigator.userAgent,
-    dpr: window.devicePixelRatio,
-    viewport: { w: window.innerWidth, h: window.innerHeight },
-    perf: collectFrameDiag(),
-    games: await loadAllArchive(),
-  };
-}
-
-/** 剪贴板小包(架构:#1053):全量包摘掉对局日志(超限主凶)只留帧诊+画像+省略数
- *  ——几 KB~百 KB 级,剪贴板稳定可达;全量走文件下载或桌面复制。 */
-export async function buildDiagPerfText(): Promise<string> {
-  const bundle = await buildDiagBundle();
+/** 旧的复制帧诊工具使用所选局的采集记录。 */
+export async function buildDiagPerfText(gameId: string): Promise<string> {
+  const { mode, mapId, appVersion, capture } = await requireArchivedGame(gameId);
+  if (capture === null || capture.perf === null) throw new Error("该局未记录帧诊。");
   return JSON.stringify({
-    ...bundle,
-    games: [],
-    gamesOmitted: bundle.games.length,
+    kind: "dafung-diag-perf",
+    schemaVersion: 2,
+    gameId,
+    mode,
+    mapId,
+    appVersion,
+    capturedAt: capture.capturedAt,
+    exportedAt: Date.now(),
+    device: capture.device,
+    perf: capture.perf,
   });
 }
 
-/** 诊断包 JSON 文本(全量;导出面板的下载/桌面复制通路共用同一序列化)。 */
-async function buildDiagText(): Promise<string> {
-  return JSON.stringify(await buildDiagBundle());
+export function usesNativeDiagnosticSave(): boolean {
+  return "__TAURI_INTERNALS__" in window;
 }
 
 /** 复制诊断包文本到剪贴板。异步 Clipboard API 为主通路;WebView 未授权/非安全
@@ -90,14 +100,37 @@ export async function copyDiagText(text: string): Promise<void> {
   if (!ok) throw new Error("execCommand 复制失败");
 }
 
-/** 导出诊断包(浏览器文件下载通路;APK WebView 没接 DownloadListener,锚点下载
- *  不触发——Tauri 内走导出面板的剪贴板通路,本函数只在浏览器面出现)。 */
-export async function exportDiagnostics(): Promise<void> {
-  const text = await buildDiagText();
-  const blob = new Blob([text], { type: "application/json" });
+/** Tauri 的系统对话框可返回 content URI；取消返回 null。 */
+export async function exportDiagnostics(
+  gameId: string,
+): Promise<{ path: string } | "downloaded" | null> {
+  const record = await requireArchivedGame(gameId);
+  const version = record.appVersion === null ? "" : `-v${record.appVersion}`;
+  const fileName = `dafung-diag-${gameId}${version}.json`;
+  if (usesNativeDiagnosticSave()) {
+    const [{ save }, { writeTextFile }] = await Promise.all([
+      import("@tauri-apps/plugin-dialog"),
+      import("@tauri-apps/plugin-fs"),
+    ]);
+    const path = await save({
+      defaultPath: fileName,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (path === null) return null;
+    await writeTextFile(path, JSON.stringify(buildDiagBundle(record), null, 2));
+    return { path };
+  }
+
+  const blob = new Blob([JSON.stringify(buildDiagBundle(record), null, 2)], {
+    type: "application/json",
+  });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `dafung-diag-${VERSION}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+  a.download = fileName;
+  try {
+    a.click();
+  } finally {
+    URL.revokeObjectURL(a.href);
+  }
+  return "downloaded";
 }

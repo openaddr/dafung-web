@@ -9,6 +9,7 @@
 // 二级选图弹层在 844×390 一类视口被裁切、换图开局不可达——选图改内联横排条带
 // (MapStrip,左右滑动全部可达,点选即选中),「选择地图」入口与地图回显行由
 // 条带承担,选择+开局一屏完成零滚动;桌面档信息架构零变化。
+import { Button } from "@base-ui/react/button";
 import { useEffect, useState } from "react";
 import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
@@ -18,9 +19,9 @@ import { ManualModal } from "@app/screens/manual/ManualModal";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
 import { useMapName } from "@app/screens/setup/useMapName";
+import { GameDiagnosticDialog } from "@app/screens/shared/GameDiagnosticDialog";
 import { Sym } from "@app/screens/shared/Sym";
 import { HOME_TID } from "./testids";
-import { DiagSheet } from "./DiagSheet";
 import { MapStrip } from "./MapStrip";
 import { VERSION } from "../../../version";
 import "./home.css";
@@ -221,20 +222,15 @@ export function HomeScreen({
           </button>
         )}
 
-        {/* 性能诊断导出(帧诊通道 ADR-0047):诊断包=设备画像+全部历史对局日志(含未
-            打完的局)+最近一局帧诊。入口在主页——用户测试常不打完就退出,不绑对局屏;
-            小字入口贴地图行下方(诊断是工具位不是玩法入口,不入按钮列)。
-            #1047:点开导出面板而非裸下载——APK WebView 无锚点下载通路(点了零反应
-            用户实测),面板给剪贴板主通路+可见反馈;浏览器面保留文件下载。 */}
-        <button
-          type="button"
+        {/* 对局诊断默认最近游玩的一局，工具入口贴地图行下方。 */}
+        <Button
           data-testid={HOME_TID.diagExport}
           onClick={() => setDiagOpen(true)}
-          className="mt-4 cursor-pointer font-wenkai text-[13px] text-paper-dim transition-colors hover:text-paper"
+          className="relative mt-4 cursor-pointer font-brush text-[13px] text-paper-dim transition-colors hover:text-paper after:absolute after:inset-x-0 after:top-1/2 after:h-10 after:-translate-y-1/2"
         >
-          性能诊断
-        </button>
-        {diagOpen && <DiagSheet onClose={() => setDiagOpen(false)} />}
+          对局诊断
+        </Button>
+        {diagOpen && <GameDiagnosticDialog onClose={() => setDiagOpen(false)} />}
 
         {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择;fixed 弹层,滚动容器内无关)。
             #707:矮横屏档不挂弹层(该档选择器=条带;桌面开着的弹层旋到矮横屏时随档卸载,

@@ -167,7 +167,7 @@ export class LocalController extends GameController {
       new Set([config.mapId ?? ""]),
     );
     // 占位引擎先于建连就位:board/catalog 随真实地图加载,可变状态由首连摘要覆盖。
-    this._engine = this.makePlaceholderEngine(map, config.seats.length);
+    this._engine = this.makePlaceholderEngine(map, config.seats.length, config.mapId);
     setEngine(this._engine);
     // 开局:startGame 同步段建引擎(doDraftRoll)+ driveBots 驱动 bot 选都(配速 0 =
     // 同步跑完到轮到人类;配速 >0 = 首步落子后链挂步进定时器)。同步段直抛 = 起兵
@@ -195,7 +195,11 @@ export class LocalController extends GameController {
    *  同形制;座位数=本局座位数,玩家可变态由快照原位覆盖
    *  (isBot 随快照恢复)。只读字段随地图就位(ADR-0041 起手/目标地图必配,起手珍宝
    *  同随地图,#1100);联机不掷本地骰,种子随意。 */
-  private makePlaceholderEngine(map: LoadedMap, seatCount: number): GameEngine {
+  private makePlaceholderEngine(
+    map: LoadedMap,
+    seatCount: number,
+    mapId: string | undefined,
+  ): GameEngine {
     return new GameEngine(map.board, map.catalog, createDice(), {
       seats: Array.from({ length: seatCount }, (_, i) => ({
         name: `诸侯 ${i + 1}`,
@@ -204,11 +208,16 @@ export class LocalController extends GameController {
       targetNetWorth: map.targetNetWorth,
       startingCash: map.startingCash,
       startingTreasures: map.startingTreasures,
+      mapId,
     });
   }
 
   get engine(): GameEngine {
     return this._engine;
+  }
+
+  override redactDiagnosticCredentials(message: string): string {
+    return message.replaceAll(this.seatToken, "[凭证已隐去]");
   }
 
   // 热座视角跟随决策方(珍宝交涉相位=城主,其余=activeIndex);公式单源引擎 getter,
@@ -315,6 +324,7 @@ export class LocalController extends GameController {
       return;
     }
     if (msg.type === "dismissed") return; // 单机解散由 destroy 主动发起,无远端解散
+    if (msg.type === "gameLog") throw new Error("单机日志应由权威引擎直接归档");
     useGameStore.getState().pushHint(msg.error);
   }
 

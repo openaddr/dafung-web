@@ -21,6 +21,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { cmdErrorTestPort } from "../../scripts/dev-ports";
+import { OnlineClient } from "../../scripts/online-client";
+import type { GameLogMsg } from "../../scripts/wire";
 
 // 慢例池开关:describe 级 skip 连钩子一起跳(默认池不白起服务器);DAFUNG_SLOW=1 才跑,判据见文件头注。
 const describeSlow = describe.skipIf(!process.env.DAFUNG_SLOW);
@@ -108,7 +110,7 @@ function openWs(url: string): Promise<WebSocket> {
   });
 }
 
-describeSlow("server cmd 分支错误回报(#428)", () => {
+describeSlow("server WS 命令回报与对局日志", () => {
   beforeAll(async () => {
     ROOMS_DIR = mkdtempSync(join(tmpdir(), "dafung-428-"));
     let stale = false;
@@ -132,6 +134,9 @@ describeSlow("server cmd 分支错误回报(#428)", () => {
         ROOMS_DIR,
         LOGS_DIR: ROOMS_DIR, // 对局日志一并落临时目录,不污染仓库 data/
         STATIC_DIR: ROOMS_DIR, // 无静态托管需求(静态只按请求读,目录缺失本就 404)
+        JIYU_CONFIG: join(import.meta.dir, "..", "fixtures", "jiyu-off.json"),
+        DECISION_TIMEOUT_MS: "0",
+        RETENTION_WINDOW_MS: "0",
       },
       stdout: "pipe",
       stderr: "pipe",
@@ -181,5 +186,117 @@ describeSlow("server cmd 分支错误回报(#428)", () => {
     expect(proc!.exitCode).toBeNull();
 
     ws.close();
+  });
+
+  it("联机日志从校准锚连续下行，重连归座后继续交付至解散", async () => {
+    const created = await post("/room/new", { seats: 2, seed: 2 });
+    expect(created.ok).toBe(true);
+    const roomId = created.roomId as string;
+    const hostToken = created.seatToken as string;
+    const joined = await post("/room/join", { roomId });
+    expect(joined.ok).toBe(true);
+    const guestToken = joined.seatToken as string;
+    const hostAuth = { roomId, seatToken: hostToken };
+    expect((await post("/room/map", { ...hostAuth, mapId: "guanzhong" })).ok).toBe(true);
+    expect((await post("/room/start", hostAuth)).ok).toBe(true);
+
+    const peers: OnlineClient[] = [];
+    const connect = async (seat: number, token: string) => {
+      const peer = await OnlineClient.connect(
+        `ws://127.0.0.1:${PORT}/ws?room=${roomId}&seat=${seat}&token=${token}`,
+      );
+      peers.push(peer);
+      return peer;
+    };
+    const waitLog = (peer: OnlineClient, desc: string) =>
+      peer.waitFor<GameLogMsg>((m) => m.type === "gameLog", desc, 2000);
+
+    try {
+      const host = await connect(0, hostToken);
+      const first = await host.next(2000, "首连整房摘要");
+      if (first.type !== "snapshot") throw new Error(`首帧不是整房摘要:${first.type}`);
+      expect(first.log[0]?.category).toBe("header");
+      const guest = await connect(1, guestToken);
+
+      let anchor = first;
+      for (let pick = 0; pick < 2; pick++) {
+        const picker = peers[anchor.currentSetupPlayerIndex];
+        picker.sendPickCapital(anchor.offeredCapitals[0]);
+        anchor = await host.waitSnapshot(
+          (s) => s.currentDraftIndex === pick + 1,
+          "选都后的校准",
+          2000,
+        );
+      }
+      expect(anchor.phase).toBe("Playing");
+      expect(anchor.turnPhase).toBe("Roll");
+      expect(anchor.activeIndex).toBe(1);
+      const guestAnchor = await guest.waitSnapshot((s) => s.phase === "Playing", "开局校准", 2000);
+      expect(guestAnchor.log).toEqual(anchor.log);
+      expect(guest.frames.some((m) => m.type === "gameLog")).toBe(false);
+
+      const beforeRoll = guest.frames.length;
+      guest.sendCmd({ type: "rollAndMove" });
+      await guest.waitFor(
+        (m) => m.type === "events" && m.events.some((ev) => ev.kind === "landingResolved"),
+        "普通行军事件",
+        2000,
+      );
+      const roll = await waitLog(guest, "普通行军日志增量");
+      expect(guest.frames.slice(beforeRoll).map((m) => m.type)).toEqual(["events", "gameLog"]);
+      expect(await waitLog(host, "同局行军日志")).toEqual(roll);
+      expect(roll.gameId).toBe(first.gameId);
+      expect(roll.offset).toBe(anchor.log.length);
+      expect(roll.capturedAt).toBeGreaterThan(0);
+      expect(roll.lines[0]).toMatchObject({ category: "cmd", detail: '{"type":"rollAndMove"}' });
+      expect(roll.lines.some((line) => line.category === "roll")).toBe(true);
+
+      guest.close();
+      await guest.waitClosed(2000);
+      const offline = await waitLog(host, "座位离线记录");
+      expect(offline.offset).toBe(roll.offset + roll.lines.length);
+      expect(offline.lines).toEqual([
+        expect.objectContaining({ category: "room", detail: '{"type":"offline","seat":1}' }),
+      ]);
+
+      const reconnected = await connect(1, guestToken);
+      const restored = await reconnected.next(2000, "重连整房摘要");
+      if (restored.type !== "snapshot") throw new Error(`重连首帧不是摘要:${restored.type}`);
+      expect(restored.gameId).toBe(first.gameId);
+      expect(restored.log).toEqual([...anchor.log, ...roll.lines, ...offline.lines]);
+      expect(restored.players[0].jinnangHand).toEqual([]);
+      expect(restored.players[0].jinnangHandCount).toBeGreaterThan(0);
+
+      // 行军后的购地决策仍由座位 1 持有。重复抽签只会新增命令审计和警告。
+      expect(restored.turnPhase).toBe("AwaitingDecision");
+      reconnected.sendCmd({ type: "rollAndMove" });
+      const audit = await waitLog(reconnected, "仅追加日志的命令");
+      expect(audit.offset).toBe(restored.log.length);
+      expect(audit.lines.map((line) => line.category)).toEqual(["cmd", "system"]);
+      expect(await waitLog(host, "同局命令审计")).toEqual(audit);
+
+      expect((await post("/room/dismiss", hostAuth)).ok).toBe(true);
+      for (const peer of [host, reconnected]) {
+        await peer.waitClosed(2000);
+        expect(peer.frames.slice(-2)).toEqual([
+          {
+            type: "gameLog",
+            gameId: first.gameId,
+            offset: audit.offset + audit.lines.length,
+            lines: [expect.objectContaining({ category: "room", detail: '{"type":"dismiss"}' })],
+            capturedAt: expect.any(Number),
+          },
+          { type: "dismissed", roomId },
+        ]);
+      }
+      expect(reconnected.frames.map((m) => m.type).filter((type) => type !== "lobby")).toEqual([
+        "snapshot",
+        "gameLog",
+        "gameLog",
+        "dismissed",
+      ]);
+    } finally {
+      for (const peer of peers) peer.close();
+    }
   });
 });

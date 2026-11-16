@@ -37,6 +37,16 @@ interface CapitalPickFlow {
   tileDetail: TileDetailRequest | null;
 }
 
+function offeredCapitalTiles(snapshot: GameSnapshot): number[] | null {
+  return snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
+    ? snapshot.offeredCapitals
+    : null;
+}
+
+export function selectableCapitalTiles(snapshot: GameSnapshot, seat: number): number[] | null {
+  return snapshot.currentSetupPlayerIndex === seat ? offeredCapitalTiles(snapshot) : null;
+}
+
 export function useCapitalPick(args: { snapshot: GameSnapshot }): CapitalPickFlow {
   const { snapshot } = args;
   const roomId = useNetStore((s) => s.roomId);
@@ -46,16 +56,11 @@ export function useCapitalPick(args: { snapshot: GameSnapshot }): CapitalPickFlo
 
   // X4(#23) 选都候选:引擎三选一候选(snapshot.offeredCapitals,跨玩家不重复)全座位可见——
   // 非决策席位静态低透明金圈 + 壹贰叁序号印(不可点不脉冲),「轮到本地选」才升格为可点脉冲。
-  const offeredCapitals =
-    snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
-      ? snapshot.offeredCapitals
-      : null;
+  const offeredCapitals = offeredCapitalTiles(snapshot);
   // 候选集内容串作键:快照每次 sync 都换新对象,按引用订阅会让 select 集/镜头效果
   // 随同步反复重建;同一候选集只应生效一次。
-  const pickKey = offeredCapitals ? offeredCapitals.join(",") : null;
   // 轮到本地视角选都(单机真人固定首座;联机按房间座位)才有可点交互。
-  const myPickKey =
-    pickKey && snapshot.currentSetupPlayerIndex === (roomId !== "" ? mySeat : 0) ? pickKey : null;
+  const myPickKey = selectableCapitalTiles(snapshot, roomId !== "" ? mySeat : 0)?.join(",");
   const selectableTiles = useMemo(
     () => (myPickKey ? new Set(myPickKey.split(",").map(Number)) : undefined),
     [myPickKey],

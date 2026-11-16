@@ -44,6 +44,7 @@ export const TESTIDS = {
   settingsSfx: "settings-sfx",
   /** 战报入口行,打开战报抽屉。 */
   settingsWarReport: "settings-war-report",
+  settingsDiagnostic: "settings-diagnostic",
   /** 回到主页行(弃局离屏:销毁控制器回 setup)。 */
   settingsHome: "settings-home",
   /** Base UI Switch,经 useAutopilotOn 回读、controller.setAutoPilot 下发;操作本座托管。 */

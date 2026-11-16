@@ -12,9 +12,7 @@
 // 纪律(防「为测卡顿引入卡顿」):每帧成本 = 1 次数组 push;LoAF/longtask 只对慢帧
 // 回调(天然稀疏);上下文 5s 一拍读 store(零 DOM 查询);缓冲全有界;时间戳一律
 // performance.now 相对值(墙钟只在导出拍取一次)。
-// 单写者:GameScreen 挂载/卸载各调一次 start/stop;重复 start 是接线 bug,当场炸(零兜底)。
-// 导出口在主页(ADR-0047 修订:用户测试常不打完就退出,入口不绑对局屏)——停采定格
-// 收编 lastDump 跨屏存活,导出包=「最近一局」帧诊 + IndexedDB 全部历史对局日志。
+// 对局诊断持有同一局的采样句柄。lastDump 供开发探针读取最近停采会话。
 import { useFxStore } from "./fx/fxStore";
 
 interface FrameWindow {
@@ -131,9 +129,6 @@ interface DiagSession {
 }
 
 let session: DiagSession | null = null;
-/** 最近一局的定格采样:停采(退出对局)时收编——导出入口在主页(ADR-0047 修订:
- *  用户测试常不打完就退出),帧诊必须跨出对局屏存活;开新局被下一局停采自然顶替
- *  (只留最近一局,有界)。 */
 let lastDump: FrameDiagDump | null = null;
 
 function snapCtx(): PerfCtx {
@@ -148,8 +143,8 @@ function snapCtx(): PerfCtx {
   };
 }
 
-/** 开采:GameScreen 挂载调用。重复开采 = 接线 bug,当场炸(零兜底)。 */
-export function startFrameDiag(): void {
+/** GameScreen 挂载时开启会话，采集和停采均归本次句柄。 */
+export function startFrameDiag(): { collect(): FrameDiagDump; stop(): FrameDiagDump } {
   if (session != null) throw new Error("frameDiag:重复开采(挂载接线 bug)");
   const obs: PerformanceObserver[] = [];
   const s: DiagSession = {
@@ -243,19 +238,24 @@ export function startFrameDiag(): void {
     s.curLoaf = { count: 0, scriptMs: 0, styleLayoutMs: 0 };
     s.curLongTasks = { n: 0, ms: 0 };
   }, WINDOW_MS);
+
+  return {
+    collect: () => dumpSession(s, null),
+    stop: () => {
+      cancelAnimationFrame(s.rafId);
+      if (s.timer != null) clearInterval(s.timer);
+      for (const o of s.obs) o.disconnect();
+      session = null;
+      lastDump = dumpSession(s, performance.now());
+      return lastDump;
+    },
+  };
 }
 
-/** 停采:GameScreen 卸载调用——采样定格收编进 lastDump(主页导出入口消费,ADR-0047 修订)。 */
-export function stopFrameDiag(): void {
-  const s = session;
-  if (s == null) return;
-  cancelAnimationFrame(s.rafId);
-  if (s.timer != null) clearInterval(s.timer);
-  for (const o of s.obs) o.disconnect();
-  session = null;
-  lastDump = {
+function dumpSession(s: DiagSession, stoppedAt: number | null): FrameDiagDump {
+  return {
     startedAt: s.startedAt,
-    stoppedAt: performance.now(),
+    stoppedAt,
     loafSupported: s.loafSupported,
     windows: [...s.windows],
     jank: [...s.jank],
@@ -263,19 +263,7 @@ export function stopFrameDiag(): void {
   };
 }
 
-/** 导出快照:局中=当前局实时缓冲;退出对局后=最近一局定格(lastDump,跨屏存活)。
- *  从未玩过(冷启动主页)= null,诊断包如实缺 perf 段。 */
+/** 开发探针读取活动缓冲或最近停采会话。 */
 export function collectFrameDiag(): FrameDiagDump | null {
-  const s = session;
-  if (s != null) {
-    return {
-      startedAt: s.startedAt,
-      stoppedAt: null,
-      loafSupported: s.loafSupported,
-      windows: [...s.windows],
-      jank: [...s.jank],
-      slowFrames: [...s.slowFrames],
-    };
-  }
-  return lastDump;
+  return session === null ? lastDump : dumpSession(session, null);
 }

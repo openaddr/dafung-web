@@ -9,7 +9,12 @@
 //      锦囊数量账在暗牌数组恒空(redacted 水合形态)下仍自洽。
 // 发送面接线(消息真实到达客户端)归 test/online/protocol-online.test.ts(ADR-0055)。
 import { describe, it, expect } from "bun:test";
-import { redactEvents, clientView, redactSnapshotForSeat } from "../../scripts/seat-projection";
+import {
+  assembleGameLogDelta,
+  redactEvents,
+  clientView,
+  redactSnapshotForSeat,
+} from "../../scripts/seat-projection";
 import { RoomRegistry } from "../../scripts/room";
 import { MAP } from "../../scripts/engine-helpers";
 import type { RoomPersistence } from "../../scripts/room-persistence";
@@ -19,6 +24,7 @@ import { GameEngine, type SeatConfig } from "../../src/core/authority";
 import type { GameEvent, GameEventBody } from "../../src/core/game-events";
 import type { MovePath } from "../../src/core/board";
 import { createDice } from "../../src/core/dice";
+import { armPhase, giveJinnang } from "../../src/core/planter";
 import { foldEventBatch } from "@app/net/event-fold";
 import { reactionQueriesSeat } from "@app/controllers/reaction";
 
@@ -250,6 +256,127 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
     // 房间字段随车(客户端从任一消息得到完整房间态)
     expect(guestSummary.type).toBe("snapshot");
     expect(guestSummary.seatCount).toBe(2);
+  });
+
+  it("座位摘要与日志尾段隐去暗牌操作及询问身份，保留公开结算和行序", () => {
+    const game = makeEngine();
+    armPhase(game, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+    giveJinnang(game, 0, ["连环计", "横征暴敛"]);
+    giveJinnang(game, 1, ["识破诡计"]);
+    const offset = game.log.length;
+
+    game.submitCommand({ type: "useJinnang", cardId: "连环计" });
+    game.submitCommand({ type: "useJinnang", cardId: "连环计", targets: [1] });
+    game.submitCommand({ type: "useJinnang", cardId: "连环计" });
+    game.submitCommand({ type: "useJinnang", cardId: "连环计", cancel: true });
+    game.submitCommand({ type: "useJinnang", cardId: "横征暴敛" });
+    game.submitCommand({
+      type: "respondReaction",
+      seat: 1,
+      use: true,
+      cardId: "半路杀出",
+      shareSeat: 2,
+    });
+    game.submitCommand({ type: "respondReaction", seat: 1, use: false });
+    game.submitCommand({ type: "useJinnang", cardId: null });
+
+    const snapshot = redactSnapshotForSeat(game.snapshot(), 2);
+    const delta = assembleGameLogDelta(game, offset, 123);
+    if (delta === null) throw new Error("命令后缺少日志尾段");
+    expect(snapshot.log).toHaveLength(game.log.length);
+    expect(delta.offset).toBe(offset);
+    expect(delta.lines).toEqual(snapshot.log.slice(offset));
+    expect(
+      delta.lines.filter((line) => line.category === "cmd").map((line) => JSON.parse(line.detail)),
+    ).toEqual([
+      { type: "useJinnang" },
+      { type: "useJinnang" },
+      { type: "useJinnang" },
+      { type: "useJinnang", cancel: true },
+      { type: "useJinnang" },
+      { type: "respondReaction", use: true },
+      { type: "respondReaction", use: false },
+      { type: "useJinnang", cardId: null },
+    ]);
+    const visible = JSON.stringify(snapshot.log);
+    expect(visible).not.toContain("连环计");
+    expect(visible).not.toContain("半路杀出");
+    expect(visible).not.toContain("queried=p1");
+    expect(visible).toContain("queriedCount=1");
+    expect(visible).toContain("jinnangCancel player=p0");
+    expect(visible).toContain("[警告]");
+    expect(visible).toContain("jinnangUse player=p0 card=横征暴敛");
+    const authority = JSON.stringify(game.log);
+    expect(authority).toContain("连环计");
+    expect(authority).toContain("半路杀出");
+    expect(authority).toContain("queried=p1");
+  });
+
+  it("座位日志仅保留公开命令字段，权威警告原文留在服务器", () => {
+    const game = makeEngine();
+    game.doDraftRoll();
+    const offset = game.log.length;
+    const seat = game.currentSetupPlayerIndex;
+    const tileIndex = game.offeredCapitals[0];
+    expect(game.pickCapital(seat, tileIndex).ok).toBe(true);
+    armPhase(game, { phase: "Playing", turnPhase: "Roll", activeIndex: 0 });
+    const trade = {
+      type: "resolveTreasureOwner",
+      action: { type: "fair", treasureId: "seal-1", token: "nested-extra-field" },
+      wsUrl: "command-extra-field",
+    } as const;
+    game.submitCommand(trade);
+    game.submitCommand({
+      type: "resolveTreasureOwner",
+      action: { type: "premium", treasureId: "unrecognized-treasure" },
+    });
+    game.submitCommand({
+      type: "useHeroSkill",
+      heroId: "unrecognized-hero",
+      skillId: "unrecognized-skill",
+    });
+    game.submitCommand({ type: "useHeroSkill", heroId: "zhangxingcai", skillId: "leigu" });
+    game.submitCommand({
+      type: "useBookSkill",
+      treasureId: "skillbook-leigu",
+      heroId: "zhangxingcai",
+    });
+    game.submitCommand({
+      type: "confirmBankruptcySettle",
+      assets: [
+        { kind: "treasure", id: "skillbook-unrecognized-book" },
+        { kind: "treasure", id: "seal-1" },
+        { kind: "property", id: "unrecognized-property" },
+      ],
+    });
+    game.warn("AI 无可选都城,跳过");
+
+    const projected = redactSnapshotForSeat(game.snapshot(), 1).log.slice(offset);
+    expect(assembleGameLogDelta(game, offset, 10)?.lines).toEqual(projected);
+    expect(projected).toHaveLength(game.log.length - offset);
+    expect(
+      projected.filter((line) => line.category === "cmd").map((line) => JSON.parse(line.detail)),
+    ).toEqual([
+      { type: "pickCapital", seat, tileIndex },
+      { type: "resolveTreasureOwner", action: { type: "fair", treasureId: "seal-1" } },
+      { type: "resolveTreasureOwner", action: { type: "premium" } },
+      { type: "useHeroSkill" },
+      { type: "useHeroSkill", heroId: "zhangxingcai", skillId: "leigu" },
+      { type: "useBookSkill", treasureId: "skillbook-leigu", heroId: "zhangxingcai" },
+      {
+        type: "confirmBankruptcySettle",
+        assets: [{ kind: "treasure" }, { kind: "treasure", id: "seal-1" }, { kind: "property" }],
+      },
+    ]);
+    const warnings = projected.filter((line) => line.brief.startsWith("[警告]"));
+    expect(warnings.at(-1)).toMatchObject({
+      category: "system",
+      brief: "[警告] 对局产生警告，原文见服务器日志",
+    });
+    const authority = JSON.stringify(game.log);
+    expect(authority).toContain("nested-extra-field");
+    expect(authority).toContain("unrecognized-hero");
+    expect(game.log.at(-1)?.detail).toBe("warn: AI 无可选都城,跳过");
   });
 });
 
