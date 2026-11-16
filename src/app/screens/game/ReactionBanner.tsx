@@ -1,11 +1,11 @@
-// 组件收口:保留现实现——#281 反应窗横幅:落印/不用/降噪口皆 ActionBar 同款裸钮,非弹层不夺焦(细则 docs/design/组件收口.md)
+// 组件收口:保留现实现——#281 反应窗横幅:出牌/不出/降噪口皆 ActionBar 同款裸钮,非弹层不夺焦(细则 docs/design/组件收口.md)
 // 反应窗横幅(#281,#234 P1-D「牌架即反应窗」;#751 精修,#760 倒计时信号重校):
 // 结算事件横幅从手牌架上缘长出——左段倒计时弧嵌剩余秒数(#751 A5:阅读序前置;
 // #760:常态弧墨金弱轨 goldWash,≤5s 转 danger 档=朱砂弧+秒数、2Hz 呼吸脉动、
 // 每秒滴答音)+
-// 来者锦囊 mini 签面(#751 A6,复用 JinnangCardFace 器物语言)+ 事件文案;落印确认
+// 来者锦囊 mini 签面(#751 A6,复用 JinnangCardFace 器物语言)+ 事件文案;出牌确认
 // 墨钮 / 不用 / 降噪口「本回合不再询问」(mute 移按钮行末位并与拍板钮拉开间距,
-// #751 A4 防误触)。按份族追加选份候选笺行:点笺=定被保护份,再落印确认——AOE 全体域
+// #751 A4 防误触)。按份族追加选份候选笺行:点笺=定被保护份,再出牌确认——AOE 全体域
 //(横征暴敛等)份=座位(含自己);城指向域(#1389 火烧连营)份=受击城 tileIndex,笺文
 // 城名(GameScreen 装配侧解读域语义,本件只认数字+标签函数);单目标/半路杀出/反识破
 // 链环免选。交互语义自持(真按钮,不自写 role);样式在 reaction-banner.css。
@@ -38,12 +38,12 @@ interface ReactionBannerProps {
    *  (横征暴敛等,含自己);one-city=受击城 tileIndex(火烧连营,#1389)——本件只认
    *  数字与标签函数,域语义由 GameScreen 装配侧解读。 */
   shareSeats: number[];
-  /** 已选被保护份(null=未选;shareSeats 非空时未选则落印禁用)。 */
+  /** 已选被保护份(null=未选;shareSeats 非空时未选则出牌禁用)。 */
   shareSeat: number | null;
   onPickShare: (share: number) => void;
   /** 候选笺文案(份 → 标签,GameScreen 装配:座位份=国号,城份=城名)。 */
   seatLabel: (share: number) => string;
-  /** 落印确认可用性(选中反应锦囊且份已定)。 */
+  /** 出牌确认可用性(选中反应锦囊且份已定)。 */
   confirmEnabled: boolean;
   onConfirm: () => void;
   onDecline: () => void;
@@ -182,7 +182,7 @@ export function ReactionBanner({
       disabled={!confirmEnabled}
       onClick={onConfirm}
     >
-      落印
+      出牌
     </button>
   );
   const decline = (
@@ -192,13 +192,13 @@ export function ReactionBanner({
       data-testid={TESTIDS.reactionDecline}
       onClick={onDecline}
     >
-      不用
+      不出
     </button>
   );
   const mute = (
     <>
       {/* 降噪口(#751 A4):移按钮行末位并与拍板钮拉开一档间距(≥12px)——即效语义
-          不动,与「不用」的近邻误触面拆掉。 */}
+          不动,与「不出」的近邻误触面拆掉。 */}
       <button
         type="button"
         className="reaction-mute"

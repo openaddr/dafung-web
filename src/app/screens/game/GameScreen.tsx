@@ -489,7 +489,7 @@ function GameScreenLive({
           ? "在地图上点一座受击城保护"
           : prototypeSeatShares
             ? "在右侧席位区选择保护对象"
-            : "可以落印"
+            : "可以出牌"
         : `保护 ${prototypeCityShares ? cityNameOf(reactShare) : seatLabelOf(reactShare)}`;
   const reactBanner =
     reactionUp && reaction != null && !reactMuted ? (
@@ -597,7 +597,11 @@ function GameScreenLive({
         .join("　")
     : junshiSelected == null
       ? "在下方手牌区选择锦囊"
-      : (levyPreview ?? "确认这张锦囊");
+      : prototypeDirectPlay
+        ? (levyPreview ?? "点「出牌」使用这张锦囊")
+        : prototypeCard?.targetDomain === "one-city"
+          ? "接下来在地图上选城"
+          : "接下来在右侧席位区选人";
 
   // ── 「你可」选择闸窗态:快照 pendingSkillChoices 首问驱动 ──
   // 相位单属主(decisionOwner=挂问属主,引擎 getter;interactive 经 canAct 主分支
@@ -957,7 +961,7 @@ function GameScreenLive({
             actions={
               <>
                 <button type="button" className="reaction-btn qian" onClick={junshiPass}>
-                  {junshiTargeting ? "作罢" : "不出"}
+                  {junshiTargeting ? "取消选牌" : "不出"}
                 </button>
                 <button
                   type="button"
@@ -972,7 +976,7 @@ function GameScreenLive({
                     ? "下一步"
                     : junshiTargeting || prototypeDirectPlay
                       ? "出牌"
-                      : "继续"}
+                      : "选目标"}
                 </button>
               </>
             }

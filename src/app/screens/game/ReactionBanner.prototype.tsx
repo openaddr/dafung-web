@@ -79,7 +79,7 @@ export function ReactionPrototypeLayout({
               <Popover.Positioner side="top" align="end" sideOffset={8}>
                 <Popover.Popup className="reaction-prototype-menu" initialFocus={false}>
                   <Popover.Title className="reaction-prototype-menu-note">
-                    本回合内的询问都按「不用」处理。
+                    本回合内的询问都按「不出」处理。
                   </Popover.Title>
                   {mute}
                 </Popover.Popup>

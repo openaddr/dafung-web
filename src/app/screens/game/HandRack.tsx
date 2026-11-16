@@ -765,7 +765,7 @@ export const HandRack = memo(function HandRack({
               played,
               reason: played
                 ? targetDemo != null
-                  ? "已选 · 待择目标"
+                  ? "正在选目标"
                   : "已出牌 · 待择目标"
                 : undefined,
             }}
