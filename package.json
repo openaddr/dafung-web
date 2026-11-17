@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "bun scripts/dev.ts",
     "play": "bun scripts/play.ts",
-    "lint": "oxlint && bun run check:test-boundaries",
+    "lint": "oxlint --deny-warnings && bun run check:test-boundaries",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "build": "bun scripts/build-dist.ts --typecheck",
@@ -26,7 +26,6 @@
     "check:sim-bench": "bun scripts/sim-bench.ts",
     "check:sim-bench:update": "bun scripts/sim-bench.ts update",
     "check:freshness": "bun scripts/check-freshness.ts",
-    "validate": "bun scripts/validate.ts",
     "check:agents-budget": "bun scripts/check-agents-budget.ts",
     "check:fmt": "oxfmt --check",
     "check:links": "bun scripts/check-doc-links.ts",

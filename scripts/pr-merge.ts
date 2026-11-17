@@ -1,12 +1,13 @@
-// PR 收口:校验回执/基线/文件集 → push → 开 PR → squash 合并 → 验证 MERGED → 定点收账。
+// PR 收口:核基线与文件集 → 一次检查 → push → 开 PR → squash → 定点收账。
 // 用法与恢复条件见 docs/how-to/开发与测试.md「版本协作」。
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { parseArgs } from "node:util";
 import { cleanupMerged } from "./pr-merge-cleanup";
+import { checksFor } from "./pr-merge-checks";
 
-function jj(...args: string[]): string {
+function jjOutput(...args: string[]): string {
   const proc = Bun.spawnSync(["jj", ...args], { stdout: "pipe", stderr: "pipe" });
   if (proc.exitCode !== 0) {
     console.error(
@@ -14,7 +15,11 @@ function jj(...args: string[]): string {
     );
     process.exit(1);
   }
-  return new TextDecoder().decode(proc.stdout).trim();
+  return new TextDecoder().decode(proc.stdout);
+}
+
+function jj(...args: string[]): string {
+  return jjOutput(...args).trim();
 }
 
 function changedPaths(output: string): string[] {
@@ -50,7 +55,7 @@ function gh(...args: string[]): string {
 }
 
 const usage =
-  "用法: bun scripts/pr-merge.ts <书签名> [--title 标题] [--body-file 路径] [--create-only] [--validation-receipt 路径] --expect 路径 [--expect 路径 ...]";
+  "用法: bun scripts/pr-merge.ts <书签名> [--title 标题] [--body-file 路径] [--create-only] --expect 路径 [--expect 路径 ...]";
 const parsed = (() => {
   try {
     return parseArgs({
@@ -59,7 +64,6 @@ const parsed = (() => {
         title: { type: "string" },
         "body-file": { type: "string" },
         "create-only": { type: "boolean" },
-        "validation-receipt": { type: "string" },
         expect: { type: "string", multiple: true },
       },
       allowPositionals: true,
@@ -77,6 +81,10 @@ const bookmark = parsed.positionals[0];
 if (!bookmark || parsed.positionals.length !== 1) {
   console.error(`[pr-merge] 请指定唯一书签。${usage}`);
   process.exit(2);
+}
+if (realpathSync(path.dirname(import.meta.dir)) !== realpathSync(process.cwd())) {
+  console.error("[pr-merge] 请从当前工作区根目录运行该工作区的收口脚本。");
+  process.exit(1);
 }
 const createOnly = parsed.values["create-only"] ?? false;
 const expectPaths = [...new Set((parsed.values.expect ?? []).map((p) => p.replaceAll("\\", "/")))];
@@ -163,8 +171,6 @@ if (mergedPrUrl) {
   console.log(`[pr-merge] PR #${prNumber} 已 MERGED——恢复模式:跳过 push/合并,直达清理+收账。`);
 }
 
-let didMaterialize = false;
-
 if (!prNumber) {
   if (expectPaths.length === 0 || expectPaths.some((p) => !p)) {
     console.error("[pr-merge] 缺少 --expect 路径,请先声明预期文件集。");
@@ -186,43 +192,34 @@ if (!prNumber) {
     process.exit(2);
   }
 
-  // 回执先于占用清理/等效 squash 校验,禁止物化目标树掩盖调用者验证了另一棵树。
-  const reuseValidation = parsed.values["validation-receipt"] !== undefined;
-  if (reuseValidation) {
-    const receipt = parsed.values["validation-receipt"];
-    if (!receipt || receipt.startsWith("--")) {
-      console.error("[pr-merge] --validation-receipt 缺少结果文件路径");
-      process.exit(2);
-    }
-    const root = jj("root");
-    // 精确基线须来自本次刷新的远端账本;fetch 只读远端,无效回执仍零远端写入。
-    jj("git", "fetch");
-    const verified = Bun.spawnSync(
-      [
-        process.execPath,
-        path.join(import.meta.dir, "validate.ts"),
-        "verify",
-        path.resolve(root, receipt),
-        "--base",
-        "master@origin",
-        "--target",
-        bookmark,
-      ],
-      { cwd: root, stdout: "inherit", stderr: "inherit" },
+  const startup = jj("log", "-r", "@", "--no-graph", "-T", "commit_id");
+  const originalTarget = jj("log", "-r", bookmark, "--no-graph", "-T", "commit_id");
+  if (jj("diff", "--from", startup, "--to", originalTarget, "--name-only") !== "") {
+    console.error(
+      "[pr-merge] 工作区与目标书签内容不同,请先在自己的空工作区 jj new 目标书签再运行。",
     );
-    if (verified.exitCode !== 0) {
-      console.error("[pr-merge] 验证回执无效——停止收口,请重新 validate run。");
-      process.exit(1);
-    }
-    console.log("[pr-merge] 验证回执有效,复用已通过的 build/慢池 canary。");
+    process.exit(1);
+  }
+  jj("git", "fetch");
+  const base = jj("log", "-r", "master@origin", "--no-graph", "-T", "commit_id");
+  if (
+    jj("log", "-r", "@", "--no-graph", "-T", "commit_id") !== startup ||
+    jj("log", "-r", bookmark, "--no-graph", "-T", "commit_id") !== originalTarget
+  ) {
+    console.error("[pr-merge] 工作区或目标书签在预检期间变化,停止收口。");
+    process.exit(1);
+  }
+  if (jj("log", "-r", `${base} & ::${originalTarget}`, "--no-graph", "-T", "commit_id") !== base) {
+    console.error("[pr-merge] 书签不在最新 master@origin 之上,先重定基。");
+    process.exit(1);
   }
   // 空工作副本可继续;与目标同树时新建空子提交,其他非空状态拒绝收口。
   {
     const occ = jj("log", "-r", "@", "--no-graph", "-T", 'if(empty, "EMPTY", "OCCUPIED")');
     if (occ === "OCCUPIED") {
-      const sameTree = jj("diff", "--from", "@", "--to", bookmark, "--name-only") === "";
+      const sameTree = jj("diff", "--from", "@", "--to", originalTarget, "--name-only") === "";
       if (sameTree) {
-        jj("new", bookmark);
+        jj("new", originalTarget);
         console.log("[pr-merge] 工作副本与目标书签同树——已起空停靠,保留原提交。");
       } else {
         console.error(
@@ -234,7 +231,14 @@ if (!prNumber) {
   }
 
   // 1) 书签在本地且已描述(空描述=未交付,红)
-  const description = jj("log", "-r", bookmark, "--no-graph", "-T", "description.first_line()");
+  const description = jj(
+    "log",
+    "-r",
+    originalTarget,
+    "--no-graph",
+    "-T",
+    "description.first_line()",
+  );
   if (!description) {
     console.error(`[pr-merge] 书签 ${bookmark} 的 change 没有描述——先 jj describe(交付纪律)。`);
     process.exit(1);
@@ -249,18 +253,19 @@ if (!prNumber) {
   const chainCommits = jj(
     "log",
     "-r",
-    `master@origin..${bookmark}`,
+    `${base}..${originalTarget}`,
     "--no-graph",
     "-T",
     'commit_id.short() ++ "\\n"',
   )
     .split("\n")
     .filter(Boolean);
+  let expectedTarget = originalTarget;
   if (chainCommits.length > 1) {
     const chainRoots = jj(
       "log",
       "-r",
-      `roots(master@origin..${bookmark})`,
+      `roots(${base}..${originalTarget})`,
       "--no-graph",
       "-T",
       'commit_id.short() ++ "\\n"',
@@ -284,11 +289,16 @@ if (!prNumber) {
       );
       process.exit(1);
     }
-    const fullDescription = jj("log", "-r", bookmark, "--no-graph", "-T", "description");
-    jj("new", "master@origin", "-m", fullDescription);
-    jj("restore", "--from", bookmark);
-    jj("bookmark", "move", bookmark, "--to", "@", "--allow-backwards");
-    didMaterialize = true;
+    const fullDescription = jj("log", "-r", originalTarget, "--no-graph", "-T", "description");
+    jj("new", base, "-m", fullDescription);
+    jj("restore", "--from", originalTarget);
+    expectedTarget = jj("log", "-r", "@", "--no-graph", "-T", "commit_id");
+    if (jj("log", "-r", bookmark, "--no-graph", "-T", "commit_id") !== originalTarget) {
+      console.error("[pr-merge] 目标书签在归拢期间变化,停止收口。");
+      process.exit(1);
+    }
+    jj("bookmark", "move", bookmark, "--to", expectedTarget, "--allow-backwards");
+    jj("new", expectedTarget);
     console.log(
       `[pr-merge] 多提交链(${chainCommits.length} 提交)已等效 squash 为单提交(树=原链尖)。`,
     );
@@ -301,9 +311,9 @@ if (!prNumber) {
   //       此处两份 diff 不一致只剩基线落后一种成因,检测无歧义。
   {
     const rangeFiles = changedPaths(
-      jj("diff", "--from", "master@origin", "--to", bookmark, "--name-only"),
+      jj("diff", "--from", base, "--to", expectedTarget, "--name-only"),
     );
-    const changeFiles = changedPaths(jj("diff", "-r", bookmark, "--name-only"));
+    const changeFiles = changedPaths(jj("diff", "-r", expectedTarget, "--name-only"));
     const { extras: onlyInRange, missing: onlyInChange } = comparePaths(rangeFiles, changeFiles);
     if (onlyInRange.length > 0 || onlyInChange.length > 0) {
       console.error(
@@ -322,7 +332,7 @@ if (!prNumber) {
 
   // 1.18) 冲突态预检(#990 会话实锤:jj rebase 留冲突不报错、一等公民只挡 push——
   //       push 处的拒收迟到且不含文件名;提前红 = 重定基后忘消解的场景一句话定位)。
-  if (jj("log", "-r", bookmark, "--no-graph", "-T", 'if(conflict, "yes", "no")') === "yes") {
+  if (jj("log", "-r", expectedTarget, "--no-graph", "-T", 'if(conflict, "yes", "no")') === "yes") {
     console.error(
       `[pr-merge] ${bookmark} 提交含未解冲突——消解冲突文件后(进该 workspace 跑一条 jj 命令触发快照)再重跑`,
     );
@@ -332,7 +342,7 @@ if (!prNumber) {
   // 1.2) 预期文件集对账(--expect 可重复声明;S3 闸,见头注)。对账对象=change diff
   //      本体(即 PR 将含的全部文件);路径反斜杠归一(Windows jj 输出带「\」)。
   if (expectPaths.length > 0) {
-    const actual = changedPaths(jj("diff", "-r", bookmark, "--name-only"));
+    const actual = changedPaths(jj("diff", "-r", expectedTarget, "--name-only"));
     const declared = [...expectPaths].sort();
     const { extras, missing } = comparePaths(actual, declared);
     if (extras.length > 0 || missing.length > 0) {
@@ -351,81 +361,60 @@ if (!prNumber) {
     console.log(`[pr-merge] 文件集对账通过(声明 ${declared.length} = 实际 ${actual.length} 个)`);
   }
 
-  if (!reuseValidation && jj("diff", "--from", "@", "--to", bookmark, "--name-only") !== "") {
-    if (jj("log", "-r", "@", "--no-graph", "-T", 'if(empty, "EMPTY", "OCCUPIED")') !== "EMPTY") {
-      console.error("[pr-merge] 当前工作区与目标书签不同且非空,无法安全切换检查树。");
+  if (jj("diff", "--from", "@", "--to", expectedTarget, "--name-only") !== "") {
+    console.error("[pr-merge] 工作区与目标书签内容不同,停止收口。");
+    process.exit(1);
+  }
+
+  // 检查只运行一次,长输出交给现有 command-log。
+  const target = jj("log", "-r", bookmark, "--no-graph", "-T", "commit_id");
+  if (target !== expectedTarget) {
+    console.error("[pr-merge] 目标书签在预检期间变化,停止收口。");
+    process.exit(1);
+  }
+  const working = jj("log", "-r", "@", "--no-graph", "-T", "commit_id");
+  const assertUnchanged = () => {
+    if (
+      jj("log", "-r", "@", "--no-graph", "-T", "commit_id") !== working ||
+      jj("log", "-r", bookmark, "--no-graph", "-T", "commit_id") !== target ||
+      jj("log", "-r", "master@origin", "--no-graph", "-T", "commit_id") !== base
+    ) {
+      console.error("[pr-merge] 检查期间代码、书签或基线发生变化,停止收口。");
       process.exit(1);
     }
-    jj("new", bookmark);
-    console.log("[pr-merge] 已切到目标树执行本地检查。");
-  }
-
-  // 1.20) build 闸(2026-11-07 复盘 P1 拍板,#1202):「本地全绿」机械化——bun test
-  //       结构性不查型,#1191 三处跨型断言 bun test 全绿直达 master,build 红靠下游
-  //       撞上才发觉(#1194 热修)。push 前 tsc --noEmit + vite build 红即停、零 push。
-  //       无豁免旗标:有旗标=「这次小就不跑了」复归纪律态;秒级成本对照 master 破损
-  //       代价(下游票全数被闸+热修一轮)稳赚。快错排序:瞬闸(文件集/冲突/freshness)
-  //       →本闸(秒级)→慢池 canary(分钟级)→push。
-  if (!reuseValidation) {
-    console.log("[pr-merge] build 闸:tsc --noEmit + vite build…");
-    const build = Bun.spawnSync(["bun", "run", "build"], {
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    if (build.exitCode !== 0) {
-      console.error(
-        "[pr-merge] build 闸红——类型/构建破损不许上 master(#1202;冷 workspace 缺依赖先 bun install 再收口)。",
-      );
+  };
+  const runCheck = (check: string, command: string[], env: Record<string, string> = {}) => {
+    console.log(`[pr-merge] 检查 ${check}…`);
+    const result = Bun.spawnSync(
+      [process.execPath, path.join(import.meta.dir, "command-log.ts"), "--", ...command],
+      { stdout: "inherit", stderr: "inherit", env: { ...process.env, ...env } },
+    );
+    if (result.exitCode !== 0) {
+      console.error(`[pr-merge] ${check} 失败,停止收口。`);
+      process.exit(result.exitCode || 1);
+    }
+    assertUnchanged();
+  };
+  const paths = changedPaths(jj("diff", "-r", target, "--name-only"));
+  const checks = (() => {
+    try {
+      return checksFor(base, target, paths, jjOutput);
+    } catch (error) {
+      console.error(`[pr-merge] 检查选择失败:${String(error)}`);
       process.exit(1);
     }
-    console.log("[pr-merge] build 闸绿。");
-  }
-
-  // 1.19) 慢池 canary(#1003,#958 会话复盘拍板):慢例池只在收口/批次跑,快票合并
-  //       不触达 → 慢例破损静默入库(march-stop-fx-drain 在 master 破损数日无人知,
-  //       #971 A/B+探针定罪)。本次 change 触及 test/*.test.ts 且文件含 DAFUNG_SLOW
-  //       标记即定向跑(单例 3-30s 级,DAFUNG_SLOW=1),红即停;未触及零成本跳过。
-  //       裸 bun test 不经全量锁(定向豁免,how-to「把测试跑起来」节)。
-  if (!reuseValidation) {
-    const touched = jj("diff", "-r", bookmark, "--name-only")
-      .split("\n")
-      .map((s) => s.trim().replaceAll("\\", "/"))
-      .filter((f) => /^test\/.+\.test\.ts$/.test(f) && existsSync(f));
-    const slowFiles = touched.filter((f) => readFileSync(f, "utf8").includes("DAFUNG_SLOW"));
-    if (slowFiles.length > 0) {
-      console.log(
-        `[pr-merge] 慢池 canary:本票触及慢例 ${slowFiles.length} 个(${slowFiles.join(" ")}),DAFUNG_SLOW=1 定向跑…`,
-      );
-      const canary = Bun.spawnSync([process.execPath, "test", ...slowFiles], {
-        stdout: "inherit",
-        stderr: "inherit",
-        env: { ...process.env, DAFUNG_SLOW: "1" },
-      });
-      if (canary.exitCode !== 0) {
-        console.error(
-          "[pr-merge] 慢池 canary 红——慢例在当前树即挂(存量大破损或本票回归),先归因再收口(存量化配方参照 #971:master A/B 基线定性)。",
-        );
-        process.exit(1);
-      }
-      console.log("[pr-merge] 慢池 canary 绿。");
-    } else if (touched.length > 0) {
-      console.log("[pr-merge] 慢池 canary:触及 test 文件无 DAFUNG_SLOW 标记,跳过。");
-    }
-  }
-
-  // 1.21) 物化用完即弃(#1208 修复方向 3):1.1 的等效 squash 物化在当前工作区 @ 上,
-  //       build/canary 已消费完;push/freshness 前 @ 退成空子提交——主树回「空停靠」
-  //       不变式,freshness rule 0(主树 @ 非空)不再咬自家物化;书签仍指物化提交照常推。
-  if (didMaterialize) {
-    jj("new");
-    console.log("[pr-merge] 物化用完即弃:@ 已退空(书签仍指物化提交),主树回停靠不变式(#1208)。");
-  }
+  })();
+  console.log(`[pr-merge] 检查:${checks.map(({ name }) => name).join(", ")}`);
+  assertUnchanged();
+  for (const { name, command, env } of checks) runCheck(name, command, env);
+  jj("git", "fetch");
+  assertUnchanged();
 
   // 1.5) push(幂等:已推过=exit 0)——先推后验新鲜度(#751 retro 实锤:归拢 squash
   //      后本地书签与远端旧链尖必然 divergence,此时验新鲜度=「落后自己的 upstream」
   //      假红,红文案还误导成 master 被推进;先推平再验,红就只剩真并行推进一种)。
   //      推了才发现红=远端留一条待重定基的分支,无实害,下次收口自然覆盖。
-  jj("git", "push", "--bookmark", bookmark);
+  jj("git", "push", "--bookmark", `exact:${bookmark}`);
   console.log(`[pr-merge] 书签已推:${bookmark}`);
 
   // 1.6) 新鲜度门(2026-10-18 retro:并行落票期 DIRTY 拖到合并才被 GitHub 告知,
@@ -440,10 +429,11 @@ if (!prNumber) {
     );
     process.exit(1);
   }
+  assertUnchanged();
 
   // 3) 开 PR(已存在则复用开着的)
   let url = "";
-  const createArgs = ["pr", "create", "--head", bookmark, "--title", title];
+  const createArgs = ["pr", "create", "--head", bookmark, "--base", "master", "--title", title];
   if (bodyFile) {
     createArgs.push("--body-file", bodyFile);
   } else {
@@ -484,13 +474,23 @@ if (!prNumber) {
   }
   console.log(`[pr-merge] PR #${prNumber}:${url}`);
 
+  const prBase = JSON.parse(gh("pr", "view", prNumber, "--json", "baseRefName,baseRefOid")) as {
+    baseRefName: string;
+    baseRefOid: string;
+  };
+  assertUnchanged();
+  if (prBase.baseRefName !== "master" || prBase.baseRefOid !== base) {
+    console.error("[pr-merge] PR 目标分支或基线不符,请核对并重新检查。");
+    process.exit(1);
+  }
+
   if (createOnly) {
     console.log("[pr-merge] --create-only:到此为止,合并交主线。");
     process.exit(0);
   }
 
   // 4) 带号合并 + 验证 MERGED(gh 输出会说谎——usage 报错时可能已合入;以 state 为准)
-  gh("pr", "merge", prNumber, "--squash");
+  gh("pr", "merge", prNumber, "--squash", "--match-head-commit", target);
   let merged = false;
   for (let i = 0; i < 5; i++) {
     const state = gh("pr", "view", prNumber, "--json", "state", "-q", ".state");
