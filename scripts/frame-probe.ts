@@ -2,9 +2,7 @@
 // 帧率薄弱点检测(ADR-0047 消费面;#1028 渲染深排查后续)。
 // 干什么:自动开一局真机档(844×390 DPR3)单机托管对局,吃游戏内置帧诊采样器
 // (frameDiag.ts,GameScreen 挂载即采),到点经 window.__dafung.frameDiag() 读数,
-// 按 判读表(docs/how-to/开发与测试.md「真机取证」节)输出薄弱点报告——纯报告零断言,
-// 不进门禁;改演出/棋盘视觉后、发版前跑一次,desktop 代理也能抓主线程侧薄弱点
-// (栅格侧仍以真机 JSON 为准)。
+// 按判读表输出薄弱点报告,不进门禁;栅格侧仍以真机 JSON 为准。
 // 用法:node scripts/frame-probe.ts   (bun 跑 playwright 有超时前科,恒 node 直跑 TS)
 //   FRAME_PROBE_MS     采样窗(默认 20000;GameScreen 挂载起采,含开局前奏)
 //   FRAME_PROBE_SEED   对局种子(默认 7,固定种子便于改码前后 A/B)

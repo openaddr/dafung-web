@@ -96,7 +96,7 @@ const DOMAINS: Record<string, { paths: RegExp; checks: string[] }> = {
   },
   scripts: {
     paths:
-      /^scripts\/(?:android-apk|apk-smoke|bot-driver|build-dist|bun-release|change-classification|check-[\w-]+|cli|command-log|context-read|cost-probe|dev-ports|dev|dist-freshness|engine-helpers|event-batch|fault-proxy|fetch-asset|frame-probe|generate-theme-tokens|mobile-context|online-client|play|pr-merge|procs|release|room-persistence|room-record|room|seat-projection|server|shot|sim-batch|sim-bench|sim-digest|sim-jinnang|state-digest|test-corpus|test-lock|validate|visual-compare|watchdogs|whole-game|wire|ws-integrate|ws-new|ws-run)\.(?:ts|mjs)$/,
+      /^scripts\/(?:android-apk|apk-smoke|bot-driver|build-dist|bun-release|change-classification|check-[\w-]+|cli|command-log|context-read|cost-probe|dev-ports|dev|dist-freshness|engine-helpers|event-batch|fault-proxy|fetch-asset|frame-probe|generate-theme-tokens|mobile-context|online-client|play|pr-merge(?:-cleanup)?|procs|release|room-persistence|room-record|room|seat-projection|server|shot|sim-batch|sim-bench|sim-digest|sim-jinnang|state-digest|test-corpus|test-lock|validate|visual-compare|watchdogs|whole-game|wire|ws-integrate|ws-new|ws-run)\.(?:ts|mjs)$/,
     checks: ["typecheck:scripts"],
   },
   engine: {
@@ -106,7 +106,7 @@ const DOMAINS: Record<string, { paths: RegExp; checks: string[] }> = {
   },
   economy: {
     paths:
-      /^(?:src\/core\/(?!(?:theme|geometry|planter|testing|game-events|event-tiers|guohao|model|snapshot|extension-contract)\.ts$)|extensions\/(?!.*\.md$)|public\/(?:maps|config)\/|scripts\/(?:whole-game|bot-driver|engine-helpers)\.ts$)/,
+      /^(?:src\/core\/(?!(?:theme|geometry|planter|testing|game-events|event-tiers|guohao|model|snapshot|extension-contract)\.ts$)|extensions\/(?!.*\.md$)|public\/(?:maps|config)\/|scripts\/(?:whole-game|bot-driver|engine-helpers|sim-bench)\.ts$)/,
     checks: ["check:sim-bench"],
   },
   protocol: {
@@ -138,7 +138,7 @@ const DOMAINS: Record<string, { paths: RegExp; checks: string[] }> = {
     checks: ["test:release-guard"],
   },
   validation: {
-    paths: /^scripts\/(?:validate|pr-merge|change-classification)\.ts$/,
+    paths: /^scripts\/(?:validate|pr-merge(?:-cleanup)?|change-classification)\.ts$/,
     checks: ["test:validation"],
   },
 };
@@ -247,16 +247,6 @@ function plan(base: string, profiles: string[]): Plan {
     for (const [name, domain] of matches)
       for (const id of domain.checks)
         if (!commentOnly || !BEHAVIOR_CHECKS.has(id)) add(id, path, `${name} 生产影响域`);
-    for (const id of ["lint", "check:fmt", "build", "test"])
-      add(
-        id,
-        path,
-        matches.length > 0
-          ? `变更域:${matches.map(([name]) => name).join(",")}${commentOnly ? ";纯注释/空白" : ""}`
-          : existsSync(path)
-            ? `显式分类:${profiles.join(",")}`
-            : "删除文件",
-      );
   }
   // 改过的慢例保留原 canary,生产映射选中的同一文件直接补理由,不再启动一次。
   for (const path of changes.filter(
@@ -415,15 +405,33 @@ async function main(): Promise<number> {
     throw new Error("用法:validate plan|run --base <rev> / validate verify <结果文件>");
   const profiles: string[] = [];
   let output: string | null = null;
-  for (let i = 2; i < args.length; i += 2) {
-    if (!args[i + 1]) throw new Error("参数缺值");
-    if (args[i] === "--profile") profiles.push(args[i + 1]!);
-    else if (args[i] === "--out" && mode === "run" && output === null) output = args[i + 1]!;
-    else throw new Error(`未知参数:${args[i]}`);
+  let json = false;
+  for (let i = 2; i < args.length; i++) {
+    const name = args[i]!;
+    if (name === "--json" && mode === "plan" && !json) {
+      json = true;
+      continue;
+    }
+    const value = args[++i];
+    if (!value || value.startsWith("--")) throw new Error(`参数缺值:${name}`);
+    if (name === "--profile") profiles.push(value);
+    else if (name === "--out" && mode === "run" && output === null) output = value;
+    else throw new Error(`未知参数:${name}`);
   }
   const selected = plan(args[1], [...new Set(profiles)]);
   if (mode === "plan") {
-    console.log(JSON.stringify(selected, null, 2));
+    if (json) console.log(JSON.stringify(selected, null, 2));
+    else {
+      console.log(
+        `[validate] ${selected.base.commit.slice(0, 12)}..${selected.commit.slice(0, 12)}，${selected.changes.length} 个路径`,
+      );
+      console.log(`[validate] 检查: ${selected.checks.map(({ id }) => id).join(", ")}`);
+      for (const check of selected.checks.slice(4)) {
+        const reasons = [...new Set(check.reasons.map(({ reason }) => reason))];
+        console.log(`[validate] ${check.id}: ${reasons.join("; ")}`);
+      }
+      console.log("[validate] 完整路径与理由: plan --base <基线> --json");
+    }
     return 0;
   }
   return run(selected, output);

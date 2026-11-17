@@ -1,39 +1,8 @@
 // 仅在用户明确要求页面观察、截图对比或性能/浏览器复现时使用;不接入验证门槛。
-// 物理成本取数器(#1222):自起 vite preview + headless chromium(playwright 直驱),
-// 实测「挂载链(goto→__dafung 桥可用)→ seedSolo 种局 → 首掷行军链(waitMyRollDone
-// +waitSettled)」三段耗时 + 资源按名聚合表,输出人读表 + JSON 表。
-//
-// ⚠️ 定位:纯取数工具,**不进任何门禁**。测试耗时讨论先跑本工具拿数,禁拍脑袋——
-// 谈「e2e 为什么慢/开局链该不该优化」之前,先 `bun run probe:cost` 拿物理成本事实。
-//
-// 用法:bun run probe:cost [--seed 1101] [--runs 1]   (底层恒 node 直跑,见 package.json——
-//   bun 驱动 playwright 有挂起前科,frame-probe 同款纪律)
-//   --seed            对局种子(缺省 1101;改码前后同 seed A/B)
-//   --runs N          同 seed 重复 N 遍取中位(#1273 亚段打点定版口径:A/B 各 5 遍);
-//                     每遍独立 browser context(HTTP 缓存/IDB/localStorage 全冷,与
-//                     e2e 每例新 context 同形制),默认 1 = 旧单遍形制不变
-//   COST_PROBE_PORT   preview 端口显式覆盖(最高优先,撞口时用)
-//
-// 亚段打点回读(#1273):页内 seedSolo/loadMapData 段打 performance.measure(名字
-// 统一 `df.` 前缀,实体在 src/app/controllers/registry.ts seedSolo 与
-// src/app/map-sources.ts),本工具每遍 evaluate 回读 getEntriesByType("measure")
-// 过滤 df.* 按名聚合出亚段表。改前基线(无打点)该表为空属预期,如实标注。
-// 挂载段顺读 FCP(paint timing;起点=navigationStart,读数时机晚读不晚准)。
-//
-// 端口:scripts/dev-ports.ts staticPreviewPort 单源派生,派生名 = workspace 目录名
-// + "-cost-probe" 后缀——与 e2e 静态 preview 同族不同名,同 workspace 里 e2e 正跑也
-// 不撞口(同处 4100-4159 段,异名撞同 offset 概率 1/60,撞了走 COST_PROBE_PORT 覆盖);
-// **不走 test-lock**,不碰 e2e 测试锁(取数与回归测试互不排队)。测量档:dist 生产
-// 构建(陈旧自动 build,dist-freshness 判新——先 build 后起服,vite preview 空 dist
-// 即退)+ 844×390 DPR3 真机档 + swiftshader 软渲染(单次辅助工具共用,
-// headless 渲染环境稳定可复现)+ **e2e fixtures 同款五键注入**(倍率 0.25/桥/反应窗
-// 5s/bot 配速 0/默认图钉关中,e2e/fixtures.ts 同值同形制)——waitMyRollDone/
-// waitSettled 就是 e2e 镜头下的形制,bot 配速不归零光 Setup 选都三 bot 就 ≥9s
-// (BOT_STEP_MS=3000 实测),2026-11-07 基线数 271/668/3458 同此口径,同形制才可比。
-// 探针原理(#1222 一次性版实测 271/668/3458ms 后正式化):goto 后 waitForFunction
-// (__dafung) 计挂载链,顺读 navigation/resource timing;performance.now 包 seedSolo
-// evaluate;waitMyRollDone+waitSettled 轮询体逐拍放行出牌阶段(react-helpers.ts
-// 同逻辑,本地复刻不 import——e2e/ 面属测试域,工具不反向依赖)。
+// 启动 preview 测量挂载、种局、首掷与资源耗时,844×390 DPR3,使用冷 context。
+// 显式设置调试桥和演出倍率,结果不代表产品默认时间或 APK 真机性能。
+// 用法:bun run probe:cost [--seed 1101] [--runs 1] [--json]
+// --json 附加完整逐次数据;COST_PROBE_PORT 可覆盖 preview 端口。
 import { basename } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { chromium } from "playwright";
@@ -57,7 +26,7 @@ const PORT =
   Number(process.env.COST_PROBE_PORT) || staticPreviewPort(`${basename(process.cwd())}-cost-probe`);
 const URL = `http://localhost:${PORT}/`;
 const win = process.platform === "win32";
-// win 侧 shell:true 是本仓 spawn bun 的正典形制(e2e-one.ts/frame-probe.ts 同款)——
+// win 侧使用 shell:true 启动 bun(frame-probe.ts 同款)——
 // node spawn 无 shell 解析不到 PATH 上的 bun(ENOENT 实测);代价是 DEP0190 一行
 // 弃用警告,认了(杀树走 taskkill /T,壳 pid 照样全灭)。
 const sh = (cmd: string, args: string[]) => spawn(cmd, args, { shell: win, stdio: "inherit" });
@@ -136,8 +105,7 @@ async function waitSettled(page: Page, timeoutMs = 30000): Promise<number> {
   return Date.now() - t0;
 }
 
-/** 新开一测冷 context(独立 browser context = HTTP 缓存/IDB/localStorage 全冷,
- *  与 e2e 每例新 context 同形制)+ 五键注入(e2e/fixtures.ts 同值同形制)。 */
+/** 每次测量新建冷 context 并注入调试设置。 */
 async function newColdContext(
   browser: Awaited<ReturnType<typeof chromium.launch>>,
 ): Promise<BrowserContext> {
@@ -145,15 +113,13 @@ async function newColdContext(
     ...MOBILE_CONTEXT_OPTIONS,
     deviceScaleFactor: 3,
   });
-  // 五键注入 = e2e/fixtures.ts 同值同形制(键名是 timings.ts/App.tsx 单源字面,
-  // scripts 侧不 import src 模块——@core 别名在 node 直跑下不解析,frame-probe 同款
-  // 字面 + 注释锚定单源)。值面:e2e 默认 = 倍率 0.25 / 反应窗 5s / bot 配速 0。
+  // 键名对应 timings.ts/App.tsx;探针倍率和配速仅供测量。
   await ctx.addInitScript(() => {
     localStorage.setItem("dafung-e2e-debug-bridge", "1"); // 双门禁桥键(E2E_DEBUG_BRIDGE_KEY)
     localStorage.setItem("dafung-e2e-time-scale", "0.25"); // E2E_TIME_SCALE_KEY
     localStorage.setItem("dafung-e2e-reaction-ms", "5000"); // E2E_REACTION_MS_KEY
     localStorage.setItem("dafung-e2e-bot-step-ms", "0"); // E2E_BOT_STEP_MS_KEY(关配速)
-    localStorage.setItem("dafung.mapId", "guanzhong"); // MAP_PREF_KEY(默认图,fixtures 同钉)
+    localStorage.setItem("dafung.mapId", "guanzhong"); // MAP_PREF_KEY
   });
   return ctx;
 }
@@ -370,7 +336,7 @@ try {
   const measureAgg = aggregateMeasures(runs);
   const resourceAgg = aggregateResources(runs);
 
-  // 段 3:报告(人读表 + JSON 表;JSON 块整体可复制入讨论/台账)
+  // 默认输出汇总;需要完整逐次数据时再附加 JSON。
   console.log("\n═══ 物理成本取数(probe:cost)═══");
   console.log(
     `种子=${SEED}  遍数=${RUNS}(各遍独立冷 context,取中位)  档=dist/preview + 844x390@3x + swiftshader + e2e倍率0.25`,
@@ -399,35 +365,37 @@ try {
     );
   }
 
-  console.log("\n── JSON ──");
-  console.log(
-    JSON.stringify(
-      {
-        ts: new Date().toISOString(),
-        seed: SEED,
-        runsN: RUNS,
-        url: URL,
-        profile: "dist/preview + 844x390@3x + swiftshader + e2e倍率0.25",
-        median: {
-          mount: { total: med.mount, htmlFetch: med.htmlFetch, dcl: med.dcl, fcp: med.fcp },
-          seedSolo: med.seedSolo,
-          firstRoll: { total: med.firstRoll, waitMyRollDone: med.roll, waitSettled: med.settle },
-          total: med.total,
+  if (argv.includes("--json")) {
+    console.log("\n── JSON ──");
+    console.log(
+      JSON.stringify(
+        {
+          ts: new Date().toISOString(),
+          seed: SEED,
+          runsN: RUNS,
+          url: URL,
+          profile: "dist/preview + 844x390@3x + swiftshader + e2e倍率0.25",
+          median: {
+            mount: { total: med.mount, htmlFetch: med.htmlFetch, dcl: med.dcl, fcp: med.fcp },
+            seedSolo: med.seedSolo,
+            firstRoll: { total: med.firstRoll, waitMyRollDone: med.roll, waitSettled: med.settle },
+            total: med.total,
+          },
+          runs: runs.map((r) => ({
+            run: r.run,
+            mount: r.mount,
+            seedSolo: r.seedSolo,
+            firstRoll: r.firstRoll,
+            total: r.total,
+          })),
+          measures: measureAgg,
+          resources: resourceAgg,
         },
-        runs: runs.map((r) => ({
-          run: r.run,
-          mount: r.mount,
-          seedSolo: r.seedSolo,
-          firstRoll: r.firstRoll,
-          total: r.total,
-        })),
-        measures: measureAgg,
-        resources: resourceAgg,
-      },
-      null,
-      2,
-    ),
-  );
+        null,
+        2,
+      ),
+    );
+  }
   console.log("═══ 取数完 ═══");
 } catch (err) {
   console.error("[FAIL]", err instanceof Error ? err.message.split("\n")[0] : String(err));
