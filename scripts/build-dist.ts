@@ -1,4 +1,4 @@
-// #1434:唯一打包编排入口。build 带 --typecheck,每次检查类型;build:bundle/e2e
+// #1434:唯一打包编排入口。build 带 --typecheck,每次检查类型;build:bundle
 // 仅保证产物完整新鲜。先撤标记再启动子进程,只有正常成功路径能重新写入。
 import { spawn } from "node:child_process";
 import {

@@ -68,6 +68,33 @@ function run(root: string, ...args: string[]) {
 }
 
 testValidation(
+  "预览默认简洁,完整 JSON 保留文件与理由且基础检查不逐文件重复",
+  () => {
+    const { root, base } = fixture();
+    for (let i = 0; i < 12; i++) writeFileSync(join(root, `docs/change-${i}.md`), "变更\n");
+
+    const preview = run(root, "plan", "--base", base);
+    expect(preview.code, preview.output).toBe(0);
+    expect(preview.output).toContain("12");
+    expect(preview.output).toContain("lint");
+    expect(preview.output.length).toBeLessThan(1200);
+
+    const detail = run(root, "plan", "--base", base, "--json");
+    expect(detail.code, detail.output).toBe(0);
+    const plan = JSON.parse(detail.output);
+    expect(plan.changes).toHaveLength(12);
+    expect(plan.checks.map((check: { id: string }) => check.id)).toEqual([
+      "lint",
+      "check:fmt",
+      "build",
+      "test",
+    ]);
+    for (const check of plan.checks) expect(check.reasons).toHaveLength(1);
+  },
+  20_000,
+);
+
+testValidation(
   "固定基线的纯注释保留静态基础门,行为门由实质变更或显式 profile 追加且回执仍绑定原文",
   () => {
     const original = "export const value = 1;\n";
@@ -77,7 +104,7 @@ testValidation(
     });
     for (const path of ["src/core/authority.ts", "scripts/room.ts"])
       writeFileSync(join(root, path), `// 新说明\n${original}`);
-    const preview = run(root, "plan", "--base", base);
+    const preview = run(root, "plan", "--base", base, "--json");
     expect(preview.code, preview.output).toBe(0);
     const ids = JSON.parse(preview.output).checks.map((check: { id: string }) => check.id);
     expect(ids).toEqual(["lint", "check:fmt", "build", "test", "typecheck:scripts", "check:core"]);
@@ -95,6 +122,7 @@ testValidation(
       "protocol",
       "--profile",
       "recovery",
+      "--json",
     );
     expect(explicit.code, explicit.output).toBe(0);
     expect(JSON.parse(explicit.output).checks.map((check: { id: string }) => check.id)).toEqual(
@@ -121,7 +149,7 @@ testValidation(
       join(root, "scripts/change-classification.ts"),
       "export const classify = true;\n",
     );
-    const changed = run(root, "plan", "--base", base);
+    const changed = run(root, "plan", "--base", base, "--json");
     expect(changed.code, changed.output).toBe(0);
     const checks = JSON.parse(changed.output).checks;
     expect(checks.map((check: { id: string }) => check.id)).toEqual(
@@ -149,7 +177,7 @@ testValidation(
   () => {
     const { root, base } = fixture();
     writeFileSync(join(root, "docs/note.md"), "新说明\n");
-    const preview = run(root, "plan", "--base", base);
+    const preview = run(root, "plan", "--base", base, "--json");
     expect(preview.code, preview.output).toBe(0);
     const plan = JSON.parse(preview.output);
     expect(plan.checks.map((check: { id: string }) => check.id)).toEqual([
@@ -185,7 +213,7 @@ testValidation(
   () => {
     const { root, base } = fixture();
     writeFileSync(join(root, "scripts/wire.ts"), 'export const protocol = "changed";\n');
-    const preview = run(root, "plan", "--base", base, "--profile", "recovery");
+    const preview = run(root, "plan", "--base", base, "--profile", "recovery", "--json");
     expect(preview.code, preview.output).toBe(0);
     const plan = JSON.parse(preview.output);
     const ids = plan.checks.map((check: { id: string }) => check.id);
@@ -210,14 +238,23 @@ testValidation(
     writeFileSync(join(root, "scripts/build-dist.ts"), "// 构建生产入口变化\n");
     writeFileSync(join(root, "scripts/bun-release.ts"), "// 放行守门变化\n");
     writeFileSync(join(root, "scripts/validate.ts"), "// 验证生产入口变化\n");
+    writeFileSync(join(root, "scripts/pr-merge-cleanup.ts"), "// 合并收账变化\n");
+    writeFileSync(join(root, "scripts/sim-bench.ts"), "export const changed = true;\n");
     mkdirSync(join(root, "test/infra"), { recursive: true });
     writeFileSync(join(root, "test/infra/build-dist.test.ts"), "// DAFUNG_SLOW 的现有慢例变化\n");
-    const extended = run(root, "plan", "--base", base);
+    const extended = run(root, "plan", "--base", base, "--json");
     expect(extended.code, extended.output).toBe(0);
     const selected = JSON.parse(extended.output).checks;
     expect(selected.map((check: { id: string }) => check.id)).toContain("test:build");
     expect(selected.map((check: { id: string }) => check.id)).toContain("test:release-guard");
     expect(selected.map((check: { id: string }) => check.id)).toContain("test:validation");
+    expect(selected.map((check: { id: string }) => check.id)).toContain("check:sim-bench");
+    expect(
+      selected.find((check: { id: string }) => check.id === "test:validation").reasons,
+    ).toContainEqual({
+      path: "scripts/pr-merge-cleanup.ts",
+      reason: "validation 生产影响域",
+    });
     expect(
       selected.filter((check: { command: string[] }) =>
         check.command.includes("test/infra/build-dist.test.ts"),
@@ -241,7 +278,7 @@ testValidation(
       join(root, "src/app/screens/mystery/View.tsx"),
       "export const View = () => null;\n",
     );
-    const ui = run(root, "plan", "--base", base, "--profile", "ordinary");
+    const ui = run(root, "plan", "--base", base, "--profile", "ordinary", "--json");
     expect(ui.code, ui.output).toBe(0);
     expect(JSON.parse(ui.output).checks.map((check: { id: string }) => check.id)).toEqual([
       "lint",

@@ -40,7 +40,7 @@ function fixture() {
   );
   writeFileSync(
     join(root, "scripts/fixture-check.ts"),
-    'import { appendFileSync } from "node:fs"; appendFileSync("tmp/checks.log", `${process.argv[2]}\\n`);',
+    'import { appendFileSync, readFileSync } from "node:fs"; appendFileSync("tmp/checks.log", `${process.argv[2]}\\n`); if (process.argv[2] === "build" && process.env.EXPECT_NOTE && readFileSync("docs/note.md", "utf8").trim() !== process.env.EXPECT_NOTE) process.exit(12);',
   );
   cpSync(join(ROOT, "scripts/bun-release.ts"), join(root, "scripts/bun-release.ts"));
   writeFileSync(
@@ -55,19 +55,26 @@ function fixture() {
       ),
     }),
   );
-  // preload 仅替换出站系统命令;validate 子进程和所有本地 jj 操作仍真实运行。
+  // preload 替换出站命令与显式注入的收账失败;其余本地 jj 操作真实运行。
   writeFileSync(
     join(root, "tmp/remote-boundary.ts"),
     `import { appendFileSync } from "node:fs";
 const spawn = Bun.spawnSync;
 Bun.spawnSync = (args, options) => {
-  const remote = args[0] === "gh" || (args[0] === "jj" && args[1] === "git" && args[2] === "push");
+  const failMove = args[0] === "jj" && args[1] === "bookmark" && args[2] === "move" && args[3] === "master" && process.env.FIXTURE_FAIL_MOVE;
+  const remote = failMove || args[0] === "gh" || (args[0] === "jj" && args[1] === "git" && (args[2] === "push" || (args[2] === "fetch" && process.env.FIXTURE_FAIL_FETCH)));
   if (!remote) return spawn(args, options);
   appendFileSync("tmp/remote.log", JSON.stringify(args) + "\\n");
+  if (args[0] === "jj" && args[2] === "fetch") return { stdout: Buffer.alloc(0), stderr: Buffer.from("fixture fetch failed"), exitCode: 1 };
+  if (failMove) return { stdout: Buffer.alloc(0), stderr: Buffer.from("fixture move failed"), exitCode: 1 };
+  if (args[0] === "jj" && process.env.FIXTURE_REAL_PUSH) return spawn(args, options);
   let output = "";
   if (args[0] === "gh") {
-    if (args.includes("list")) output = process.env.FIXTURE_RECOVERY ? JSON.stringify([{url:"https://github.com/fixture/repo/pull/42", mergedAt:new Date().toISOString()}]) : "[]";
+    if (args.includes("list") && args.includes("open")) output = process.env.FIXTURE_OPEN_PR ? JSON.stringify([{url:"https://github.com/fixture/repo/pull/43"}]) : "[]";
+    else if (args.includes("list")) output = process.env.FIXTURE_EMPTY_GH ? "" : process.env.FIXTURE_RECOVERY ? JSON.stringify([{url:"https://github.com/fixture/repo/pull/42", mergedAt:new Date().toISOString()}]) : "[]";
     else if (args.includes("create")) output = "https://github.com/fixture/repo/pull/42";
+    else if (process.env.FIXTURE_COMPLETE && args.includes("merge")) output = "";
+    else if (process.env.FIXTURE_COMPLETE && args.includes("view")) output = "MERGED";
     else throw new Error("本测试不允许实际合并: " + JSON.stringify(args));
   }
   return { stdout: Buffer.from(output), stderr: Buffer.alloc(0), exitCode: 0 };
@@ -132,6 +139,221 @@ function merge(root: string, file?: string, env: Record<string, string> = {}) {
     env,
   );
 }
+
+testMerge(
+  "自动归拢收口保留旧链上其他工作区与书签",
+  () => {
+    const { root, base, middle } = fixture();
+    const other = join(root, "tmp/other-workspace");
+    jj(root, "bookmark", "set", "other-work", "-r", middle);
+    jj(root, "workspace", "add", "--name", "other", "--revision", middle, other);
+    const before = jj(other, "log", "-r", "@", "--no-graph", "-T", "commit_id");
+    const file = receipt(root, base);
+    const result = command(
+      root,
+      [
+        process.execPath,
+        "--preload",
+        join(root, "tmp/remote-boundary.ts"),
+        join(ROOT, "scripts/pr-merge.ts"),
+        "codex/fixture",
+        "--expect",
+        "docs/note.md",
+        "--expect",
+        "test/infra/canary.test.ts",
+        "--validation-receipt",
+        file,
+      ],
+      { FIXTURE_COMPLETE: "1" },
+    );
+    expect(result.code, result.output).toBe(0);
+    expect(jj(root, "log", "-r", "other-work", "--no-graph", "-T", "commit_id")).toBe(middle);
+    expect(jj(other, "log", "-r", "@", "--no-graph", "-T", "commit_id")).toBe(before);
+  },
+  60_000,
+);
+
+testMerge(
+  "无回执时同树工作区安全起空层并保留原提交",
+  () => {
+    const { root } = fixture();
+    jj(root, "edit", "codex/fixture");
+    const before = jj(root, "log", "-r", "@", "--no-graph", "-T", "commit_id");
+    const result = merge(root);
+    expect(result.code, result.output).toBe(0);
+    expect(jj(root, "file", "show", "-r", before, "docs/note.md")).toBe("新说明");
+    expect(jj(root, "file", "show", "-r", "codex/fixture", "docs/note.md")).toBe("新说明");
+  },
+  30_000,
+);
+
+testMerge(
+  "无回执检查目标树而不是当前空停靠的基线",
+  () => {
+    const { root, base } = fixture();
+    jj(root, "new", base, "-m", "单提交");
+    writeFileSync(join(root, "docs/note.md"), "目标树\n");
+    jj(root, "bookmark", "move", "codex/fixture", "--to", "@", "--allow-backwards");
+    jj(root, "new", base);
+    const result = command(
+      root,
+      [
+        process.execPath,
+        "--preload",
+        join(root, "tmp/remote-boundary.ts"),
+        join(ROOT, "scripts/pr-merge.ts"),
+        "codex/fixture",
+        "--create-only",
+        "--expect",
+        "docs/note.md",
+      ],
+      { EXPECT_NOTE: "目标树" },
+    );
+    expect(result.code, result.output).toBe(0);
+  },
+  30_000,
+);
+
+testMerge(
+  "收账前置失败时不假报已停靠新基线",
+  () => {
+    for (const failure of ["fetch", "move"]) {
+      const { root, base } = fixture();
+      const main = join(root, "tmp/main-workspace");
+      jj(root, "workspace", "rename", "integration");
+      jj(root, "workspace", "add", "--name", "default", "--revision", base, main);
+      const mainBefore = jj(main, "log", "-r", "@", "--no-graph", "-T", "commit_id");
+      const result = command(
+        root,
+        [
+          process.execPath,
+          "--preload",
+          join(root, "tmp/remote-boundary.ts"),
+          join(ROOT, "scripts/pr-merge.ts"),
+          "codex/fixture",
+          "--expect",
+          "docs/note.md",
+          "--expect",
+          "test/infra/canary.test.ts",
+        ],
+        {
+          FIXTURE_COMPLETE: "1",
+          [failure === "fetch" ? "FIXTURE_FAIL_FETCH" : "FIXTURE_FAIL_MOVE"]: "1",
+        },
+      );
+      expect(result.code, result.output).toBe(0);
+      expect(result.output).toContain(failure === "fetch" ? "fetch 失败" : "master 书签移动失败");
+      expect(jj(root, "file", "show", "-r", "@-", "docs/note.md")).toBe("新说明");
+      expect(jj(main, "log", "-r", "@", "--no-graph", "-T", "commit_id")).toBe(mainBefore);
+    }
+  },
+  60_000,
+);
+
+testMerge(
+  "同名未合 PR 存在时不进入恢复清理",
+  () => {
+    const { root } = fixture();
+    const result = merge(root, undefined, { FIXTURE_RECOVERY: "1", FIXTURE_OPEN_PR: "1" });
+    expect(result.code, result.output).not.toBe(0);
+    const writes = readFileSync(join(root, "tmp/remote.log"), "utf8");
+    expect(writes).not.toContain('"push"');
+    expect(jj(root, "log", "-r", "codex/fixture", "--no-graph", "-T", "commit_id")).toMatch(
+      /^[a-f0-9]{40}$/,
+    );
+  },
+  20_000,
+);
+
+testMerge(
+  "帮助不连接远端,缺少书签时直接拒绝参数",
+  () => {
+    const { root } = fixture();
+    const cli = join(ROOT, "scripts/pr-merge.ts");
+    const help = command(root, [process.execPath, cli, "--help"]);
+    expect(help.code, help.output).toBe(0);
+    expect(help.output).toContain("--validation-receipt");
+
+    const invalid = command(root, [
+      process.execPath,
+      "--preload",
+      join(root, "tmp/remote-boundary.ts"),
+      cli,
+      "--title",
+      "不是书签",
+    ]);
+    expect(invalid.code, invalid.output).toBe(2);
+    expect(invalid.output).toContain("书签");
+    expect(() => readFileSync(join(root, "tmp/remote.log"), "utf8")).toThrow();
+  },
+  20_000,
+);
+
+testMerge(
+  "远端恢复查询返回空内容时停止,不推送或创建 PR",
+  () => {
+    const { root } = fixture();
+    const result = merge(root, undefined, { FIXTURE_EMPTY_GH: "1" });
+    expect(result.code, result.output).not.toBe(0);
+    expect(result.output).toContain("解析失败");
+    const writes = readFileSync(join(root, "tmp/remote.log"), "utf8");
+    expect(writes).not.toContain('"push"');
+    expect(writes).not.toContain('"create"');
+  },
+  20_000,
+);
+
+testMerge(
+  "正文不存在时在归拢提交前停止",
+  () => {
+    const { root } = fixture();
+    const before = jj(root, "log", "-r", "@", "--no-graph", "-T", "commit_id");
+    const target = jj(root, "log", "-r", "codex/fixture", "--no-graph", "-T", "commit_id");
+    const result = command(root, [
+      process.execPath,
+      "--preload",
+      join(root, "tmp/remote-boundary.ts"),
+      join(ROOT, "scripts/pr-merge.ts"),
+      "codex/fixture",
+      "--create-only",
+      "--expect",
+      "docs/note.md",
+      "--expect",
+      "test/infra/canary.test.ts",
+      "--body-file",
+      "tmp/missing.md",
+    ]);
+    expect(result.code, result.output).not.toBe(0);
+    expect(jj(root, "log", "-r", "@", "--no-graph", "-T", "commit_id")).toBe(before);
+    expect(jj(root, "log", "-r", "codex/fixture", "--no-graph", "-T", "commit_id")).toBe(target);
+  },
+  20_000,
+);
+
+testMerge(
+  "文件集不符时列出缺失与多出的路径并拒绝推送",
+  () => {
+    const { root } = fixture();
+    const result = command(root, [
+      process.execPath,
+      "--preload",
+      join(root, "tmp/remote-boundary.ts"),
+      join(ROOT, "scripts/pr-merge.ts"),
+      "codex/fixture",
+      "--create-only",
+      "--expect",
+      "docs/note.md",
+      "--expect",
+      "docs/missing.md",
+    ]);
+    expect(result.code, result.output).not.toBe(0);
+    expect(result.output).toContain("test/infra/canary.test.ts");
+    expect(result.output).toContain("docs/missing.md");
+    const writes = readFileSync(join(root, "tmp/remote.log"), "utf8");
+    expect(writes).not.toContain('"push"');
+  },
+  20_000,
+);
 
 testMerge(
   "完整回执支持空格路径、等效 squash、描述变化与空停靠,合并不重复 build/canary",
@@ -249,9 +471,46 @@ testMerge(
     expect(recovered.output).toContain("恢复模式");
     expect(readFileSync(join(root, "tmp/checks.log"), "utf8")).toBe(checked);
     const writes = readFileSync(join(root, "tmp/remote.log"), "utf8");
-    expect(writes).toContain('"push","--deleted"');
+    expect(writes).toContain('"push","--bookmark","exact:codex/fixture"');
     expect(writes).not.toContain('"create"');
     expect(writes).not.toContain('"merge"');
+  },
+  60_000,
+);
+
+testMerge(
+  "合入后及中断恢复仅删除本票远端书签,其他待删除书签不受影响",
+  () => {
+    for (const alreadyDeleted of [false, true]) {
+      const { root, remote } = fixture();
+      jj(root, "bookmark", "set", "codex/other", "-r", "codex/fixture");
+      jj(
+        root,
+        "git",
+        "push",
+        "--allow-empty-description",
+        "--bookmark",
+        "codex/fixture",
+        "--bookmark",
+        "codex/other",
+      );
+      jj(root, "bookmark", "delete", "codex/other");
+      if (alreadyDeleted) jj(root, "bookmark", "delete", "codex/fixture");
+
+      const recovered = merge(root, undefined, { FIXTURE_RECOVERY: "1", FIXTURE_REAL_PUSH: "1" });
+      expect(recovered.code, recovered.output).toBe(0);
+      const refs = command(root, [
+        "git",
+        "--git-dir",
+        remote,
+        "for-each-ref",
+        "--format=%(refname)",
+        "refs/heads/codex",
+      ]);
+      expect(refs.code, refs.output).toBe(0);
+      expect(refs.output).toContain("refs/heads/codex/other");
+      expect(refs.output).not.toContain("refs/heads/codex/fixture");
+    }
   },
   60_000,
 );

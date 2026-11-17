@@ -2,7 +2,7 @@
 // (#1104 机遇扩容平衡验证回路;前身为失修的 tmp/sim-batch.ts,安家 scripts/——
 // 模拟工具不进浏览器包,tmp/ 不纳管)。
 //
-// 用法:bun scripts/sim-batch.ts [局数=50] [起始seed=1000] [--map <id>] [--seats <2-4>] [--no-encounter]
+// 用法:bun scripts/sim-batch.ts [局数=50] [起始seed=1000] [--map <id>] [--seats <2-4>] [--no-encounter] [--verbose]
 //
 // 配置口径(全部取当前 master 真实配置,零硬编码兜底):
 //   地图 = --map 显式给定;缺省 = 内置清单 maps/index.json 首项(与 cli.ts 同口径,清单空当场抛)。
@@ -21,7 +21,7 @@
 //   机遇侧 = 触发合计 / 各档出现次数 / 逐条目出现分布(全目录含 0 次条目)/ 抉择选项选择分布;
 //   技能侧(#1119 技能扩展地图)= 授技分布(全表含 0 次,授 0=池饿死)/ 击发统计(被动+主动+每授击发率)/ 终局构筑多样性;
 //   经济动作计数(#1121 数值校准分母)= 购城/升级/珍宝成交 局均频率。
-//   扩容验收用法:改 ENCOUNTERS 前后各跑一批对比,0 次条目与 0 次选项即死数据;逐局进度走 stderr。
+//   扩容验收用法:改 ENCOUNTERS 前后各跑一批对比,0 次条目与 0 次选项即死数据。
 //
 // 退出码:引擎抛错 = 发现 bug,逐 seed 报告且进程非零;回合上限未终局 = 平衡发现
 // (响亮上报,不算工具故障)。两者都看「终局率」行。
@@ -53,7 +53,7 @@ const argv = process.argv.slice(2);
 const positionals: string[] = [];
 const flags = new Map<string, string>();
 /** 布尔旗标(在场即真,不取值);其余 --flag 必须带值,缺值当场抛。 */
-const BOOLEAN_FLAGS = new Set(["no-encounter"]);
+const BOOLEAN_FLAGS = new Set(["no-encounter", "verbose"]);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a.startsWith("--")) {
@@ -211,9 +211,10 @@ for (let i = 0; i < N; i++) {
   try {
     const s = runOne(seed);
     stats.push(s);
-    console.error(
-      `[${i + 1}/${N}] seed=${seed} ${s.finished ? `终局 ${s.rounds} 轮(${s.winReason})` : "未终局(触回合上限)"}`,
-    );
+    if (flags.has("verbose") || !s.finished)
+      console.error(
+        `[${i + 1}/${N}] seed=${seed} ${s.finished ? `终局 ${s.rounds} 轮(${s.winReason})` : "未终局(触回合上限)"}`,
+      );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err); // 显式报错:逐 seed 收账,不吞
     crashed.push({ seed, err: msg });

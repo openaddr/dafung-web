@@ -16,8 +16,7 @@
 //      报「图/档/实测 vs 区间」。
 //
 // 双模式(check-goldens 同款心智):
-//   bun scripts/sim-bench.ts          # 校验:矩阵全跑 + 断言 + 区间对账,越界即红
-//   bun scripts/sim-bench.ts update   # 刷新:按当前矩阵重算区间,打印新旧对比,不静默
+//   bun scripts/sim-bench.ts [update] [--verbose]  # --verbose 显示逐局进度
 //
 // 语料口径:3 图同票一语料源(guanzhong/zhongyuan 内置 + yanzhou 夹具),机遇 = 产品
 // 默认(ENCOUNTER_PRODUCT_DEFAULTS,ADR-0035),不装扩展包——与票一/票二同口径,
@@ -27,8 +26,7 @@
 // 带宽口径:首跑中位 ±25%;轮数(整数量纲)四舍五入取整,破产率(小数量纲)保留
 // 两位小数——取整会把低速率带宽压成 [0,0] 伪门(判词见 ADR-0054)。
 //
-// 定位:「按需跑」的平衡基准(不进默认门);文本报告(stdout)给平衡性调参用,
-// 逐局进度走 stderr(同 sim-batch)。
+// 定位:按需运行的平衡基准;每个图/座位档输出统计,异常局报告种子。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadMap, type LoadedMap } from "../src/core/board-loader";
@@ -51,6 +49,11 @@ const RANGE_FORMAT = 1;
 const BAND = 0.25;
 const DOC_ANCHOR =
   "docs/how-to/开发与测试.md「bot 基准」节(越界=平衡漂移信号;确认符合预期后 bun run check:sim-bench:update 刷新区间)";
+const argv = process.argv.slice(2);
+const verbose = argv.includes("--verbose");
+const mode = argv.filter((arg) => arg !== "--verbose");
+if (argv.length - mode.length > 1 || mode.length > 1 || (mode.length === 1 && mode[0] !== "update"))
+  throw new Error(`用法:bun scripts/sim-bench.ts [update] [--verbose](收到:${argv.join(" ")})`);
 
 interface RangeEntry {
   /** 局长中位数历史区间 [lo, hi](轮,整数)。 */
@@ -203,7 +206,13 @@ function runCell(map: LoadedMap, mapId: string, seats: number): CellStat {
   };
   for (let i = 0; i < SEED_COUNT; i++) {
     const seed = SEED0 + i;
-    const o = runGame(map, mapId, seats, seed);
+    let o: GameOutcome;
+    try {
+      o = runGame(map, mapId, seats, seed);
+    } catch (cause) {
+      console.error(`[${mapId}/${seats}席] seed=${seed} 对局失败`);
+      throw cause;
+    }
     stat.games += 1;
     stat.bankruptsTotal += o.bankrupts;
     if (o.finished) {
@@ -211,7 +220,8 @@ function runCell(map: LoadedMap, mapId: string, seats: number): CellStat {
       stat.finishedRounds.push(o.rounds);
       stat.winReasons.set(o.winReason, (stat.winReasons.get(o.winReason) ?? 0) + 1);
       if (o.winnerNetWorth != null) stat.winnerNetWorths.push(o.winnerNetWorth);
-      console.error(`[${mapId}/${seats}席] seed=${seed} 终局 ${o.rounds} 轮(${o.winReason})`);
+      if (verbose)
+        console.error(`[${mapId}/${seats}席] seed=${seed} 终局 ${o.rounds} 轮(${o.winReason})`);
     } else {
       stat.unfinishedSeeds.push(seed);
       console.error(`[${mapId}/${seats}席] seed=${seed} 未终局(触 ${TURN_CAP} 回合上限)`);
@@ -368,8 +378,5 @@ function renderRanges(file: RangeFile): string {
   return out.join("\n") + "\n";
 }
 
-// ── 入口(严格解析:update 是唯一子命令,其余当场抛)──
-const argv = process.argv.slice(2);
-if (argv.length === 0) checkAll();
-else if (argv.length === 1 && argv[0] === "update") updateAll();
-else throw new Error(`用法:bun scripts/sim-bench.ts [update](收到:${argv.join(" ")})`);
+if (mode.length === 0) checkAll();
+else updateAll();
