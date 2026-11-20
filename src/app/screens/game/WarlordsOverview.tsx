@@ -263,6 +263,7 @@ export const WarlordsOverview = memo(function WarlordsOverview({
       <DialogContent
         data-testid={TESTIDS.warlordsOverview}
         aria-label="诸侯详情"
+        animateOnOpen={false}
         /* 挂载不夺焦(PileShell 同款):焦点留在触发钮,Esc/点外两路关闭白拿 */
         initialFocus={false}
         /* 收起中:壳体/遮罩挂退场类(动画播完由协议卸载,重复出口由协议守卫挡掉) */

@@ -94,8 +94,8 @@
 
 /* ── 底件系弹层默认入场(#1370,shadcn 正典形制回归):遮罩淡入 + 壳体淡入+
    scale 0.95→1,同帧起、同速 --dur-fast(150ms)+--ease-out——「壳先卡半透明」
-   两段感收口为一口气出现。类挂 ui/dialog 底件默认类(dialog.tsx),全部基座弹窗
-   (确认框/藏品/详情/手册大壳)自动继承,消费方零改动;壳体只动 transform,
+   两段感收口为一口气出现。ui/dialog 底件默认挂这两类(dialog.tsx)，
+   animateOnOpen=false 的弹窗直接显示。壳体动画只动 transform,
    不碰 translate 属性——定位位移消费 --drag-x/--drag-y 拖动变量(dialog.tsx
    translate-x/y-* 类),transform 关键帧与 translate 属性分属两条通道,叠加合成
    不互抹(pile-modal.css 退场段同判词)。fill 不 forwards:一次性过场,播完回

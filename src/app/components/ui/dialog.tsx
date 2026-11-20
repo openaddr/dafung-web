@@ -29,11 +29,13 @@ const DialogClose = DialogPrimitive.Close;
 
 function DialogOverlay({
   className,
+  animateOnOpen = true,
   dimmed,
   stacked,
   style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Backdrop> & {
+  animateOnOpen?: boolean;
   /** 拖离中心减淡态(#674;useDialogDrag 的 dimmed,色值单源在 hook 文件)。 */
   dimmed?: boolean;
   /** 叠层减淡态(#767;开栈栈深>1 且本层为上层,计数单源 hooks/dialog-stack)。 */
@@ -44,7 +46,7 @@ function DialogOverlay({
       data-slot="dialog-overlay"
       /* 默认入场(#1370):dialog-overlay-in 淡入 150ms,形制单源 app.css 底件系
          弹层段;消费方传 dialog-overlay-out(退场)时靠 app.css 源序后者胜接管。 */
-      className={cn("fixed inset-0 z-50 dialog-overlay-in", className)}
+      className={cn("fixed inset-0 z-50", animateOnOpen && "dialog-overlay-in", className)}
       style={{
         // 两档减淡取强不叠加:拖离(0.15)强于叠层(0.28)
         backgroundColor: dimmed
@@ -62,10 +64,13 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  animateOnOpen = true,
   overlayProps,
   ref: contentRef,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Popup> & {
+  /** 控制壳体与遮罩的入场动画。 */
+  animateOnOpen?: boolean;
   /** 透传给内部遮罩(DialogOverlay)。非模态弹层(modal="trap-focus")需要遮罩
    *  pointer-events 放行底层交互——必须走内联 style:banner.css 等未分层规则里的
    *  pointer-events:auto 恒压过 utilities 层的 pointer-events-none 类。 */
@@ -80,7 +85,12 @@ function DialogContent({
   const stacked = useDialogStackSlot(true);
   return (
     <DialogPrimitive.Portal>
-      <DialogOverlay {...overlayProps} dimmed={drag.dimmed} stacked={stacked} />
+      <DialogOverlay
+        {...overlayProps}
+        animateOnOpen={animateOnOpen}
+        dimmed={drag.dimmed}
+        stacked={stacked}
+      />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         ref={(node: HTMLDivElement | null) => {
@@ -97,7 +107,8 @@ function DialogContent({
           // 默认入场(#1370):dialog-content-in 淡入+scale 0.95→1 150ms,与遮罩同拍,
           // 形制单源 app.css 底件系弹层段;关键帧只动 transform,不碰 translate 属性
           // (上面 translate-x/y-* 拖动消费位是另一条通道,叠加合成不互抹)。
-          "dialog-content-in paper-skin fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] translate-x-[calc(-50%_+_var(--drag-x,0px))] translate-y-[calc(-50%_+_var(--drag-y,0px))] flex-col rounded-[3px] border border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-paper shadow-[var(--ink-shadow-lg)]",
+          animateOnOpen && "dialog-content-in",
+          "paper-skin fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] translate-x-[calc(-50%_+_var(--drag-x,0px))] translate-y-[calc(-50%_+_var(--drag-y,0px))] flex-col rounded-[3px] border border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-paper shadow-[var(--ink-shadow-lg)]",
           className,
         )}
         {...props}
