@@ -405,14 +405,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── reduced-motion 兜层(微旋退场,#234 P2-E):app.css 全局兜层只压 animation/
-   transition,压不住静态 rotate 属性——微旋在此显式归零。 */
-@media (prefers-reduced-motion: reduce) {
-  .jinnang-card {
-    rotate: 0deg;
-  }
-}
-
 /* 名将技能卡选中放大；锦囊正文由手牌架展示。 */
 :root {
   --card-selected-scale: 1.6;

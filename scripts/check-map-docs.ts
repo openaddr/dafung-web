@@ -40,7 +40,8 @@ for (const entry of index) {
 }
 
 const scan = (file: string, text: string) => {
-  for (const m of text.matchAll(/(\d{2,})\s*(格|城)/g)) {
+  // 前置排除 # 与数字同时跳过工单号(#1389 城指向)及其数字后缀。
+  for (const m of text.matchAll(/(?<![#\d])(\d{2,})\s*(格|城)/g)) {
     const n = Number(m[1]);
     if (!actualGrids.has(n) && !actualCities.has(n)) {
       errors.push(

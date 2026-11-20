@@ -183,8 +183,8 @@ function nthSame(hand: string[], i: number, id: string): number {
 }
 
 /** 窗态牌面微旋(#234 P2-E TablePile 质感,±1.5°):出牌阶段/反应窗内的牌面按
- *  「牌 id+#序」确定性取角(重渲不翻滚),经 --tilt 注入牌面(jinnang-card.css
- *  的 rotate:var(--tilt),与交互态 transform 正交;reduced-motion 由 CSS 兜层归零)。
+ *  「牌 id+#序」确定性取角(重渲不翻滚),经 --tilt 注入牌面。card-face.css 负责微旋和
+ *  减少动态效果时的归零，独立于交互态 transform。
  *  常态架不微旋——质感只归「出手瞬间」的窗态。 */
 function tiltVars(key: string): CSSProperties {
   return { ["--tilt" as string]: `${rackTilt(key)}deg` };
