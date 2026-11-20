@@ -19,7 +19,7 @@ import { playerColor, rgba, Theme } from "@core/theme";
 import { useGameStore } from "@app/store/gameStore";
 import { TESTIDS } from "@app/screens/game/testids";
 import { BoardHost, boardPxPerUnit, ensureBoardPxPerUnit } from "@app/components/board/boardHost";
-import { TILE_SCALE } from "@app/components/board/Tile";
+import { TILE_SCALE } from "@app/components/board/city-scene";
 import { useFxStore, type CashFlyFx, type FloaterFx, type SealFx } from "./fxStore";
 import { FxViewport } from "./FxViewport";
 import {

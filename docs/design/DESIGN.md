@@ -283,7 +283,7 @@
 
 ### 5.2 棋盘(对局内优先级最高的一部分)
 
-- **山水带**:StaticLayers 上下缘 `<image>` 远景带(高 18%、group opacity 0.10、
+- **山水带**:地形图稿上下缘的远景带(高 18%、group opacity 0.10、
   下带镜像)——清·龚贤《山水图卷》(PD,manifest `texture:gongxian-shanshui`)
   中段裁带;前史两件浅色古画(溪山清远/千里江山)已随方向 D 退役摘除
   (#512/S10,manifest 留档标 retired)。同票落 feTurbulence 纸纤维 pattern 与

@@ -1,58 +1,15 @@
-// 组件收口:器物豁免(永久)——棋盘器物件,交互收口规则不适用(细则 docs/design/组件收口.md)
-// React 版棋盘(阶段 4):整体结构对照旧 src/render/board.ts 的 createBoardSvg(对照件已删)。
-//   defs 滤镜/远山河川/驿道 → 静态 memo 子组件(地图不变即不重渲)
-//   40 城池 → Tile(状态 props 驱动,React.memo 逐城重渲)
-//   棋子/特效 → HTML 宿主层(ADR-0042,合成器通路;棋子 transform 过渡/环动画不再
-//   令整张 SVG 每帧失效)
-//   取景 → 恒 computeFitView 总览定格(#946 平移缩放整退役:拖动/滚轮/捏合全形态删,
-//     viewBox 由 React 声明式下发,地图不变则视口不变,无手势无命令式句柄)
-import { memo, useCallback, useMemo, useRef } from "react";
-import type { BoardPos } from "@core/board";
+// 棋盘装配：底板 Canvas，触达和等级珠走轻量 SVG，棋子与特效走独立宿主。
+import { useMemo, useRef } from "react";
 import { getControllerContext } from "@app/controllers/registry";
 import { AmbientLayer } from "./AmbientLayer";
-import { BoardDefs, RoadsLayer, TerrainLayer, type ViewBox } from "./StaticLayers";
+import { computeFitView } from "./board-viewport";
+import { CanvasBoard } from "./CanvasBoard";
 import { BoardHost } from "./boardHost";
-import { Tile } from "./Tile";
-import type { TileVisualState } from "./Tile";
+import type { CityScene, TileVisualState } from "./city-scene";
 import { capitalHolderOf, holdingsOf, type TileHolding } from "./tileOwnership";
 import { TokenLayer } from "./TokenLayer";
 import { BoardFxLayer } from "@app/fx/FxLayer";
 import "./board.css";
-
-/** 总览内容外扩口径(与 Tile 层实际占面对齐,单位 = 世界坐标):
- *  - 两侧:城台半宽 104×2.2/2 ≈ 115(驿道恒直线 #928/ADR-0044,无弧线外凸余量)
- *  - 上方:王旗顶约 −91×2.2 ≈ −200(旗高于城台)
- *  - 下方:铭牌底约 44×2.2 ≈ 97
- *  PAD 取值仍含弧线时代余量(sideArc 外凸 ≤160 退役后未收敛,一次只改一个变量):
- *  侧向 180−115=65、下缘 180−97=83 的差值视作额外呼吸量,另票收敛。
- *  再加 4% 呼吸边距。宽高比随内容(不钉 5/3——容器失配交给
- *  preserveAspectRatio meet,地形层 EDGE_PAD 渐隐带负责补边)。 */
-const PAD_SIDE = 180;
-const PAD_TOP = 220;
-const PAD_BOTTOM = 180;
-const BREATH = 1.04;
-
-/** 按当图城池包围盒推导总览 viewBox(纯函数;ADR-0027)。
- *  #946 起这是唯一的取景通路:棋盘恒定格于本函数的输出,无平移缩放。 */
-export function computeFitView(tiles: readonly { position: BoardPos }[]): ViewBox {
-  let minX = Infinity,
-    minY = Infinity,
-    maxX = -Infinity,
-    maxY = -Infinity;
-  for (const { position: p } of tiles) {
-    if (p.x < minX) minX = p.x;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.y > maxY) maxY = p.y;
-  }
-  const x0 = minX - PAD_SIDE,
-    y0 = minY - PAD_TOP,
-    x1 = maxX + PAD_SIDE,
-    y1 = maxY + PAD_BOTTOM;
-  const w = (x1 - x0) * BREATH,
-    h = (y1 - y0) * BREATH;
-  return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
-}
 
 /** BoardView/TokenLayer 真正消费的玩家最小结构(棋盘渲染只需这些字段):
  *  快照玩家 SnapshotPlayer 是本接口的结构子集,可直接透传——原先 GameScreen 用双重断言
@@ -102,35 +59,6 @@ interface BoardViewProps {
   activePlayerId?: string;
   className?: string;
 }
-
-const TileLayer = memo(function TileLayerInner({
-  children,
-  onTileClick,
-}: {
-  children: React.ReactNode;
-  onTileClick?: (index: number) => void;
-}) {
-  // #1023 链 B:落格点击事件委托——onClick 挂本层 <g>,closest(".bv-tile")+
-  // data-tile 取目标。原先 per-tile onClick prop
-  // 经 BoardView 派生、源头是 useCapitalPick 每渲染新建的裸函数,每次 sync 都换
-  // 引用,44 城 Tile 的 React.memo 被逐个击穿;委托化后 Tile 不再持有回调 prop。
-  // 点在城池之外 closest 为 null 不调,与 per-tile onClick 等价;#699 拖拽吞点击
-  // 拦在 svg 捕获相位、先于本 handler,行为不变。
-  const handleClick = useCallback(
-    (ev: React.MouseEvent<SVGGElement>) => {
-      if (!onTileClick) return;
-      const t = (ev.target as Element).closest(".bv-tile");
-      if (t === null) return;
-      onTileClick(Number(t.getAttribute("data-tile")));
-    },
-    [onTileClick],
-  );
-  return (
-    <g id="bv-tiles" onClick={handleClick}>
-      {children}
-    </g>
-  );
-});
 
 /** TileVisualState 值等(#1023 链 A):键循环浅等,全字段皆原始值——引擎每次 sync
  *  产出新 players 数组,按引用算必然 44 城全新对象、逐城击穿 Tile 的 React.memo;
@@ -201,7 +129,6 @@ export function BoardView({
   // fitBox 落 DOM,宿主矩阵同源见 boardHost),拖动/滚轮/捏合全形态删,无第二写入者。
   // (驿道恒直线 #928/ADR-0044,绘制在 RoadsLayer 内做)
   const fit = useMemo(() => computeFitView(board.tiles), [board.tiles]);
-  const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
   // propertyId → 首见持有者(归属判定单源 tileOwnership.ts,players 变化才重算)。
   // #1023 链 A:每次照算但与上一份逐城浅等,内容不变复用上一份 Map 引用——
   // 归属没变(行军/换回合)时不给下游派生链制造新身份。
@@ -213,10 +140,6 @@ export function BoardView({
     prevHoldingsRef.current = next;
     return next;
   }, [players]);
-
-  // #1023 链 B:onTileClick 不再派生 per-tile onClick(handleTileClick 派生随
-  // useCapitalPick 裸函数每渲染换新,形同虚设已删),点击收编 TileLayer 的 <g>
-  // 事件委托,Tile 的 props 从此不随回调身份抖动。
 
   // X4(#23) 候选序号表:滚出顺序 → 1 基序号(Tile 内读作 壹/贰/叁 印)。
   const candidateOrder = useMemo(() => {
@@ -280,27 +203,12 @@ export function BoardView({
     cityPickedTileIndex,
   ]);
 
-  // F1:城池 JSX 整体 memo(依赖都是身份稳定的派生值),无关重渲不再重建城池 vnode。
-  const tiles = useMemo(
-    () => (
-      <>
-        {board.tiles.map((tile) => {
-          // 严格 loadMap 下每格 propertyId 必入册(#826 全城池制),def 必非空——
-          // 空值是 loader bug,直接炸出来(零兜底;tier 管道顺手收编旧 `??` 档)。
-          const def = catalog.get(tile.propertyId)!;
-          return (
-            <Tile
-              key={tile.index}
-              tile={tile}
-              tier={def.tier}
-              maxLevel={def.maxLevel}
-              state={tileStates.get(tile.index)!}
-              showGlow={false}
-            />
-          );
-        })}
-      </>
-    ),
+  const cities = useMemo<CityScene[]>(
+    () =>
+      board.tiles.map((tile) => {
+        const def = catalog.get(tile.propertyId)!;
+        return { tile, tier: def.tier, maxLevel: def.maxLevel, state: tileStates.get(tile.index)! };
+      }),
     [board.tiles, catalog, tileStates],
   );
 
@@ -315,25 +223,13 @@ export function BoardView({
 
   return (
     <div className={`bv-stack ${className ?? ""}`}>
-      {/* 底板(静态层):纸面/地形/驿道/城池——对局中只吃事件驱动的低频变化
-          (归属/档位/宣告),行军/特效逐帧失效不再波及,弱 GPU 栅格欠债时
-          合成器棋盘格(整板闪成背景色)的源头就此拔除(ADR-0040)。
-          落格点击全在本板:动态层 pointer-events none,触摸穿透落到此处。 */}
-      <svg
-        id="board"
-        ref={svgRef}
-        viewBox={fitBox}
-        preserveAspectRatio="xMidYMid meet"
-        /* 触屏:禁 WebView 原生手势(双击缩放/拖拽滚动)接管棋盘触摸——棋盘自身
-         无手势(#946),触摸只服务落格点击;overscroll contain 防拖动外溢滚动页面。 */
-        style={{ touchAction: "none", overscrollBehavior: "contain" }}
-        className={`block h-full w-full select-none ${className ?? ""}`}
-      >
-        <BoardDefs fit={fit} />
-        <TerrainLayer fit={fit} />
-        <RoadsLayer board={board} />
-        <TileLayer onTileClick={onTileClick}>{tiles}</TileLayer>
-      </svg>
+      <CanvasBoard
+        svgRef={svgRef}
+        board={board}
+        fit={fit}
+        cities={cities}
+        onTileClick={onTileClick}
+      />
       {/* 棋子层(HTML 宿主,ADR-0042):每棋子一个合成器提升的包装 div(transform
           过渡走合成器)+ mini-svg 旗面/环原绘;宿主矩阵与底板 viewBox 同拍跟随。 */}
       <TokenLayer

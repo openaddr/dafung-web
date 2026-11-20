@@ -24,7 +24,7 @@
   top: 0;
 }
 
-/* 跨 svg 引用的 defs 载体(光晕挖孔 mask;渐变引用 BoardDefs 单源) */
+/* 跨 svg 引用的 defs 载体(光晕挖孔 mask;渐变引用 CityDefs 单源) */
 .bv-amb-defs {
   position: absolute;
   width: 0;
