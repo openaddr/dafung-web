@@ -66,7 +66,7 @@ function Lantern({ x }: { x: number }) {
   );
 }
 
-// ── 建筑表现色(#512 玄墨深底重调色,造型不动;集中常量;渐变本体挂 BoardDefs 的
+// ── 建筑表现色(#512 玄墨深底重调色,造型不动;集中常量;渐变本体挂 CityDefs 的
 //    bv-roof-grad / bv-wall-grad / bv-glazed-roof-grad——每城内联 defs 会产生重复 id
 //    冲突,统一在 StaticLayers 声明)──
 // 口径:墙柱=官式暖褐墙+朱柱(区域分支退役,按档统一);瓦面=墨青灰瓦(县/郡)、

@@ -118,13 +118,13 @@
    架构体检 A 批:from 帧原叠 brightness(0.94)——filter 动画逐帧整板滤镜重栅
    (真机弱 GPU 进屏最贵单笔),微压暗改由 .board-dim-in 叠罩承担(opacity 动画
    走合成器,同延迟/时长/缓动,观感等价)。
-   选择器经 .screen-in-game 后代命中 BoardView 的 svg(id=board):它是 HTML 布局盒
+   选择器经 .screen-in-game 后代命中棋盘底板及触区共同的宿主:它是 HTML 布局盒
    (transform-origin 默认即中心),只动 CSS transform,与棋盘 viewBox 取景
    体系互不触碰(取景恒 computeFitView 总览定格,#946 平移缩放退役)。
    #771 起与墨晕串接:延迟 --dur-slow,墨晕盖满化开后起推,不叠加。
    时长 720ms 为 #835 拍板节奏(「240ms 墨起→内容入→720ms 镜头缓推」),token
    表无对应档(见头注例外)。── */
-.screen-in-game #board {
+.screen-in-game .bv-deck {
   transform-origin: center;
   animation: board-push-in 720ms var(--ease-out);
   animation-delay: var(--dur-slow);
@@ -164,7 +164,7 @@
     animation: none;
   }
   .screen-in > :not(.screen-ink),
-  .screen-in-game #board,
+  .screen-in-game .bv-deck,
   #board-wrap .board-dim-in {
     animation-delay: 0ms;
   }

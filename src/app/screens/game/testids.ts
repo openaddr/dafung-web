@@ -140,8 +140,8 @@ export const TESTIDS = {
 
   /** 城池盾排挂 data-shield-row/data-defense,盾件挂 data-shield;无主城不渲染,都城零盾仍留排。
    *  TileThumb 复用同件,定位棋盘须带 #board 作用域。 */
-  cityShieldRow: (tileIndex: number) => `#board [data-tile="${tileIndex}"] [data-shield-row]`,
-  cityShield: (tileIndex: number) => `#board [data-tile="${tileIndex}"] [data-shield]`,
+  cityShieldRow: (tileIndex: number) => `#board [data-city-art="${tileIndex}"] [data-shield-row]`,
+  cityShield: (tileIndex: number) => `#board [data-city-art="${tileIndex}"] [data-shield]`,
 
   // ── 手牌架 ──
   /** 己方手牌行,有牌才挂载;牌架本体另挂 jinnangRack。 */

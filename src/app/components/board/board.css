@@ -1,50 +1,6 @@
 /* 棋盘组件专属样式(与 tokens.css 同级;移植自 src/render/style.css 的棋盘段落)。
    Tailwind 类无法表达的部分(keyframes / SVG 子选择器 / 伪动画)集中在此。 */
 
-/* ── 城池 ── */
-/* 需求2·无主档:整城 0.92 的"安静感"——比有主城略退后,视线自然落在有主/都城上。
-   双类名提高优先级,确保不被 Tailwind 单类 .opacity-40(isTaken 灰阶)意外覆盖。 */
-.bv-tile.bv-unowned {
-  opacity: 0.92;
-}
-.bv-tile-hilite {
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out);
-}
-/* 触屏按压反馈。 */
-.bv-tile:active .bv-tile-hilite {
-  /* #512 深底档:金盘反馈在玄墨底上保持适度亮度。 */
-  opacity: 0.35;
-}
-/* 按压时同步点亮格框，无主常态的透明描边也在按下时显金。 */
-.bv-tile rect.bv-tile-border {
-  transition: stroke var(--dur-fast) var(--ease-out);
-}
-.bv-tile:active rect.bv-tile-border {
-  stroke: var(--color-gold-bright);
-}
-/* X4(#23) 选都候选金圈两档:
-   .bv-candidate  候选集全座位可见——非决策席静态低透明金圈(不可点、不脉冲),
-                  远看即知「当前轮到谁在从这三城里挑」;
-   .bv-selectable 轮到本地选——金圈呼吸脉冲已迁氛围层(架构体检 B 批出底板:
-                  AmbientLayer 按 selectableTiles 挂 bv-amb-select-crown,SVG 内
-                  逐帧动画清零;本类只剩点击态/e2e 选择器契约)。 */
-.bv-tile.bv-candidate .bv-tile-hilite {
-  opacity: 0.15;
-}
-.bv-tile .bv-pick-ring-static {
-  opacity: 0.5;
-}
-
-/* X4+:选都聚焦场——本地可选时,非候选城一律压暗(:has 免 TS 改动;选中即移除类自动还原)。
-   道路/装饰不暗:路网仍是视觉骨架,压暗只收敛「城」的注意力。 */
-#board:has(.bv-selectable) .bv-tile:not(.bv-candidate):not(.bv-selectable) {
-  opacity: 0.45;
-  transition: opacity var(--dur-med) var(--ease-out);
-}
-.bv-tile {
-  transition: opacity var(--dur-med) var(--ease-out);
-}
 /* 都城光晕(ADR-0039):棋盘侧常驻脉动已迁氛围层(.bv-amb-capital-glow,合成器
    动画);本件只剩 TileThumb 缩略图渲染的静态晕(showGlow=true 缺省),钉原呼吸
    中程 0.6——缩略图小件不脉冲,reduced-motion 语义天然满足。 */
@@ -55,39 +11,58 @@
    .bv-amb-tile-ring,后整体移除);轮到谁的棋盘态表达只剩 Tile bv-tile-border
    金描边 + 氛围层回合方金呼吸环。 */
 
-/* ── 驿道(#512 漆金细线)──
-   主路=路身(roadMain token,窄档)+ 细线芯(roadSide token)双层同弧线:
-   玄墨底上「漆木路身压底、亮赭线芯走金」,替代浅底时代的宽墨褐带。 */
-.bv-road-main {
-  fill: none;
-  stroke-width: 10;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.55;
-}
-.bv-road-core {
-  fill: none;
-  stroke: var(--color-road-side);
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.65;
-}
-
-/* ── 手势栈与宿主容器(ADR-0042)──
-   .bv-stack:全部棋盘层的公共 transform 宿主——手势进行中取景增量写在这里
-   (合成器插值,棋盘栅格缓存零重绘),提交拍写回 #board viewBox 后清空;
-   提交拍同时是各宿主矩阵(viewBox MutationObserver)的唯一 resync 拍。
-   #1013 合成层提升:栈不提升时,栈外兄弟(决策弹层/知会横幅/HUD)的脏矩形
-   与城池共用同一块栅格缓存,重栅连城池像素一起画——弱 GPU 栅格欠债时合成器
-   把没栅完的城池区域闪成背景色(真机「决策收口→行军启动」城池闪现的根);
-   提升后栈外失效与棋盘彻底隔离,手势 transform 亦成纯合成器操作。 */
 .bv-stack {
   position: relative;
   width: 100%;
   height: 100%;
   transform-origin: 0 0;
   will-change: transform;
+}
+.bv-deck {
+  position: absolute;
+  inset: 0;
+}
+.bv-city-canvas,
+.bv-city-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.bv-city-canvas {
+  pointer-events: none;
+}
+.bv-city-input {
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+}
+.bv-deck[aria-busy="true"] #bv-tiles {
+  visibility: hidden;
+}
+.bv-city-press-halo {
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.bv-city-target:active .bv-city-press-halo {
+  opacity: 0.16;
+}
+.bv-city-press {
+  stroke-width: 2;
+  stroke-opacity: 0;
+  transition: stroke-opacity var(--dur-fast) var(--ease-out);
+}
+.bv-city-target:active .bv-city-press,
+.bv-city-target:focus-visible .bv-city-press {
+  stroke-opacity: 1;
+}
+.bv-raster-error {
+  position: absolute;
+  inset: 25% 12% auto;
+  pointer-events: none;
+  color: var(--color-paper);
+  background: var(--color-panel);
+  padding: 0.75rem;
 }
 /* 世界坐标宿主(氛围层 .bv-ambient 与棋子/特效 .bv-bhost 同款,单源不复制):
    铺满手势栈(DOM 序即层序),容器 transform = 世界→客户端矩阵

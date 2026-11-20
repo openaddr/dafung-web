@@ -76,7 +76,7 @@ interface TokenLayerProps {
 }
 
 /** #30/#39/#58 棋子放大比例:旗/字/印玺等比 scale。屏幕净大小 = TOKEN_SCALE /
- *  TILE_SCALE(城池,单源见 Tile.tsx)。#557 曾以 2.6/2.2≈净 1.18x 提升总览可辨性;
+ *  TILE_SCALE(城池,单源见 city-scene.ts)。#557 曾以 2.6/2.2≈净 1.18x 提升总览可辨性;
  *  #938 城池同提 2.6 后两者同刻度(净 1.0x)——棋子绝对尺寸不变,总览可辨性由
  *  7 列图幅的 fit 增益(≈0.21→0.27)承接,槽位圆周(r=26 局部,core/constants)不动。
  *  scale 落在 mini-svg 内独立 <g transform> 属性上,与包装 div 的 CSS style.transform

@@ -5,6 +5,7 @@
 // 掉帧主源);动态内容(棋子/特效)迁入本宿主后,逐帧失效收敛到各件自身小盒。
 // 氛围层(ADR-0039)与棋子/特效层(ADR-0042)共用同一同步钩子,单源不复制。
 import { memo, useEffect, useRef } from "react";
+import { readBoardViewport } from "./board-viewport";
 
 /** 矩阵同步钩子(AmbientLayer 同款自持生命周期,#608 单源抽取):
  *  每拍一次「读 svg 盒+viewBox → 写容器 transform」,仅在事件拍发生,无常驻逐帧开销。 */
@@ -82,43 +83,15 @@ export function boardPxPerUnit(): number | null {
  *  同一 commit 入 DOM,取不到就是接线错。 */
 export function ensureBoardPxPerUnit(svg: SVGSVGElement | null): number {
   if (!svg) throw new Error("ensureBoardPxPerUnit:底板 svg 缺席(对局屏接线 bug)");
-  const m = boardMeetMetrics(svg);
+  const m = readBoardViewport(svg);
   if (!m) throw new Error("ensureBoardPxPerUnit:底板 viewBox/客户尺寸不可用(接线 bug)");
   pxPerUnitCache = m.scale;
   return m.scale;
 }
 
-/** viewBox→meet 几何一次解析:viewBox 原点/尺寸、svg 客户尺寸与等比缩放
- *  (scale = 1 逻辑单位的屏幕像素,min(两向比),preserveAspectRatio="xMidYMid meet"
- *  同式)。viewBox 缺失或任一几何量非正 = null,由调用方分诊:矩阵同步静默早退
- *  (挂载早期的既有行为),commit 拍真值读数炸出接线 bug。 */
-function boardMeetMetrics(svg: SVGSVGElement): {
-  vx: number;
-  vy: number;
-  vw: number;
-  vh: number;
-  cw: number;
-  ch: number;
-  scale: number;
-} | null {
-  const raw = svg.getAttribute("viewBox");
-  if (!raw) return null;
-  const [vx, vy, vw, vh] = raw.split(/[\s,]+/).map(Number);
-  const cw = svg.clientWidth;
-  const ch = svg.clientHeight;
-  if (!(vw > 0) || !(vh > 0) || !(cw > 0) || !(ch > 0)) return null;
-  return { vx, vy, vw, vh, cw, ch, scale: Math.min(cw / vw, ch / vh) };
-}
-
-/** viewBox→客户端 meet 矩阵(clientWidth 口径,见 ambientMatrix.ts 的 gBCR 教训):
- *  与氛围层同一套换算,抽此单源后 ambientMatrix.ts 退役。#1024 起缩放缓存在此
- *  同拍烤定(所有失效拍的必经点)。 */
 function syncHostMatrix(svg: SVGSVGElement, el: HTMLElement): void {
-  const m = boardMeetMetrics(svg);
-  if (!m) return;
-  pxPerUnitCache = m.scale;
-  // preserveAspectRatio="xMidYMid meet" 的等比换算:内容居中
-  const ox = (m.cw - m.vw * m.scale) / 2;
-  const oy = (m.ch - m.vh * m.scale) / 2;
-  el.style.transform = `translate(${ox - m.vx * m.scale}px, ${oy - m.vy * m.scale}px) scale(${m.scale})`;
+  const viewport = readBoardViewport(svg);
+  if (!viewport) return;
+  pxPerUnitCache = viewport.scale;
+  el.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`;
 }

@@ -15,7 +15,7 @@
 import { memo, useRef, type ReactNode } from "react";
 import type { Board } from "@core/board";
 import { Theme, playerColor, rgba } from "@core/theme";
-import { TILE_SCALE } from "./Tile";
+import { TILE_SCALE } from "./city-scene";
 import { FlagShapes } from "./flagArt";
 import { useBoardMatrixSync } from "./boardHost";
 import { TOKEN_CROWD_SCALE, TOKEN_SCALE, computeTokenSlots, type TokenSlot } from "./TokenLayer";
@@ -143,7 +143,7 @@ export const AmbientLayer = memo(function AmbientLayer({
   return (
     <div className="bv-ambient" ref={rootRef} aria-hidden="true">
       {" "}
-      {/* 共享 defs:都城光晕渐变(引用 BoardDefs 同文档单源)+ 城台形挖孔 mask
+      {/* 共享 defs:都城光晕渐变(引用 CityDefs 同文档单源)+ 城台形挖孔 mask
           (逐像素复刻「亮心被城台遮挡、只露外圈」的原观感;孔形=城池方牌)。
           跨 svg url 引用同文档必然解析(TileThumb 同法先例)。 */}
       <svg className="bv-amb-defs" width={0} height={0} aria-hidden="true">

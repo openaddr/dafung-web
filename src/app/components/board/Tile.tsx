@@ -14,11 +14,17 @@
 // (R3 的 key={level} 重挂 / useOwnerChangeFlash 上一值钩子已删)。动画 keyframes 本体
 // 仍在 board.css/fx.css,CSS 只承担「怎么播」。
 import { memo } from "react";
-import type { TileDef, TileEvent } from "@core/board";
-import type { CityTier } from "@core/economy";
+import type { TileEvent } from "@core/board";
 import { Theme, playerColor, rgba } from "@core/theme";
 import { useFxStore } from "@app/fx/fxStore";
 import { Building } from "./tile-building";
+import {
+  CITY_FRAME,
+  CITY_HIT_RADIUS,
+  cityOpacity,
+  cityTransform,
+  type CityScene,
+} from "./city-scene";
 
 /** 玩家色加深(f<1):领地铭牌要"深卡浅字"的深底,直接用原玩家色做底则与描边/旗同明度
  *  缺乏层次,统一乘暗系数得到同色相的深卡(zoom-out 后"色块=地盘"仍按色相可辨)。 */
@@ -41,63 +47,10 @@ function mix(
   };
 }
 
-export interface TileVisualState {
-  /** 持有者 colorIndex(null=无主)。 */
-  ownerColorIndex: number | null;
-  /** 持有者国号(小旌旗文字)。 */
-  ownerGuohao: string | null;
-  /** 该城等级(0=未持有)。 */
-  level: number;
-  /** 是否某玩家都城 + 都城主 colorIndex(王旗)。 */
-  capitalColorIndex: number | null;
-  capitalGuohao: string | null;
-  /** 当前回合玩家所在城(bv-tile-border 金描边高亮)。 */
-  isActive: boolean;
-  /** 选都阶段已被选(标灰禁用)。 */
-  isTaken: boolean;
-  /** 可交互高亮(轮到本地的可点候选集:选都候选 / 目标段选城候选,#1388 T2 并入,
-   *  呼吸脉冲金圈在氛围层,本态兼类契约与压暗例外)。 */
-  isSelectable: boolean;
-  /** X4(#23) 选都候选序号(1 基,引擎滚出顺序;null=非候选)。候选集全座位可见:
-   *  静态低透明金圈(bv-candidate)是非决策席档,本地可点脉冲由 isSelectable 升档。 */
-  capitalCandidateOrder: number | null;
-  /** 目标段选城候选(#1388 T2 立,#1389 锦囊城指向域同款复用):技/锦囊城目标段的可点
-   *  候选格(金环呼吸在氛围层 crown,与选都同通路;本态挂 data-city-target 供
-   *  e2e/选择器契约)。 */
-  isCityTarget: boolean;
-  /** 目标段选城·选中定靶(#1388 T2,#417 同族):实金双环停持(呼吸停、恒定不闪),
-   *  挂 data-city-target-selected。 */
-  isCityPicked: boolean;
-  /** 当前防御值(#1391 T5,满值表单源 core/defense.ts):有主城由上游显式下发
-   *  (holding.defense),盾排常显、盾数=当前值;null=无主城不渲染盾排(免疫,
-   *  无防御语义)。必填(#585 口径:漏传在类型层面不可表达——有主城漏传=静默不渲染,
-   *  是说谎不是缺省;上游 BoardView/TileThumb 恒显式写键)。 */
-  defense: number | null;
+interface TileProps extends CityScene {
+  /** 缩略图自带静态都城光晕，盘面光晕由 AmbientLayer 提供。 */
+  rasterSource?: boolean;
 }
-
-interface TileProps {
-  tile: TileDef;
-  /** 城池档位(catalog.get(propertyId).tier):建筑形制的唯一通道(ADR-0042 决策 1)。 */
-  tier: CityTier;
-  /** 满级档(catalog.get(propertyId).maxLevel),满贯金框判据;非地产格无珠不读。 */
-  maxLevel: number;
-  state: TileVisualState;
-  /** 都城静态光晕开关(ADR-0039):棋盘侧 false(脉动光晕由氛围层承担,避免
-      SVG 静态晕与氛围层动晕叠加);TileThumb 缩略图缺省 true(静态晕入盒)。 */
-  showGlow?: boolean;
-  // 落格点击不挂本组件(#1023 链 B):onClick prop 已删,点击由 TileLayer 的 <g>
-  // 事件委托(closest(".bv-tile") + data-tile)承接——per-tile 回调 prop 随上游
-  // 每渲染换新引用,逐城击穿 React.memo;缩略图本就不传,接口收敛零消费点受损。
-}
-
-// ── #25/#39/#58 城池全局放大比例 ──
-// 旗/匾/印/价格签等所有元素随 <g> 整体 scale(等比,视觉口径统一;点击热区
-// 随 SVG transform 同步放大,无需另调)。
-// #665 收编导出:TileThumb 的缩略图包围盒换算引用本单源,字面量复制已退役。
-// 压盖校验:城卡 104×2.6≈270 < 列距 380、88×2.6≈229 < 行距 320(环游/关中同步距 380×320)。
-// #938:2.2→2.6(关中图拷问拍板「城池视觉适当放大」:7 列图幅缩小 + 本比例双杠杆,
-// 三图统一生效;不重叠上限 ≈ min(380/104, 320/88) ≈ 3.6,2.6 为适度档)。
-export const TILE_SCALE = 2.6;
 
 // ── 竖排木匾城名 ──
 // 局部常量(#512 深卡浅字):匾身=漆木深卡(有主=深玩家色底染,#842)、边/铆钉/流苏=
@@ -234,6 +187,19 @@ function NamePlaque({
 // 全组静置不播。
 /** 相邻珠心距;满贯金框宽随它推导(level × PIP_STEP + 6),改距不双改。 */
 const PIP_STEP = 10;
+
+export function CityLevelPips({
+  tileIndex,
+  level,
+  maxLevel,
+}: {
+  tileIndex: number;
+  level: number;
+  maxLevel: number;
+}) {
+  const growNonce = useFxStore((s) => s.announces.get(tileIndex)?.level ?? 0);
+  return <LevelPips key={growNonce} level={level} maxLevel={maxLevel} replay={growNonce > 0} />;
+}
 
 function LevelPips({
   level,
@@ -414,12 +380,8 @@ export const Tile = memo(function Tile({
   tier,
   maxLevel,
   state,
-  showGlow = true,
+  rasterSource = false,
 }: TileProps) {
-  // ADR-0015 城池宣告信号:selector 按本城 tileIndex 取记录,他城宣告不触发本城重渲。
-  // nonce 单调递增、播完自然过期(无清理定时器);0 = 该维从未宣告,静置。
-  const announce = useFxStore((s) => s.announces.get(tile.index));
-  const growNonce = announce?.level ?? 0;
   const isCapital = state.capitalColorIndex != null;
   const ownerRgb = state.ownerColorIndex != null ? playerColor(state.ownerColorIndex) : null;
   const showsPlinth = ownerRgb === null && !isCapital;
@@ -431,9 +393,7 @@ export const Tile = memo(function Tile({
     state.isTaken ? "opacity-40 grayscale" : "",
     // X4(#23) 候选集全座位可见:静态低透明金圈;本地可点(bv-selectable)脉冲升级
     state.capitalCandidateOrder != null ? "bv-candidate" : "",
-    state.isSelectable ? "bv-selectable" : "",
-    // 需求2·无主档:整城 0.92 安静感(城池格专属;isTaken 的 40% 灰阶更强,让位不叠加)
-    !ownerRgb && !state.isTaken ? "bv-unowned" : "",
+    !rasterSource && state.isSelectable ? "bv-selectable" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -441,21 +401,27 @@ export const Tile = memo(function Tile({
   return (
     <g
       className={cls}
-      id={`tile-${tile.index}`}
-      data-tile={tile.index}
+      data-city-art={rasterSource ? tile.index : undefined}
+      data-tile={rasterSource ? undefined : tile.index}
       data-name={tile.name}
       /* 目标段选城选择器契约:e2e 候选=cityTarget(tileIndex)、
           选中=cityTargetPicked(tileIndex)(testids 单源),勿散落属性串。 */
-      data-city-target={state.isCityTarget || undefined}
-      data-city-target-selected={state.isCityPicked || undefined}
-      transform={`translate(${tile.position.x} ${tile.position.y}) scale(${TILE_SCALE})`}
+      data-city-target={(!rasterSource && state.isCityTarget) || undefined}
+      data-city-target-selected={(!rasterSource && state.isCityPicked) || undefined}
+      transform={cityTransform(tile.position)}
+      opacity={rasterSource ? undefined : cityOpacity({ tile, tier, maxLevel, state }, false)}
     >
       {/* 命中高亮底 + 都城/焦点光晕 */}
-      <circle className="bv-tile-hilite" r={62} fill={rgba(Theme.gold)} />
-      {/* F2:光晕 radialGradient 圆(BoardDefs 定义,中心亮→边缘 0)。棋盘侧的常驻
+      <circle
+        className="bv-tile-hilite"
+        r={CITY_HIT_RADIUS}
+        fill={rgba(Theme.gold)}
+        opacity={state.capitalCandidateOrder === null ? 0 : 0.15}
+      />
+      {/* F2:光晕 radialGradient 圆(CityDefs 定义,中心亮→边缘 0)。棋盘侧的常驻
           脉动已迁氛围层(ADR-0039,showGlow=false 由 BoardView 关闭);本件只剩
           TileThumb 缩略图用的静态光晕(board.css 钉呼吸中程,无动画)。 */}
-      {showGlow && isCapital ? (
+      {!rasterSource && isCapital ? (
         <circle className="bv-capital-glow" r={70} fill="url(#bv-capital-glow-grad)" />
       ) : null}
       {/* 「轮到谁」活跃虚线环已退役(2026-11-01 #966:原 Tile 内 bv-active-ring 曾迁
@@ -466,11 +432,7 @@ export const Tile = memo(function Tile({
           当前城描金。有主格底留 22% 玩家色墨染，边框、铭牌和城旗共同表达归属。 */}
       <rect
         className="bv-tile-border"
-        x={-52}
-        y={-44}
-        width={104}
-        height={88}
-        rx={10}
+        {...CITY_FRAME}
         fill={
           ownerRgb
             ? rgba(mix(Theme.bgDeep, ownerRgb, 0.22))
@@ -526,8 +488,8 @@ export const Tile = memo(function Tile({
       {/* 等级珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
             无主无等级(Setup 期 Lv 恒 0),两标记互斥不叠印;扩军宣告 nonce 为 key,
             重挂时末珠生长(ADR-0015),平时/快照恢复静置。 */}
-      {state.level > 0 ? (
-        <LevelPips key={growNonce} level={state.level} maxLevel={maxLevel} replay={growNonce > 0} />
+      {!rasterSource && state.level > 0 ? (
+        <CityLevelPips tileIndex={tile.index} level={state.level} maxLevel={maxLevel} />
       ) : null}
       {/* 防御盾排(#1391 T5):有主城常显,与等级珠同基线不同段(左珠右盾);无主城
             state.defense 为 null 整排不渲染(免疫,无防御语义)。 */}
@@ -638,7 +600,7 @@ export const Tile = memo(function Tile({
           本件只剩候选(他席)静态细环。 */}
       {state.capitalCandidateOrder != null ? (
         <rect
-          className="bv-pick-ring-static"
+          opacity={0.5}
           x={-51}
           y={-43}
           width={102}

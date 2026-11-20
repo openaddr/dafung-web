@@ -12,15 +12,7 @@ import { memo } from "react";
 import type { Board } from "@core/board";
 import { Theme, rgba } from "@core/theme";
 
-/** 棋盘总览视口盒(世界坐标;x/y = 左上角,w/h = 宽高)。
- *  #946 平移缩放退役后棋盘恒总览定格,本类型是静态层对取景盒的全部消费面
- *  (类型来源原挂 usePanZoom,随其删除就地定义)。 */
-export interface ViewBox {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+import type { ViewBox } from "./board-viewport";
 
 // 地形画布随图走(ADR-0027):不再钉死 viewBox 常量,由 BoardView 把
 // computeFitView 推导的总览视口传进来,延展画布 = 总览 + EDGE_PAD 渐隐带。
@@ -63,7 +55,7 @@ function poly(pts: { x: number; y: number }[]): string {
 }
 
 // ── defs:玄墨噪点滤镜 + 晕影渐变 ──
-export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
+export const TerrainDefs = memo(function TerrainDefs({ fit }: { fit: ViewBox }) {
   const O = canvasOf(fit);
   const sceneBandH = Math.round(fit.h * SCENE_BAND_RATIO);
   return (
@@ -86,11 +78,9 @@ export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
       </filter>
       {/* 四角晕影:中心透明 → 边缘沉向纯阴影(#512 阴影向;深底上晕影只加进深不加色) */}
       <radialGradient id="bv-vignette" cx="50%" cy="50%" r="62%">
-        <stop offset="55%" stopColor="var(--color-bg)" stopOpacity={0} />
+        <stop offset="55%" stopColor={rgba(Theme.bg)} stopOpacity={0} />
         <stop offset="100%" stopColor={VIGNETTE_EDGE} stopOpacity={0.55} />
       </radialGradient>
-      {/* F2 都城光晕:金色中心 → 边缘渐 0(替代 Tile 内联 filter:blur(9px)——
-          blur 滤镜随 zoom 每帧重算,渐变填充近零开销;脉动仍走 CSS opacity)。 */}
       {/* #38 边缘渐隐 mask:白底全显 + 四边各一条 EDGE_PAD 宽的线性渐变带
           (外缘黑=透明 → 内缘白=可见),渐变从 VB 边界起算。objectBoundingBox 单位
           相对各自 band rect,天然横/纵向独立、无椭圆长短轴失配。四角处两条带
@@ -118,30 +108,6 @@ export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
         <rect x={O.x} y={O.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-t)" />
         <rect x={O.x} y={fit.y + fit.h} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-b)" />
       </mask>
-      {/* F2 都城光晕(#512 克制档):金色中心 → 边缘渐 0;峰值压到 0.4(旧 0.55)——
-          深底上金晕天然显眼,「美观且不炫目」验收词下收一档;脉动仍走 CSS opacity。 */}
-      <radialGradient id="bv-capital-glow-grad" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="var(--color-gold)" stopOpacity={0.4} />
-        <stop offset="55%" stopColor="var(--color-gold)" stopOpacity={0.2} />
-        <stop offset="100%" stopColor="var(--color-gold)" stopOpacity={0} />
-      </radialGradient>
-      {/* 城池建筑共享渐变(AB 混合·B 精绘,#512 深底档):墨青瓦屋面与夯土城台。
-          每城内联 defs 会产生重复 id 冲突,统一挂这里,Tile 以 url(#…) 引用;
-          gradientUnits 默认 objectBoundingBox = 各自屋面/墙身的包围盒,多档建筑共用同一份定义。 */}
-      <linearGradient id="bv-roof-grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#51606c" />
-        <stop offset="1" stopColor="#3a4550" />
-      </linearGradient>
-      <linearGradient id="bv-wall-grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#b59c74" />
-        <stop offset="1" stopColor="#8a714c" />
-      </linearGradient>
-      {/* 名城琉璃瓦面(ADR-0042 形制阶梯):翠琉璃两档,与墨青灰瓦拉开色相——总览下
-          名城瓦面「发绿发亮」,放大后是琉璃釉色;几何与郡城同源,只换瓦面与描金档。 */}
-      <linearGradient id="bv-glazed-roof-grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#7f9f66" />
-        <stop offset="1" stopColor="#556f3e" />
-      </linearGradient>
       {/* #844 纸纤维噪点:fractalNoise 高频灰阶磨砂,feTurbulence stitchTiles=stitch
           让 256 tile 边界噪声缝合、pattern 平铺无缝——SVG 一次生成零图片资产,
           深 zoom 的格间空白不再是纯平涂。fractalNoise 原始输出对比度天然压缩
@@ -202,6 +168,37 @@ export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
     </defs>
   );
 });
+
+export function CityDefs() {
+  return (
+    <defs>
+      {/* F2 都城光晕(#512 克制档):金色中心 → 边缘渐 0;峰值压到 0.4(旧 0.55)——
+          深底上金晕天然显眼,「美观且不炫目」验收词下收一档;脉动仍走 CSS opacity。 */}
+      <radialGradient id="bv-capital-glow-grad" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor={rgba(Theme.gold)} stopOpacity={0.4} />
+        <stop offset="55%" stopColor={rgba(Theme.gold)} stopOpacity={0.2} />
+        <stop offset="100%" stopColor={rgba(Theme.gold)} stopOpacity={0} />
+      </radialGradient>
+      {/* 城池建筑共享渐变(AB 混合·B 精绘,#512 深底档):墨青瓦屋面与夯土城台。
+          每城内联 defs 会产生重复 id 冲突,统一挂这里,Tile 以 url(#…) 引用;
+          gradientUnits 默认 objectBoundingBox = 各自屋面/墙身的包围盒,多档建筑共用同一份定义。 */}
+      <linearGradient id="bv-roof-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#51606c" />
+        <stop offset="1" stopColor="#3a4550" />
+      </linearGradient>
+      <linearGradient id="bv-wall-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#b59c74" />
+        <stop offset="1" stopColor="#8a714c" />
+      </linearGradient>
+      {/* 名城琉璃瓦面(ADR-0042 形制阶梯):翠琉璃两档,与墨青灰瓦拉开色相——总览下
+          名城瓦面「发绿发亮」,放大后是琉璃釉色;几何与郡城同源,只换瓦面与描金档。 */}
+      <linearGradient id="bv-glazed-roof-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#7f9f66" />
+        <stop offset="1" stopColor="#556f3e" />
+      </linearGradient>
+    </defs>
+  );
+}
 
 // ── 背景:玄墨底 + 噪点暗纹 + 纸纤维 + 龚贤远山带 + 四角晕影 ──
 export const TerrainLayer = memo(function TerrainLayer({ fit }: { fit: ViewBox }) {
@@ -283,12 +280,28 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
       />,
       <path
         key={`seg-${i}`}
-        className="bv-road-main stroke-road-main"
+        className="bv-road-main"
         d={d}
+        fill="none"
+        stroke={rgba(Theme.roadMain)}
+        strokeWidth={10}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.55}
         data-segment={`${i}-${to}`}
       />,
       // 漆金细线芯:叠在路身同一路径上,#512 深底化口径(stroke 色在 board.css 消费 token)
-      <path key={`core-${i}`} className="bv-road-core" d={d} />,
+      <path
+        key={`core-${i}`}
+        className="bv-road-core"
+        d={d}
+        fill="none"
+        stroke={rgba(Theme.roadSide)}
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.65}
+      />,
     );
     // #73 主路箭羽:锚=边中点,方向=行进向——总览下箭羽成节奏点列;
     // 首段画双羽,环路行进方向自首段起读(旧起点「起」印已随 2026-10-19 拷问退役:
