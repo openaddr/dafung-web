@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>机遇画心 · 844×390 设计原型</title>
+<style>
+:root {
+  --color-bg: #1f1a13;
+  --color-bg-deep: #16110c;
+  --color-panel: #2b2317;
+  --color-panel-hi: #3d3325;
+  --color-paper-hi: #3b3222;
+  --color-paper-lo: #241d13;
+  --color-paper: #f4ecd8;
+  --color-paper-dim: #c6b491;
+  --color-lacquer: #332a1e;
+  --color-lacquer-gold: #d9b95c;
+  --color-gold: #d9b95c;
+  --color-gold-bright: #ecd28a;
+  --color-gold-deep: #c8a13a;
+  --color-money: #79a965;
+  --color-danger: #e2634d;
+  --color-success: #35a374;
+  --color-seal-qing: #76aaa5;
+  --color-jishi: #82a4cc;
+  --color-defense-shield: #7aa2d4;
+  --color-road-main: #8a6c44;
+  --color-road-side: #c07f47;
+  --color-gold-wash: #9c8a5e;
+  --color-attr-cash: #7cab66;
+  --color-attr-cash-bright: #8fbf77;
+  --color-attr-city: #76aaa5;
+  --color-attr-city-bright: #7fb0ad;
+  --color-attr-rep: #b58cc5;
+  --color-attr-rep-bright: #c383c5;
+  --color-attr-gem: #d89a55;
+  --color-attr-gem-bright: #e09a52;
+  --color-attr-hero: #e2634d;
+  --color-attr-hero-bright: #e07a6a;
+}
+</style>
+<script id="catalog-data" type="application/json">
+[
+  {
+    "id": "屯粮居奇",
+    "tier": "好运",
+    "tags": [
+      "银两"
+    ],
+    "text": "荒年粮价飞涨,囤粮转卖大赚一笔",
+    "effect": {
+      "kind": "cash",
+      "delta": 250
+    },
+    "art": "grain",
+    "subject": "仓里堆高的粮袋与谷斗",
+    "once": false
+  },
+  {
+    "id": "草船借箭",
+    "tier": "好运",
+    "tags": [
+      "银两"
+    ],
+    "text": "借得箭矢十万,转售诸侯",
+    "effect": {
+      "kind": "cash",
+      "delta": 200
+    },
+    "art": "arrows",
+    "subject": "雾江中插满箭矢的草船",
+    "once": false
+  },
+  {
+    "id": "神医行诊",
+    "tier": "好运",
+    "tags": [
+      "体力"
+    ],
+    "text": "神医路过举家调理",
+    "effect": {
+      "kind": "cash",
+      "delta": 0,
+      "staminaDelta": 25
+    },
+    "art": "doctor",
+    "subject": "神医在民居中打开药篮",
+    "once": false
+  },
+  {
+    "id": "义士来投",
+    "tier": "好运",
+    "tags": [
+      "名将"
+    ],
+    "text": "名将慕名来投",
+    "effect": {
+      "kind": "grantHero",
+      "fallbackCash": 200
+    },
+    "art": "recruit",
+    "subject": "义士在石门前捧剑投效",
+    "once": false
+  },
+  {
+    "id": "奉迎天子",
+    "tier": "好运",
+    "tags": [
+      "银两",
+      "声望"
+    ],
+    "text": "汉室车驾东归,恰过你的地界。奉迎天子,可领内库岁赐二百两、坐收号令之便;然僭越之讥随之,士林侧目。",
+    "choices": [
+      {
+        "text": "奉迎天子(得岁赐 200 两,声望 −10)",
+        "repDelta": -10,
+        "effect": {
+          "kind": "cash",
+          "delta": 200
+        }
+      },
+      {
+        "text": "礼送出境(声望 +5)",
+        "repDelta": 5
+      }
+    ],
+    "art": "chariot",
+    "subject": "汉室车驾穿过关门",
+    "once": false
+  },
+  {
+    "id": "携民渡江",
+    "tier": "中性",
+    "tags": [
+      "银两",
+      "声望"
+    ],
+    "text": "流民数百拦江哭告,愿随你渡江避祸。安置他们需费银 100 两,但民心所向,声望大增;亦可径自过江,不相闻问。",
+    "choices": [
+      {
+        "text": "携民渡江(费银 100 两,声望 +10)",
+        "repDelta": 10,
+        "effect": {
+          "kind": "cash",
+          "delta": -100
+        }
+      },
+      {
+        "text": "径自过江(无事发生)",
+        "repDelta": 0
+      }
+    ],
+    "art": "refugees",
+    "subject": "带着家当的流民同乘渡船",
+    "once": false
+  },
+  {
+    "id": "疫病入营",
+    "tier": "霉运",
+    "tags": [
+      "银两",
+      "体力"
+    ],
+    "text": "军中疫气蔓延,病倒者日增。延医购药需费 130 两,疫可立止;若硬撑操练,疫情蚀体,全军疲敝。",
+    "choices": [
+      {
+        "text": "延医购药(费银 130 两)",
+        "repDelta": 0,
+        "effect": {
+          "kind": "cash",
+          "delta": -130
+        }
+      },
+      {
+        "text": "硬撑操练(全军体力 −25)",
+        "repDelta": 0,
+        "staminaDelta": -25
+      }
+    ],
+    "art": "outbreak",
+    "subject": "雨天军营内的药罐和病卒",
+    "once": false
+  },
+  {
+    "id": "华容道",
+    "tier": "霉运",
+    "tags": [
+      "银两",
+      "体力"
+    ],
+    "text": "乌林火起,全军北撤——华容小道,泥泞没膝,后有追兵。辎重车马尽陷泥淖,弃之则资敌,焚之又乏粮,将士力竭,眼看着走不动了。",
+    "choices": [
+      {
+        "text": "弃辎重轻走(失军资折银 150 两)",
+        "repDelta": 0,
+        "effect": {
+          "kind": "cash",
+          "delta": -150
+        }
+      },
+      {
+        "text": "死战开路(体力 −18,资不及敌)",
+        "repDelta": 0,
+        "staminaDelta": -18
+      }
+    ],
+    "art": "huarong",
+    "subject": "狭窄山道中陷入泥淖的车轮",
+    "once": true
+  }
+]
+</script>
+<template id="wheat-template"><div aria-hidden="true" class="wheat"><svg width="44" height="22" viewBox="0 0 44 22" aria-hidden="true"><path d="M2 18 C 13 17, 26 13, 40 5" fill="none" stroke-width="1.3" stroke-linecap="round" style="stroke:var(--color-gold-deep)"></path><g style="fill:var(--color-gold-bright)"><ellipse rx="4" ry="1.9" transform="translate(11.5,14.4) rotate(-38)"></ellipse><ellipse rx="3.6" ry="1.7" transform="translate(27.5,9.7) rotate(-38)"></ellipse></g><g style="fill:var(--color-gold)"><ellipse rx="3.6" ry="1.7" transform="translate(12.5,18.6) rotate(30)"></ellipse><ellipse rx="4" ry="1.9" transform="translate(19.5,12.4) rotate(-38)"></ellipse><ellipse rx="3.6" ry="1.7" transform="translate(20.5,16.6) rotate(30)"></ellipse><ellipse rx="3.6" ry="1.7" transform="translate(28.5,13.9) rotate(30)"></ellipse><ellipse rx="3.2" ry="1.5" transform="translate(34.5,6.8) rotate(-38)"></ellipse><ellipse rx="3" ry="1.4" transform="translate(35,11) rotate(30)"></ellipse></g><ellipse rx="4.2" ry="2" transform="translate(40.2,3.2) rotate(-30)" style="fill:var(--color-gold-bright)"></ellipse></svg><svg width="44" height="22" viewBox="0 0 44 22" aria-hidden="true" class="-scale-x-100"><path d="M2 18 C 13 17, 26 13, 40 5" fill="none" stroke-width="1.3" stroke-linecap="round" style="stroke:var(--color-gold-deep)"></path><g style="fill:var(--color-gold-bright)"><ellipse rx="4" ry="1.9" transform="translate(11.5,14.4) rotate(-38)"></ellipse><ellipse rx="3.6" ry="1.7" transform="translate(27.5,9.7) rotate(-38)"></ellipse></g><g style="fill:var(--color-gold)"><ellipse rx="3.6" ry="1.7" transform="translate(12.5,18.6) rotate(30)"></ellipse><ellipse rx="4" ry="1.9" transform="translate(19.5,12.4) rotate(-38)"></ellipse><ellipse rx="3.6" ry="1.7" transform="translate(20.5,16.6) rotate(30)"></ellipse><ellipse rx="3.6" ry="1.7" transform="translate(28.5,13.9) rotate(30)"></ellipse><ellipse rx="3.2" ry="1.5" transform="translate(34.5,6.8) rotate(-38)"></ellipse><ellipse rx="3" ry="1.4" transform="translate(35,11) rotate(30)"></ellipse></g><ellipse rx="4.2" ry="2" transform="translate(40.2,3.2) rotate(-30)" style="fill:var(--color-gold-bright)"></ellipse></svg></div></template>
+
+<style id="local-fonts">
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/35.woff2') format('woff2');unicode-range:U+8BA5;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/59.woff2') format('woff2');unicode-range:U+6DD6;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/60.woff2') format('woff2');unicode-range:U+6CDE;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/66.woff2') format('woff2');unicode-range:U+655D;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/68.woff2') format('woff2');unicode-range:U+6289;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/78.woff2') format('woff2');unicode-range:U+56E4;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/83.woff2') format('woff2');unicode-range:U+50ED;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/90.woff2') format('woff2');unicode-range:U+2212;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/100.woff2') format('woff2');unicode-range:U+5352;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/103.woff2') format('woff2');unicode-range:U+60, U+5C6F, U+711A, U+72ED, U+8D50;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/104.woff2') format('woff2');unicode-range:U+63FD, U+819D, U+8513;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/105.woff2') format('woff2');unicode-range:U+62E6, U+8680;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/106.woff2') format('woff2');unicode-range:U+4FAF, U+6070, U+7A84, U+7AED, U+9709;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/107.woff2') format('woff2');unicode-range:U+6367, U+64A4, U+75AB, U+75B2, U+7978, U+7F50;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/108.woff2') format('woff2');unicode-range:U+24, U+4E4F, U+5949, U+6155, U+6E21, U+77E2, U+7BAD, U+8F74;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/109.woff2') format('woff2');unicode-range:U+5806, U+6491, U+68CB, U+6CE5, U+7CAE, U+8352, U+8BF8;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/110.woff2') format('woff2');unicode-range:U+300C, U+300D, U+4E58, U+54ED, U+654C, U+6DA8, U+6F0F, U+7BEE, U+8239, U+8BCA, U+9677, U+96FE;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/111.woff2') format('woff2');unicode-range:U+4E4C, U+4EA6, U+4ED3, U+4FA7, U+5251, U+5F03, U+5F84, U+643A, U+888B, U+8D5A, U+9A7E;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/112.woff2') format('woff2');unicode-range:U+23, U+3D, U+501F, U+5175, U+5377, U+5BBD, U+8C37, U+907F;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/113.woff2') format('woff2');unicode-range:U+26, U+3C, U+D7, U+4EE4, U+5012, U+5750, U+5EF6, U+613F, U+6267, U+6298, U+63D2, U+6597, U+786C, U+7EC3, U+8349, U+8F6E, U+96E8, U+9759;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/114.woff2') format('woff2');unicode-range:U+5356, U+542F, U+5C81, U+5F52, U+64CD, U+6B7B, U+6C49, U+75C5, U+7A7F, U+7B14, U+82E5, U+836F, U+8FFD, U+9047, U+94F6;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/115.woff2') format('woff2');unicode-range:U+25, U+4E49, U+4FBF, U+519B, U+5207, U+5219, U+533B, U+552E, U+5883, U+589E, U+5931, U+5947, U+5BA4, U+5C3D, U+5C40, U+5C45, U+6545, U+671B, U+6797, U+6B62, U+6EE1, U+753B, U+76D8, U+773C, U+77F3, U+793C, U+7B97, U+8BE6, U+8D8A, U+8F7B, U+8F83, U+95ED, U+968F, U+98DE, U+FF1B;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/116.woff2') format('woff2');unicode-range:U+2B, U+40, U+4F46, U+5341, U+53C8, U+5411, U+58EB, U+5C71, U+5E26, U+5E93, U+5F20, U+6218, U+62DB, U+62E9, U+6362, U+6548, U+6574, U+6C11, U+6C5F, U+706B, U+7167, U+754C, U+7559, U+7740, U+795E, U+8425, U+8BD5, U+8C03, U+8D2D, U+8D70, U+8FCE, U+9001, U+9700, U+9879, U+9886, U+9A6C;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/117.woff2') format('woff2');unicode-range:U+4E, U+4E07, U+4E1C, U+4E24, U+4E3E, U+4E5F, U+4E8B, U+4E8C, U+4ED6, U+4EF7, U+5171, U+518C, U+5317, U+534E, U+5373, U+539F, U+53CA, U+578B, U+58F0, U+5B8C, U+5BB9, U+5C06, U+5C55, U+5DF2, U+5F97, U+6001, U+6253, U+6295, U+6761, U+67E5, U+6837, U+6848, U+6BD4, U+6C14, U+6CA1, U+6D41, U+7136, U+767E, U+76EE, U+793A, U+7ACB, U+7ED3, U+7ED9, U+7F6E, U+89C1, U+8BA1, U+8BB0, U+8BBE, U+8BFB, U+8D39, U+8D77, U+8DEF, U+8F66, U+8F6C, U+8FD0, U+9009, U+90FD, U+91CC, U+91CD, U+95FB;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/118.woff2') format('woff2');unicode-range:U+3E, U+7C, U+4E0A, U+4E0D, U+4E0E, U+4E4B, U+4E86, U+4EE5, U+4EEC, U+4F4D, U+4F53, U+4F60, U+5165, U+5168, U+5173, U+5185, U+51FA, U+5230, U+524D, U+529B, U+52A8, U+53D1, U+53EF, U+53F7, U+540C, U+540D, U+540E, U+544A, U+548C, U+56DE, U+5728, U+5730, U+5927, U+5929, U+597D, U+5B50, U+5B89, U+5BB6, U+5BF9, U+5C0F, U+5E74, U+5F00, U+5F53, U+5FC3, U+6027, U+60C5, U+6240, U+624B, U+6536, U+6570, U+6587, U+65B9, U+65E0, U+65F6, U+672C, U+673A, U+6765, U+679C, U+6CD5, U+7406, U+751F, U+7528, U+767B, U+76F8, U+770B, U+8005, U+81EA, U+884C, U+8BF7, U+8D44, U+8FC7, U+8FD9, U+9053, U+95E8, U+95EE, U+9875, U+9996, U+9AD8, U+FF08, U+FF09;}
+@font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/119.woff2') format('woff2');unicode-range:U+20, U+21, U+22, U+27, U+28, U+29, U+2A, U+2C, U+2D, U+2E, U+2F, U+30, U+31, U+32, U+33, U+34, U+35, U+36, U+37, U+38, U+39, U+3A, U+3B, U+3F, U+41, U+42, U+43, U+44, U+45, U+47, U+48, U+49, U+4A, U+4B, U+4C, U+4D, U+4F, U+50, U+51, U+52, U+53, U+54, U+55, U+57, U+58, U+59, U+5A, U+5B, U+5D, U+61, U+62, U+63, U+64, U+65, U+66, U+67, U+68, U+69, U+6A, U+6B, U+6C, U+6D, U+6E, U+6F, U+70, U+71, U+72, U+73, U+74, U+75, U+76, U+77, U+78, U+79, U+7A, U+7B, U+7D, U+B7, U+2014, U+3001, U+3002, U+4E00, U+4E2D, U+65E5, U+6709, U+70B9, U+7684, U+FF0C;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/1.woff2') format('woff2');unicode-range:U+3002, U+4E00, U+4E0A, U+4E0D, U+4E0E, U+4E24, U+4E2D, U+4E8B, U+4F4D, U+4F53, U+5165, U+5168, U+5185, U+51FA, U+524D, U+52A8, U+5373, U+539F, U+53D1, U+53EF, U+540C, U+540D, U+540E, U+56DE, U+5728, U+5730, U+5BF9, U+5C40, U+5DF2, U+5F00, U+5F84, U+6001, U+624B, U+6536, U+6570, U+6587, U+65E0, U+65F6, U+6709, U+672C, U+673A, U+70B9, U+7167, U+7528, U+7684, U+76EE, U+7B97, U+7ED3, U+81EA, U+884C, U+8D77, U+9009, U+90FD, U+91CD, U+968F;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/2.woff2') format('woff2');unicode-range:U+4E49, U+4EF7, U+4FA7, U+519B, U+5230, U+53F7, U+5931, U+5B50, U+5BB6, U+5C06, U+5E26, U+5F52, U+6548, U+65B9, U+6761, U+6D41, U+751F, U+753B, U+7559, U+7F6E, U+8005, U+89C1, U+8BA1, U+8BFB, U+8C03, U+8D39, U+8D70, U+8DEF, U+8FC7, U+9047, U+9879, U+9996;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/3.woff2') format('woff2');unicode-range:U+4E4B, U+4EE4, U+5171, U+5173, U+518C, U+5219, U+529B, U+5356, U+5377, U+578B, U+58F0, U+5927, U+5BB9, U+5C55, U+5F53, U+5F97, U+6027, U+6298, U+62E9, U+6362, U+6574, U+679C, U+67E5, U+6848, U+68CB, U+6CD5, U+76D8, U+76F8, U+793A, U+8BB0, U+8F6C, U+8F74, U+94F6, U+9759;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/4.woff2') format('woff2');unicode-range:U+4EE5, U+544A, U+5750, U+5B8C, U+5C0F, U+5F20, U+60C5, U+6218, U+62E6, U+671B, U+6837, U+7406, U+7ED9, U+8BD5, U+8D2D, U+8F6E, U+9053, U+91CC, U+95EE, U+9700, U+9875, U+9AD8;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/5.woff2') format('woff2');unicode-range:U+4E8C, U+4ED6, U+5175, U+5207, U+5411, U+589E, U+5929, U+5E93, U+5FC3, U+6295, U+62DB, U+6765, U+6BD4, U+6EE1, U+754C, U+7ACB, U+7AED, U+8BBE, U+8BE6, U+8FD0, U+8FD9, U+95ED;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/6.woff2') format('woff2');unicode-range:U+4E5F, U+4E86, U+597D, U+5BBD, U+6240, U+6253, U+6267, U+6B62, U+7136, U+767B, U+770B, U+7A84, U+8D44, U+907F, U+95E8;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/7.woff2') format('woff2');unicode-range:U+4F60, U+4FAF, U+5012, U+542F, U+5806, U+5B89, U+5C3D, U+5F03, U+65E5, U+706B, U+786C, U+7B14, U+8BF8, U+8D8A;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/8.woff2') format('woff2');unicode-range:U+4F46, U+552E, U+58EB, U+5C45, U+5C71, U+5EF6, U+6070, U+643A, U+64CD, U+6545, U+6B7B, U+6C5F, U+7CAE, U+82E5, U+8425, U+8BF7, U+8F7B, U+9677;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/9.woff2') format('woff2');unicode-range:U+4E1C, U+4ED3, U+5883, U+64A4, U+6CA1, U+6E21, U+6F0F, U+7A7F, U+7BAD, U+8D50, U+8F66, U+8FFD, U+9709, U+9886, U+98DE;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/10.woff2') format('woff2');unicode-range:U+4E58, U+4EA6, U+4FBF, U+548C, U+654C, U+6C11, U+6C49, U+767E, U+7740, U+77F3, U+9001, U+96E8;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/11.woff2') format('woff2');unicode-range:U+534E, U+53C8, U+53CA, U+6C14, U+6DA8, U+773C, U+9A6C, U+9A7E;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/12.woff2') format('woff2');unicode-range:U+4EEC, U+501F, U+533B, U+613F, U+6491, U+75AB, U+75C5, U+795E, U+8F83, U+FF0C;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/13.woff2') format('woff2');unicode-range:U+4E3E, U+4E4F, U+5341, U+56E4, U+5949, U+5C81, U+63D2, U+63FD, U+6CE5, U+75B2, U+7978, U+8349, U+8BCA, U+8C37;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/14.woff2') format('woff2');unicode-range:U+5317, U+5E74, U+6597, U+711A, U+793C, U+8239, U+888B, U+8FCE, U+95FB, U+FF1B;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/15.woff2') format('woff2');unicode-range:U+4E07, U+5251, U+5352, U+54ED, U+77E2, U+7EC3, U+8352, U+8680, U+8D5A;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/16.woff2') format('woff2');unicode-range:U+5947, U+5BA4, U+5C6F, U+6155, U+6797;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/17.woff2') format('woff2');unicode-range:U+836F, U+8513, U+8BA5;}
+@font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/latin.woff2') format('woff2');unicode-range:U+20, U+21, U+23, U+24, U+25, U+26, U+28, U+29, U+2B, U+2D, U+2E, U+2F, U+30, U+31, U+32, U+33, U+34, U+35, U+36, U+37, U+38, U+39, U+3A, U+3B, U+3D, U+3F, U+40, U+41, U+42, U+43, U+44, U+45, U+47, U+48, U+49, U+4A, U+4B, U+4C, U+4D, U+4E, U+4F, U+50, U+51, U+52, U+53, U+54, U+55, U+57, U+58, U+59, U+5A, U+5B, U+5D, U+61, U+62, U+63, U+64, U+65, U+66, U+67, U+68, U+69, U+6A, U+6B, U+6C, U+6D, U+6E, U+6F, U+70, U+71, U+72, U+73, U+74, U+75, U+76, U+77, U+78, U+79, U+7A, U+7C, U+B7, U+3002, U+FF08, U+FF09, U+FF0C, U+FF1B;}
+</style>
+<style id="design">
+* { box-sizing: border-box; }
+:root {
+  color-scheme: dark;
+  --border: rgba(217, 185, 92, .36);
+  --hair: rgba(217, 185, 92, .2);
+  --title: "ZCOOL KuHei", "WenQuanYi Zen Hei", "Microsoft YaHei", sans-serif;
+  --reading: "LXGW WenKai", "WenQuanYi Zen Hei", "Microsoft YaHei", sans-serif;
+}
+body { margin: 0; background: var(--color-bg-deep); color: var(--color-paper); font: 15px/1.5 var(--reading); }
+button { color: inherit; font: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--color-gold-bright); outline-offset: 3px; }
+h1, h2, h3, p, figure { margin: 0; }
+h1, h2 { font-family: var(--title); font-weight: normal; }
+[hidden] { display: none !important; }
+.showcase { width: min(100% - 24px, 900px); margin: 0 auto; padding: 22px 0 92px; }
+.intro { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.intro h1 { color: var(--color-gold-bright); font-size: 26px; }
+.intro small, #guidance { color: var(--color-paper-dim); }
+.controls { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 8px; }
+.controls button, .switcher button {
+  min-width: 44px; min-height: 44px; padding: 4px 13px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--color-panel); white-space: nowrap;
+}
+.controls button[aria-pressed="true"], .switcher button[aria-pressed="true"] {
+  color: var(--color-gold-bright); background: var(--color-lacquer); border-color: var(--color-gold);
+}
+#scenarios { margin-bottom: 10px; }
+.viewport {
+  width: min(100%, 844px); margin: 0 auto; position: relative; overflow: hidden;
+  aspect-ratio: 844 / 390; background: var(--color-bg); box-shadow: 0 0 0 1px var(--border);
+}
+#preview { transform-origin: left top; }
+#guidance { margin: 10px auto 0; width: min(100%, 844px); }
+.switcher {
+  position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+  padding: 5px; border: 1px solid var(--border); border-radius: 8px;
+  display: flex; gap: 5px; max-width: calc(100vw - 10px);
+  background: var(--color-bg-deep); box-shadow: 0 5px 25px rgba(0, 0, 0, .55);
+}
+.switcher button { padding-inline: 9px; font-size: 13px; }
+.scene {
+  position: relative; width: 844px; height: 390px; overflow: hidden;
+  background: var(--color-bg) url("art/board.webp") center / 844px 390px no-repeat;
+  color: var(--color-paper); font: 15px/1.55 var(--reading);
+}
+.scrim { position: absolute; inset: 0; background: rgba(22, 17, 12, .55); }
+.manual-scene { background-image: url("art/home.webp"); }
+.manual-scrim { background: rgba(22, 17, 12, .61); }
+.manual, .detail-card, .scroll {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  border: 1px solid var(--border); border-radius: 7px;
+  background: linear-gradient(180deg, var(--color-lacquer), var(--color-bg));
+  box-shadow: inset 0 0 0 1px var(--hair), 0 12px 36px rgba(0, 0, 0, .5);
+}
+.manual { width: 820px; padding: 17px 15px 20px; }
+.manual-head { display: flex; align-items: center; height: 53px; padding: 0 5px; border-bottom: 1px solid var(--hair); }
+.manual-head h2 { color: var(--color-gold-bright); font-size: 24px; }
+.manual-head .current-tab {
+  margin-left: 14px; padding-left: 14px;
+  color: var(--color-paper-dim); font-size: 17px;
+}
+.groups { display: flex; justify-content: space-between; align-items: flex-start; }
+.group { flex: none; }
+.group h3 { display: flex; align-items: center; gap: 7px; margin: 12px 0 8px; font-size: 15px; font-weight: normal; }
+.tier-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tier); }
+.good { --tier: var(--color-money); --seal: var(--color-money); }
+.neutral { --tier: var(--color-seal-qing); --seal: var(--color-seal-qing); }
+.bad { --tier: var(--color-danger); --seal: var(--color-danger); }
+.deck { display: flex; gap: 6px; }
+.encounter-card {
+  position: relative; display: block; width: 93px; height: 124px; padding: 5px 5px 6px; text-align: left;
+  overflow: hidden; border: 1px solid var(--border); border-radius: 4px;
+  background: linear-gradient(150deg, var(--color-panel-hi), var(--color-bg-deep)); box-shadow: inset 0 0 0 1px var(--hair);
+}
+.encounter-card:hover, .encounter-card:focus-visible { border-color: var(--color-gold); }
+.card-title {
+  display: flex; align-items: center; justify-content: space-between; gap: 3px; height: 23px;
+  font: 13px/1 var(--title); white-space: nowrap;
+}
+.stamp {
+  display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex: 0 0 auto;
+  border-radius: 2px; background: var(--seal); color: var(--color-bg-deep); font: 12px/1 var(--title);
+}
+.art { display: block; min-width: 0; overflow: hidden; border: 1px solid var(--border); background: var(--color-panel); }
+.art img { display: block; object-fit: cover; width: 100%; height: 100%; }
+.encounter-card .art { height: 62px; }
+.snippet {
+  display: block; margin: 4px 1px 0; font-size: 10px; line-height: 1.34; color: var(--color-paper-dim);
+  overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-height: 2.68em;
+}
+.detail-dialog {
+  margin: 0; padding: 0; border: 0; width: 100vw; max-width: none; height: 100vh; max-height: none;
+  background: rgba(22, 17, 12, .66); color: var(--color-paper); overflow: hidden;
+}
+.detail-dialog::backdrop { background: transparent; }
+.detail-card { width: min(650px, calc(100vw - 20px)); padding: 14px; }
+.detail-head { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 9px; padding: 0 2px; }
+.detail-head h2 { color: var(--color-gold-bright); font-size: 23px; }
+.detail-head small { margin-left: 4px; color: var(--color-paper-dim); font-size: 13px; }
+.detail-head .stamp { width: 22px; height: 22px; font-size: 14px; }
+.detail-head .close {
+  margin-left: auto; min-width: 42px; min-height: 42px; background: transparent;
+  color: var(--color-paper-dim); border: 0; font: 24px/1 sans-serif;
+}
+.detail-body { display: flex; align-items: flex-start; gap: 14px; padding: 10px; border: 1px solid var(--hair); background: var(--color-bg-deep); }
+.detail-body .art { flex: none; width: 217px; height: 163px; }
+.detail-text { flex: 1; min-width: 0; }
+.story { line-height: 1.67; overflow-wrap: break-word; }
+.detail-body .story { margin: 3px 0 9px; }
+.read-only, .immediate { border-top: 1px solid var(--hair); }
+.read-only p, .immediate { padding: 5px 0; color: var(--color-paper-dim); font-size: 14px; }
+.read-only p + p { border-top: 1px dashed var(--hair); }
+.effects { color: var(--color-paper); }
+.scroll { width: 608px; padding: 10px 12px 12px; }
+.scroll.wide { width: 675px; }
+.scroll-head {
+  position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; height: 43px;
+  margin-bottom: 7px;
+}
+.scroll-head h2 { border-left: 4px solid var(--tier); padding-left: 8px; color: var(--color-paper); font-size: 24px; line-height: 1.17; }
+.scroll-head .stamp { width: 26px; height: 26px; font-size: 16px; }
+.scroll.good { --tier: var(--color-gold-bright); --seal: var(--color-gold-bright); }
+.wheat {
+  position: absolute; left: 9px; right: 9px; top: 10px; display: flex; align-items: center;
+  justify-content: space-between; opacity: .92; pointer-events: none;
+}
+.wheat svg.-scale-x-100 { transform: scaleX(-1); }
+.scroll-body { display: flex; gap: 13px; padding: 13px; border: 1px solid var(--hair); border-radius: 4px; background: var(--color-bg-deep); }
+.scroll-body .art { flex: 0 0 201px; align-self: flex-start; height: 151px; }
+.scroll-copy { flex: 1; min-width: 0; }
+.scroll .story { margin: 0 0 10px; color: var(--color-paper-dim); }
+.scroll.plain .story { text-align: center; }
+.options { display: flex; flex-direction: column; gap: 7px; }
+.option {
+  min-height: 44px; width: 100%; padding: 5px 9px; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--color-paper); background: var(--color-panel-hi); font-size: 15px; line-height: 1.48;
+}
+.option.primary { color: var(--color-gold-bright); background: var(--color-lacquer); border-color: var(--color-gold-wash); }
+.option:active { border-color: var(--color-gold-bright); }
+.option[disabled] { opacity: .5; cursor: default; }
+.test-result {
+  position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%);
+  width: max-content; max-width: 85%; text-align: center; padding: 12px 22px; border: 1px solid var(--border);
+  border-radius: 5px; background: var(--color-bg-deep);
+}
+@media (max-width: 560px) {
+  .detail-card { max-height: calc(100dvh - 24px); overflow: auto; }
+  .detail-body { display: block; }
+  .detail-body .art { width: min(100%, 217px); margin-bottom: 8px; }
+}
+.test-result strong { display: block; color: var(--color-gold-bright); font-weight: normal; margin-bottom: 3px; }
+</style>
+</head>
+<body>
+<main class="showcase">
+  <header class="intro"><h1>机遇画心</h1><small>设计原型 · 844×390</small></header>
+  <nav id="surfaces" class="controls" aria-label="查看位置">
+    <button type="button" data-surface="manual">手册机遇笺</button>
+    <button type="button" data-surface="scroll">局内抉择</button>
+  </nav>
+  <nav class="controls" id="scenarios" aria-label="局内样本" hidden></nav>
+  <div class="viewport"><div id="preview"></div></div>
+  <p id="guidance">点一张机遇笺，查看完整故事和效果。</p>
+  <noscript>请启用 JavaScript 来切换原型。<a href="compare.png">查看静态对照</a></noscript>
+</main>
+<dialog class="detail-dialog" id="detail" aria-label="机遇详情"></dialog>
+<nav class="switcher" aria-label="切换方案">
+  <button type="button" data-variant="a">A · 抉择都见画心</button>
+  <button type="button" data-variant="b">B · 画心留给奇遇宽卷</button>
+</nav>
+<script id="renderer">
+const tierClass = { 好运: 'good', 中性: 'neutral', 霉运: 'bad' };
+const esc = (text) => String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+const typeset = (text) => esc(text.replace(/, */g, '，').replace(/; */g, '；').replaceAll('(', '（').replaceAll(')', '）'));
+const pill = (label) => `<span class="stamp" aria-hidden="true">${esc(label)}</span>`;
+
+function painting(entry) {
+  return `<span class="art"><img src="art/${entry.art}.webp" alt="${esc(entry.subject)}"></span>`;
+}
+
+function encounterCard(entry) {
+  return `<button class="encounter-card" type="button" data-detail="${entry.art}" aria-label="查看${esc(entry.id)}">
+    <span class="card-title"><span>${esc(entry.id)}</span>${pill(entry.tier[0])}</span>
+    ${painting(entry)}
+    <span class="snippet">${typeset(entry.text)}</span>
+  </button>`;
+}
+
+function manualContents() {
+  const groups = Object.entries(tierClass).map(([tier, cssClass]) => {
+    const cards = catalog.filter(entry => entry.tier === tier).map(encounterCard).join('');
+    return `<section class="group ${cssClass}">
+      <h3><span class="tier-dot" aria-hidden="true"></span>${esc(tier)}</h3><div class="deck">${cards}</div>
+    </section>`;
+  }).join('');
+  return `<div class="scrim manual-scrim"></div><section class="manual" aria-labelledby="manual-title">
+    <header class="manual-head"><h2 id="manual-title">手册</h2><span class="current-tab">机遇笺</span></header>
+    <div class="groups">${groups}</div>
+  </section>`;
+}
+
+function instantEffect(effect) {
+  switch (effect.kind) {
+    case 'cash': {
+      const parts = [];
+      if (effect.delta) parts.push(`银两 +${effect.delta} 两`);
+      if (effect.staminaDelta) parts.push(`体力 +${effect.staminaDelta}`);
+      return parts.join(' · ');
+    }
+    case 'grantHero': return `招揽名将一位 · 无法招揽时折银 ${effect.fallbackCash} 两`;
+  }
+  throw new Error(`即时样本漏登记效果 ${effect.kind}`);
+}
+
+function detailContents(entry) {
+  const effects = entry.choices
+    ? `<div class="read-only">${entry.choices.map(choice => `<p>${typeset(choice.text)}</p>`).join('')}</div>`
+    : `<p class="immediate">即时结算 · <span class="effects">${esc(instantEffect(entry.effect))}</span></p>`;
+  return `<section class="detail-card ${tierClass[entry.tier]}" aria-labelledby="detail-title">
+    <header class="detail-head">${pill(entry.tier[0])}<h2 id="detail-title">${esc(entry.id)}</h2>
+      <small>${esc([entry.tier, ...entry.tags].join(' · '))}</small>
+      <button type="button" class="close" data-close aria-label="关闭详情">×</button>
+    </header>
+    <div class="detail-body">${painting(entry)}<div class="detail-text"><p class="story">${typeset(entry.text)}</p>${effects}</div></div>
+  </section>`;
+}
+
+function decisionContents(entry, variant, settled = null) {
+  if (settled !== null) {
+    return `<div class="test-result" role="status"><strong>已选 · ${esc(entry.id)}</strong>${typeset(entry.choices[settled].text)}</div>`;
+  }
+  const showsArt = variant === 'a' || entry.once;
+  const choices = entry.choices.map((choice, index) => {
+    const primary = index === 0 && entry.tier !== '霉运';
+    return `<button class="option${primary ? ' primary' : ''}" type="button" data-choice="${index}">${typeset(choice.text)}</button>`;
+  }).join('');
+  return `<div class="scrim"></div><section class="scroll ${tierClass[entry.tier]} ${entry.once ? 'wide' : ''} ${showsArt ? 'illustrated' : 'plain'}" aria-labelledby="game-title">
+    <header class="scroll-head">${pill('遇')}<h2 id="game-title">机遇 · ${esc(entry.id)}</h2>${entry.once ? ornaments : ''}</header>
+    <div class="scroll-body">${showsArt ? painting(entry) : ''}
+      <div class="scroll-copy"><p class="story">${typeset(entry.text)}</p><div class="options">${choices}</div></div>
+    </div>
+  </section>`;
+}
+
+function manualScene() {
+  return `<div class="scene manual-scene" aria-label="首页打开的手册机遇笺">${manualContents()}</div>`;
+}
+
+function scrollScene(entry, variant, settled = null) {
+  return `<div class="scene" aria-label="棋盘上的机遇抉择">${decisionContents(entry, variant, settled)}</div>`;
+}
+</script>
+<script id="interaction">
+const catalog = JSON.parse(document.getElementById('catalog-data').textContent);
+const ornaments = document.getElementById('wheat-template').innerHTML;
+const scenarios = catalog.filter(entry => entry.choices?.length > 1);
+const preview = document.getElementById('preview');
+const surfaces = document.getElementById('surfaces');
+const scenarioNav = document.getElementById('scenarios');
+const guidance = document.getElementById('guidance');
+const detail = document.getElementById('detail');
+const switches = document.querySelector('.switcher');
+const params = new URLSearchParams(location.hash ? location.hash.slice(1) : location.search);
+let surface = params.get('surface') === 'scroll' ? 'scroll' : 'manual';
+let variant = params.get('variant') === 'b' ? 'b' : 'a';
+let current = scenarios.find(entry => entry.art === params.get('scenario')) ?? scenarios.find(entry => entry.art === 'refugees');
+let settled = null;
+
+function fitScene() {
+  const scale = preview.parentElement.clientWidth / 844;
+  if (scale) preview.style.transform = `scale(${scale})`;
+}
+
+function render() {
+  const manual = surface === 'manual';
+  for (const button of surfaces.querySelectorAll('button')) {
+    button.setAttribute('aria-pressed', button.dataset.surface === surface);
+  }
+  for (const button of switches.querySelectorAll('button')) {
+    button.setAttribute('aria-pressed', button.dataset.variant === variant);
+  }
+  scenarioNav.hidden = manual;
+  scenarioNav.innerHTML = manual ? '' : scenarios.map(entry => `<button type="button" data-scenario="${entry.art}" aria-pressed="${entry === current}">${esc(entry.id)}</button>`).join('') + (settled === null ? '' : '<button type="button" data-reset>重看抉择</button>');
+  preview.innerHTML = manual ? manualScene() : scrollScene(current, variant, settled);
+  guidance.textContent = manual ? '点一张机遇笺，查看完整故事和效果。手册两案共用同一画心。' :
+    settled !== null ? '这里展示选中的原文；点「重看抉择」回到卷轴。' : '点 A、B 比较当前条目，也可以点选项试读抉择回执。';
+  fitScene();
+  const state = new URLSearchParams({ variant, surface, scenario: current.art });
+  const prefix = location.protocol === 'file:' ? '#' : '?';
+  history.replaceState(null, '', prefix + state);
+}
+
+surfaces.addEventListener('click', (event) => {
+  const next = event.target.closest('button[data-surface]');
+  if (!next) return;
+  surface = next.dataset.surface;
+  settled = null;
+  render();
+});
+switches.addEventListener('click', (event) => {
+  const next = event.target.closest('button[data-variant]');
+  if (!next) return;
+  variant = next.dataset.variant;
+  settled = null;
+  render();
+});
+scenarioNav.addEventListener('click', (event) => {
+  const next = event.target.closest('button');
+  if (!next) return;
+  if (next.dataset.scenario) current = scenarios.find(entry => entry.art === next.dataset.scenario);
+  settled = null;
+  render();
+  scenarioNav.querySelector(`[data-scenario="${current.art}"]`).focus({ preventScroll: true });
+});
+preview.addEventListener('click', (event) => {
+  const button = event.target.closest('button');
+  if (!button) return;
+  if (button.dataset.detail) {
+    detail.innerHTML = detailContents(catalog.find(entry => entry.art === button.dataset.detail));
+    detail.showModal();
+    return;
+  }
+  settled = Number(button.dataset.choice);
+  render();
+  scenarioNav.querySelector('[data-reset]').focus({ preventScroll: true });
+});
+detail.addEventListener('click', (event) => {
+  if (event.target === detail || event.target.closest('[data-close]')) detail.close();
+});
+new ResizeObserver(fitScene).observe(preview.parentElement);
+render();
+</script>
+
+</body>
+</html>
