@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it, mock } from "bu
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { LID } from "@app/screens/lobby/testids";
+import { HintBar } from "@app/screens/shared/HintBar";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 
 let LobbyStartActions: typeof import("@app/screens/lobby/LobbyStartActions").LobbyStartActions;
@@ -30,17 +31,25 @@ afterAll(async () => {
   await releaseHappyDom();
 });
 
-function HostActions({ startGame }: { startGame: () => Promise<void> }) {
+function HostActions({
+  startGame,
+  hint = null,
+  mapSelected = true,
+}: {
+  startGame: () => Promise<void>;
+  hint?: string | null;
+  mapSelected?: boolean;
+}) {
   const { state, submit } = useLobbyStart("ROOMA");
   return (
     <LobbyStartActions
       state={state}
-      shortLandscape={true}
-      mapSelected={true}
+      mapSelected={mapSelected}
       disabled={false}
       connectionDown={false}
       onSelectMap={() => {}}
       onStart={() => submit(startGame)}
+      hint={hint === null ? null : <HintBar hint={hint} variant="inline" />}
     />
   );
 }
@@ -71,6 +80,32 @@ it("房主连续点击只发一次开局，服务器接受后仍锁住操作等�
   expect(button(LID.selectMap).disabled).toBe(true);
   act(() => start.click());
   expect(startGame).toHaveBeenCalledTimes(1);
+});
+
+it("开局请求与同步棋局期间，通用提示让位给开局状态", async () => {
+  const reply = Promise.withResolvers<void>();
+  const hint = "复制失败，请手动抄录";
+  act(() => root.render(<HostActions startGame={() => reply.promise} hint={hint} />));
+  expect(container.textContent).toContain(hint);
+
+  act(() => button(LID.start).click());
+  expect(container.querySelector('[role="status"]')?.textContent).toBe("正在开局…");
+  expect(container.textContent).not.toContain(hint);
+
+  await act(async () => reply.resolve());
+  expect(container.querySelector('[role="status"]')?.textContent).toBe("正在同步棋局…");
+  expect(container.textContent).not.toContain(hint);
+});
+
+it("房主还未选定地图时，选图失败优先于选图引导", () => {
+  const startGame = async () => {};
+  const hint = "地图清单加载失败:请求超时";
+  act(() => root.render(<HostActions startGame={startGame} mapSelected={false} />));
+  expect(container.textContent).toContain("需先选择地图");
+
+  act(() => root.render(<HostActions startGame={startGame} mapSelected={false} hint={hint} />));
+  expect(container.textContent).toContain(hint);
+  expect(container.textContent).not.toContain("需先选择地图");
 });
 
 it("开局失败显示实际原因，房主可以重试", async () => {
