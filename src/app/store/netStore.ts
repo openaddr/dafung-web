@@ -4,8 +4,10 @@
 // snapshot 浅比较被无关字段污染。协议字段单源 scripts/wire.ts WireRoomFields(#429
 // 协议形状;本 store 类型直投影,不再手抄「同形接口+注释互指」)。
 import { create } from "zustand";
+import { useSyncExternalStore } from "react";
 import type { GameController } from "@app/controllers/controller";
 import type { GameEvent } from "@core/game-events";
+import { useGameStore } from "@app/store/gameStore";
 // #117 收编:提示 TTL 统一收口 fx/timings.ts(与 gameStore 同一常量 UI.hintTtlMs)。
 import { UI } from "@app/fx/timings";
 // 房间字段协议单源(wire.ts #429;app→scripts 类型导入,构建期擦除,先例 local.ts)。
@@ -195,19 +197,21 @@ export function myAutoPilotOn(s: NetStoreState): boolean {
   return s.seats[s.mySeat]?.autoPilot ?? false;
 }
 
-/** 托管态单源取值 hook(spec #107 C5 收口,GameScreen/HandPanel 唯一回读口径):
- *  联机已入座 = 座位广播(seats[mySeat] 恒存在);联机未入座(mySeat=-1,入座前瞬态)恒 false
- *  ——托管以在座为前提,非数据缺失(#45/S12:此前 GameScreen 内联式
- *  seats[mySeat].autoPilot 在未入座态即 TypeError);单机 = 控制器本地标记。
- *  不做链式回退——两种模式各有唯一事实源,取错源即暴露接线 bug。
- *  controller 走参数而非 hook 内 getController():与两调用方的既有取径一致
- *  (GameScreen 模块级取、HandPanel props 下发),hook 只负责「选哪个源」。 */
+function subscribeAutopilot(notify: () => void): () => void {
+  const unsubscribeNet = useNetStore.subscribe(notify);
+  // 单机先接收房间座位字段，再经 sync 通知 gameStore 的订阅者。
+  const unsubscribeGame = useGameStore.subscribe(notify);
+  return () => {
+    unsubscribeNet();
+    unsubscribeGame();
+  };
+}
+
+/** 联机读取本座广播，单机读取控制器已确认的本座状态。 */
 export function useAutopilotOn(controller: GameController | null): boolean {
-  return useNetStore((s) =>
-    s.roomId !== ""
-      ? s.mySeat >= 0
-        ? myAutoPilotOn(s)
-        : false
-      : (controller?.autoPilotOn ?? false),
-  );
+  return useSyncExternalStore(subscribeAutopilot, () => {
+    const net = useNetStore.getState();
+    if (net.roomId !== "") return net.mySeat >= 0 && myAutoPilotOn(net);
+    return controller !== null && controller.autoPilotOn;
+  });
 }
