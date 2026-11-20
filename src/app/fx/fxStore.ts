@@ -30,6 +30,7 @@ function burstCoinScatter(count: number): Array<{ dx: number; dy: number }> {
 
 export interface FloaterFx {
   id: number;
+  durationMs: number;
   /** 棋盘逻辑坐标(SVG 系)。 */
   x: number;
   y: number;
@@ -306,32 +307,36 @@ export const useFxStore = create<FxState>()(
 
     spawnFloater(x, y, amount, coins) {
       const id = nextId++;
+      const durationMs = FX.floaterMs;
       set((s) => ({
         floaters: [
           ...s.floaters,
-          { id, x, y, amount, coins, coinScatter: coins ? supplyCoinScatter() : [] },
+          { id, x, y, amount, coins, durationMs, coinScatter: coins ? supplyCoinScatter() : [] },
         ],
       }));
-      // 超时自清:动画 keyframe 是 1.3s/1.5s,到期必移除,防 store 无限增长。
       setTimeout(
         () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
-        FX.floaterMs,
+        durationMs,
       );
     },
 
     spawnTextFloater(x, y, text, skill) {
       const id = nextId++;
+      const durationMs =
+        skill?.kind === "tag"
+          ? FX.skillTagMs
+          : skill?.kind === "cast"
+            ? FX.floaterMs
+            : FX.textFloaterMs;
       set((s) => ({
         floaters: [
           ...s.floaters,
-          { id, x, y, amount: 0, coins: false, coinScatter: [], text, skill },
+          { id, x, y, amount: 0, coins: false, coinScatter: [], text, skill, durationMs },
         ],
       }));
-      // 超时自清:普通/施展浮字按 floaterMs(--dur-fx 同源);被动小签(#850)全长
-      // FX.skillTagMs 短于普通浮字,同窗清理无截断竞态,不再单设第二清理账本。
       setTimeout(
         () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
-        FX.floaterMs,
+        durationMs,
       );
     },
 

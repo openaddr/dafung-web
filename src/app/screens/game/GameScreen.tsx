@@ -39,6 +39,7 @@ import { SkillChoiceBanner } from "./SkillChoiceBanner";
 import { reactionMuteEngage, reactionMuted, type ReactionMuteState } from "./reaction-mute";
 import { GameTopBar } from "./GameTopBar";
 import { SeatRail } from "./SeatRail";
+import { WarlordsOverview } from "./WarlordsOverview";
 import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
@@ -208,6 +209,9 @@ function GameScreenLive({
   const players = useStablePlayers(snapshot.players);
   // 挂载时已入座;座位缺位表示快照与座位表不一致,直取使接线错误暴露。
   const selfPlayer = players[selfSeat];
+  const [warlordsOpen, setWarlordsOpen] = useState(false);
+  const openWarlords = useCallback(() => setWarlordsOpen(true), []);
+  const closeWarlords = useCallback(() => setWarlordsOpen(false), []);
   // 入手音按手牌多重集差量播放,不跟随牌架挂载;同名牌逐张记账,收架期间照响。
   // 账本只活在本屏,换局重挂即重开。
   const prevHandRef = useRef<string[]>([]);
@@ -734,7 +738,22 @@ function GameScreenLive({
           </div>
         </div>
         {/* 顶左设置/详情两钮,顶中留给知会槽。 */}
-        <GameTopBar snapshot={snapshot} warUnread={warUnread} onOpenSettings={openSettings} />
+        <GameTopBar
+          warUnread={warUnread}
+          onOpenSettings={openSettings}
+          overviewOpen={warlordsOpen}
+          onOpenOverview={openWarlords}
+        />
+        {warlordsOpen && (
+          <WarlordsOverview
+            key={snapshot.gameId}
+            players={players}
+            selfSeat={selfSeat}
+            activeSeat={snapshot.phase === "Playing" ? snapshot.activeIndex : null}
+            round={snapshot.round}
+            onClose={closeWarlords}
+          />
+        )}
         {/* 顶中知会槽承载回合胶囊/都城停条带/等待条,瞬态知会优先,由 fxStore 槽泵排队互斥。 */}
         <NoticeBanner
           occupied={noticeOccupied}
@@ -749,6 +768,7 @@ function GameScreenLive({
         <SeatRail
           snapshot={snapshot}
           selfSeat={selfSeat}
+          onOpenOverview={openWarlords}
           targets={
             activeTargetStep?.domain === "seat"
               ? {
@@ -804,7 +824,7 @@ function GameScreenLive({
                     ? {
                         reactiveIds: reactionChoices!.playable,
                         seq: snapshot.pendingReaction!.seq,
-                        selectedKey: selectedReaction?.key ?? null,
+                        selection: selectedReaction,
                         onSelect: (selection) => {
                           if (!interactive) return;
                           if (selectedReaction?.key === selection.key) {
@@ -915,7 +935,6 @@ function GameScreenLive({
         {/* 窥探弹层:军情密探即时窥探的 viewer-only 演出——开关态单源 fxStore
           (peekApplied 表现事件驱动,关闭即清),组件按 viewerSeat===本座自门。 */}
         <PeekModal selfSeat={selfSeat} />
-        {/* 名下城池清单由 GameTopBar 的诸侯详情城池列打开,开合态归其子树。 */}
         {/* 竖屏手机「请横屏」提示层:常驻 DOM,显隐在 layout.css 媒询。 */}
         <RotateHintOverlay />
       </div>

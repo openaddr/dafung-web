@@ -11,6 +11,8 @@ import { GameEngine, type GameCommand, type SeatConfig } from "@core/authority";
 import { tileIndexOfProperty } from "@core/board";
 import { loadMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
+import { jinnangCardOf } from "@core/jinnang";
+import { GHOST } from "@app/fx/timings";
 import {
   armBankrupt,
   armHero,
@@ -149,6 +151,52 @@ function click(el: Element): void {
     el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
 }
+
+it("选中锦囊直接显示全文，换选更新正文，进入目标段收起正文", () => {
+  const { el, snap } = startGame((e) => {
+    giveJinnang(e, 0, ["火烧连营", "军情密探"]);
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+  });
+  const text = () => q(el, TESTIDS.selectedJinnangText);
+  click(q(el, TESTIDS.jinnangCard("火烧连营"))!);
+  expect(text()?.textContent).toContain(jinnangCardOf("火烧连营").text);
+  click(q(el, TESTIDS.jinnangCard("军情密探"))!);
+  expect(text()?.textContent).toContain(jinnangCardOf("军情密探").text);
+  expect(snap().players[0].jinnangHand).toEqual(["火烧连营", "军情密探"]);
+  click(q(el, TESTIDS.actionbarPlay)!);
+  expect(text()).toBeNull();
+});
+
+it("任一席位打开全员详情，查档关闭回到全员，选目标时席位仍只接选择", async () => {
+  clock = installControlledClock();
+  const { el, snap } = startGame((e) => {
+    giveJinnang(e, 0, ["军情密探"]);
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+  });
+  const overview = () => q(document, TESTIDS.warlordsOverview);
+  click(q(el, TESTIDS.seatOverview(2))!);
+  for (const [seat, player] of snap().players.entries()) {
+    expect(q(overview()!, TESTIDS.warlordsHand(seat))?.textContent).toBe(
+      String(player.jinnangHandCount),
+    );
+  }
+  click(q(overview()!, TESTIDS.warlordsCities(2))!);
+  expect(overview()).toBeNull();
+  const ledger = q(document, TESTIDS.cityLedger)!;
+  click(q(ledger, TESTIDS.modalClose)!);
+  await clock.advance(GHOST.frameMs);
+  expect(overview()).not.toBeNull();
+  click(q(overview()!, TESTIDS.modalClose)!);
+  await clock.advance(GHOST.frameMs);
+
+  click(q(el, TESTIDS.jinnangCard("军情密探"))!);
+  click(q(el, TESTIDS.actionbarPlay)!);
+  expect(q(el, TESTIDS.seatOverview(1))).toBeNull();
+  const target = q(el, TESTIDS.seatTarget(1))!;
+  click(target);
+  expect(target.getAttribute("aria-pressed")).toBe("true");
+  expect(overview()).toBeNull();
+});
 
 it("连环计上一步经在途锁保留首选，改选后第二步需重新选择", () => {
   const { el, snap, completeCommand } = startGame((e) => {

@@ -128,6 +128,8 @@ export const TESTIDS = {
   actionbarPrevious: "actionbar-previous",
   /** 目标段「取消选牌」。 */
   actionbarCancel: "actionbar-cancel",
+  /** 空闲席位格上的全员详情入口。 */
+  seatOverview: (seat: number) => `seat-overview-${seat}` as const,
   /** 目标段席位按钮(含自机);首点选中、再点取消,打出经动作条确认。 */
   seatTarget: (seat: number) => `seat-target-${seat}` as const,
   /** 目标城的 Tile 根挂 data-city-target;同格再点取消、点他格改选,确认/作罢走动作条。 */
@@ -153,6 +155,7 @@ export const TESTIDS = {
   jinnangRack: "jinnang-rack",
   /** 点牌详情弹层容器,使用 ui/dialog 底件。 */
   jinnangDetail: "jinnang-detail",
+  selectedJinnangText: "selected-jinnang-text",
   /** 架尾计数章:.many 压缩态显示,点按切换持续全展;计数含锦囊与技能。 */
   jinnangSpreadBadge: "jinnang-spread-badge",
   diceFace: "dice-face",
@@ -230,7 +233,7 @@ export const TESTIDS = {
   // ── 诸侯详情:城池/名将/珍宝/声望列可点开明细 ──
   /** 弹层容器(ui/dialog 底件,题名可拖;打开不暂停对局,行随快照实时重渲)。 */
   warlordsOverview: "warlords-overview",
-  /** 总览行(seat = 座位号,座序即行序;十列 grid 一人一行)。状态类挂点:
+  /** 总览行(seat = 座位号,座序即行序，一人一行)。状态类挂点:
    *  自机行 .self 金描边 / 破产行 .dead 灰化 / 活跃方 .is-active(印金圈)。 */
   warlordsRow: (seat: number) => `warlords-row-${seat}` as const,
   /** 行内数值本体(cash/stamina/hand/rep),仅含数值文本。 */
@@ -240,11 +243,11 @@ export const TESTIDS = {
   warlordsRep: (seat: number) => `warlords-rep-${seat}` as const,
   /** 城池列,点击打开名下城池清单。 */
   warlordsCities: (seat: number) => `warlords-cities-${seat}` as const,
-  /** 名将列(可点钻入件):麾下名将名 chips 朱砂 + 空槽(信息公开);点击开名将名录。 */
+  /** 名将列(可点钻入件):公开名将数和名字，点击开名将名录。 */
   warlordsHeroes: (seat: number) => `warlords-heroes-${seat}` as const,
-  /** 珍宝计数槽(可点钻入件):槽位=件数示意,空槽画空格;点击开珍宝列表。 */
+  /** 珍宝计数，点击开珍宝列表。 */
   warlordsGems: (seat: number) => `warlords-gems-${seat}` as const,
-  /** 声望详情钻入钮;纯数值另挂 warlordsRep,与钮身「声」字分开定位。 */
+  /** 声望详情钻入钮;纯数值另挂 warlordsRep,与按钮分开定位。 */
   warlordsRepCell: (seat: number) => `warlords-rep-cell-${seat}` as const,
 
   // ── 联机连接横幅(shared/ConnectionBanner)──

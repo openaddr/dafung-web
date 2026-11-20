@@ -14,8 +14,7 @@
 // ——不弹窗,提示不弹窗。GameScreen 从快照(turnPhase=AwaitingJinnang + choices)
 // 派生 junshi 载荷传入,本件只呈现与发手势:
 //   卡牌段:可出牌金边上浮(.usable);不可用灰置+原因印条(.off+.reason,原因文案
-//   单源 choices,不另写);点牌=选中放大 1.6×(放大态即详情态,.sel 金描边,样式
-//   单源 jinnang-card.css,笺脚放开 4 行);点它牌换选、再点同牌或长按取消。
+//   单源 choices,不另写);点牌选中后在架上方阅读锦囊全文；点它牌换选，再点同牌取消。
 //   灰置牌可看不可出(#715):点/长按开详情,不进选中/出牌通路(aria-disabled+自门控)。
 //   名将技能卡(#188 档 3):SkillCardFace 单技装配混排架中(#818,技能为维度、
 //   名将为载体;点主技名开技能全览)。
@@ -176,12 +175,6 @@ function junshiBtnClass(s: RackCardJunshi): string {
   if (!s.available) return "off";
   return s.selected ? "sel" : "usable";
 }
-function junshiFaceClass(s: RackCardJunshi): string {
-  if (s.played) return ""; // 已出计牌本体常色(进行时不是废牌),金描边上浮由钮层 .played 承担
-  if (!s.available) return "off";
-  return s.selected ? "sel" : "";
-}
-
 /** 同名第几张(0 起):React key 去重用(同名牌各有独立 key,进/出窗态不重挂;
  *  评审去重前三处各写一份 slice/filter,归此一处)。id 由调用方给(常态/目标段=手牌
  *  项本身,卡牌段=选项 id,数重复时以手牌前缀为准)。 */
@@ -269,11 +262,7 @@ function RackCard({
             if (junshi.selected) junshi.onDeselect?.();
             else junshi.onSelect?.();
           },
-          onLongPress: !junshi.available
-            ? () => onOpen(openKey, cardId)
-            : junshi.selected
-              ? () => junshi.onDeselect?.()
-              : null,
+          onLongPress: () => onOpen(openKey, cardId),
         }
       : {},
   );
@@ -316,7 +305,7 @@ function RackCard({
       >
         <JinnangCardFace
           cardId={cardId}
-          className={junshiFaceClass(s)}
+          className={s.available || s.played ? undefined : "off"}
           style={tiltVars(`${cardId}#${index}`)}
         >
           {!s.available && s.reason && <span className="reason">{s.reason}</span>}
@@ -463,7 +452,7 @@ interface RackReaction {
   reactiveIds: string[];
   /** 权威窗实例号，连续同种反应窗也会结束上次检视。 */
   seq: number;
-  selectedKey: string | null;
+  selection: RackCardSelection | null;
   onSelect: (selection: RackCardSelection) => void;
 }
 
@@ -525,6 +514,7 @@ export const HandRack = memo(function HandRack({
   const [spreadAll, setSpreadAll] = useState(false);
   const handRowRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const readingRef = useRef<HTMLElement | null>(null);
   const browsePress = useRef<{ pointerId: number; x: number; y: number; dragged: boolean } | null>(
     null,
   );
@@ -545,6 +535,12 @@ export const HandRack = memo(function HandRack({
     option,
     key: isSkillOption(option) ? option.id : `${option.id}-${nthSame(hand, index, option.id)}`,
   }));
+  const selectedOption = cardItems.find(({ key }) => key === junshi?.selectedKey)?.option;
+  const selectedCardId =
+    selectedOption != null && selectedOption.available && !isSkillOption(selectedOption)
+      ? selectedOption.id
+      : reaction?.selection?.optionId;
+  const selectedCard = selectedCardId == null ? null : jinnangCardOf(selectedCardId);
   const renderCount = junshi != null ? (targeting ? hand.length : cardOptions.length) : hand.length;
   const many = renderCount > 3;
   // 生命周期只看业务段与窗实例，不看每拍新建的 options/ReactNode 引用。
@@ -560,8 +556,8 @@ export const HandRack = memo(function HandRack({
           : "idle";
   useEffect(() => setSpreadAll(false), [inspectionStage, bannerOnly, many]);
 
-  // 出牌窗聚光(#764):卡牌段有选中牌(放大 1.6× 的 .sel 态)即全屏 radial 压暗
-  // (骰子 overlay 同族语言,z 序压盘面、让位放大牌与动作条),取消选中/出牌/进
+  // 出牌窗聚光(#764):卡牌段有选中牌即全屏 radial 压暗
+  // (骰子 overlay 同族语言,z 序压盘面、让位牌面、正文与动作条),取消选中/出牌/进
   // 目标段即撤。开关态走 fxStore.spotlight(渲染在 FxLayer 的 body portal,本件
   // 只挂摘);effect 卸载兜摘,防架体带着选中态下屏时聚光滞留。
   const spotlightOn = junshi != null && !targeting && junshi.selectedKey != null;
@@ -575,7 +571,12 @@ export const HandRack = memo(function HandRack({
     if (!spreadAll) return;
     const onDocDown = (e: PointerEvent) => {
       const t = e.target;
-      if (t instanceof Node && (viewportRef.current?.contains(t) || badgeRef.current?.contains(t)))
+      if (
+        t instanceof Node &&
+        (viewportRef.current?.contains(t) ||
+          badgeRef.current?.contains(t) ||
+          readingRef.current?.contains(t))
+      )
         return;
       setSpreadAll(false);
     };
@@ -757,7 +758,7 @@ export const HandRack = memo(function HandRack({
           reaction={
             reactive
               ? {
-                  selected: reaction!.selectedKey === openKey,
+                  selected: reaction!.selection?.key === openKey,
                   onSelect: () => reaction!.onSelect({ key: openKey, optionId: id }),
                 }
               : null
@@ -776,6 +777,19 @@ export const HandRack = memo(function HandRack({
       className={"hand-rack" + (junshi != null ? " junshi" : "") + (spreadAll ? " spread-all" : "")}
       style={box == null ? undefined : { ["--rack-avail" as string]: `${box.avail}px` }}
     >
+      {!bannerOnly && selectedCard != null && (
+        <section
+          ref={readingRef}
+          className="rack-selection"
+          data-testid={TESTIDS.selectedJinnangText}
+          aria-label={`${selectedCard.id}牌文`}
+        >
+          <div className="rack-selection-name">{selectedCard.id}</div>
+          <ScrollArea key={selectedCard.id} className="rack-selection-scroll">
+            <p>{selectedCard.text}</p>
+          </ScrollArea>
+        </section>
+      )}
       {skillBanner}
       {!bannerOnly &&
         (renderCount > 0 ? (

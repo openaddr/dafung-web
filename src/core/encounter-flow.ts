@@ -382,7 +382,7 @@ function applyCashEffect(
   g.logEvent(
     "system",
     mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」:${narr} −${loss}${loss < -effect.delta ? "(银两不敷,以其现有银两为限)" : ""}`,
+    `${mover.guohao} 机遇「${def.id}」:${narr} −${loss}`,
     `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} paid=${loss} cash=${mover.cash}`,
     -loss,
   );
@@ -636,7 +636,7 @@ function applyLevyEffect(
   g.logEvent(
     "system",
     mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」:${narr} −${paid}${paid < effect.amount ? "(银两不敷,以其现有银两为限)" : ""}`,
+    `${mover.guohao} 机遇「${def.id}」:${narr} −${paid}`,
     `encounter player=${mover.id} id=${def.id} tier=${def.tier} paid=${paid} target=${target?.id ?? "-"}`,
     -paid,
   );

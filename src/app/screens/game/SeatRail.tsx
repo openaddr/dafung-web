@@ -18,11 +18,7 @@
 // 列几何(拍板口径):列宽 96 固定、格间距 2px、列 y8 起排;格高=clamp(30,(可用高−14)/8,38),
 // 可用高=视口高−顶距 8−钮区 54(#700 右下三圆钮上缘;落地前该 54px 仅作格高预算),
 // 矮横屏 390/375/320 三档高全部零滚动——式样落 layout.css,组件零断点分支。
-// 纯展示(#1096 决议1,工单 #1097):旧 #701 交互通路整体退役——格面 tap 单人格
-// 弹层(SeatPopModal 已删)、五图标直达(城楼/战盔/玉璧/墨竹)、长按浮签(Tip)
-// 一并拆除;查档收编诸侯详情四钻入(城池 chips/名将 chips/珍宝槽/声列,GameTopBar
-// 持开合态),托管开关收编设置弹层 settingsAutopilot(同一 ADR-0028 引擎通路)。
-// 格上保留的只有展示面:金圈呼吸/齿轮微标/双行数字/跳变浮字(fx 面非交互)。
+// 无席位目标段时，点任一席位格打开同一份诸侯详情；托管开关在设置内。
 // 目标段点击层(#256/#417)不受影响:点格=选中/再点同席取消,打出走动作条「出」;
 // 不可选席点按=格身轻晃(§4.6 位移即状态;不可指定原因读 aria-label——旧「弹层
 // reason 印条」通路随单人格弹层退役)。自机候选面:自机格目标段随 targets 在场
@@ -31,6 +27,7 @@
 // 同锚现金主数/体力条——仪表条已随 #700 退役,自机跳变反馈归席位格(评审 #697 收口;
 // 旧「#700 前双挂浮两遍」随仪表条本体不复存在)。
 import { memo, useState } from "react";
+import { Button } from "@base-ui/react/button";
 import { formatMoney } from "@core/money";
 import { skillMarksOf } from "@core/roster";
 import { isTriggerSkill, skillById } from "@core/skills";
@@ -96,6 +93,7 @@ function seatCellEqual(
     winner: boolean;
     hosted: boolean;
     target?: SeatTargetSlot;
+    onOpenOverview?: () => void;
   },
   b: {
     p: SnapshotPlayer;
@@ -105,6 +103,7 @@ function seatCellEqual(
     winner: boolean;
     hosted: boolean;
     target?: SeatTargetSlot;
+    onOpenOverview?: () => void;
   },
 ): boolean {
   return (
@@ -114,6 +113,7 @@ function seatCellEqual(
     a.active === b.active &&
     a.winner === b.winner &&
     a.hosted === b.hosted &&
+    a.onOpenOverview === b.onOpenOverview &&
     a.target?.available === b.target?.available &&
     a.target?.selected === b.target?.selected &&
     a.target?.reason === b.target?.reason &&
@@ -122,9 +122,7 @@ function seatCellEqual(
   );
 }
 
-/** 单张席位格(96×38 双行八项格,纯展示)。self=自机格(金描边+左金条+金渐变,
- *  无点击层)。hosted=托管(AI 代打)开启(#770):国号印右 8px 齿轮常驻微标,
- *  纯展示——开关交互唯一通路在设置弹层(settingsAutopilot,ADR-0028 单一开关)。 */
+/** 单张席位格。目标段选席时优先处理目标，其余时间作为诸侯详情入口。 */
 const SeatCell = memo(function SeatCell({
   p,
   seat,
@@ -133,6 +131,7 @@ const SeatCell = memo(function SeatCell({
   winner,
   hosted,
   target,
+  onOpenOverview,
 }: {
   p: SnapshotPlayer;
   seat: number;
@@ -141,6 +140,7 @@ const SeatCell = memo(function SeatCell({
   winner: boolean;
   hosted: boolean;
   target?: SeatTargetSlot;
+  onOpenOverview?: () => void;
 }) {
   // 死区轻晃(#743 判词 E/#751 C 批):目标段不可选席位点按→格身一次轻晃(视觉反馈,
   // §4.6 色变/位移即状态,不加文字章),随 animationEnd 自清——一次性演出不驻类。
@@ -292,6 +292,16 @@ const SeatCell = memo(function SeatCell({
           动作条「出」确认钮。不可选席(#743 判词 E/#751 C 批):disabled 会吞点击
           形成死区——改 aria-disabled 挂点,点按=格身轻晃(原「弹层放行+reason
           印条」随 #1096 决议1 退役,原因读 aria-label)。 */}
+      {onOpenOverview && (
+        <Button
+          type="button"
+          data-testid={TESTIDS.seatOverview(seat)}
+          className="seat-target"
+          aria-haspopup="dialog"
+          aria-label={`诸侯详情 · ${p.guohao}`}
+          onClick={onOpenOverview}
+        />
+      )}
       {target && (
         <button
           type="button"
@@ -330,6 +340,7 @@ const SeatCell = memo(function SeatCell({
 interface SeatRailProps {
   snapshot: GameSnapshot;
   selfSeat: number;
+  onOpenOverview: () => void;
   targets?: {
     bySeat: Map<number, { available: boolean; selected?: boolean; reason?: string }>;
     locked?: boolean;
@@ -337,7 +348,7 @@ interface SeatRailProps {
   };
 }
 
-export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
+export function SeatRail({ snapshot, selfSeat, onOpenOverview, targets }: SeatRailProps) {
   // 席位行值等复用(#1140 渲染税):内容不变的席位元素引用稳定,SeatCell 的 memo
   // 不再被每拍新对象打穿——整列从「随快照声明式重渲」收窄到「变的席才重渲」。
   const players = useStablePlayers(snapshot.players);
@@ -376,6 +387,7 @@ export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
             winner={Boolean(snapshot.isOver && snapshot.winner === p.id)}
             hosted={hosted(seat)}
             target={targetSlot(seat)}
+            onOpenOverview={targets == null ? onOpenOverview : undefined}
           />
         ))}
       </div>
