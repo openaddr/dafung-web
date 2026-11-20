@@ -57,7 +57,7 @@ class SynthAudioPlayer implements AudioPlayer {
   private lastMarchStart: number | null = null;
   private marchRapidCount = 0;
 
-  /** AudioContext 延迟创建(浏览器 autoplay policy:首次 play / 用户交互后 resume)。 */
+  /** 建立音频链路，允许在用户点按前解码音效。 */
   protected ensureCtx(): AudioContext | null {
     if (this.muted) return null;
     if (!this.ctx) {
@@ -76,14 +76,17 @@ class SynthAudioPlayer implements AudioPlayer {
         return null;
       }
     }
-    if (this.ctx.state === "suspended") void this.ctx.resume();
     return this.ctx;
   }
 
-  /** 用户手势内调用一次:提前创建并 resume AudioContext(autoplay policy 解锁)。
-   *  幂等且静音态 no-op——供 AudioProvider 挂 pointerdown 监听。 */
+  /** 在点按的用户激活期间恢复播放。 */
   unlock(): void {
-    this.ensureCtx();
+    const ctx = this.ensureCtx();
+    if (ctx?.state === "suspended" || ctx?.state === "interrupted") {
+      void ctx.resume().catch((error: unknown) => {
+        console.warn("[audio] 恢复播放失败", error);
+      });
+    }
   }
 
   play(event: SoundEvent): void {
