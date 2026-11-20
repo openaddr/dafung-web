@@ -1,5 +1,4 @@
 /* 空态器物件(#768)制式:斜放朱印 + 短注 / 墨滴呼吸三点。
-   语言对齐手牌空态「斜放牌背」先例(DESIGN §5 器物物理,零插画依赖);
    沉朱印的纸字色与朱砂渐变沿用 app.css note-head 同款手筋(印面制式单源在彼,
    此处只放大尺度、加深斜度)。动效时长/缓动走 --dur-* 与 --ease-* token
    (tokens.css 单源,reduced-motion 由 app.css M-4 全局兜层瞬时化)。
@@ -31,7 +30,6 @@
     color-mix(in srgb, var(--color-danger) 55%, black)
   );
   border-radius: 3px;
-  /* 斜放:对齐手牌空态牌背 -9deg 语(note-head 印 -4deg,器物空态斜得更明确) */
   rotate: -8deg;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }

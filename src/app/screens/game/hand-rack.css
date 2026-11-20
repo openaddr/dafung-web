@@ -1,6 +1,5 @@
-/* 底部手牌架(#238 一期 T3;#700 全浮层骨架改形:透明浮置)——牌行/空态斜放牌背
-   制式沿用 tmp/prototype-jinnang-ui.html 其四已验收基线;漆木条底/架首竖排章随
-   仪表条退役(layout.css .handzone 承担容器与居中,本文件只管架体与牌行)。
+/* 底部手牌架(#238 一期 T3;#700 全浮层骨架改形:透明浮置)。牌行沿用竖笺形制，
+   空架使用底缘小提示(#1519)。layout.css .handzone 承担容器与居中。
    选择器收口在 .hand-rack 作用域下防全局串扰(同 jinnang-card.css 口径);动效时长/
    缓动走 --dur-* 与 --ease-* token(tokens.css 单源,reduced-motion 由 app.css M-4
    全局兜层承担;唯 animation-delay 不归兜层管,发牌级联的 delay 归零在本文件兜
@@ -106,10 +105,16 @@
   touch-action: manipulation;
 }
 
-/* ── 空态:斜放一张漆木牌背占位(暗牌语义,器物空态不写文案;原型 .slash)── */
-.hand-rack-back {
-  transform: rotate(-9deg);
-  /* 牌背纯装饰:读屏不念「锦囊」双字,空态语义由架首章承担 */
+/* 空架提示贴在棋盘底缘，触摸仍交给城格。 */
+.hand-rack-empty {
+  pointer-events: none;
+  padding: 2px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 35%, transparent);
+  border-radius: 999px;
+  background: var(--color-panel);
+  color: var(--color-paper-dim);
+  font: 13px/16px var(--font-wenkai);
+  white-space: nowrap;
 }
 
 /* ── 短横屏降档(Android 短横屏 844×390 一类):em 基 8→6.4px(牌面 96×128),

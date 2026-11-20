@@ -589,9 +589,11 @@ describe("手牌架内容与临时显隐", () => {
     // 空态手动入口保留;内容增减不覆盖玩家本次开/收。
     toggle();
     expect(rack() !== null).toBe(true);
+    expect(q(el, TESTIDS.diceFace) === null).toBe(true);
     writeEngine((e) => {
-      e.drawJinnang(0, 1);
+      expect(e.drawJinnang(0, 1)).toBe(1);
     });
+    expect(q(el, TESTIDS.diceFace) !== null).toBe(true);
     writeEngine((e) => giveJinnang(e, 0, []));
     expect(rack() !== null).toBe(true);
     toggle();

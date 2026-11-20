@@ -774,7 +774,7 @@ function GameScreenLive({
             snapshot={snapshot}
             player={selfPlayer}
             autopilotOn={autopilotOn}
-            bannerOnly={rackBannerOnly}
+            showDiceFace={hasRackContent && !rackBannerOnly}
             children={
               /* 手牌架使用稳定自局玩家,只承载牌面与窗态;banner-only 只渲横幅。 */
               <HandRack
