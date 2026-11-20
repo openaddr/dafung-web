@@ -1,15 +1,60 @@
-/* 目标段选中态(#417 目标选择统一口径):候选=金圈呼吸(.candidate,layout.css),
- * 选中=实金双环停持(呼吸停、恒定不闪)——「定靶」与「候选」一眼可辨,DESIGN §4.6
- * 纯 UI 态表达不加文字章。独立成文件:#417 工单不触 layout.css(并行票隔离),
- * 选中态样式随 SeatRail 引入。环制式沿 #510 漆金环/双描边口径(外实金环+内发丝线)。 */
-.game-layout .seat.picked {
-  border-color: var(--color-gold);
-  box-shadow:
-    0 0 0 3px var(--color-gold),
-    inset 0 0 0 1.5px var(--color-gold),
-    0 3px 12px rgba(138, 106, 28, 0.55);
+/* 回合标记锚定国号印，和席位格的选中状态并存。 */
+.game-layout .seat.active .pseal::before {
+  content: "";
+  position: absolute;
+  right: calc(100% + 2px);
+  top: 50%;
+  width: 8px;
+  height: 10px;
+  background: var(--color-gold-bright);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
+
+.game-layout .seat.candidate {
+  border-color: color-mix(in srgb, var(--color-gold) 62%, var(--color-panel));
+}
+
+.game-layout .seat.unavailable {
+  border-color: var(--hairline);
+  background: var(--color-bg-deep);
+}
+
+.game-layout .seat.unavailable .l2 {
+  opacity: 0.68;
+}
+
+.game-layout .seat.picked {
+  border-color: var(--color-gold-bright);
+  outline: 1px solid var(--color-gold-bright);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--color-gold) 18%, var(--color-panel));
+}
+
+.game-layout .seat.picked::before,
 .game-layout .seat.picked::after {
-  animation: none;
-  opacity: 0;
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  pointer-events: none;
+}
+
+.game-layout .seat.picked::before {
+  right: -5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-gold-bright);
+  transform: translateY(-50%);
+}
+
+.game-layout .seat.picked::after {
+  right: -1.5px;
+  width: 7px;
+  height: 4px;
+  border-left: 1.5px solid var(--color-bg-deep);
+  border-bottom: 1.5px solid var(--color-bg-deep);
+  transform: translateY(-65%) rotate(-45deg);
 }

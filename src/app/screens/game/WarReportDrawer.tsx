@@ -6,10 +6,8 @@
 // 滚屏);header/cmd/room/final 是机读/审计行,不入战报(事件史按需可查,从简)。
 // Danmaku 式镜像不做(原型走查拍板,二期再议)。
 //
-// 窗口化渲染(2026-09「越玩越卡」排查):抽屉开着时每次引擎 sync 都重渲本件,全量
-// 渲染曾使帧尖峰随条数线性涨(n=8000 实测 717ms/帧)——默认只渲最近 WAR_WINDOW 条,
-// 「加载更早」每次放开一窗,放到见底后锁定全量(此后新增条目照常入列,不再回收,
-// 也不重新出现按钮:用户已表态要读全史,不悄悄缩窗)。关抽屉即重置回一窗。
+// 打开时只渲染最新一窗，按需加载更早。离开顶部后保留正在浏览的范围，
+// 让新条目可以插到上方而不挤掉旧条目；行身份稳定，由滚动容器锚定当前位置。
 //
 // 未读角标(#495)随把手退役,未读表达由 #768 接棒:⚙ 设置钮右上金点,账本=
 // GameScreen 本地已读游标(打开抽屉即清账,不进快照),条目总数经本件
@@ -50,7 +48,7 @@ export function warEntriesOf(snapshot: GameSnapshot): LogEvent[] {
   return snapshot.log.filter((e) => WAR_CATEGORIES.has(e.category));
 }
 
-/** 战报默认渲染窗口(条);e2e/react-war-report.spec.ts 有对齐副本。 */
+/** 战报每次加载的条数。 */
 export const WAR_WINDOW = 100;
 
 /** 值等(#1140 渲染税):战报条目唯一增长键=logCount(#1081 值语义依赖,log 只增
@@ -68,18 +66,17 @@ export const WarReportDrawer = memo(function WarReportDrawer({
   snapshot: GameSnapshot;
   onClose: () => void;
 }) {
-  const [extraWindows, setExtraWindows] = useState(0);
+  const [windowSize, setWindowSize] = useState(WAR_WINDOW);
+  const [readingStart, setReadingStart] = useState<number | null>(null);
   const [expandedAll, setExpandedAll] = useState(false);
 
   // 开着才算条目(旧→新);窗口化见头注(挂载即开,常收零占位由调用方条件挂载承担)。
   // 过滤单源 warEntriesOf(未读金点同口径,#768)。
   const filtered = warEntriesOf(snapshot);
   const total = filtered.length;
-  const windowSize = (extraWindows + 1) * WAR_WINDOW;
-  const visibleCount = expandedAll ? total : Math.min(total, windowSize);
-  const hasMore = !expandedAll && total > windowSize;
-  // 倒序 = 最新在上;只对可见窗 reverse,不全量物化。
-  const entries = filtered.slice(total - visibleCount).reverse();
+  const windowStart = expandedAll ? 0 : Math.max(0, total - windowSize);
+  const visibleStart = readingStart == null ? windowStart : Math.min(windowStart, readingStart);
+  const entries = filtered.slice(visibleStart).reverse();
 
   // 行动方国号 → 玩家色(#495):国号局内唯一(setup-flow 非空校验),开局未定国号的
   // 空串不建键;查不到(无主行为 player=null)条目不出色条,不造假。
@@ -89,19 +86,15 @@ export const WarReportDrawer = memo(function WarReportDrawer({
       .map((p) => [p.guohao, rgba(playerColor(p.colorIndex))]),
   );
 
-  const close = () => {
-    setExtraWindows(0);
-    setExpandedAll(false);
-    onClose();
-  };
   const loadEarlier = () => {
-    const next = extraWindows + 1;
-    setExtraWindows(next);
-    if (next * WAR_WINDOW >= total) setExpandedAll(true);
+    const nextStart = Math.max(0, visibleStart - WAR_WINDOW);
+    setWindowSize(total - nextStart);
+    if (readingStart != null) setReadingStart(nextStart);
+    if (nextStart === 0) setExpandedAll(true);
   };
 
   return (
-    <Sheet open onOpenChange={(next) => !next && close()}>
+    <Sheet open onOpenChange={(next) => !next && onClose()}>
       <SheetContent
         data-testid={TESTIDS.logDrawer}
         side="right"
@@ -121,7 +114,13 @@ export const WarReportDrawer = memo(function WarReportDrawer({
             <i />
           </div>
         ) : (
-          <ul className="war-list">
+          <ul
+            className="war-list"
+            onScroll={(event) => {
+              const reading = event.currentTarget.scrollTop > 0;
+              setReadingStart((start) => (reading ? (start ?? visibleStart) : null));
+            }}
+          >
             {entries.map((e, i) => {
               const actorColor = e.player ? colorByGuohao.get(e.player) : undefined;
               // 回合分组锚(#556):倒序呈现下组首=该轮最新一条。仅组首显轮签,
@@ -131,7 +130,7 @@ export const WarReportDrawer = memo(function WarReportDrawer({
               return (
                 // key 用过滤序的稳定下标(log 只增,下标不漂);倒序后同刻条目相对次序稳定
                 <li
-                  key={total - visibleCount + i}
+                  key={total - 1 - i}
                   className={"war-item" + (roundHead && i > 0 ? " war-head" : "")}
                 >
                   {actorColor && <i className="war-color" style={{ background: actorColor }} />}
@@ -142,7 +141,7 @@ export const WarReportDrawer = memo(function WarReportDrawer({
             })}
           </ul>
         )}
-        {hasMore && (
+        {visibleStart > 0 && (
           <button
             type="button"
             data-testid={TESTIDS.logEarlier}

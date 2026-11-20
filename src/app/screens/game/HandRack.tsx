@@ -491,6 +491,7 @@ interface RackBox {
 /** 叠加压缩的步距:每张露出的窥条宽。 */
 interface StackVars {
   step: number;
+  skillStep: number;
 }
 
 /** 屏幕下缘手牌架(#238 一期 T3;#700 全浮层骨架改形:透明浮置、chrome 退役):
@@ -660,13 +661,23 @@ export const HandRack = memo(function HandRack({
             box.cardWidth + 3 * box.em,
             (box.avail - box.cardWidth) / (renderCount - 1),
           );
-          return { step };
+          const skills = cardOptions.filter(isSkillOption).length;
+          const skillWidth = skills * box.cardWidth;
+          // 技能卡在牌序末尾，保留卡脚触区；空间不足时仍可全展。
+          if (skills > 1 && step < box.cardWidth && box.avail > skillWidth) {
+            return {
+              step: (box.avail - skillWidth) / (renderCount - skills),
+              skillStep: box.cardWidth,
+            };
+          }
+          return { step, skillStep: step };
         })()
       : null;
   // 压缩只服务常态；全展用自然宽牌序与原生横向滚动，绝不缩回负间隙。
   const handStyle: CSSProperties | undefined = stack
     ? {
-        ["--jn-step" as string]: `${Math.round(stack.step)}px`,
+        ["--jn-step" as string]: `${stack.step}px`,
+        ["--skill-step" as string]: `${stack.skillStep}px`,
       }
     : undefined;
 

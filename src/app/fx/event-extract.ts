@@ -11,6 +11,7 @@
 // 自带 MovePath 摘要,marchEvent 按事件内路径播——合并批(联机单 tick 多转移)多段
 // 行军各播各段,不再依赖引擎 lastMove 单槽;反应窗续走的余段用转移前位置(prePositions)
 // 截短——与单机 remainingMarchPath 同一公式;对不上的路径不播动画、不做 diff 重建。
+import { encounterChoiceAt, encounterChoiceLabel } from "@core/encounters";
 import type { GameEngine } from "@core/authority";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import type { MovePath } from "@core/board";
@@ -770,14 +771,11 @@ export function extractBatchEvents(
         break;
       }
       case "encounterChoice": {
-        // 机遇抉择文案(#385 缺口 6):文案属静态目录,事件只带 id+下标,fx 查表派生
         const seat = eventSeat(engine, ev);
-        const option = encounterDefOfId(ev.encounterId).choices?.[ev.choiceIndex];
-        if (option == null)
-          throw new Error(
-            `事件消费:机遇 ${ev.encounterId} 选项 #${ev.choiceIndex} 不在目录(数据 bug)`,
-          );
-        events_.push(textFloater(engine, seat, option.text));
+        const option = encounterChoiceAt(encounterDefOfId(ev.encounterId), ev.choiceIndex);
+        events_.push(
+          textFloater(engine, seat, encounterChoiceLabel(option, ev.grantsSkillBooks === true)),
+        );
         break;
       }
       case "turnSkipped": {

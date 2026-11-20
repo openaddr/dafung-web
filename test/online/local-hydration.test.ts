@@ -13,7 +13,9 @@ import {
   setStamina,
 } from "../../src/core/planter";
 import type { GameCommand, GameEngine } from "../../src/core/authority";
+import { encounterDefOfId } from "../../src/core/event-tiers";
 import { foldEventBatch } from "../../src/app/net/event-fold";
+import { assembleDownlinkShot } from "../../scripts/seat-projection";
 import { cmdMsg, dispatchInbound, type InboundMsg, type ServerMsg } from "../../scripts/wire";
 import { expect, it } from "bun:test";
 import { MAP } from "../../scripts/engine-helpers";
@@ -275,6 +277,46 @@ it("结盟互市自动结算后,真实下行将咸阳交易交给城主并可续
     expect(replica.turnPhase).toBe(engine.turnPhase);
     expect(replica.decisionOwner).toBe(engine.decisionOwner);
     expect(replica.snapshot().treasureVisitor).toBeNull();
+  } finally {
+    registry.dismissRoom(room.roomId, token);
+  }
+});
+
+it("机遇全灰后经联机命令提交无事发生，两端都保留资源并继续落格", async () => {
+  const { registry, room, token, engine, replica, messages, sendCommand } = await playingRoom(
+    (authority) => {
+      for (let seat = 0; seat < 2; seat++) giveJinnang(authority, seat, []);
+      armPhase(authority, { activeIndex: 0, turnPhase: "Land" });
+      setCash(authority, 0, 79);
+      setStamina(authority, 0, 55);
+      const unowned = authority.board.tiles.find(
+        (tile) => tile.propertyId != null && authority.findOwner(tile.propertyId) == null,
+      )!;
+      placePlayer(authority, 0, unowned.index);
+      authority.enterEncounterPhase(authority.activePlayer, encounterDefOfId("河堤告急"));
+    },
+  );
+  try {
+    const onlineSeats = new Set([0, 1]);
+    const start = assembleDownlinkShot(room, onlineSeats, 0, [], true);
+    const snapshot = JSON.parse(start.snapshot);
+    replica.restoreFromSnapshot(snapshot);
+    expect(replica.choicesFor().map((option) => option.available)).toEqual([false, false, true]);
+    await sendCommand({ type: "resolveEncounterChoice", index: 2 });
+    const events = messages.flatMap((msg) => (msg.type === "events" ? msg.events : []));
+    expect(events).toContainEqual(
+      expect.objectContaining({ kind: "encounterChoice", encounterId: "河堤告急", choiceIndex: 2 }),
+    );
+    const downlink = assembleDownlinkShot(room, onlineSeats, 0, events, false);
+    replica.restoreFromSnapshot(snapshot);
+    foldEventBatch(replica, JSON.parse(downlink.events!).events);
+    for (const game of [engine, replica]) {
+      expect(game.players[0].cash).toBe(79);
+      expect(game.players[0].stamina).toBe(55);
+      expect(game.activeIndex).toBe(1);
+      expect(game.turnPhase).not.toBe("AwaitingEncounter");
+    }
+    expect(replica.turnPhase).toBe(engine.turnPhase);
   } finally {
     registry.dismissRoom(room.roomId, token);
   }
