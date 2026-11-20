@@ -17,7 +17,7 @@
 // 弹层托管行随格 tap 退役,开关接同一 ADR-0028 现役引擎通路(useAutopilotOn 回读 +
 // controller.setAutoPilot,行为=旧托管钮);仅自机语义不变(本弹层只属屏前真人)。
 import { Button } from "@base-ui/react/button";
-import { memo, useState } from "react";
+import { memo, useId, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { Switch } from "@app/components/ui/switch";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
@@ -43,6 +43,36 @@ interface SettingsDialogProps {
   /** 回到主页行:弃局离屏(控制器销毁 + 切 setup),接线归 GameScreen。 */
   onGoHome: () => void;
   onCaptureDiagnostic?: (gameId: string) => Promise<void>;
+}
+
+function SettingsSwitchRow({
+  label,
+  testid,
+  checked,
+  onCheckedChange,
+}: {
+  label: string;
+  testid: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  const controlId = useId();
+  const labelId = `${controlId}-label`;
+  return (
+    <div className="setrow setrow-switch">
+      <label id={labelId} htmlFor={controlId}>
+        {label}
+      </label>
+      <Switch
+        id={controlId}
+        aria-labelledby={labelId}
+        className="z-1"
+        data-testid={testid}
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+      />
+    </div>
+  );
 }
 
 /** 回调引用稳定，快照只订阅局 ID，演出中设置不会随每拍同步重渲染。 */
@@ -86,7 +116,7 @@ export const SettingsDialog = memo(function SettingsDialog({
         /* 挂载不夺焦(ScrollShell 先例):设置是低频只读弹层,焦点留在触发钮,Esc 直关 */
         initialFocus={false}
         aria-label="设置"
-        className="settings-dialog w-[270px] max-w-[92vw] gap-0 rounded-[10px] px-4 pt-3 pb-2"
+        className="settings-dialog w-[270px] max-w-[92vw] gap-0 rounded-[10px] px-4 pt-0 pb-2"
       >
         {/* 题名行拖动把手(ADR-0031):透明条覆盖题名行一带。 */}
         <DialogDragHandle
@@ -100,7 +130,7 @@ export const SettingsDialog = memo(function SettingsDialog({
             章影 rgba(43,35,23,·) 为墨影族阴影豁免,同 BannerShell 题印登记。 */}
         {/* 刻意不定位(不挂 relative):题名行保持 static,压在上方透明把手条
             (absolute z-0)之下,题行一带的拖拽命中归把手(ADR-0031)。 */}
-        <div className="mb-1 flex items-center gap-2">
+        <div className="setheading flex items-center gap-2">
           <span
             aria-hidden="true"
             className="flex h-[20px] w-[20px] flex-none rotate-[-4deg] items-center justify-center rounded-[3px] bg-gradient-to-b from-gold-bright to-gold-deep font-title text-[13px] leading-none text-lacquer shadow-[0_1px_3px_rgba(43,35,23,0.5)]"
@@ -109,88 +139,78 @@ export const SettingsDialog = memo(function SettingsDialog({
           </span>
           <DialogTitle className="font-title text-[18px] tracking-[2px]">设置</DialogTitle>
         </div>
-        {/* 音效开关:开=有声(接 AudioProvider 单通道静音账本,原静音钮的接替者)。
-            开关皮单源回 ui/switch 底件桥接(#745 高4:.setsw 手写皮退役,on 态吃
-            --primary=漆金,success 语义错位收口)。 */}
-        {audio && (
-          <div className="setrow">
-            音效
-            <Switch
-              data-testid={TESTIDS.settingsSfx}
-              aria-label={audio.muted ? "开音效" : "静音音效"}
+        <div className="min-h-0 overflow-y-auto">
+          {audio && (
+            <SettingsSwitchRow
+              label="音效"
+              testid={TESTIDS.settingsSfx}
               checked={!audio.muted}
-              onCheckedChange={() => audio.toggleMuted()}
+              onCheckedChange={audio.toggleMuted}
             />
-          </div>
-        )}
-        {/* 托管开关(#1097 收编,#1096 决议2;音效行同款形制):开=AI 代打(接管=
-            自动托管,ADR-0028);autopilotSupported 门卫与旧托管钮/弹层行同款
-            (联机/单机有)。开关皮单源回 ui/switch 底件桥接(#745 高4)。 */}
-        {controller?.autopilotSupported && (
-          <div className="setrow">
-            托管
-            <Switch
-              data-testid={TESTIDS.settingsAutopilot}
-              aria-label="托管"
+          )}
+          {controller?.autopilotSupported && (
+            <SettingsSwitchRow
+              label="托管"
+              testid={TESTIDS.settingsAutopilot}
               checked={autopilotOn}
               onCheckedChange={(next) => controller.setAutoPilot(next)}
             />
+          )}
+          {/* 演出加速:信息展示(原型原样「标准」;用户档位切换无基建,不落假钮) */}
+          <div className="setrow">
+            演出加速
+            <i className="setval">标准</i>
           </div>
-        )}
-        {/* 演出加速:信息展示(原型原样「标准」;用户档位切换无基建,不落假钮) */}
-        <div className="setrow">
-          演出加速
-          <i className="setval">标准</i>
-        </div>
-        {/* 战报›:开战报抽屉(本弹层先收,抽屉本体在 GameScreen 持开合) */}
-        <button
-          type="button"
-          data-testid={TESTIDS.settingsWarReport}
-          className="setrow setrow-btn"
-          onClick={() => {
-            onClose();
-            onOpenWarReport();
-          }}
-        >
-          战报
-          <Sym name="expand" size={11} className="rotate-[-90deg] text-gold" />
-        </button>
-        {gameId !== undefined && onCaptureDiagnostic !== undefined && (
-          <Button
-            data-testid={TESTIDS.settingsDiagnostic}
+          {/* 战报›:开战报抽屉(本弹层先收,抽屉本体在 GameScreen 持开合) */}
+          <button
+            type="button"
+            data-testid={TESTIDS.settingsWarReport}
             className="setrow setrow-btn"
             onClick={() => {
-              // 从点击拍发起一次采集，诊断面板等它完成再读摘要。
-              const captureError = Promise.resolve()
-                .then(() => onCaptureDiagnostic(gameId))
-                .then(
-                  () => null,
-                  (error: unknown) => (error instanceof Error ? error.message : String(error)),
-                );
-              setDiagnostic({ gameId, captureError });
+              onClose();
+              onOpenWarReport();
             }}
           >
-            <span className="font-brush">对局诊断</span>
+            战报
             <Sym name="expand" size={11} className="rotate-[-90deg] text-gold" />
-          </Button>
-        )}
-        {/* 版本:发版号(单源 package.json 构建期注入) */}
-        <div className="setrow">
-          版本
-          <i className="setval">{VERSION}</i>
-        </div>
-        {/* 回到主页:弃局离屏(控制器销毁;联机即退出房间)——行先落确认框(#745 高1),
+          </button>
+          {gameId !== undefined && onCaptureDiagnostic !== undefined && (
+            <Button
+              data-testid={TESTIDS.settingsDiagnostic}
+              className="setrow setrow-btn"
+              onClick={() => {
+                // 从点击拍发起一次采集，诊断面板等它完成再读摘要。
+                const captureError = Promise.resolve()
+                  .then(() => onCaptureDiagnostic(gameId))
+                  .then(
+                    () => null,
+                    (error: unknown) => (error instanceof Error ? error.message : String(error)),
+                  );
+                setDiagnostic({ gameId, captureError });
+              }}
+            >
+              <span className="font-brush">对局诊断</span>
+              <Sym name="expand" size={11} className="rotate-[-90deg] text-gold" />
+            </Button>
+          )}
+          {/* 版本:发版号(单源 package.json 构建期注入) */}
+          <div className="setrow">
+            版本
+            <i className="setval">{VERSION}</i>
+          </div>
+          {/* 回到主页:弃局离屏(控制器销毁;联机即退出房间)——行先落确认框(#745 高1),
             行文字/chevron 转 danger 朱砂,与「战报」普通行一眼区分(danger 语义已
             有承担,不新造色)。 */}
-        <button
-          type="button"
-          data-testid={TESTIDS.settingsHome}
-          className="setrow setrow-btn setrow-danger"
-          onClick={() => setConfirmHome(true)}
-        >
-          回到主页
-          <Sym name="expand" size={11} className="rotate-[-90deg] text-danger" />
-        </button>
+          <button
+            type="button"
+            data-testid={TESTIDS.settingsHome}
+            className="setrow setrow-btn setrow-danger"
+            onClick={() => setConfirmHome(true)}
+          >
+            回到主页
+            <Sym name="expand" size={11} className="rotate-[-90deg] text-danger" />
+          </button>
+        </div>
         {/* 弃局确认(#745 高1,#836 danger 归位):现成 ConfirmDialog 接力(禁新造
             组件),按钮全称,文案写明后果——单机=进度丢弃,联机=并退出房间。
             #836:danger 变体——「弃局回主页」(不可逆)转朱砂警示钮,不再吃墨钮
