@@ -7,9 +7,8 @@
 // 让其壳体以退场类收场),决策弹层「收走」不再瞬时消失。
 // #107 C6:该机制(prev 快照/sig 判定/ghost state/定时/让位)整体下沉 useGhostChild,
 // 本层只算 skip(按子节点类型)、就地收场时调 yield(),render 期不再有 state/ref/定时。
-import { Fragment, useCallback, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useRef, useState } from "react";
 import type { GameCommand } from "@core/authority";
-import { formatMoney } from "@core/money";
 import { sellValueOf, type CityTier } from "@core/economy";
 import { tileIndexOfProperty } from "@core/board";
 import { Theme } from "@core/theme";
@@ -65,20 +64,6 @@ export function DecisionScrollLayer({
   // 玩家行值等复用(#1140 渲染税):详情卷轴(players 直传 TileThumb/归属推导)与
   // 胜利屏(终榜)的 memo 前提;players 稳定后,弹层各自的值等比较才有着落。
   const players = useStablePlayers(snapshot.players);
-  // 终榜一行(身价降序 + 破产标注,数据同源快照 players):挂稳定 players 引用
-  // memo——内容不变不重建数组,VictoryScreen 的 memo 不被每渲染新数组打穿。
-  const standings = useMemo(
-    () =>
-      [...players]
-        .sort((a, b) => b.netWorth - a.netWorth)
-        .map((p) => ({
-          guohao: p.guohao,
-          colorIndex: p.colorIndex,
-          netWorthLabel: formatMoney(p.netWorth),
-          bankrupt: p.isBankrupt,
-        })),
-    [players],
-  );
   const restarting = useRef(false);
   const [restartError, setRestartError] = useState<string | null>(null);
   const restartGame = useCallback(() => {
@@ -110,38 +95,25 @@ export function DecisionScrollLayer({
     const board = ctx.board;
     const catalog = ctx.catalog;
 
-    // ── 终局:异常作废(#642)先于胜者路由显式分支——winReason="aborted" 时无胜者
-    //    (winner=null),胜者查找/称帝排名演出整体不落,亮「对局作废」面板(组件按
-    //    winReason 判别联合渲染);出口按钮组与胜局同款同路由。──
-    if (snapshot.phase === "GameOver" && snapshot.winReason === "aborted") {
-      return (
-        <VictoryScreen winReason="aborted" turnNumber={snapshot.round} onRestart={restartGame} />
-      );
-    }
-
-    // ── 终局:胜利屏(全屏覆盖,优先级最高;winReason 非 aborted 时才查胜者)──
-    if (
-      snapshot.phase === "GameOver" &&
-      snapshot.winReason !== "aborted" &&
-      snapshot.winner !== null
-    ) {
-      const winner = players.find((p) => p.id === snapshot.winner);
-      if (winner) {
-        return (
-          <VictoryScreen
-            guohao={winner.guohao}
-            colorIndex={winner.colorIndex}
-            finalNetWorthLabel={formatMoney(winner.netWorth)}
-            turnNumber={snapshot.round}
-            // E4(#16):胜因透传快照真值(引擎 VictoryReason),不再写死——群雄尽灭局显示群雄尽灭
-            winReason={snapshot.winReason}
-            // E4(#16):终榜一行,useMemo 挂稳定 players 引用(#1140,见组件头)
-            standings={standings}
-            // 重开:最朴素可靠的方式是整页重载回设置屏(旧版亦无局内重开)
-            onRestart={restartGame}
-          />
-        );
+    if (snapshot.phase === "GameOver") {
+      if (snapshot.winReason === "aborted") {
+        return <VictoryScreen key={snapshot.gameId} winReason="aborted" onRestart={restartGame} />;
       }
+      const winner = players.find((p) => p.id === snapshot.winner);
+      if (winner === undefined || snapshot.winReason === "None") {
+        throw new Error("终局快照缺胜者或胜因");
+      }
+      return (
+        <VictoryScreen
+          key={snapshot.gameId}
+          winner={winner}
+          players={players}
+          round={snapshot.round}
+          context={ctx}
+          winReason={snapshot.winReason}
+          onRestart={restartGame}
+        />
+      );
     }
 
     // ── 城池详情(只读,任何时候可弹;#33 特殊地点同样展示类型说明)──

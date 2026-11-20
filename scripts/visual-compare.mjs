@@ -5,7 +5,7 @@
 // Node 运行 Playwright,Vite preview JS API 管理静态服务;端口占用直接失败。
 //
 // 场景:主页、单机设置、对局静帧、终局。对局经 UI 开局,parkMyTurn 停靠后冻结时钟;
-// 冻结不拦同步命令链,因此须复核停靠态。终局前态经 core/planter.armGameOver 构造,
+// 冻结不拦同步命令链,因此须复核停靠态。终局经 armGameOver 布置暂停的客户端副本,
 // 造态失败报告 exit 3 并保留前三场景。
 // 确定性输入:固定 seed、route 关闭机遇、clockPause、reducedMotion、禁用截图动画、
 // fonts.ready 与双 rAF;两侧各用独立 context,避免 localStorage 残留。
@@ -238,14 +238,14 @@ async function captureSide(port, sideDir) {
   await waitFxIdle(page);
   await shot(page, join(sideDir, "03-game.png"));
 
-  // ④ 终局屏:plant(armGameOver) 造态(判词见文件头注)
+  // ④ 终局屏：在暂停的客户端副本种植富甲天下胜局，供截图对照。
   let gameoverError = null;
   try {
     await waitFxIdle(page);
     await page.evaluate(() => {
-      // armGameOver 一并设置 isOver/winner/phase,保持终局前态一致。
-      window.__dafung.plant({ kind: "armGameOver", winnerSeat: 0 });
-      window.__dafung.controller().sync();
+      const bridge = window.__dafung;
+      bridge.plant({ kind: "armGameOver", winnerSeat: 0, reason: "TargetNetWorth" });
+      bridge.controller().sync();
     });
     await page.getByTestId(TID.victoryScreen).waitFor({ timeout: 15_000 });
     await waitFxIdle(page);
@@ -297,7 +297,7 @@ try {
     ["01-home", "主页"],
     ["02-setup", "设置屏"],
     ["03-game", "对局静帧(停靠冻结)"],
-    ["04-gameover", "终局屏(armGameOver 造态:视觉对照前提态,只需可表示不需可达)"],
+    ["04-gameover", "终局屏（客户端副本种植）"],
   ];
   const report = [];
   let degraded = truth.gameoverError != null || current.gameoverError != null;

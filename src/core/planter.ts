@@ -22,7 +22,7 @@
 // 形制纪律(#1295):每族一个种植件,形制写死在实现(不设运行时开关);被测环永不
 // 种植件——种植只负责被测环之前的布置。再缺能力=补种植件(op 联合加 kind),force
 // 不复活(#1303 收口退役)。
-import type { EnginePhase, GameEngine, TurnPhase } from "./authority";
+import type { EnginePhase, GameEngine, TurnPhase, VictoryReason } from "./authority";
 import { DEFAULT_DIE_FACES } from "./dice";
 import { fullDefenseOf, resetToFull } from "./defense";
 import { heroById } from "./heroes";
@@ -150,11 +150,11 @@ export interface ArmDebtOp {
   creditor: number | null;
 }
 
-/** 终局宣告指令(裸写形):isOver+winner+phase=GameOver 一体直写(winnerSeat 解析
- *  成 Player 引用,#1301,判词见破产终局族共同头注)。 */
+/** 胜局宣告指令(裸写形):显式给出胜因,按座位解析胜者引用(判词见破产终局族共同头注)。 */
 export interface ArmGameOverOp {
   kind: "armGameOver";
   winnerSeat: number;
+  reason: Extract<VictoryReason, "TargetNetWorth" | "LastStanding">;
 }
 
 /** 挂反应载荷指令(裸写形):直种 pendingReaction 挂起态(view/payload 由种植者
@@ -489,8 +489,8 @@ export function armPhase(e: GameEngine, patch: ArmPhasePatch): void {
  *  是唯一通路。三件按字段集拆细:armBankrupt=玩家破产印(isBankrupt,席位格/总览
  *  灰化挂点形);armDebt=挂债清算窗(pendingDebt+AwaitingBankruptcySettle 一体直写
  *  ——引擎破产路径同拍双写,拆开即窗悬相位不自洽;creditor 过网带座位号,实现内
- *  解析成 Player 引用保 op 可序列化);armGameOver=终局宣告(isOver+winner+phase=
- *  GameOver 一体,引擎终局写入同款三件套)。越界座位当场炸;amount 数值不校验
+ *  解析成 Player 引用保 op 可序列化);armGameOver 同拍写入终局标记、胜者、胜因和两个
+ *  GameOver 相位,供静态画面取样。越界座位与非法胜因当场炸;amount 数值不校验
  *  (债务是场景决定,同 setCash 口径)。 */
 export function armBankrupt(e: GameEngine, seat: number): void {
   assertSeat("armBankrupt", e, seat);
@@ -506,11 +506,19 @@ export function armDebt(e: GameEngine, amount: number, creditor: number | null):
   e.turnPhase = "AwaitingBankruptcySettle";
 }
 
-export function armGameOver(e: GameEngine, winnerSeat: number): void {
+export function armGameOver(
+  e: GameEngine,
+  winnerSeat: number,
+  reason: ArmGameOverOp["reason"],
+): void {
   assertSeat("armGameOver", e, winnerSeat);
+  if (reason !== "TargetNetWorth" && reason !== "LastStanding")
+    throw new Error(`armGameOver:未知胜因 ${String(reason)}`);
   e.isOver = true;
   e.winner = e.players[winnerSeat];
+  e.winReason = reason;
   e.phase = "GameOver";
+  e.turnPhase = "GameOver";
 }
 
 /** 【判词(armReaction 一处,执行态族 #1301)】挂反应载荷=裸写形:反应窗由持牌+
@@ -713,7 +721,7 @@ export function applyPlant(e: GameEngine, op: PlantOp): void {
       armDebt(e, op.amount, op.creditor);
       return;
     case "armGameOver":
-      armGameOver(e, op.winnerSeat);
+      armGameOver(e, op.winnerSeat, op.reason);
       return;
     case "armReaction":
       armReaction(e, op.view, op.payload);

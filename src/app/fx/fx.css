@@ -561,13 +561,8 @@
    时长与 fx/timings.ts DUEL.windupMs(80ms)硬同步,改任一侧须两处同改。 */
 .duel-sign {
   position: relative;
+  isolation: isolate; /* 签后一笔夹在幕布与签面之间，随整签缩放。 */
   min-width: 150px;
-  border: 4px solid #6e5a2c;
-  border-radius: 10px;
-  outline: 1.5px solid #6e5a2c; /* 内圈细线:骨牌双线框,同 .dice-sign */
-  outline-offset: -9px;
-  background: linear-gradient(135deg, #ecdcb0, #c9b27a);
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
   text-align: center;
   pointer-events: none;
   opacity: 0.45;
@@ -575,9 +570,31 @@
     translate 80ms var(--ease-out),
     rotate 80ms var(--ease-out),
     scale var(--dur-fast) var(--ease-out); /* 判词段己方加权(#760)平滑进出 */
-  /* 不设 overflow:hidden(#849 棒1):旧值把判词金圈/大胜冲击波等 ::before/::after
-     子盒裁死在 padding box 内(inset 负值整环被吃=金圈只有内衬晕)。「签头色底吃满
-     上缘圆角」的原来职责移交给 .duel-sign-head 自带圆角(见下)。 */
+}
+.duel-sign-surface {
+  position: relative;
+  border: 4px solid #6e5a2c;
+  border-radius: 10px;
+  outline: 1.5px solid color-mix(in srgb, #6e5a2c 78%, var(--color-gold-bright));
+  outline-offset: -9px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #ecdcb0 66%, var(--color-paper)),
+    #ecdcb0 45%,
+    #c9b27a
+  );
+  box-shadow:
+    inset 0 -2px 2px color-mix(in srgb, var(--color-lacquer) 35%, transparent),
+    0 14px 36px rgba(0, 0, 0, 0.45);
+}
+/* 骨纹藏在签缘，签身中央留给点数。圆角只裁骨纹，外侧金圈仍可完整展开。 */
+.duel-sign-grain {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
 }
 /* 蓄势(#746 条目 2):--windup-x/--windup-rot 由 DuelSignsOverlay 按排布位注入
    (左签 +8px/+1.5°,右签 −8px/−1.5°,朝中缝轻推内倾);落定拍摘类,transition
@@ -587,6 +604,7 @@
   rotate: var(--windup-rot, 0deg);
 }
 .duel-sign-head {
+  position: relative;
   font-family: var(--font-title);
   font-size: 22px;
   line-height: 1.6;
@@ -594,6 +612,7 @@
   text-indent: 8px; /* 抵消末字间距,视觉居中 */
   color: #2b2317; /* 玄墨深字(签头可读性口径见本节头注) */
   background: var(--player-color, var(--color-gold));
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-paper) 55%, transparent);
   /* 签头色底吃满上缘圆角(原 .duel-sign overflow:hidden 的职责,#849 棒1 摘
      overflow 后移交给本圆角):内缘半径 = 签卡外径 10px − 边框 4px = 6px。 */
   border-radius: 6px 6px 0 0;
@@ -608,7 +627,9 @@
 }
 .duel-sign.duel-sign-shaking {
   opacity: 0.55;
-  box-shadow: none;
+}
+.duel-sign.duel-sign-shaking .duel-sign-surface {
+  box-shadow: inset 0 -2px 2px color-mix(in srgb, var(--color-lacquer) 35%, transparent);
 }
 .duel-sign.duel-sign-shaking .duel-sign-face {
   opacity: 0.55; /* 墨字虚影(轮换由 JS 驱动;掷骰签侧同机制已随 #927 静态化退役,拼点侧保留) */
@@ -669,11 +690,11 @@
    败者降饱和沉暗;平局双方无圈(缺席即语义,由中缝金「平」补文字例外)。
    金圈双层(#746 条目 3):金环辉光 22→32px 提存在感,外层加玩家色晕(承
    --player-color 已注入)——「胜者=我」的身份色随金圈同现。 */
-.duel-sign.duel-sign-win {
+.duel-sign.duel-sign-win .duel-sign-surface {
   border-color: var(--color-gold-bright);
   outline-color: var(--color-gold-bright);
 }
-.duel-sign.duel-sign-win::after {
+.duel-sign.duel-sign-win .duel-sign-surface::after {
   content: "";
   position: absolute;
   inset: -12px;
@@ -707,33 +728,24 @@
 /* 大胜分级(#769):overlay 挂 duel-blowout(判定单源 isBlowout,与震屏同一处
    常量 DUEL.blowoutMargin,分级判据写死一处)时——胜方 96px 点数 outBack 弹至
    1.15 一次性驻留(fill both,判词停留窗 900ms 内读得住 --dur-slow 全程);
-   败方字面叠加泼墨溅一次 spawn:自绘多层径向渐变墨渍(零位图,吃 --color-paper),
-   缩放+微旋钤上后驻留成印。点差 1-2 与平局不挂类 = 维持现制。reduced-motion:
-   M-4 兜层压瞬时,两者各落终态(墨渍=静态印,弹跳=定格 1.15),不加专项退场。
-   #849 棒1 峰值三件(P1-B3「大胜档没有哇」,判据同 isBlowout 单源):
-   ①胜方金圈二次冲击波(.duel-sign-win::before 金环 scale 1→1.55 涨散即逝,延迟
-   约两拍=2×clackGap 拍长,等 #769 弹跳读完再炸);②金色洗幕一闪(overlay::after,
-   胜方玩家色 radial 0.35→0 一闪即散,色由 DuelSignsOverlay 判词拍随 duel-blowout
-   注入 --duel-wash-color)。三件时长经 overlay 内联注入 --duel-wave-ms /
-   --duel-wave-delay / --duel-wash-ms(随 e2e 倍率缩放,keyframe 只管形不时刻度,
-   同幕启渐入口径);M-4 兜层压瞬时后冲击波/洗幕各落终态(opacity 0=不可见)。 */
+   败方字面叠加一层角部墨渍，缩放微旋后驻留。减少动态效果直接显示终态。
+   #1540 胜签后一笔与淡金二次波共用 DUEL 的延迟和时长。洗幕从判词拍开始，
+   取胜方玩家色与既有洗幕时长。 */
 .duel-overlay.duel-blowout .duel-sign.duel-sign-win .duel-sign-face {
+  transform: scale(1.15);
   animation: duel-blowout-pop var(--dur-slow) var(--ease-out-back) both;
 }
 @keyframes duel-blowout-pop {
   from {
     transform: scale(1);
   }
-  to {
-    transform: scale(1.15);
-  }
 }
-.duel-overlay.duel-blowout .duel-sign.duel-sign-win::before {
+.duel-overlay.duel-blowout .duel-sign.duel-sign-win .duel-sign-surface::before {
   content: "";
   position: absolute;
   inset: -12px;
   border-radius: 14px;
-  border: 3px solid var(--color-gold-bright);
+  border: 2px solid var(--color-gold-bright);
   pointer-events: none;
   opacity: 0;
   animation: duel-blowout-wave var(--duel-wave-ms) var(--ease-out) var(--duel-wave-delay) both;
@@ -743,12 +755,42 @@
     opacity: 0;
     transform: scale(1);
   }
-  18% {
-    opacity: 0.9;
+  25% {
+    opacity: 0.18;
   }
   100% {
     opacity: 0;
     transform: scale(1.55);
+  }
+}
+.duel-blowout-stroke {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+  width: 220%;
+  height: auto;
+  overflow: visible;
+  translate: -50% -50%;
+  transform-origin: center;
+  opacity: 0;
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-gold) 56%, transparent));
+  animation: duel-blowout-stroke var(--duel-wave-ms) var(--ease-out) var(--duel-wave-delay) both;
+}
+.duel-sign:nth-child(even) .duel-blowout-stroke {
+  transform: scaleX(-1);
+}
+@keyframes duel-blowout-stroke {
+  0% {
+    opacity: 0;
+    scale: 0.78;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 1;
   }
 }
 .duel-overlay.duel-blowout::after {
@@ -772,6 +814,7 @@
   content: "";
   position: absolute;
   inset: -6% -2%;
+  opacity: 0.55;
   pointer-events: none;
   /* 墨渍四角锚定(#849 棒1,P2:旧四渍聚中糊住败方点数)——自卡角钤入。圆径取
      px 字面量(卡角处 closest-side 会塌到 12-15% 卡宽,渍缩成点);实芯平顶到
@@ -818,11 +861,6 @@
   70% {
     opacity: 0.62;
   }
-  to {
-    opacity: 0.55;
-    scale: 1;
-    rotate: 0deg;
-  }
 }
 
 /* 判词段己方加权(#760):本机签在签内时判词拍挂 duel-self-weighted(overlay)+
@@ -851,6 +889,7 @@
    注入(随首行定位——单行与旧 top:50% 恒等,折行时印不再压两行之间);横向仍
    left:50% 落中缝 gap(首行居中排布,双签与 2+2 折行的缝都恰在视口中线)。 */
 .duel-seal {
+  --duel-seal-rim: var(--color-paper);
   position: absolute;
   left: 50%;
   z-index: 1;
@@ -863,10 +902,24 @@
   font-size: 44px;
   transform: translate(-50%, -50%) rotate(-8deg);
   color: var(--color-paper);
-  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  border: 3px solid var(--color-paper);
+  background: linear-gradient(
+    143deg,
+    color-mix(in srgb, var(--color-danger) 74%, var(--color-bg-deep)),
+    color-mix(in srgb, var(--color-danger) 48%, var(--color-bg-deep))
+  );
+  border: 2px solid var(--duel-seal-rim);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
   pointer-events: none;
+}
+/* 内圈印泥有断续和粗细变化，印文保持原来的字面。 */
+.duel-seal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--duel-seal-rim);
+  opacity: 0.76;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-35 -35 70 70'%3E%3Cg fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M-31 -29l5 -2h9l5 1 8 -1h17l5 1 10 -1 3 3v17l-1 4 1 9v22l-1 4 -4 3H8l-5 -1h-12l-5 1h-12l-5 -3V13l1 -6 -1 -8v-12l1 -6Z' stroke-width='2.2'/%3E%3Cpath d='M-27 -26l6 1 4 -1 5 1m20 -1h8l5 1 5 -1M-27 26h6l3 -1 4 1m25 0 8 -1 6 1M-27 -11v5m55 15v6m-48 5 2 -.3m36 -39 2 .5m3 31 1 -.3' stroke-width='.8' opacity='.48'/%3E%3C/g%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
 }
 .duel-seal.duel-seal-slam {
   animation: fx-seal-slam 0.16s var(--ease-out) both;
@@ -912,9 +965,13 @@
 }
 /* 平局:钤变金「平」(#492 漆金化口径:金印留给得/平语义)。 */
 .duel-seal[data-verdict="tie"] {
+  --duel-seal-rim: var(--color-gold-bright);
   color: var(--color-bg-deep);
-  background: color-mix(in srgb, var(--color-lacquer-gold) 72%, var(--color-lacquer));
-  border-color: var(--color-gold-bright);
+  background: linear-gradient(
+    143deg,
+    var(--color-lacquer-gold),
+    color-mix(in srgb, var(--color-lacquer-gold) 72%, var(--color-lacquer))
+  );
   box-shadow:
     0 0 18px color-mix(in srgb, var(--color-gold-bright) 55%, transparent),
     0 10px 26px rgba(0, 0, 0, 0.5);
@@ -1010,18 +1067,25 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
-/* ── S7 演出 reduced-motion 补充登记(app.css 全局兜层压 0.01ms 之外的两处增量):
-   ①拼点摇签虚影是 JS 换字面非 CSS 动画,兜层管不到——reduced-motion 下字影隐去,
-   只留落定真面(拍数不变,e2e 不受影响);掷骰签的虚位是静态淡印非动效,#927 起
-   无需登记(#637 口径的拼点侧保留)。②震屏为 transform 位移,兜层压短后仍会跳
-   一帧 4px——直接停用。③判词段金圈先行的过渡延迟(#760):兜层只压时长不压
-   delay——reduced-motion 下沉暗/放大一律即时到位(加权是状态不是动效,先行编排退场)。 ── */
+/* 减少动态效果时隐去换字虚影和瞬态演出，判词直接呈现主金圈、沉暗、角墨与定格点数。 */
 @media (prefers-reduced-motion: reduce) {
   .duel-sign.duel-sign-shaking .duel-sign-face {
     color: transparent;
   }
   .fx-desk-shake,
   .fx-desk-shake-blowout {
+    animation: none;
+  }
+  .duel-blowout-stroke,
+  .duel-overlay.duel-blowout .duel-sign.duel-sign-win .duel-sign-surface::before,
+  .duel-overlay.duel-blowout::after,
+  .duel-seal.duel-seal-pulse::after {
+    display: none;
+    animation: none;
+  }
+  .duel-sign.duel-sign-win .duel-sign-surface::after,
+  .duel-overlay.duel-blowout .duel-sign.duel-sign-win .duel-sign-face,
+  .duel-overlay.duel-blowout .duel-sign.duel-sign-dim .duel-sign-face::after {
     animation: none;
   }
   .duel-overlay.duel-self-win .duel-sign.duel-sign-dim,

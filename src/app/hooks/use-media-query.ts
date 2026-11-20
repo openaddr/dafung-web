@@ -31,3 +31,6 @@ export const SHORT_LANDSCAPE_QUERY = "(orientation: landscape) and (max-height: 
 
 /** 矮横屏档:见 SHORT_LANDSCAPE_QUERY。 */
 export const useIsShortLandscape = () => useMediaQuery(SHORT_LANDSCAPE_QUERY);
+
+/** 系统减少动态效果的偏好，可在对局期间改变。 */
+export const usePrefersReducedMotion = () => useMediaQuery("(prefers-reduced-motion: reduce)");

@@ -252,7 +252,7 @@ describe("armPhase(改相位/活跃方,裸写形)", () => {
 });
 
 describe("armBankrupt/armDebt/armGameOver(破产终局族,裸写形;判词共一处)", () => {
-  it("破产印=isBankrupt 置位;挂债窗=pendingDebt+AwaitingBankruptcySettle 一体(creditor 座位解析成 Player 引用);终局=isOver+winner+GameOver 一体", () => {
+  it("种植破产印、债务与清算相位，并以完整的胜局字段宣告终局", () => {
     const e = makeEngine();
     armBankrupt(e, 1);
     expect(e.players[1].isBankrupt).toBe(true);
@@ -261,17 +261,26 @@ describe("armBankrupt/armDebt/armGameOver(破产终局族,裸写形;判词共一
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
     armDebt(e, 1500, 1);
     expect(e.pendingDebt).toEqual({ amount: 1500, creditor: e.players[1] });
-    armGameOver(e, 0);
+    armGameOver(e, 0, "LastStanding");
     expect(e.isOver).toBe(true);
     expect(e.winner).toBe(e.players[0]);
     expect(e.phase).toBe("GameOver");
+    expect(e.turnPhase).toBe("GameOver");
+    expect(e.winReason).toBe("LastStanding");
   });
 
   it("越界座位(破产印/creditor/终局胜者)当场炸(零兜底:种错的场要响)", () => {
     const e = makeEngine();
     expect(() => armBankrupt(e, 9)).toThrow();
     expect(() => armDebt(e, 100, 9)).toThrow();
-    expect(() => armGameOver(e, 9)).toThrow();
+    expect(() => armGameOver(e, 9, "TargetNetWorth")).toThrow();
+  });
+
+  it("从调试桥收到非胜局原因时拒绝种植终局", () => {
+    const e = makeEngine();
+    const op = { kind: "armGameOver", winnerSeat: 0, reason: "aborted" } as unknown as PlantOp;
+    expect(() => applyPlant(e, op)).toThrow("armGameOver:未知胜因 aborted");
+    expect(e.isOver).toBe(false);
   });
 });
 
@@ -560,8 +569,7 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     armPhase(a, { turnPhase: "AwaitingDecision", activeIndex: 0 });
     armBankrupt(a, 1);
     armDebt(a, 99999, null);
-    armGameOver(a, 0);
-    armReaction(a, view, payload);
+    armGameOver(a, 0, "TargetNetWorth");
     applyPlant(b, {
       kind: "armPhase",
       turnPhase: "AwaitingDecision",
@@ -569,17 +577,19 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     });
     applyPlant(b, { kind: "armBankrupt", seat: 1 });
     applyPlant(b, { kind: "armDebt", amount: 99999, creditor: null });
-    applyPlant(b, { kind: "armGameOver", winnerSeat: 0 });
-    applyPlant(b, { kind: "armReaction", view, payload });
-    expect(b.turnPhase).toBe(a.turnPhase);
+    applyPlant(b, { kind: "armGameOver", winnerSeat: 0, reason: "TargetNetWorth" });
     expect(b.activeIndex).toBe(a.activeIndex);
     expect(b.players[1].isBankrupt).toBe(a.players[1].isBankrupt);
     expect(b.pendingDebt).toEqual(a.pendingDebt);
-    expect(b.turnPhase).toBe(a.turnPhase);
-    expect(b.isOver).toBe(a.isOver);
     expect(a.winner).toBe(a.players[0]); // winner=本引擎座位引用(跨引擎实例不可比)
     expect(b.winner).toBe(b.players[0]);
-    expect(b.phase).toBe(a.phase);
+    expect(b.isOver).toBe(true);
+    expect(b.phase).toBe("GameOver");
+    expect(b.turnPhase).toBe("GameOver");
+    expect(b.winReason).toBe("TargetNetWorth");
+    armReaction(a, view, payload);
+    applyPlant(b, { kind: "armReaction", view, payload });
+    expect(b.turnPhase).toBe(a.turnPhase);
     expect(b.pendingReaction).toEqual(a.pendingReaction);
   });
 

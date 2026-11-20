@@ -390,8 +390,12 @@ export const UI = {
   get hintTtlMs() {
     return sc(1800);
   },
-  /** 胜利屏「再战」按钮延后挂载(E2:入场演出高潮期防误触重开)。 */
-  get victoryButtonMs() {
+  /** 正常胜局的终榜和再战共用第四拍(#1541)。 */
+  get victoryStandingsMs() {
+    return sc(900);
+  },
+  /** 作废面板独立的再战出口节拍(#642)。 */
+  get abortedRestartMs() {
     return sc(1800);
   },
   /** 大厅国号复制成功反馈的自动熄灭(L-7:ref 计时防重复点击提前熄灭)。 */
