@@ -16,8 +16,7 @@
   /* #512 深底档:金盘反馈在玄墨底上保持适度亮度。 */
   opacity: 0.35;
 }
-/* 金盘大半被铭牌盖住,按压时同步提亮铭牌描边。限定 rect 只命中地产铭牌卡,
-   三族事件格的 bv-tile-border 挂在 <g> 上,不吃此规则。 */
+/* 按压时同步点亮格框，无主常态的透明描边也在按下时显金。 */
 .bv-tile rect.bv-tile-border {
   transition: stroke var(--dur-fast) var(--ease-out);
 }

@@ -107,6 +107,39 @@ const PLAQUE_EDGE = rgba(Theme.lacquerGold, 0.9); // 漆金细边/铆钉/流苏
 const PLAQUE_TEXT = rgba(Theme.paper, 0.96); // 纸色匾字
 const CAPITAL_PLAQUE_TEXT = rgba(Theme.bgDeep); // 金匾墨字(深卡唯一例外)
 
+/** 无主城低石台（#1537）。四档共用轮廓，台面与砖缝用现有墨木和淡纸色调出明暗。 */
+function StonePlinth() {
+  return (
+    <g className="bv-tile-plinth" aria-hidden="true" pointerEvents="none">
+      <ellipse cy={5} rx={54} ry={32} fill={rgba(Theme.bgDeep, 0.7)} />
+      <path
+        d="M-55 17 L-44 8 H43 L56 18 V27 L45 35 H-45 L-55 27Z"
+        fill={rgba(mix(Theme.lacquer, Theme.paperDim, 0.18))}
+        stroke={rgba(Theme.bgDeep, 0.9)}
+        strokeWidth={1.7}
+      />
+      <path
+        d="M-55 17 L-44 8 H43 L56 18 L44 27 H-43Z"
+        fill={rgba(mix(Theme.panelHi, Theme.paperDim, 0.38))}
+        stroke={rgba(mix(Theme.panelHi, Theme.paperDim, 0.64))}
+        strokeWidth={1.1}
+      />
+      <path
+        d="M-43 28H44L54 20 M-45 31H44 M-24 27v6 M20 28v6"
+        fill="none"
+        stroke={rgba(Theme.bgDeep, 0.45)}
+        strokeWidth={1.4}
+      />
+      <path
+        d="M-44 20l8-5h61l13 5 M-35 25l7-3m20 2 11-1m19-4 9 2"
+        fill="none"
+        stroke={rgba(Theme.paperDim, 0.35)}
+        strokeWidth={1.4}
+      />
+    </g>
+  );
+}
+
 /**
  * 竖排木匾(挂建筑右侧):漆木深卡 + 1px 漆金细边 + 顶部两枚铆钉;都城匾加宽 + 金底墨字
  * (深卡唯一例外)+ 底部两缕流苏。有主(非都城)匾身换深玩家色底染 shade(owner,0.5)
@@ -389,6 +422,8 @@ export const Tile = memo(function Tile({
   const growNonce = announce?.level ?? 0;
   const isCapital = state.capitalColorIndex != null;
   const ownerRgb = state.ownerColorIndex != null ? playerColor(state.ownerColorIndex) : null;
+  const showsPlinth = ownerRgb === null && !isCapital;
+  const showsFrame = !showsPlinth || state.isActive;
 
   const cls = [
     "bv-tile",
@@ -427,11 +462,8 @@ export const Tile = memo(function Tile({
           氛围层 .bv-amb-tile-ring,随环一线裁撤);轮到谁的金描边仍由下方
           bv-tile-border 的 isActive 态承担。 */}
 
-      {/* 格底(#842 归属色墨化):无主=漆木深卡+漆金细边(低显著);有主(含都城)=
-          color-mix(ownerRgb 22%, bgDeep) 墨渍级深染——糖果色整格平涂退役,饱和归属色
-          收敛到铭牌底染(NamePlaque)+全饱和描边 3px 两通道,色弱通道仍靠城旗国号
-          (DESIGN §5.2 一格一语言;城旗/等级珠/都城光晕全不动)。#826:天命/锦囊/税关
-          三族族形分支随功能格五型退役整体删除,一切格子走通用圆角方牌。 */}
+      {/* 104×88 矩形同时承担格面与触达。无主常态的填色和描边透明，保留整块命中；
+          当前城描金。有主格底留 22% 玩家色墨染，边框、铭牌和城旗共同表达归属。 */}
       <rect
         className="bv-tile-border"
         x={-52}
@@ -439,18 +471,27 @@ export const Tile = memo(function Tile({
         width={104}
         height={88}
         rx={10}
-        fill={ownerRgb ? rgba(mix(Theme.bgDeep, ownerRgb, 0.22)) : rgba(Theme.lacquer, 0.92)}
+        fill={
+          ownerRgb
+            ? rgba(mix(Theme.bgDeep, ownerRgb, 0.22))
+            : showsFrame
+              ? rgba(Theme.lacquer, 0.92)
+              : "transparent"
+        }
         fillOpacity={ownerRgb ? 0.94 : 1}
         stroke={
           state.isActive
             ? rgba(Theme.goldBright)
             : ownerRgb
               ? rgba(ownerRgb)
-              : rgba(Theme.lacquerGold, 0.5)
+              : showsFrame
+                ? rgba(Theme.lacquerGold, 0.5)
+                : "transparent"
         }
         strokeOpacity={ownerRgb ? 0.95 : 0.9}
         strokeWidth={ownerRgb ? 3 : state.isActive ? 3 : 1.5}
       />
+      {showsPlinth ? <StonePlinth /> : null}
 
       {/* 需求2·都城① 金色城台底座:建筑脚下两层 rect(暗金座身+亮金座面,模拟上下渐变)。
             不用 linearGradient:defs 在 StaticLayers(独占勿动),每城内联 defs 会产生重复 id 冲突。
