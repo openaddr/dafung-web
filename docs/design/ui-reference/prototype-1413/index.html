@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>房内座次 · #1413 横屏原型</title>
+  <style>
+    :root{color-scheme:dark;background:#16110c;color:#f4ecd8;font:15px "LXGW WenKai","KaiTi","Noto Sans CJK SC",sans-serif}
+    body{max-width:900px;margin:0 auto;padding:16px 12px 88px;text-align:center}
+    h1{font-size:19px;font-weight:400;color:#ecd28a;margin:0 0 12px}
+    .scene{position:relative;width:100%;max-width:844px;aspect-ratio:844/390;margin:auto;border:1px solid #5b4930}
+    img{width:100%;display:block}
+    button{font:inherit;color:inherit;min-height:42px;border:1px solid #5b4930;border-radius:4px;padding:6px 12px;background:#2b2317}
+    button[aria-pressed="true"]{border-color:#d9b95c;color:#ecd28a;background:#3b2c1c}
+    button:focus-visible{outline:2px solid #ecd28a;outline-offset:2px}
+    .controls{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:12px 0}
+    .spot{position:absolute;min-height:0;background:transparent;border:0;padding:0}
+    .picker{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;background:#21180e;border:1px solid #d9b95c;padding:6px;border-radius:8px;white-space:nowrap}
+    output{display:block;min-height:20px;color:#c6b491}
+    [hidden]{display:none!important}
+  </style>
+</head>
+<body>
+  <h1>房内座次 · 844×390 设计对照</h1>
+  <div class="scene">
+    <img id="frame" width="844" height="390" alt="">
+    <button id="copy" class="spot" type="button" aria-label="复制示例房码"></button>
+    <button id="choose" class="spot" type="button" aria-label="模拟选好关中图"></button>
+  </div>
+  <div class="controls" aria-label="示例房间状态">
+    <button type="button" data-scene="waiting">八席 · 两人 · 待选图</button>
+    <button type="button" data-scene="mapped">八席 · 两人 · 已选图</button>
+    <button type="button" data-scene="full">八席满员 · 来宾视角</button>
+    <button type="button" data-scene="duel">双人速战 · 房主视角</button>
+  </div>
+  <output id="feedback" aria-live="polite"></output>
+  <div class="picker" aria-label="方案切换">
+    <button id="previous" type="button" aria-label="上一方案">‹</button>
+    <span id="scheme"></span>
+    <button id="next" type="button" aria-label="下一方案">›</button>
+  </div>
+  <script>
+    const titles = { A: "A 邀请与地图集中", B: "B 同桌入席" };
+    const scenes = {
+      waiting: "八席已有两人，房主尚未选图",
+      mapped: "八席已有两人，房主已选关中图",
+      full: "八席满员，三号诸侯离线，四号是你，国号重名预告东魏",
+      duel: "两席满员，房主准备在中原争霸开局",
+    };
+    const params = new URLSearchParams(location.hash ? location.hash.slice(1) : location.search);
+    let variant = params.get("variant") === "B" ? "B" : "A";
+    let scene = Object.hasOwn(scenes, params.get("scene")) ? params.get("scene") : "mapped";
+    const frame = document.getElementById("frame");
+    const feedback = document.getElementById("feedback");
+    const copy = document.getElementById("copy");
+    const choose = document.getElementById("choose");
+    const selectors = document.querySelectorAll("[data-scene]");
+    function spot(button, x, y, width, height) {
+      Object.assign(button.style, { left: x / 844 * 100 + "%", top: y / 390 * 100 + "%", width: width / 844 * 100 + "%", height: height / 390 * 100 + "%" });
+    }
+    function draw(message = "") {
+      frame.src = variant.toLowerCase() + "-" + scene + ".png";
+      frame.alt = titles[variant] + "，" + scenes[scene] + "。示例房码 QJTF。";
+      feedback.value = message;
+      document.getElementById("scheme").textContent = titles[variant];
+      for (const control of selectors) control.setAttribute("aria-pressed", String(control.dataset.scene === scene));
+      spot(copy, ...(variant === "A" ? [207,119,80,40] : [367,224,110,40]));
+      spot(choose, 604,320,91,44);
+      choose.hidden = scene !== "waiting";
+      params.set("variant", variant);
+      params.set("scene", scene);
+      history.replaceState(null, "", "#" + params);
+    }
+    function flip() { variant = variant === "A" ? "B" : "A"; draw(); }
+    document.getElementById("previous").onclick = flip;
+    document.getElementById("next").onclick = flip;
+    for (const control of selectors) control.onclick = () => { scene = control.dataset.scene; draw(); };
+    copy.onclick = () => draw("示例房码 QJTF · 复制后可发给好友");
+    choose.onclick = () => { scene = "mapped"; draw("已选关中图 · 当前地图随房间状态回显"); };
+    draw();
+  </script>
+</body>
+</html>
