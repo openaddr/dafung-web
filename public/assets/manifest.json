@@ -392,5 +392,53 @@
     "author": "三国杀(十周年)邓艾-经典形象 · wiki 上传者 359366122",
     "fetched_at": "2026-11-06",
     "review_required": true
+  },
+  "jinnang:duel": {
+    "path": "assets/jinnang/duel.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/jinnang/art/a-duel.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1410 完整小场景）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "jinnang:delay": {
+    "path": "assets/jinnang/delay.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/jinnang/art/a-delay.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1410 完整小场景）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "jinnang:jade": {
+    "path": "assets/jinnang/jade.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/jinnang/art/a-jade.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1410 完整小场景）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "jinnang:fire": {
+    "path": "assets/jinnang/fire.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/28c50ecb58c46d012fa2f5afe7603e2678371100/docs/design/ui-reference/prototype-1408-1412/art/paint-1.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1410 完整小场景）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "jinnang:counter": {
+    "path": "assets/jinnang/counter.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/jinnang/art/a-counter.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1410 完整小场景）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "jinnang:ambush": {
+    "path": "assets/jinnang/ambush.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/jinnang/art/a-ambush.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1410 完整小场景）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
   }
 }
