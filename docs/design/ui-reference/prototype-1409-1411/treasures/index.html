@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>珍宝与技能书 · 画心原型 #1409</title>
+    <link rel="stylesheet" href="local-fonts.css" />
+    <link rel="stylesheet" href="../../../../../src/app/screens/manual/treasure-rows.css" />
+    <link rel="stylesheet" href="../../../../../src/app/components/card/jinnang-card.css" />
+    <link rel="stylesheet" href="scene.css" />
+    <script defer src="data.js"></script>
+    <script defer src="scene.js"></script>
+  </head>
+  <body>
+    <main>
+      <header class="intro">
+        <h1>珍宝与技能书</h1>
+        <p>画心原型 #1409 <span>·</span> 844×390 构图模型 <a href="compare.png">打开对照图</a></p>
+      </header>
+      <div class="preview" aria-label="群雄逐鹿横屏原型">
+        <div class="stage" data-context="home">
+          <button class="home-manual" type="button" data-action="manual" aria-label="打开首页手册">
+            手册
+          </button>
+          <div class="rounds" aria-label="对局右下角收藏入口">
+            <span aria-hidden="true">锦<br />囊</span>
+            <button type="button" data-action="inventory" aria-label="珍宝，已持有 7 件">
+              珍<br />宝<i aria-hidden="true">7</i>
+            </button>
+            <span aria-hidden="true">名<br />将</span>
+          </div>
+          <div class="stage-shade" id="stage-shade" hidden></div>
+          <section class="screen manual" id="manual" aria-labelledby="manual-title" hidden>
+            <header class="screen-head">
+              <h2 id="manual-title">手册 <i aria-hidden="true">册</i></h2>
+              <button class="close" type="button" data-action="home" aria-label="关闭手册">
+                ×
+              </button>
+            </header>
+            <div class="tabs" aria-label="手册分类">
+              <span>名将</span><span>技能</span><span>锦囊</span><strong>珍宝</strong
+              ><span>机遇</span>
+            </div>
+            <div class="screen-body" id="manual-body">
+              <div class="manual-treasure-rows" id="manual-rows"></div>
+            </div>
+          </section>
+          <section class="screen pile" id="inventory" aria-labelledby="inventory-title" hidden>
+            <header class="screen-head">
+              <div>
+                <h2 id="inventory-title">珍宝 <i aria-hidden="true">宝</i></h2>
+                <div class="sub">珍宝收藏册</div>
+              </div>
+              <button class="close" type="button" data-action="board" aria-label="关闭珍宝收藏册">
+                ×
+              </button>
+            </header>
+            <div class="screen-body" id="inventory-body">
+              <p class="zone">已持有 · 7 件 <small>（名牌＝指导价）</small></p>
+              <div class="pile-grid" id="inventory-grid"></div>
+            </div>
+          </section>
+          <div class="stage-shade detail-shade" id="detail-shade" hidden></div>
+          <section
+            class="screen detail"
+            id="detail"
+            aria-labelledby="detail-title"
+            tabindex="-1"
+            hidden
+          ></section>
+        </div>
+      </div>
+      <div class="controls" aria-label="原型控制">
+        <div class="choices" aria-label="画心方案">
+          <button type="button" data-variant="current" aria-pressed="false">现状</button>
+          <button type="button" data-variant="a" aria-pressed="false">A · 同底同光</button>
+          <button type="button" data-variant="b" aria-pressed="true">B · 保留实拍背景</button>
+        </div>
+        <div class="choices" aria-label="查看场景">
+          <button type="button" data-action="manual" aria-pressed="true">首页 · 手册</button>
+          <button type="button" data-action="board" aria-pressed="false">返回棋盘</button>
+        </div>
+      </div>
+      <div class="review">
+        <p id="variant-note" aria-live="polite"></p>
+        <div class="shortcuts" aria-label="手册现场定位">
+          <button type="button" data-find="hat">草帽</button>
+          <button type="button" data-find="hubing">胡饼</button>
+          <button type="button" data-find="suanchou">算筹</button>
+          <button type="button" data-find="qingmei">青梅</button>
+          <button type="button" data-find="seal">传国玉玺</button>
+        </div>
+        <p>点行册任一条看大图；返回棋盘后点右下「珍宝」，可在收藏册点技能书看样张。</p>
+      </div>
+    </main>
+  </body>
+</html>
