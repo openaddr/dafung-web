@@ -1,9 +1,9 @@
 # 纹理素材 (`public/assets/textures/`)
 
-「群雄逐鹿」棋盘与界面用的宣纸/古画纹理。授权与来源的机器可读清单见
-`../manifest.json`(`id → {path, source, license, author, fetched_at}`)与 `../CREDITS.md`,
-均由 `scripts/fetch-asset.ts` 入库登记;本目录不再收程序自生成的 SVG(2026-08-30 #100
-已退役删除 ink-mountains / rice-paper-texture / chinese-fret-border / compass-rose 四个零引用旧文件)。
+「群雄逐鹿」棋盘与界面用的纹理和插画。来源与授权见
+[manifest](../manifest.json)（`id → {path, source, license, author, fetched_at}`）与 [CREDITS](../CREDITS.md)。
+本目录不再收程序自生成的 SVG（2026-08-30 #100 已退役删除
+ink-mountains / rice-paper-texture / chinese-fret-border / compass-rose 四个零引用旧文件）。
 
 ## 清单
 
@@ -24,6 +24,8 @@
 ## 用法速记
 
 - 宣纸底:`src/app/styles/app.css` 的 `#app::after`(feTurbulence data-URI,双层噪点 × multiply)。
-- 纹理接线:SVG `<image href="/assets/textures/…" preserveAspectRatio="xMidYMid slice">`;
-  新增/更换纹理一律走 `scripts/fetch-asset.ts` 管线下载并登记 manifest + CREDITS,退役时
-  删文件并在 manifest/CREDITS 标 `retired` 留档。
+- 纹理接线可用 SVG `<image href="/assets/textures/…" preserveAspectRatio="xMidYMid slice">`。
+- 外部纹理由 [`scripts/fetch-asset.ts`](../../../scripts/fetch-asset.ts) 入库并登记 manifest 和 CREDITS。
+- 项目生成的 WebP 可原样入库。在 manifest 登记生成方法、使用授权和产物永久链接，
+  并在 CREDITS 末尾追加对应条目，附产物与生成提示词的永久链接。
+- 退役时删除文件，并在 manifest 和 CREDITS 中标 `retired` 留档。

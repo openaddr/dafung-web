@@ -1,14 +1,4 @@
-// 组件收口:保留现实现(语义达标,动到时才评估收口)(细则 docs/design/组件收口.md)
-// 首屏(信息架构重构):只放三个模式入口——单机 / 联机 / 选图(#947 编辑器退役)。
-// 国号、诸侯数等对局配置移到「单机模式」次级页(SoloSetupScreen),让首页回归
-// 纯导航(用户要求:菜单只显示按钮入口)。选图仍是二级面板(MapSelectPanel
-// 复用不重写),确认后回显当前地图名并照旧记忆到 localStorage。
-// #1069 spec T1:次级行补「手册」笺钮(#1070)——点开手册大弹层
-// (screens/manual/ManualModal,五类内容总览,ADR-0049 弹层形态)。
-// #707 矮横屏档(landscape + max-height:500px,与对局屏 layout.css A 档同口径):
-// 二级选图弹层在 844×390 一类视口被裁切、换图开局不可达——选图改内联横排条带
-// (MapStrip,左右滑动全部可达,点选即选中),「选择地图」入口与地图回显行由
-// 条带承担,选择+开局一屏完成零滚动;高视口档信息架构零变化。
+// 组件收口:模式、地图、手册与诊断入口沿用 Base UI Button。
 import { Button } from "@base-ui/react/button";
 import { useEffect, useState } from "react";
 import type { MapSource } from "@core/map-source";
@@ -27,15 +17,12 @@ import { VERSION } from "../../../version";
 import "./home.css";
 
 interface HomeScreenProps {
-  /** 「单机模式」→ 次级配置页。 */
   onSolo: () => void;
-  /** 「联机模式」→ 大厅(现有 handleOnline,流程零变化)。 */
   onOnline: () => void;
-  /** 初始选中的地图 id(localStorage 记忆,或 App 解析的清单首项;必传,无兜底)。 */
+  /** 初始选中的地图 id 来自 App 解析的清单首项或 localStorage 记忆。 */
   initialMapId: string;
-  /** 选中地图变更回调(接线方持久化到 localStorage;对照旧 onMapChange)。 */
+  /** 接线方将选中地图持久化至 localStorage。 */
   onMapChange?: (mapId: string) => void;
-  /** 地图源(默认进程级复合源;测试可注入内存实现)。 */
   mapSource?: MapSource;
 }
 
@@ -49,212 +36,105 @@ export function HomeScreen({
   const [selectedMapId, setSelectedMapId] = useState(initialMapId);
   const [showMapSelect, setShowMapSelect] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
-  // 手册(#1069 spec T1/#1070):大弹层纯受控开合,本地 state(ADR-0049)。
   const [manualOpen, setManualOpen] = useState(false);
-  // #707:矮横屏档开关(JS 结构分支:条带 ↔ 地图行+弹层入口;间距收紧仍走 home.css
-  // 同串媒体查询,JS 与 CSS 各管各的不重复)。高视口档恒 false,信息架构零变化。
   const isShortLandscape = useIsShortLandscape();
-  // 与单机配置页共用同一份地图名解析逻辑(清单失败回退 id 显示)
   const mapName = useMapName(mapSource, selectedMapId);
 
-  // 资产预热(warmup.ts 文件头有全案):主页挂载后 idle 期全量拉字体+图片,
-  // 对局内视觉组件首现零加载税;失败零兜底(原生按需加载路径接管)。
   useEffect(() => {
     startWarmup();
   }, []);
 
-  // 条带点选 = 弹层确认路径的等价短路:回写选中 + 交接线方持久化(localStorage)。
   const pickMap = (mapId: string) => {
     setSelectedMapId(mapId);
     onMapChange?.(mapId);
   };
-
-  // S1 仪式感三件套:入场 stagger(标题 0.3s 先行,按钮 300ms 起 80ms/个,包裹层播动画)/
-  // 笔触下划线用于可见焦点,按压反馈由 app.css 承担。
-  // H-3 tracking 尾部溢出:大字距末字后拖 0.3em 空白致文本视觉偏左,
-  // 左内边距补偿同量(pl 用唯一 utility,避免与 px 的 padding-left 冲突)。
-  // 视觉重做 v2:主入口(单机)走墨钮 ink-btn 种,其余笺纸 note-btn——墨=落子无悔。
-  // W2 包E(审计 A3):圆角归主控件档 5px。
-  // 层级修订(用户反馈「四钮样式大小不一致」):原 2×2 等宽栅格里「同行异材质+上下两档」
-  // 读作不一致而非层级。改为诚实层级——主入口(单机)通栏墨钮,次级入口同行同档同材质:
-  // 层级由「通栏占位 + 墨/笺材质」表达,不再由同行内的样式差表达。
-  const btnBase =
-    "home-btn-brush rounded-[5px] border pr-8 pl-[calc(2rem+0.3em)] font-brush tracking-[0.3em] transition-colors";
-  const primary = {
-    tid: HOME_TID.solo,
-    label: "单机模式",
-    onClick: onSolo,
-    // #497 ④:home-btn-gold(金底变体遗物)退役 —— 主入口现为墨钮,与次级笺钮
-    // 共用同一条金色焦点笔触线(home-btn-brush);
-    // #955:font-bold 拔除(伪加粗清尾,#936 零特例口径;层级=墨钮材质+字号)
-    cls: `${btnBase} home-pad-tight w-full py-5 text-2xl ink-btn`,
-  };
-  // #707:矮横屏档「选择地图」入口退役——选图由内联横排条带承担(点选即选,
-  // 弹层路径在该档裁切不可达)。#1069 spec 决议②:次级行补「手册」笺钮——
-  // 矮横屏档 secondary=[联机模式,手册] 仍双列(手册补「选择地图」#707 退役后的
-  // 空半列);高视口档 [联机模式,选择地图,手册] 三口并列(grid 随行改三列)。
-  const secondary: Array<{ tid: string; label: string; onClick: () => void }> = [
+  const secondary = [
     { tid: HOME_TID.online, label: "联机模式", onClick: onOnline },
-    ...(!isShortLandscape
-      ? [{ tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true) }]
-      : []),
     { tid: HOME_TID.manual, label: "手册", onClick: () => setManualOpen(true) },
   ];
 
   return (
-    // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
-    // flexbox「居中+可滚」标准解:内容不溢出时视觉与 justify-center 一致,
-    // 666×360 横屏等小视口下三入口+地图行全量可滚达,不再被 #app overflow:hidden 截断。
-    // #707 矮横屏档:条带收纳后内容须零滚动,e2e 断言根容器 scrollHeight==clientHeight。
-    <div
-      data-testid={HOME_TID.screen}
-      // G1(#751/#742):home-safe = 左右 padding 与 safe-area inset 取 max(刘海/圆角横屏
-      // 不贴边裸奔),同 GameTopBar 现役 --safe-* 用法
-      className={`home-safe flex h-full flex-col overflow-y-auto bg-bg ${isShortLandscape ? "px-6 py-4" : "p-6"}`}
-    >
-      <div className="m-auto flex w-full flex-col items-center">
-        {/* H-2 标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进;
-          #497 ④:h1 补 pl 与 tracking-widest 尾部空白同量(副标题/按钮都补了,唯独 h1 漏);
-          #707 矮横屏档标题降档给条带让位(收纳档,高视口 6xl 不动);
-          #761 ⑥:本档再降一档 36→30px(844×360 零滚动三主刀之一);
-          #955:副标题「— 三国大富翁 —」退役(首页字体收敛三族:酷黑=标题印文/
-          马善政=按钮/文楷=其余),标题→横带间距由 h1 自身承担——高视口 mb-10=原副标题
-          mt-2+mb-8 合计 40px,矮横屏档 home-title-tight 收 0.5rem=原 sub-tight 合计
-          8px,节奏不变 */}
-        <h1
-          className={`home-title-in home-title-tight font-title ${isShortLandscape ? "text-3xl" : "text-6xl"} text-paper tracking-widest pl-[0.1em] mb-10`}
-        >
-          群雄逐鹿
-        </h1>
-
-        {/* 视觉重做 v2 签名件:玄墨鎏金装裱横带(#514/S8 立框;#558 画心接位):
-          平复帖画心 + 压深渐变(home.css .home-band-heart,#843 换血:兰亭序亮米色
-          短档裁切读作字帖切片,改实拍麻纸褐经压深与玄墨底融合),右端周瑜立绘
-          低透明亮相(mask 渐隐入深底,纯装饰),右下钤「逐鹿」漆金印落款
-          (#843:15→18px 落款提亮),上下金线 = 裱边「矩」。横带是氛围位不是演出位
-          (§4.6/方向 D),静态无动效;#751/H1(#742 判词):矮横屏窄带档只撤立绘、
-          画心纹理照常裁带(裁切语言对纹理成立,只对人物不成立,home.css 同名媒体
-          查询;带高 56px 随 #761 ⑥ 收口)。 */}
-        {/* H2(#751/#742):矮横屏档横带与内容列同宽(600px 单源,消 776 vs 600 双栏不齐
-          ——该档横带只有 56px 高,宽出的部分只贡献空带观感);高视口档「装裱横批宽于
-          签列」的层次 intentional,维持 880px 不动。 */}
-        <div
-          className={`home-band-in home-gap-tight relative mb-10 ${
-            isShortLandscape ? "w-[min(600px,92vw)]" : "w-[min(880px,92vw)]"
-          }`}
-        >
-          <div className="home-scroll-band relative overflow-hidden rounded-[3px]">
-            {/* 画心:平复帖纹理+压深渐变(home.css 持材质),高度沿用 home-band-h 短横屏档 */}
-            <div className="home-band-h home-band-heart w-full select-none" aria-hidden="true" />
-            {/* 周瑜立绘:右端低透明亮相——aria-hidden + 空 alt 不进可访问名,
-                pointer-events-none 纯装饰;先于印章入 DOM,「逐鹿」印保持最高亮层 */}
-            <img
-              src="/assets/heroes/hero-zhouyu-sgs.png"
-              alt=""
-              aria-hidden="true"
-              className="home-band-hero pointer-events-none absolute top-0 right-0 h-full w-auto select-none"
-            />
-            {/* 落款漆金印:右端钤「逐鹿」竖读小印(#506 印章漆金化;#843 15→18px 落款提亮)。
-                竖排两字禁折行(whitespace-nowrap):18px×2 字 + 竖排行高在 56px 短档带
-                已贴满 bottom 锚位的可用高,一旦折行即出第二竖列,竖读「逐鹿」变横排
-                「鹿逐」(#843 实拍实锤);leading-none + py-1 + bottom-2 给短档留 3px 余量。 */}
-            <span
-              aria-hidden="true"
-              className="seal-gold absolute bottom-2 right-5 inline-flex rotate-[-6deg] flex-col items-center justify-center rounded-[2px] px-1.5 py-1 whitespace-nowrap font-title text-[18px] leading-none"
-              style={{ writingMode: "vertical-rl" }}
-            >
-              逐鹿
-            </span>
+    <div data-testid={HOME_TID.screen} className="home-screen">
+      <div className="home-layout">
+        <div className="home-cover">
+          <div className="home-artwork" aria-hidden="true">
+            <div className="home-factions">
+              <span>魏</span>
+              <span>蜀</span>
+              <span>吴</span>
+            </div>
           </div>
+          <h1 className="home-title-in home-title font-title">群雄逐鹿</h1>
         </div>
 
-        {/* 主入口通栏(墨钮),次级入口同行同档(#1069:矮横屏档两口/高视口档三口,
-            grid 列数随行);stagger 延时延续 300ms 起 80ms/个。
-            home-pad-tight=短横屏档收按钮纵向 padding(430px 高首屏免滚动)。 */}
-        <div className="flex w-[min(600px,92vw)] flex-col gap-y-4">
+        <div className="home-menu">
           <div className="home-btn-in" style={{ animationDelay: "300ms" }}>
-            <button data-testid={primary.tid} onClick={primary.onClick} className={primary.cls}>
-              {primary.label}
-            </button>
+            <Button
+              data-testid={HOME_TID.solo}
+              onClick={onSolo}
+              className="home-menu-btn home-btn-brush home-primary ink-btn"
+            >
+              单机模式
+            </Button>
           </div>
-          <div className={`grid gap-x-3 ${isShortLandscape ? "grid-cols-2" : "grid-cols-3"}`}>
-            {secondary.map((e, i) => (
-              // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
+          <div className="grid grid-cols-2 gap-2">
+            {secondary.map(({ tid, label, onClick }, index) => (
               <div
-                key={e.tid}
+                key={tid}
                 className="home-btn-in"
-                style={{ animationDelay: `${380 + i * 80}ms` }}
+                style={{ animationDelay: `${380 + index * 80}ms` }}
               >
-                <button
-                  data-testid={e.tid}
-                  onClick={e.onClick}
-                  className={`${btnBase} home-pad-tight w-full py-4 text-xl note-btn`}
+                <Button
+                  data-testid={tid}
+                  onClick={onClick}
+                  className="home-menu-btn home-btn-brush note-btn"
                 >
-                  {e.label}
-                </button>
+                  {label}
+                </Button>
               </div>
             ))}
           </div>
-        </div>
 
-        {/* #707 矮横屏档:内联横排条带 = 本档的地图选择器(替代「当前地图」回显行 +
-            二级弹层;当前选中由条带选中态表达,§4.6 不另设文字回显行)。
-            高视口档维持地图行 + 弹层入口,信息架构零变化。 */}
-        {isShortLandscape ? (
-          <div className="mt-2 w-[min(600px,92vw)]">
+          {isShortLandscape ? (
             <MapStrip mapSource={mapSource} selectedMapId={selectedMapId} onSelect={pickMap} />
-          </div>
-        ) : (
-          /* 当前选中地图回显;H-5:整行可点唤起选图二级屏。#558:13px→14px(选图入口
-            第二载体不该是全屏最小字),「当前地图:」与图名同用 text-paper,仅箭头 ink-dim。
-            W2 包E(审计 A3):升级为小签材质(note-btn 小控件档 3px),文案落 wenkai
-            (动态地图名禁落小薇);裸排 ▾ 换 Sym expand(SVG,无 tofu 风险)。 */
-          <button
-            type="button"
-            onClick={() => setShowMapSelect(true)}
-            className="note-btn rounded-[3px] font-wenkai text-[14px] text-paper mt-6 flex items-center gap-2 px-2.5 py-1 transition-colors"
+          ) : (
+            <Button
+              data-testid={HOME_TID.selectMap}
+              onClick={() => setShowMapSelect(true)}
+              className="home-map-trigger note-btn"
+            >
+              <span className="font-brush">选择地图</span>
+              <span data-testid={TID.currentMapName} className="home-map-name">
+                {mapName}
+              </span>
+              <Sym name="expand" size={11} className="shrink-0 text-paper-dim" />
+            </Button>
+          )}
+
+          <Button
+            data-testid={HOME_TID.diagExport}
+            onClick={() => setDiagOpen(true)}
+            className="home-diagnostic"
           >
-            <span className="text-paper">当前地图:</span>
-            <span data-testid={TID.currentMapName} className="text-paper">
-              {mapName}
-            </span>
-            <Sym name="expand" size={11} className="text-paper-dim" />
-          </button>
-        )}
-
-        {/* 对局诊断默认最近游玩的一局，工具入口贴地图行下方。 */}
-        <Button
-          data-testid={HOME_TID.diagExport}
-          onClick={() => setDiagOpen(true)}
-          className="relative mt-4 font-brush text-[13px] text-paper-dim transition-colors after:absolute after:inset-x-0 after:top-1/2 after:h-10 after:-translate-y-1/2"
-        >
-          对局诊断
-        </Button>
-        {diagOpen && <GameDiagnosticDialog onClose={() => setDiagOpen(false)} />}
-
-        {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择;fixed 弹层,滚动容器内无关)。
-            #707:矮横屏档不挂弹层(该档选择器=条带;高视口开着的弹层旋到矮横屏时随档卸载,
-            旋回恢复——showMapSelect 意图保留)。 */}
-        {!isShortLandscape && showMapSelect && (
-          <MapSelectPanel
-            mapSource={mapSource}
-            currentMapId={selectedMapId}
-            onConfirm={(mapId) => {
-              setSelectedMapId(mapId);
-              setShowMapSelect(false);
-              onMapChange?.(mapId);
-            }}
-            onCancel={() => setShowMapSelect(false)}
-          />
-        )}
-
-        {/* 手册(#1069 spec T1/#1070):纯受控大弹层,本地 state 开合;五签内容
-            T2/T3 装配,壳与入口几何见组件文件头(顶带 ≥44px 让位,ADR-0049)。 */}
-        <ManualModal open={manualOpen} onClose={() => setManualOpen(false)} />
+            对局诊断
+          </Button>
+        </div>
       </div>
-      {/* 发版号(#952):主页角落小字,v 前缀与 Release tag 同款;fixed 锚定视口不入
-          滚动流(保 #707 矮横屏零滚动预算),样式单源 home.css .home-version。 */}
+
       <div className="home-version">v{VERSION}</div>
+      {diagOpen && <GameDiagnosticDialog onClose={() => setDiagOpen(false)} />}
+      {!isShortLandscape && showMapSelect && (
+        <MapSelectPanel
+          mapSource={mapSource}
+          currentMapId={selectedMapId}
+          onConfirm={(mapId) => {
+            setShowMapSelect(false);
+            pickMap(mapId);
+          }}
+          onCancel={() => setShowMapSelect(false)}
+        />
+      )}
+      <ManualModal open={manualOpen} onClose={() => setManualOpen(false)} />
     </div>
   );
 }

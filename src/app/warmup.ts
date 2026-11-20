@@ -1,9 +1,9 @@
-// 资产预热:主页挂载后 idle 期把全部字体与游戏图片拉取+解码进内存,消除
+// 资产预热:主页挂载后 idle 期把字体与对局图片拉取+解码进内存,消除
 // 「某视觉组件第一次出现」的加载税(首开弹框顿/首掷骰顿/首现立绘顿——字体按
 // unicode-range 子集首现才拉+解码+swap 闪换,图片首现才解码,弱 WebView 上
 // 每次都是肉眼一顿)。拍板 2026-11-01(拷问五问全过):
 //   ①全量无白名单:字体(现 4 族 261 子集约 11MB,族面随 fonts.css 自动跟随,
-//     无需登记)+ 图片 15 张 2.5MB,APK 本地读零压力;
+//     无需登记)+ 对局图片,APK 本地读零压力;
 //     白名单要维护、漏登记即复发首现卡;
 //   ②idle 分片:主页立刻可交互,族与族之间让出 idle,用户看主页的几秒里拉完,
 //     进对局时全热;一次预热管本次启动会话(进程死即归零,每次启动重征一遍小税,
@@ -13,17 +13,15 @@
 //     并 console 留痕,对局内首现走原生路径照常工作,不写第二条容错链;
 //   ④JS 首执行税不归它管:单包代码常驻内存、函数首次执行才编译,加载救不了
 //     (chunk 级下载+模块求值归它管见 ②;组件隐藏热身收益小侵入大,拍板不做)。
-// 图片清单吃各单源:武将/珍宝 = core 两张数据表的 image 字段;纹理三张无共同
-// 单源(CSS url 两处 + StaticLayers 常量一处),在此誊录,增删纹理两处同查。
+// 图片清单来自 core 两张武将/珍宝表的 image 字段与下列对局纹理。
+// 首页沙盘随首屏加载。
 // manifest.json 是授权台账非资产清单(含已退役路径,盘上不存在),预热不吃它。
 
 import { HEROES } from "@core/heroes";
 import { TREASURES } from "@core/treasures";
 
-/** 纹理贴图 url 誊录(单源:home.css 平复帖 / victory.css 竹林 /
- *  StaticLayers.tsx 贡县山水横带常量;改纹理两处同查)。 */
+/** 对局纹理的 URL 来自 victory.css 的竹林与 StaticLayers.tsx 的龚贤山水横带。 */
 const TEXTURE_URLS = [
-  "/assets/textures/texture-pingfutie.webp",
   "/assets/textures/texture-zhulin.webp",
   "/assets/textures/texture-gongxian-shanshui.webp",
 ];
