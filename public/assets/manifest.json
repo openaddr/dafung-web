@@ -340,6 +340,17 @@
     "license": "Public domain",
     "author": "Lu Ji",
     "fetched_at": "2026-10-31",
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-11-20",
+    "retired_reason": "#1527 首页 B 案改用沙盘画，文件下架并保留来源记录"
+  },
+  "texture:home-sand-table": {
+    "path": "assets/textures/texture-home-sand-table.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/28c50ecb58c46d012fa2f5afe7603e2678371100/docs/design/ui-reference/prototype-1408-1412/art/sand-table.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1412 首页沙盘原型）",
+    "fetched_at": "2026-11-20",
     "review_required": false
   },
   "texture:gongxian-shanshui": {

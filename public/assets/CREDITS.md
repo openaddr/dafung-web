@@ -1,11 +1,11 @@
 # 素材来源与授权(CREDITS)
 
-本文件由 `scripts/fetch-asset.ts` 自动追加,汇总 `public/assets/` 下所有素材的来源与授权。
+本文件汇总 `public/assets/` 下所有素材的来源与授权。外部素材由 `scripts/fetch-asset.ts` 自动追加，项目生成素材入库时在条目末尾登记。登记办法见[纹理素材](textures/README.md)。
 对应机器可读清单:`public/assets/manifest.json`(`id → {path, source, license, author, fetched_at}`)。
 
 ## 授权纪律
 
-- 所有素材优先取 **Wikimedia Commons**(CC-BY / CC-BY-SA / CC0 / Public Domain 居多),并记录 license + author。
+- 外部素材优先取 **Wikimedia Commons**(CC-BY / CC-BY-SA / CC0 / Public Domain 居多),并记录 license + author。
 - 推断不出授权的条目在 manifest 标 `review_required: true`,**APK 公开发布前必须人工复核**。
 - 矢量 SVG 优先(体积小、与水墨风格统一、授权清晰)。
 
@@ -51,8 +51,9 @@
 - **audio:duel-clash** — CC0 / hollandm (Freesound) — 7148B (ogg;「Woodblock-hard.wav」lq 预览) — [source](https://freesound.org/s/692818/) — 2026-10-29
 - **audio:verdict-chime** — CC0 / R0teroktober (Freesound) — 33139B (ogg;「Sound bowl / Singing bowl」lq 预览) — [source](https://freesound.org/s/851382/) — 2026-10-29
 - **audio:halt-horn** — CC0 / nanoPlink (Freesound) — 39135B (ogg;「hunting-horn-bass.wav」lq 预览) — [source](https://freesound.org/s/148645/) — 2026-10-29
-- **texture:pingfutie** — Public domain / Lu Ji — 287244B (1920×909, webp) — [source](https://commons.wikimedia.org/wiki/File%3A%E5%B9%B3%E5%A4%8D%E5%B8%96.png) — 2026-10-31
+- **texture:pingfutie** — Public domain / Lu Ji — 287244B (1920×909, webp) — [source](https://commons.wikimedia.org/wiki/File%3A%E5%B9%B3%E5%A4%8D%E5%B8%96.png) — 2026-10-31 ⚠️ 已退役（2026-11-20 #1527 首页 B 案改用沙盘画，文件下架并保留来源记录）
 - **texture:gongxian-shanshui** — Public domain / 龚贤(Gong Xian,清) — 149756B (2880×359, webp;Commons 全卷扫描 35195×1987 中段裁带 x8700-24300,弃左题跋尾、纵向弃底部印区 → webp q80) — [source](https://commons.wikimedia.org/wiki/File%3A%E9%BE%9A%E8%B4%A4%E5%B1%B1%E6%B0%B4%E5%9B%BE%E5%8D%B7.jpg) — 2026-10-31
 - **hero:caoren:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)曹仁-经典形象 · wiki 上传者 359366122 — 210874B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=1017) — 2026-11-06 ⚠️ review_required
 - **hero:mizhu:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)糜竺-经典形象 · wiki 上传者 17981205 — 190090B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=4069) — 2026-11-06 ⚠️ review_required
 - **hero:dengai:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)邓艾-经典形象 · wiki 上传者 359366122 — 230741B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=11648) — 2026-11-06 ⚠️ review_required
+- **texture:home-sand-table** — 项目生成素材，随本项目使用 / ImageGen（#1412 首页沙盘原型） — 124576B (1280×853, WebP 原样入库) — 2026-11-20 — [原图](https://github.com/openaddr/dafung-web/blob/28c50ecb58c46d012fa2f5afe7603e2678371100/docs/design/ui-reference/prototype-1408-1412/art/sand-table.webp) · [生成提示词](https://github.com/openaddr/dafung-web/blob/28c50ecb58c46d012fa2f5afe7603e2678371100/docs/design/ui-reference/prototype-1408-1412/README.md#imagegen-提示词)

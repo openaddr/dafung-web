@@ -1,237 +1,265 @@
-/* 首页仪式感(S1):入场 stagger + 笔触下划线 + 按压态。
-   放在 home/ 目录内:这些样式只服务首屏导航,不污染全局体系;
-   动画只用 transform/opacity(GPU 合成,不触发布局)。 */
+.home-screen {
+  --home-top: max(16px, var(--safe-top));
+  --home-bottom: max(40px, calc(var(--safe-bottom) + 24px));
 
-/* 入场:translateY 8px→0 + 淡入;四个按钮用 animation-delay 各错开 80ms(见组件内联 style)。
-   注意挂在按钮的「包裹层」而非按钮本身:animation fill 会永久锁定 transform,
-   若同元素再写 :active scale 会被动画终态覆盖而失效,分层则互不干扰。
-   只在首挂载播一次(both 保持终态,页面内返回首页会重挂载再播,符合"仪式感"预期)。 */
-/* H-2 入场动效断层修补:标题先行淡入(0.3s),横带(120ms)与按钮(300ms 起)
-   stagger 跟进(组件内联 delay 300+i*80);#955 副标题退役后标题单独先行。
-   只动 transform/opacity,与按钮包裹层动画同策略(GPU 合成,不触发布局)。 */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--home-top) max(24px, var(--safe-right)) var(--home-bottom)
+    max(24px, var(--safe-left));
+  background: radial-gradient(ellipse at 55% 6%, var(--color-panel), var(--color-bg) 65%);
+}
+
+.home-layout {
+  display: grid;
+  /* 右列先拿下操作宽度，安全区挤窄时缩画，极窄时右列占七成。 */
+  grid-template-columns: minmax(0, 1.8fr) minmax(min(70%, 264px), 1fr);
+  gap: clamp(8px, 2.4vw, 20px);
+  align-items: start;
+  width: min(100%, 780px);
+  margin: auto;
+}
+
+.home-cover {
+  position: relative;
+  min-height: clamp(220px, calc(100dvh - var(--home-top) - var(--home-bottom) - 8px), 316px);
+  container-type: inline-size;
+}
+
+.home-artwork {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 50%, var(--color-bg));
+  border-radius: 5px;
+  box-shadow: var(--ink-shadow-sm);
+  background:
+    linear-gradient(
+      180deg,
+      transparent 38%,
+      color-mix(in srgb, var(--color-bg-deep) 75%, transparent) 97%
+    ),
+    url(/assets/textures/texture-home-sand-table.webp) right center / cover no-repeat;
+  animation: home-art-in var(--dur-slow) var(--ease-out) 120ms both;
+}
+
+.home-title {
+  position: absolute;
+  inset-inline: clamp(8px, 4.5cqi, 22px);
+  bottom: clamp(14px, 6cqi, 29px);
+  color: var(--color-paper);
+  font-size: clamp(24px, 10cqi, 48px);
+  line-height: 1.15;
+  letter-spacing: 0.1em;
+  text-shadow: var(--ink-shadow-sm);
+}
+
+.home-factions {
+  position: absolute;
+  top: 18px;
+  left: clamp(6px, 4%, 18px);
+  display: flex;
+  gap: clamp(3px, 1.2cqi, 6px);
+  color: var(--color-paper);
+  font-family: var(--font-brush);
+  font-size: 17px;
+  line-height: 21px;
+}
+
+.home-factions span {
+  width: 22px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-seal-qing) 38%, var(--color-bg-deep));
+  text-align: center;
+}
+
+.home-factions span:nth-child(2) {
+  background: color-mix(in srgb, var(--color-danger) 38%, var(--color-bg-deep));
+}
+
+.home-factions span:nth-child(3) {
+  background: color-mix(in srgb, var(--color-money) 38%, var(--color-bg-deep));
+}
+
+.home-menu {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-top: clamp(8px, 6dvh, 23px);
+}
+
+.home-menu-btn {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px;
+  border-radius: 5px;
+  font-family: var(--font-brush);
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+}
+
+.home-primary {
+  min-height: 55px;
+  font-size: 26px;
+  letter-spacing: 0.12em;
+}
+
+.home-map-trigger {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 9px;
+  border-radius: 3px;
+  text-align: left;
+}
+
+.home-map-trigger .home-map-name {
+  flex: 1;
+  text-align: right;
+}
+
+.home-map-strip {
+  position: relative;
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.home-map-card {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 54px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--color-panel);
+  color: var(--color-paper);
+  text-align: left;
+  scroll-snap-align: start;
+  transition:
+    background-color var(--dur-fast),
+    border-color var(--dur-fast);
+}
+
+.home-map-strip[data-many="true"] .home-map-card {
+  flex: 0 0 min(100%, 152px);
+}
+
+.home-map-card[aria-pressed="true"] {
+  border-color: var(--color-gold);
+  background: color-mix(in srgb, var(--color-gold) 25%, var(--color-bg));
+}
+
+.home-map-card:focus-visible {
+  outline-offset: -3px;
+}
+
+.home-map-name,
+.home-map-details {
+  font-family: var(--font-wenkai);
+  overflow-wrap: anywhere;
+}
+
+.home-map-name {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.home-map-details {
+  color: var(--color-paper-dim);
+  font-size: 11px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-map-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+}
+
+.home-diagnostic {
+  justify-self: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding-inline: 8px;
+  color: var(--color-paper-dim);
+  font: 15px var(--font-brush);
+}
+
+.home-version {
+  position: fixed;
+  right: max(12px, var(--safe-right));
+  bottom: max(8px, var(--safe-bottom));
+  z-index: 10;
+  color: var(--color-paper-dim);
+  font: 10px var(--font-deco);
+  pointer-events: none;
+}
+
+/* 沿用标题先行、画心随后、按钮错拍。按钮包裹层承接入场位移以保留按压反馈。 */
+.home-title-in {
+  animation: home-title-in var(--dur-med) var(--ease-out) both;
+}
+
 @keyframes home-title-in {
   from {
     opacity: 0;
     transform: translateY(6px);
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+}
+
+@keyframes home-art-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.985);
   }
 }
-.home-title-in {
-  animation: home-title-in var(--dur-med) var(--ease-out) both;
+
+.home-btn-in {
+  animation: home-btn-in var(--dur-slow) var(--ease-out) both;
 }
+
 @keyframes home-btn-in {
   from {
     opacity: 0;
     transform: translateY(8px);
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.home-btn-in {
-  animation: home-btn-in var(--dur-slow) var(--ease-out) both;
 }
 
-/* 可见焦点笔触下划线:2px 金色底边 scaleX 0→1。
-   用伪元素画线而非 border(bottom border 会改变盒高/引起跳动),
-   transform-origin 左起,像一笔从左划到右的笔锋。 */
+/* 焦点笔触和全局可见焦点轮廓叠加。 */
 .home-btn-brush {
   position: relative;
-  isolation: isolate;
 }
+
 .home-btn-brush::after {
   content: "";
   position: absolute;
-  left: 12%;
-  right: 12%;
+  inset-inline: 12%;
   bottom: 4px;
   height: 2px;
   background: var(--color-gold);
   transform: scaleX(0);
   transform-origin: left center;
-  /* 笔触划入是刻意的绘制动画非即时反馈,归 --dur-med 而非 --dur-instant */
   transition: transform var(--dur-med) var(--ease-out);
 }
+
 .home-btn-brush:focus-visible::after {
   transform: scaleX(1);
-}
-
-/* H-1 金底变体已退役(#497):主入口改墨钮后,原 .home-btn-gold 类名(金底,误导)与
-   「笔触线取反为墨线」的覆盖规则一并删除——墨钮与笺钮共用金色焦点笔触线。 */
-
-/* H-4 focus-visible 轮廓:虚线墨圈与笔触下划线并存。 */
-.home-btn-brush:focus-visible {
-  outline: 2px dashed var(--color-paper);
-  outline-offset: 2px;
-}
-
-/* ── 视觉重做 v2 签名件:玄墨鎏金装裱横带(#514/S8 立框;#558 画心接位;
-   #843 画心换血:兰亭序→《平复帖》)──
-   .home-scroll-band:漆金裱边 = 上下近黑漆边(漆)+ 内侧金线(金,裱工的「矩」);
-   画心:texture-pingfutie 接位(西晋陆机《平复帖》故宫博物院本,PD;实拍纸面为
-   深沉麻纸褐,#843 压深锚点:纸面均值 ~rgb(175,148,115),叠 70% 档 bg-deep 后
-   ~rgb(68,56,43) = 比页底(#1f1a13)亮一档的「深色古画横批」,纸纹/沉墨字可读
-   而不再做全屏唯一亮块(#558 兰亭米色亮块断层退役)。压深两层:
-   ① 纵向拢边(上下缘向玄墨底收边,中段放纸纹);② 横向梯度(主体 70%,
-   右端立绘段减一档到 56%,立绘以画心为底不叠灰)。radial 鎏金微光层经 ::after
-   保持画心最上层(#843:8%→12%,画心变深后微光同步提亮)。
-   矮横屏窄带档(现 56px,#761 ⑥)只撤立绘不撤画心纹理,另定「完整一行字」裁切
-   (见底部媒体查询 H1 判词)。
-   .home-band-hero:周瑜立绘右端低透明亮相——纯装饰,mask 向左渐隐入深底,
-   静态无动效(§4.6 与方向 D:横带是氛围位不是演出位);#843 高视口档存在感提档:
-   opacity 0.3→0.42、mask 全实点 42%→30%(立绘段宽一档)。
-   .home-band-in:入场——画心自横向微舒展 + 淡入(与标题先行、按钮 stagger 的
-   节奏衔接:标题 0ms → 横带 120ms → 按钮 300ms 起)。 */
-.home-scroll-band {
-  border-top: 2px solid rgba(0, 0, 0, 0.55);
-  border-bottom: 2px solid rgba(0, 0, 0, 0.55);
-  box-shadow:
-    inset 0 3px 0 color-mix(in srgb, var(--color-gold) 55%, transparent),
-    inset 0 -3px 0 color-mix(in srgb, var(--color-gold) 55%, transparent),
-    var(--ink-shadow-sm);
-}
-.home-band-heart {
-  position: relative;
-  height: clamp(96px, 15vw, 168px);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-bg-deep) 55%, transparent),
-      transparent 40%,
-      transparent 60%,
-      color-mix(in srgb, var(--color-bg-deep) 55%, transparent)
-    ),
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--color-bg-deep) 70%, transparent),
-      color-mix(in srgb, var(--color-bg-deep) 70%, transparent) 55%,
-      color-mix(in srgb, var(--color-bg-deep) 56%, transparent)
-    ),
-    url(/assets/textures/texture-pingfutie.webp) center 32% / cover no-repeat;
-}
-/* 鎏金微光 ::after 承载:绘制序 = 元素背景(纹理压深)< 伪元素(微光)< 后续 DOM
-   (立绘/印章),微光仍居画心最上;短横屏档只换元素背景,微光两档通用。 */
-.home-band-heart::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 55% 130% at 50% 50%,
-    color-mix(in srgb, var(--color-gold) 12%, transparent),
-    transparent 72%
-  );
-}
-/* 立绘贴右:h-full + w-auto 锁纵横比(不写 inset-y,防绝对定位 replaced 元素
-   按内在尺寸解算);mask 左缘全透→30% 处全实(#843:42%→30%,立绘段宽一档),
-   向左渐隐入深底;opacity 0.42(#843:0.3→0.42)= 鎏金调压暗档,
-   文字/印章保持最高亮层。 */
-.home-band-hero {
-  object-fit: contain;
-  opacity: 0.42;
-  mask-image: linear-gradient(90deg, transparent, #000 30%);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%);
-}
-.home-band-in {
-  animation: home-band-in var(--dur-slow) var(--ease-out) 0.12s both;
-}
-@keyframes home-band-in {
-  from {
-    opacity: 0;
-    transform: scaleX(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: scaleX(1);
-  }
-}
-
-/* 按压态已收编全局:R3-C10(#97) 起 app.css 的 button:active scale(0.98) 统一承担
-   按压反馈(此处旧 0.97 规则特异度更低已实际失效,删除留注释防回加) */
-
-/* ── G1(#751/#742):safe-area 消费 ──
-   根容器左右 padding 与刘海/圆角 inset 取 max,横屏不贴边;
-   未分层规则压过 utilities 层的 px-6/p-6,复合写法一行取大。四变量唯一取值口=app.css P0-9。 */
-.home-safe {
-  padding-left: max(1.5rem, var(--safe-left));
-  padding-right: max(1.5rem, var(--safe-right));
-}
-
-/* ── 矮横屏档(#707;形态分档断点与对局屏 game/layout.css A 档同口径:
-   orientation: landscape + max-height: 500px,Android 844×390 一类)──
-   本档收纳目标:选图+开局一屏完成、零页面滚动。选图器 = 内联横排条带
-   (MapStrip,JS 侧 useMediaQuery 同查询串分支挂载),二级选图弹层在该档裁切
-   不可达(#684 实拍 home-844x390.png),随之「选择地图」入口与地图回显行退役。
-   旧 max-height:480px 档(原 dogfood ISSUE-002 的纵向收紧)并入本档——
-   高视口横屏与竖屏不进此档,竖屏走根容器既有滚动(E1 #13)。
-   #761 ⑥:844×360 零滚动收口——标题 36→30(组件侧)、横带 72→56、条带收带高。 ── */
-/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
-@media (orientation: landscape) and (max-height: 500px) {
-  /* 根容器底缘让位手势条(#761 ①):py-4 的底档并入 --safe-bottom(env 缺省 0px
-     地图条带不贴手势条)。取值口=app.css P0-9 唯一变量。 */
-  .home-safe {
-    padding-bottom: max(1rem, var(--safe-bottom));
-  }
-  /* H1(#751/#742 判词,#843 修订):画心纹理恢复——窄带裁切对「纹理」完全成立,
-     「裁不出画心」只对人物立绘成立,两件不再一并撤:本档只撤立绘(display:none),
-     画心 = .home-band-heart 材质(平复帖 + 压深渐变 + 微光 ::after)照常生效,
-     横带在矮横屏仍是「深色古画横批」而非近黑空带(玄墨鎏金「立绘为魂」的最低成本回魂)。
-     #843 裁切口径:56px cover 对兰亭序长卷曾读作「字帖切片」(P1-A2),对平复帖
-     同病——短档改「完整一段卷面」窗口:cover 会把整卷三段裱边一并塞进 56px 高,
-     字形全被上下切半;改 auto 810%(56px 带上 = 约放卷面 62% 宽、12% 高的窗口,
-     949px 实宽 ≥ 600px 带宽,不露空边;票面参考值 auto 220% 是兰亭序长卷口径,
-     对 2.11:1 的平复帖会缩成 260px 窄条露空边,按「实拍调」授权改用同判据的
-     窗口值),49% 32% 取卷心主体(九行字)中上段行气——窗口内是成段的完整字群,
-     窗口边界切到的个别字在 70% 档压深下与深褐纸面同沉,不再读作切片。
-     56px 档(#761 ⑥,原 #707 收纳定 72):360 高零滚动预算的三主刀之一。 */
-  .home-band-h {
-    height: 56px;
-  }
-  .home-band-heart {
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--color-bg-deep) 55%, transparent),
-        transparent 40%,
-        transparent 60%,
-        color-mix(in srgb, var(--color-bg-deep) 55%, transparent)
-      ),
-      linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--color-bg-deep) 70%, transparent),
-        color-mix(in srgb, var(--color-bg-deep) 70%, transparent) 55%,
-        color-mix(in srgb, var(--color-bg-deep) 70%, transparent)
-      ),
-      url(/assets/textures/texture-pingfutie.webp) 49% 32% / auto 810% no-repeat;
-  }
-  .home-band-hero {
-    display: none;
-  }
-  .home-gap-tight {
-    margin-bottom: 0.5rem;
-  }
-  .home-pad-tight {
-    padding: 0.625rem 0;
-  }
-  /* #955:副标题退役,标题下间距在矮横屏档收到 0.5rem(原 sub-tight mt+mb 合计 8px) */
-  .home-title-tight {
-    margin-bottom: 0.5rem;
-  }
-}
-
-/* ── 发版号小字(#952):主页右下角 v+发版号(package.json CalVer,与 Release tag 同款)──
-   fixed 锚定视口、不入滚动流(保 #707 矮横屏档零滚动预算);z-index 取 10,低于
-   全屏演出层(fx z-45)与浮层家族(ui/dialog z-50 起),任何浮层弹出时压住它属正常层序。 */
-.home-version {
-  position: fixed;
-  right: 12px;
-  bottom: 8px;
-  z-index: 10;
-  font-family: var(--font-deco);
-  font-size: 10px;
-  color: var(--color-paper-dim);
-  pointer-events: none;
 }
