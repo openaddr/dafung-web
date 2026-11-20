@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>群雄逐鹿 · 画心与首页原型</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="local-fonts.css">
+<link rel="stylesheet" href="scene.css">
+<style>
+body { margin: 0; padding: 16px 14px 100px; background: #14110d; color: #f4ecd8; font: 15px var(--reading); }
+.shell { max-width: 910px; margin: auto; }
+.shell > h1 { font: 26px var(--title); margin-bottom: 8px; }
+.controls, .switcher { display: flex; gap: 6px; flex-wrap: wrap; }
+.controls + .controls { margin-top: 7px; }
+.controls button, .switcher button { border: 1px solid #7d6841; background: #2b2419; min-height: 40px; padding: 4px 13px; border-radius: 4px; }
+.controls button[aria-pressed="true"] { color: #e2c278; background: #4d3d24; border-color: #d9b95c; }
+.frame-wrap { margin-top: 10px; overflow-x: auto; }
+#preview { width: max-content; margin: auto; }
+#status { min-height: 30px; margin-top: 10px; color: #c6b491; line-height: 1.6; }
+.switcher { position: fixed; z-index: 4; bottom: 8px; left: 50%; transform: translateX(-50%); align-items: center; flex-wrap: nowrap; border: 1px solid #6e5b38; border-radius: 6px; background: #18140f; padding: 5px; white-space: nowrap; }
+.switcher output { padding: 0 5px; text-align: center; min-width: 11em; }
+</style>
+</head>
+<body>
+<main class="shell">
+  <h1>群雄逐鹿 · UI 原型</h1>
+  <nav class="controls" id="topics" aria-label="工单">
+    <button type="button" data-topic="cards">#1408 卡牌画心</button>
+    <button type="button" data-topic="home">#1412 首页主视觉</button>
+  </nav>
+  <nav class="controls" id="cases" aria-label="查看场景"></nav>
+  <div class="frame-wrap"><div id="preview"></div></div>
+  <p id="status" role="status"></p>
+</main>
+<nav class="switcher" aria-label="切换方案">
+  <button type="button" id="prev">←</button><output id="variant-name"></output><button type="button" id="next">→</button>
+</nav>
+<script src="data.js"></script>
+<script src="scenes.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const initial = new URLSearchParams(location.search);
+let topic = initial.get("topic") === "home" ? "home" : "cards";
+const variants = ["current", "a", "b"];
+let variant = variants.includes(initial.get("variant")) ? initial.get("variant") : "a";
+let scene = Object.hasOwn(scenes, initial.get("scene")) ? initial.get("scene") : "hand";
+let homeCase = "normal", mapId = data.mapList[0].id, launched = "";
+let selected = false, detail = false, resolved = -1, handPress;
+const caseButton = (group, key, label, active) =>
+  '<button type="button" aria-pressed="' + active + '" data-' + group + '="' + key + '">' + label + '</button>';
+const homeCases = {normal:"844×390", short:"800×360 · 多图和长名", safe:"800×360 · 双侧留 36px"};
+const guidance = {
+  hand: "局内点下方「火烧连营」看选中效果，按住牌面或点上方「看大图」看画心细节。",
+  treasure: "从首页点「手册」进入珍宝目录。这里取四条对照，点「传国玉玺」看详情。",
+  encounter: "这里取手册中性组的代表条目。点「携民渡江」看详情。",
+  decision: "中性机遇。点按钮可以预览抉择后的回执，正式对局由引擎结算。",
+};
+function render() {
+  const maps = homeCase === "normal" ? data.mapList : [...data.mapList, ...testMaps];
+  for (const b of $("topics").querySelectorAll("button")) b.setAttribute("aria-pressed", b.dataset.topic === topic);
+  $("cases").innerHTML = topic === "home" ?
+    Object.entries(homeCases).map(([key, label]) => caseButton("size", key, label, homeCase === key)).join("") :
+    Object.entries(scenes).map(([key, label]) => caseButton("scene", key, label, scene === key)).join("") +
+      (scene !== "decision" ? caseButton("detail", "toggle", detail ? "返回小图" : "看大图", detail) : "");
+  $("preview").innerHTML = topic === "home" ?
+    homeFrame(variant, maps, mapId, launched, homeCase) : cardFrame(variant, scene, detail, selected, resolved);
+  if (topic === "home") $("preview").querySelector("[data-map][aria-pressed=true]").scrollIntoView({inline:"nearest", block:"nearest"});
+  $("variant-name").textContent = (topic === "home" ? homeNames : cardNames)[variant];
+  $("status").textContent = topic === "home" ?
+    (homeCase === "normal" ? "点地图即可选中，点入口可以预览去向。" : "地图条可横滑。后四个图名为压力样本。") :
+    guidance[scene];
+  const params = new URLSearchParams({topic, variant});
+  if (topic === "cards") params.set("scene", scene);
+  history.replaceState(null, "", "?" + params);
+}
+function flip(direction) {
+  variant = variants[(variants.indexOf(variant) + direction + variants.length) % variants.length];
+  render();
+}
+function openScene(next) {
+  topic = "cards";
+  scene = next;
+  detail = selected = false;
+  resolved = -1;
+  render();
+}
+$("topics").onclick = (event) => {
+  const key = event.target.dataset.topic;
+  if (key) { topic = key; render(); }
+};
+$("cases").onclick = (event) => {
+  const {scene: next, size, detail: toggle} = event.target.dataset;
+  if (next) return openScene(next);
+  if (size) { homeCase = size; mapId = data.mapList[0].id; }
+  if (toggle) detail = !detail;
+  render();
+};
+$("prev").onclick = () => flip(-1);
+$("next").onclick = () => flip(1);
+$("preview").addEventListener("pointerdown", (event) => {
+  if (event.target.closest(".hand-card")) {
+    handPress = setTimeout(() => { detail = true; render(); }, 500);
+  }
+});
+for (const end of ["pointerup", "pointercancel", "pointerleave"]) {
+  $("preview").addEventListener(end, () => clearTimeout(handPress));
+}
+$("preview").onclick = (event) => {
+  const target = event.target.closest("button");
+  if (!target) return;
+  const { action, map } = target.dataset;
+  if (map) {
+    $("preview").querySelector('[data-map="' + mapId + '"]').setAttribute("aria-pressed", "false");
+    target.setAttribute("aria-pressed", "true");
+    mapId = map;
+    return;
+  }
+  if (!action) return;
+  if (action === "manual") return openScene("treasure");
+  if (action === "target") {
+    $("status").textContent = "在正式对局里，接下来在地图上点城。这里保留当前牌面供对照。";
+    return;
+  }
+  if (action.startsWith("scene-")) return openScene(action.slice(6));
+  if (action.startsWith("resolve-")) resolved = Number(action.slice(8));
+  else if (action === "reset") resolved = -1;
+  else if (action === "select") selected = !selected;
+  else if (action === "skip") selected = false;
+  else if (action === "detail") detail = true;
+  else if (action === "close") { detail = false; launched = ""; }
+  else launched = action;
+  render();
+};
+render();
+</script>
+</body>
+</html>
