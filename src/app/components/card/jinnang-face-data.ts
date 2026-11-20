@@ -61,7 +61,7 @@ export function treasureFrameTone(level: number): Exclude<FrameTone, "none"> {
 /** 出牌阶段/反应窗牌面微旋(#234 P2-E TablePile 质感):确定性伪随机 ±1.5°——同一张牌
  *  在同一位置恒同角(重渲不翻滚),幅度收敛在「人手摆上去」的一指拨动。散列用 FNV-1a
  *  (乘 31 类散列 mod 小素数会塌到末字符,正负角分布失效);prefers-reduced-motion
- *  的退场在 jinnang-card.css 兜层(JS 不感知)。 */
+ *  在 card-face.css 中将微旋归零。 */
 export function rackTilt(key: string): number {
   let h = -2128831035; // FNV-1a offset basis(2166136261 的 int32 形式)
   for (let i = 0; i < key.length; i++) {

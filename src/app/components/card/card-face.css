@@ -42,3 +42,11 @@
     box-shadow var(--dur-med) var(--ease-out),
     filter var(--dur-med) var(--ease-out);
 }
+
+/* 微旋随共用基座一并归零(#1267)，避免消费方的样式引入顺序覆盖减动设置。 */
+@media (prefers-reduced-motion: reduce) {
+  .jinnang-card,
+  .hface {
+    rotate: 0deg;
+  }
+}

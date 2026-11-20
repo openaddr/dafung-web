@@ -357,10 +357,3 @@
   text-align: center;
   overflow-wrap: anywhere;
 }
-
-/* ── 微旋(reduced-motion 退场,.jinnang-card 同款兜层)── */
-@media (prefers-reduced-motion: reduce) {
-  .hface {
-    rotate: 0deg;
-  }
-}
