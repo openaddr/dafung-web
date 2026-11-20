@@ -1,6 +1,7 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_clipboard_manager::init())
     // 诊断包落盘(#1056):系统保存对话框 + 内容 URI 写入——剪贴板对全量大包
     // 不可达(限长+大串冻结主线程),落盘后用户在文件管理器自行取件
     .plugin(tauri_plugin_dialog::init())

@@ -28,3 +28,4 @@ tauri-plugin-log = "2"
 # 剪贴板通路对全量大包不可达(限长+冻结),用户在文件管理器自行取件
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+tauri-plugin-clipboard-manager = "2"

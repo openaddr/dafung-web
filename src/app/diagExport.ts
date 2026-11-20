@@ -1,4 +1,4 @@
-// 对局诊断按局读归档，经 Tauri 系统对话框保存。
+import { isTauri } from "@tauri-apps/api/core";
 import { loadArchivedGame } from "./gameLogArchive";
 import type { ArchivedGame } from "./game-diagnostic-record";
 
@@ -45,10 +45,8 @@ async function requireArchivedGame(gameId: string): Promise<ArchivedGame> {
   return record;
 }
 
-/** 安卓剪贴板限长保守阈(ClipboardService 对大 clip 拒收/丢弃,量级 ~500KB);
- *  超阈文本禁走复制(尤其禁 textarea 回退——大串 select+execCommand 主线程冻结
- *  数秒,真机「点了没反应+弹层关不掉」实锤,#1053)。 */
-const MAX_CLIPBOARD_CHARS = 400_000;
+/** 给安卓剪贴板的 Binder 事务留出空间，较大的帧诊通过保存文件取用。 */
+const MAX_CLIPBOARD_BYTES = 400_000;
 
 /** 旧的复制帧诊工具使用所选局的采集记录。 */
 export async function buildDiagPerfText(gameId: string): Promise<string> {
@@ -68,32 +66,19 @@ export async function buildDiagPerfText(gameId: string): Promise<string> {
   });
 }
 
-/** 复制诊断包文本到剪贴板。异步 Clipboard API 为主通路;WebView 未授权/非安全
- *  上下文(安卓端 tauri.localhost 走 http)时 API 缺席——此时只允许小文本走
- *  textarea+execCommand 回退(大文本 select 同步冻结主线程数秒,真机实锤),
- *  超限一律抛错交调用方示错,绝不静默。失败以异常表达,调用方给可见反馈。 */
 export async function copyDiagText(text: string): Promise<void> {
-  // 安卓端 Tauri = http://tauri.localhost(非安全上下文)→ navigator.clipboard 缺席
-  if (typeof navigator.clipboard?.writeText === "function") {
-    // 大串写剪贴板可能长时间不落定(Android 对大 clip 拒收),10s 不落定按失败报
-    await Promise.race([
-      navigator.clipboard.writeText(text),
-      new Promise((_r, reject) => setTimeout(() => reject(new Error("剪贴板写入超时")), 10_000)),
-    ]);
+  if (new TextEncoder().encode(text).byteLength > MAX_CLIPBOARD_BYTES) {
+    throw new Error("帧诊超过剪贴板大小上限，请使用「保存文件」。");
+  }
+  if (isTauri()) {
+    const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
+    await writeText(text);
     return;
   }
-  if (text.length > MAX_CLIPBOARD_CHARS) {
-    throw new Error(`剪贴板 API 不可用且文本超限(${Math.round(text.length / 1024)} KB)`);
+  if (typeof navigator.clipboard?.writeText !== "function") {
+    throw new Error("当前网页环境无法写入剪贴板。");
   }
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.style.position = "fixed";
-  ta.style.opacity = "0";
-  document.body.appendChild(ta);
-  ta.select();
-  const ok = document.execCommand("copy");
-  ta.remove();
-  if (!ok) throw new Error("execCommand 复制失败");
+  await navigator.clipboard.writeText(text);
 }
 
 /** Tauri 的系统对话框可返回 content URI；取消返回 null。 */
