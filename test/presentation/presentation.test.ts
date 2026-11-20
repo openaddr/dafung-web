@@ -4,6 +4,8 @@
 // ADR-0015 城池宣告同管道可断言;映射缺口(无事件可表达的演出)在用例里钉 contract,
 // 主线补事件后此处应随行改写。
 import { describe, it, expect, beforeEach } from "bun:test";
+import { withGlobal } from "@sinonjs/fake-timers";
+import { FX } from "../../src/app/fx/timings";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
@@ -1614,6 +1616,23 @@ describe("行军单写者:per-id 会话与顶替/段队列(#609,ADR-0029 不变�
     expect(marchPos.size).toBe(0);
     expect(useFxStore.getState().marching.size).toBe(0);
   });
+});
+
+it("事件浮字在金额浮字消失后仍可读，到期自行清理", () => {
+  const clock = withGlobal(globalThis).install({ toFake: ["setTimeout", "clearTimeout"] });
+  const fx = useFxStore.getState();
+  fx.resetFx();
+  try {
+    fx.spawnFloater(40, 60, 100, false);
+    fx.spawnTextFloater(40, 60, "驻跸补给");
+    clock.tick(FX.floaterMs);
+    expect(useFxStore.getState().floaters.map((f) => f.text)).toEqual(["驻跸补给"]);
+    clock.tick(FX.textFloaterMs - FX.floaterMs);
+    expect(useFxStore.getState().floaters).toEqual([]);
+  } finally {
+    fx.resetFx();
+    clock.uninstall();
+  }
 });
 
 // ─────────────── fxStore 城池宣告记录(ADR-0015:nonce 单调,两维独立)───────────────

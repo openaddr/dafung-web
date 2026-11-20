@@ -284,7 +284,7 @@ function Floater({ f, y, fontSize }: { f: FloaterFx; y: number; fontSize: number
             fontSize={look.size}
             textAnchor="middle"
             style={{
-              animationDuration: `${tag ? FX.skillTagMs : FX.floaterMs}ms`,
+              animationDuration: `${f.durationMs}ms`,
             }}
           >
             {text}

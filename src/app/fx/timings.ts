@@ -130,12 +130,13 @@ export const MARCH = {
  *  不等于任何 token,是编排窗口,保留字面量。回合横幅族(bannerMs/bannerHoldMs)
  *  已随 #958 全幅横幅退役删除,回合宣告无编排窗。 */
 export const FX = {
-  /** 浮字动画全长 + 清理窗(同源单值,#885 口径同 jinnangLineMs):fx.css
-   *  fx-svg-float-up 时长经本值由 FxLayer 消费点内联注入(keyframe 只管形),
-   *  fxStore 超时自清取同一 getter——全长与清理窗同通道缩放;被动小签(#850)
-   *  全长 skillTagMs 短于本值,同窗清理无截断竞态。 */
+  /** 金额与主动技施展浮字。时长在生成浮字时固定，清理和动画共用。 */
   get floaterMs() {
     return scStage(Motion.dur.fx);
+  },
+  /** 棋盘事件文案含完整短句，入场后留出稳定阅读时间。 */
+  get textFloaterMs() {
+    return scStage(3200);
   },
   get coinMs() {
     return scStage(1500);
@@ -222,7 +223,7 @@ export const FX = {
   },
   /** 被动技名小签动画全长(#850):fx.css fx-svg-float-tag 时长经本值由 FxLayer
    *  消费点内联注入(keyframe 只管形不时刻度,随 e2e/追帧通道缩放);清理窗沿用
-   *  floaterMs(小签全长 < 普通浮字,同窗清理无截断竞态)。 */
+   *  skillTagMs(动画与清理共用)。 */
   get skillTagMs() {
     return scStage(800);
   },

@@ -39,17 +39,7 @@ interface TreasureVisitorScrollProps {
 
 type Mode = "fair" | "premium";
 
-/** 模式名、价格和城池条款共用;公道选宝的具体等级结果由语境行呈现。 */
-const MODE_META: Record<Mode, { label: string; priceTerms: string; cityTerms: string }> = {
-  fair: {
-    label: "公道买卖",
-    priceTerms: "按指导价出售",
-    cityTerms: "成交后城池 +1 级（满级不升级）",
-  },
-  premium: { label: "坐地起价", priceTerms: "按城池等级加价出售", cityTerms: "城池不升级" },
-};
-
-const modeTerms = (mode: Mode) => `${MODE_META[mode].priceTerms},${MODE_META[mode].cityTerms}`;
+const MODE_LABEL: Record<Mode, string> = { fair: "公道买卖", premium: "坐地起价" };
 
 export function TreasureVisitorScroll({
   role,
@@ -68,7 +58,7 @@ export function TreasureVisitorScroll({
   // 本地 UI 态(不进引擎/快照):关掉后本场合交涉不再重弹,卸载即复位(见文件头注释)。
   const [visitorDismissed, setVisitorDismissed] = useState(false);
 
-  const title = !mode ? `${ownerGuohao}·珍宝抉择` : `${MODE_META[mode].label}·选珍宝`;
+  const title = !mode ? `${ownerGuohao}·珍宝抉择` : `${MODE_LABEL[mode]}·选珍宝`;
 
   const guideOf = (t: SnapshotTreasure) => guidePriceOf(t.level);
   const priceOf = (guide: number) =>
@@ -112,14 +102,10 @@ export function TreasureVisitorScroll({
                 暂不交易
               </BannerButton>
               <BannerButton testid={T.treasureModeFair} onClick={() => setMode("fair")}>
-                <span className="block">{MODE_META.fair.label}</span>
-                <span className="block font-wenkai text-xs leading-snug">{modeTerms("fair")}</span>
+                {MODE_LABEL.fair}
               </BannerButton>
               <BannerButton testid={T.treasureModePremium} onClick={() => setMode("premium")}>
-                <span className="block">{MODE_META.premium.label}</span>
-                <span className="block font-wenkai text-xs leading-snug">
-                  {modeTerms("premium")}
-                </span>
+                {MODE_LABEL.premium}
               </BannerButton>
             </div>
           </>
@@ -132,17 +118,13 @@ export function TreasureVisitorScroll({
       </BannerShell>
       {mode !== null && (
         <TreasurePickModal
-          title={`${MODE_META[mode].label} · 选珍宝`}
+          title={`${MODE_LABEL[mode]} · 选珍宝`}
           seal="交"
           sub={`${ownerGuohao} · 卖出的珍宝离手入${visitorGuohao}`}
           context={
-            <p className="treasure-pick-context">
-              {mode === "fair"
-                ? `${MODE_META.fair.priceTerms},成交后${tileName} ${
-                    cityLevel < property.maxLevel ? "+1 级" : `维持 Lv.${cityLevel}（满级）`
-                  }`
-                : modeTerms(mode)}
-            </p>
+            mode === "fair" && cityLevel < property.maxLevel ? (
+              <p className="treasure-pick-context">成交后{tileName} +1 级</p>
+            ) : undefined
           }
           treasures={treasures}
           tagOf={(t, selected) => {

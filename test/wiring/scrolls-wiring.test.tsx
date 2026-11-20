@@ -385,12 +385,12 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     const cityName = engine.board.tiles.find((tile) => tile.propertyId === propertyId)!.name;
     const cityOutcome = `${cityName} +1 级`;
     expect(docQ(T.treasureScroll)).not.toBeNull();
-    expect(docQ(T.treasureScroll)!.textContent).toContain("按指导价出售,成交后城池 +1 级");
-    expect(docQ(T.treasureScroll)!.textContent).toContain("按城池等级加价出售,城池不升级");
+    expect(docQ(T.treasureModeFair)!.textContent).toBe("公道买卖");
+    expect(docQ(T.treasureModePremium)!.textContent).toBe("坐地起价");
     click(docQ(T.treasureModeFair)!);
     const pick = () => docQ(T.treasurePick);
     expect(pick()).not.toBeNull();
-    expect(pick()!.textContent).toContain(`按指导价出售,成交后${cityOutcome}`);
+    expect(pick()!.textContent).toContain(`成交后${cityOutcome}`);
     expect(pick()!.textContent!.split(cityOutcome)).toHaveLength(2);
     const item = () => docQ(T.treasureItem("seal"))!;
     expect(item()).not.toBeNull();
@@ -437,25 +437,19 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(docQ(T.treasureScroll) === null, "交涉卷轴应随结算收场").toBe(true);
   });
 
-  it("满级城公道交易说明封顶，预览与成交等级一致", () => {
+  it("满级城公道交易仅预览入账，成交后维持满级", () => {
     const handles = startGame();
     const propertyId = plantTrade(handles, "max");
     const { engine, snap } = handles;
     const maxLevel = engine.catalog.get(propertyId)!.maxLevel;
-    const cityName = engine.board.tiles.find((tile) => tile.propertyId === propertyId)!.name;
-    const cityOutcome = `${cityName} 维持 Lv.${maxLevel}（满级）`;
-    expect(docQ(T.treasureModeFair)!.textContent).toContain("满级不升级");
 
     click(docQ(T.treasureModeFair)!);
     const pick = docQ(T.treasurePick)!;
-    expect(pick.textContent).toContain(`按指导价出售,成交后${cityOutcome}`);
-    expect(pick.textContent!.split(cityOutcome)).toHaveLength(2);
     click(docQ(T.treasureItem("seal"))!);
     const summary = pick.querySelector('[aria-live="polite"]')!.textContent!;
     expect(summary).toBe(`卖出 传国玉玺 · 入账 ${formatMoney(guidePriceOf(3))}`);
-    expect(pick.textContent!.split(cityOutcome)).toHaveLength(2);
     expect(pick.textContent).not.toContain("+1 级");
-    expect(pick.textContent!.split("满级")).toHaveLength(2);
+    expect(pick.textContent).not.toContain("满级");
 
     const logLenBefore = snap().log.length;
     click(docQ(T.treasureConfirm)!);

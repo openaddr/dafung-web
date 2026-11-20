@@ -107,7 +107,7 @@ export interface EncounterDef {
  *  (两害相权抉择+直接坏即时);抉择红线不变:不需要决策的事件不配当抉择机遇。
  *  #1109 处置随本版落表:重设计四(坚壁清野任劫 −140/祸水东引出兵 +8rep/强征军粮市购
  *  −120+6rep/奉迎天子 200+礼送 +5)+重钉四(携民渡江 100/散财消灾 130/疫病入营 130/
- *  河堤告急 150)+siphon 系文案补「(以其现有银两为限)」。 */
+ *  河堤告急 150)。 */
 export const ENCOUNTERS: EncounterDef[] = [
   // ── 好运 ──
   {
@@ -420,7 +420,7 @@ export const ENCOUNTERS: EncounterDef[] = [
     choices: [
       { text: "义释归乡(声望 +8)", repDelta: 8 },
       {
-        text: "押质勒赎(得赎银 120 两,声望 −8,以其现有银两为限)",
+        text: "押质勒赎(得赎银 120 两,声望 −8)",
         repDelta: -8,
         effect: { kind: "siphon", amount: 120 },
       },
@@ -634,7 +634,7 @@ export const ENCOUNTERS: EncounterDef[] = [
     choices: [
       { text: "出兵拒之(体力 −20,声望 +8)", repDelta: 8, staminaDelta: -20 },
       {
-        text: "祸水东引(得贼资 150 两,声望 −12,以其现有银两为限)",
+        text: "祸水东引(得贼资 150 两,声望 −12)",
         repDelta: -12,
         effect: { kind: "siphon", amount: 150 },
       },

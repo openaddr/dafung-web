@@ -82,14 +82,13 @@
   justify-content: center;
   margin-left: 0;
 }
-/* 扩的是选中牌的布局槽，卡面仍消费既有1.6倍状态。上缘承接放大高度与上移，
-   额外2em保护微旋/描边；边缘留白随牌序一起滚，首末牌不会被滚动井裁边。 */
-.hand-rack.spread-all.junshi .hand-rack-hand:has(> :where(button, .skill-rack-card).sel) {
+/* 技能卡选中时放大，给画心和首末牌留出滚动空间。 */
+.hand-rack.spread-all.junshi .hand-rack-hand:has(> .skill-rack-card.sel) {
   padding-top: calc(20em * (var(--card-selected-scale) - 1) + 4em);
   /* 末牌也能滚到阅读中线，避开既有右侧拍板钮；选中结束即还原紧凑尾缘。 */
   padding-right: calc(var(--rack-avail) / 2);
 }
-.hand-rack.spread-all.junshi .hand-rack-hand > :where(button, .skill-rack-card).sel {
+.hand-rack.spread-all.junshi .hand-rack-hand > .skill-rack-card.sel {
   width: calc(15em * var(--card-selected-scale) + 2em);
 }
 /* 牌面吃容器 em 基(standard 档默认 8px 被覆盖,降档时随容器走) */
@@ -208,8 +207,7 @@
 /* ── 出牌阶段态(#256:旧弹窗退役,架即出牌面;原型 .playable 口径)──
    .junshi 挂架体(HandRack junshi 载荷在场)。状态语义:
    - 可出=.usable 上浮+实金 hairline 金边+微光晕(#556 静态常驻,#841 刀②提显著);
-   - 选中=.sel 放大 1.6× 金描边(牌面层交互态单源 jinnang-card.css,笺脚放开 4 行;
-     钮层只管层叠 z-index 与消隐自身 transform);
+   - 选中=.sel 金描边；技能卡放大，锦囊全文在独立正文区。
    - 不可用=.off 下沉置灰(disabled,原因印条 .reason 由牌面 children 承担,文案
      单源 choices);
    - 目标段=.played 已出计牌金描边上浮+「已出牌 · 待择目标」印条,其余 .off 灰置;
@@ -236,6 +234,44 @@
 .hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card).sel,
 .hand-rack.junshi .hand-rack-hand > :where(button, .skill-rack-card).played {
   z-index: 8;
+}
+.hand-rack.junshi .hand-rack-hand > button.sel .jinnang-card {
+  outline: 0.3em solid var(--color-gold-bright);
+  outline-offset: 0.15em;
+  transform: translateY(-0.6em);
+}
+.rack-selection {
+  position: absolute;
+  z-index: 9;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  width: min(460px, calc(100dvw - var(--safe-left) - var(--safe-right) - 180px));
+  max-height: min(152px, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 226px));
+  border: 1px solid color-mix(in srgb, var(--color-gold) 50%, transparent);
+  border-radius: 8px;
+  background: var(--color-panel);
+  box-shadow: var(--ink-shadow-sm);
+  pointer-events: auto;
+}
+.rack-selection-name {
+  padding: 6px 12px 3px;
+  color: var(--color-gold);
+  font: 18px/1.1 var(--font-brush);
+}
+.rack-selection-scroll {
+  min-height: 0;
+}
+.rack-selection-scroll [data-slot="scroll-area-viewport"] {
+  overscroll-behavior-y: contain;
+}
+.rack-selection p {
+  margin: 0;
+  padding: 0 14px 8px 12px;
+  color: var(--color-paper);
+  font: 15px/1.45 var(--font-wenkai);
 }
 /* 已出计牌(目标段):本体常色(进行时不是废牌),金描边上浮,不放大(原型目标态
    口径);「已出牌 · 待择目标」印条由牌面 children .reason 承担(组件侧)。 */
