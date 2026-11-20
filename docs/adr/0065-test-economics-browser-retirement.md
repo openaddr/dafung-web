@@ -27,7 +27,7 @@
 
 双端对跑使用两个独立 Bun 子进程,各自持有生产 OnlineController、模块缓存、gameStore/netStore 与连接,经真实 WebSocket 连引擎服务器。IPC 只传测试意图和读数,对局协议始终走生产 WS。公开状态做两端引擎与各自 store 的四向对账;私密手牌按座位与本端引擎对账,座位和连接状态取各端真实 store。单端 reset 只证明隔离或清理,不能帮助收敛。
 
-固定种子走到决策门后冻结读数,用真实下行历史屏障确认应答已处理,不靠静置猜稳定。Setup 原座恢复走公共 `reconnect()`;Playing 恢复只经 guest 的公开 `socketFactory/timer/random` 边界捕获真实 WS、冻结退避回调,先证明两端独立断线状态,再放行真实重拨与摘要校准。禁全局假时钟、弃试重跑或另造 socket 语义。既有 `outcomeKind` 豁免仅限 Playing 恢复边界,健康、Setup 与反应窗保持全公开字段等式。
+固定种子走到决策门后冻结读数,用真实下行历史屏障确认应答已处理,不靠静置猜稳定。Setup 原座恢复走公共 `reconnect()`;Playing 恢复只经 guest 的公开 `socketFactory/timer/random` 边界捕获真实 WS、冻结退避回调,先证明两端独立断线状态,再放行真实重拨与摘要校准。禁全局假时钟、弃试重跑或另造 socket 语义。健康、Setup 原座恢复、Playing 自动重连和反应窗均比较完整公开投影,包含 `outcomeKind`。
 
 反应窗使用固定宽窗,逐次以有效应答及拒绝重复的真实下行作屏障;分别检查私密询问集与每座恰一次持久化记录,不能让超时代答替代手答。
 
