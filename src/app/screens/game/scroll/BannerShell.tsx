@@ -84,14 +84,15 @@ export function BannerButton({
   onClick,
   primary,
   testid,
-  // UI F1:决策类按钮可能不可选，原因由正文呈现。
   disabled,
+  accessibleLabel,
 }: {
   children: ReactNode;
   onClick: () => void;
   primary?: boolean;
   testid?: string;
   disabled?: boolean;
+  accessibleLabel?: string;
 }) {
   // #90:幽灵退场帧里的按钮一律 disabled——e2e/用户的选择器(如
   // `button[data-testid^="action-"]:not([disabled])`)在 210ms 退场窗口内
@@ -106,6 +107,7 @@ export function BannerButton({
       data-testid={testid}
       onClick={onClick}
       disabled={disabled || isGhost}
+      aria-label={accessibleLabel}
       className={
         primary
           ? "ink-btn relative rounded-[5px] px-5 py-2.5 font-brush text-[17px] transition-colors disabled:opacity-40"

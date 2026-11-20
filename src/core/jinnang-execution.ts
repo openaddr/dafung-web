@@ -135,9 +135,10 @@ export function drawJinnangTraced(
   seat: number,
   count: number,
   reason: string,
-): void {
+): number {
   const drawn = drawJinnang(g, seat, count);
   if (drawn > 0) emitGameEvent(g, seat, { kind: "jinnangDrawn", count: drawn, reason });
+  return drawn;
 }
 
 /** 回合开始掷骰前(#122/T2):按注册表算锦囊选项集,有可用牌才进相位(ADR-0013:

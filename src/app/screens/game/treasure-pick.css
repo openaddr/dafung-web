@@ -1,6 +1,6 @@
 /* 交易选宝弹层(#362,spec #357 T5)——视觉基准 proto/treasure/backpack.html 节三
    交易弹段:交涉选宝使用 PileShell 壳与装裱卡网格,
-   点选=金描边+上浮,价签随选中转成交色,底部二段式成交钮。
+   点选=金描边+上浮,价签随选中转成交色,底部成交钮。
    样式经 Portal 渲染在 body,.game-layout 罩不到——.treasure-pick 作用域 +
    treasure-pick- 前缀防串扰(pile-modal.css 同先例)。
    色一律 var(--color-*) 或其 color-mix alpha 形式(#510 玄墨鎏金:墨影
@@ -54,7 +54,7 @@
   font-weight: 400;
 }
 
-/* ── 底部条:返回、交易条件、结算预览与二段式成交始终同处固定操作区 ── */
+/* ── 底部条:返回、交易条件、结算预览与成交钮始终同处固定操作区 ── */
 .treasure-pick .treasure-pick-foot {
   display: flex;
   flex-wrap: wrap;
@@ -107,18 +107,6 @@
 .treasure-pick .treasure-pick-ok:disabled {
   opacity: 0.4;
 }
-/* 二段武装态:金环「再点一次才提交」的确认语言(金描边沿选中同族),点亮一拍微缩放 */
-.treasure-pick .treasure-pick-armed {
-  outline: 2px solid var(--color-gold);
-  outline-offset: 2px;
-  animation: treasure-pick-armed-in var(--dur-med) var(--ease-out);
-}
-@keyframes treasure-pick-armed-in {
-  from {
-    transform: scale(0.96);
-  }
-}
-
 /* ── 矮横屏档(断点=对局屏 A 档同一查询串,pile-modal.css 同款)──
    #833 首帧几何预算:壳夹高 326px(100dvh−64)扣头部/footer 后,体部视口须容下
    首排「装裱卡+价签」——坐地双行价签格 162px(卡 116@5.8px 基+隙 4+签 42)。

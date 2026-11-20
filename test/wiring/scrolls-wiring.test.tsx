@@ -369,13 +369,32 @@ describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
   });
 });
 
+it("战报：阅读旧条目时上方新增，保留原条目及其 DOM 身份", async () => {
+  const { writeEngine } = startGame();
+  writeEngine((e) => {
+    for (let i = 0; i < 100; i++) e.logEvent("system", null, `旧战报 ${i}`, `old=${i}`);
+  });
+  click(docQ(TESTIDS.settingsButton)!);
+  click(docQ(TESTIDS.settingsWarReport)!);
+  await settle();
+
+  const list = docQ(TESTIDS.logDrawer)!.querySelector("ul")!;
+  const findRow = (brief: string) =>
+    Array.from(list.children).find((row) => row.textContent?.endsWith(brief));
+  const oldRow = findRow("旧战报 0");
+  expect(oldRow).toBeDefined();
+  act(() => {
+    list.scrollTop = 100;
+    list.dispatchEvent(new Event("scroll"));
+  });
+
+  writeEngine((e) => e.logEvent("system", null, "新战报", "new"));
+  expect(list.firstElementChild!.textContent).toContain("新战报");
+  expect(findRow("旧战报 0") === oldRow).toBe(true);
+});
+
 describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
-  // ── ③公道买卖二段式成交(react-scrolls 交涉 fair 例迁入)──
-  // 断言面:点选金描边(aria-pressed)→确认武装(文案翻面,不提交:层不关、相位不动、
-  // 零命令)→二段提交发 resolveTreasureOwner{fair,treasureId} 命令(log 行 category=cmd
-  // 的 JSON 逐字对账,#799 基线后切片)→层随结算收口(幽灵帧走完)。结算细则归
-  // test/treasure.test.ts(单测已钉,cmd 行=命令接线证据)。
-  it("公道买卖:点选金描边+二段式成交,确认提交发 resolveTreasureOwner 命令", async () => {
+  it("公道买卖：预选后一次成交提交交易命令", async () => {
     // 宽裕横屏仍须在固定操作区显示城池结果,而不是随选宝网格滚走。
     expect(window.innerWidth).toBeGreaterThan(window.innerHeight);
     expect(window.matchMedia(SHORT_LANDSCAPE_QUERY).matches).toBe(false);
@@ -412,15 +431,9 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(pick()!.textContent!.split(cityOutcome)).toHaveLength(2);
     expect(actionArea().contains(confirm())).toBe(true);
     expect(actionArea().textContent).toContain(cityOutcome);
-    // 二段式:第一段=预选态点亮确认,不提交(层不关、相位不动、零命令)
-    click(confirm());
-    expect(confirm().textContent).toBe("确认成交");
-    expect(pick()).not.toBeNull();
     expect(snap().turnPhase).toBe("AwaitingTreasureOwner");
-    // 留痕基线(#799):只扫「基线后追加段」——种植交涉停在人类决策点,基线到提交间
-    // 无任何他线可插,切片内首条恒为本例命令线(结算路径内同步写入)。
     const logLenBefore = snap().log.length;
-    click(confirm()); // 第二段=确认提交
+    click(confirm());
     const cmdLine = snap()
       .log.slice(logLenBefore)
       .find((l) => l.category === "cmd" && l.detail.includes("resolveTreasureOwner"));
@@ -452,7 +465,6 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(pick.textContent).not.toContain("满级");
 
     const logLenBefore = snap().log.length;
-    click(docQ(T.treasureConfirm)!);
     click(docQ(T.treasureConfirm)!);
     const cmdLine = snap()
       .log.slice(logLenBefore)

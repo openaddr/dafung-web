@@ -2,7 +2,7 @@
 // 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
 import type { GameEngine, TurnPhase } from "./authority";
 import type { Player } from "./model";
-import type { EncounterEffect } from "./encounters";
+import { encounterChoiceAt, type EncounterEffect } from "./encounters";
 import type { PendingReaction } from "./reaction-window";
 import { jinnangCardOf } from "./jinnang";
 import {
@@ -604,14 +604,12 @@ export function botAct(engine: GameEngine): void {
       const enc = engine.pendingEncounter;
       if (!enc || !enc.choices)
         throw new Error("AwaitingEncounter 相位 pendingEncounter/choices 缺失:状态机不一致"); // 零兜底
-      const choices = enc.choices; // 收窄进闭包(TS 不跨闭包保持窄化)
       const coef = repCoefficient(engine.decisionOwner);
       let bestIdx = -1;
       let bestScore = -Infinity;
       engine.choicesFor().forEach((o, i) => {
         if (!o.available) return;
-        const c = choices[i];
-        if (!c) throw new Error(`机遇「${enc.id}」选项 ${i} 越界:选项注册表与目录不一致`); // 零兜底
+        const c = encounterChoiceAt(enc, i);
         // 体力计价 = 选项级与效果级 staminaDelta 合计 × 折银率(staminaDelta 为负值即扣分;
         // 与结算两路一致,#789)。选项现金代价 cashCost(#1154)按面值扣分——与闸门
         // optionCashCost 同尺,付费与得物分离的选项不作免费白捡。

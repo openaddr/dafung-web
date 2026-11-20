@@ -10,7 +10,7 @@ import { tileIndexOfProperty } from "./board";
 import type { ActiveSkillDef, TriggerSkill } from "./skills";
 import { isActiveSkill, isTriggerSkill, skillById } from "./skills";
 import { findHolding } from "./player";
-import { HERO_CAPACITY } from "./constants";
+import { HERO_CAPACITY, STAMINA_MAX } from "./constants";
 import { heroById } from "./heroes";
 import { HEROES } from "./heroes";
 import {
@@ -23,7 +23,12 @@ import {
 import { emitGameEvent } from "./game-events";
 import { resumePendingMoment } from "./moment-stages";
 import { guidePriceOf, isSkillBook } from "./treasures";
-import type { EncounterChoiceOption, EncounterTier } from "./encounters";
+import {
+  ENCOUNTER_NO_EFFECT,
+  encounterChoiceLabel,
+  type EncounterChoiceOption,
+  type EncounterTier,
+} from "./encounters";
 import { jinnangCardOf, isReactionCard, TARGET_DOMAIN_STAGES, type JinnangEffect } from "./jinnang";
 
 /** 已接入结算的锦囊效果种类(#122/T2 起逐票点亮;#281 反应牌 counter/ambush 经反应窗结算,
@@ -146,69 +151,57 @@ function optionCashCost(c: EncounterChoiceOption): number {
   return cost + (c.cashCost ?? 0);
 }
 
-/** 抉择选项可用门槛(#124 基线,#1153 泛化):可用性全部由条目声明与效果 kind 自动推导,
- *  注册表是唯一口径(零兜底):
- *  ① option 级 requiresFlags(#1153 P2 章闸):未持满所要求的机遇章 → 不可用,reason 写
- *     持章要求;
- *  ② grantHero 三连检留 kind 推导(#1067 代价随条目声明,直读不兜底)+ 指定将扩展:
- *     珍宝 < treasureCost「珍宝不足」/ 麾下满「麾下已满」/ 名将池尽「名将已尽」/
- *     指定将已被招揽「指定名将已被招揽」——任一不满足则换贤必落空(结算折现
- *     fallbackCash,白损珍宝),选项必须拦下并报原因;
- *  ③ 现金代价自动闸(#1153 新红线「机遇不送清算」):现金 < 现金代价(负 cash 效果、
- *     levy 输币额或选项级 cashCost,#1154)→ 不可用「银两不足」,全目录追溯,引擎规则
- *     非逐条数据;cashBlocked=结构化「仅被现金闸拦」标记(保底放行的判据,#1169 评审
- *     收口:不拿展示文案 reason 做控制流,文案改字不致保底静默失效)。
- *  保底放行(拍板项)在 encounterChoices 门槛过滤后兜;目录约定每条抉择机遇都自带一个
- *  无门槛的「不作」型选项,保证 ≤1 可用时自动执行永不死锁(章闸条目由 encounters.ts
- *  模块初始化守卫 assertChoicesNotFlagLocked 强制)。 */
-function encounterOptionGate(
-  e: GameEngine,
-  c: EncounterChoiceOption,
-): { available: boolean; reason?: string; cashBlocked?: boolean } {
+/** 选项可用性由引擎核对机遇章、代价及可兑现的收益。 */
+function encounterOptionReason(e: GameEngine, c: EncounterChoiceOption): string | undefined {
   const p = e.activePlayer;
   if (c.requiresFlags != null && !c.requiresFlags.every((f) => p.encounterFlags.includes(f)))
-    return { available: false, reason: `需持机遇章〔${c.requiresFlags.join("〕〔")}〕` };
+    return `需持机遇章〔${c.requiresFlags.join("〕〔")}〕`;
   if (c.effect?.kind === "grantHero") {
-    if (p.treasures.length < c.treasureCost!) return { available: false, reason: "珍宝不足" };
-    if (p.heroes.length >= HERO_CAPACITY) return { available: false, reason: "麾下已满" };
-    if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id)))
-      return { available: false, reason: "名将已尽" };
+    if (p.treasures.length < c.treasureCost!) return "珍宝不足";
+    if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id))) return "名将已尽";
     if (c.effect.heroId != null && e.recruitedHeroIds.has(c.effect.heroId))
-      return { available: false, reason: "指定名将已被招揽" };
+      return "指定名将已被招揽";
   }
-  if (p.cash < optionCashCost(c))
-    return { available: false, reason: "银两不足", cashBlocked: true };
-  return { available: true };
+  if (p.cash < optionCashCost(c)) return "银两不足";
+  if (c.effect?.kind === "grantCard" && e.jinnangDeckCount === 0 && e.jinnangDiscard.length === 0)
+    return "锦囊已空";
+  if (
+    c.effect?.kind === "cash" &&
+    c.effect.delta < 0 &&
+    c.repDelta === 0 &&
+    (c.staminaDelta ?? 0) > 0 &&
+    p.stamina === STAMINA_MAX
+  )
+    return "体力已满";
+  return undefined;
 }
 
-/** AwaitingEncounter(抉择机遇,#124):目录选项逐一映射,顺序与 def.choices 一致
- *  (resolveEncounterChoice 的 index 即此下标)。encounterId/encounterText/encounterTier
- *  随选项出快照(#847:tier 单通道透出,机遇卷轴按档分色的唯一数据源)。
- *  保底放行(#1153 拍板项):门槛过滤后若无任何可用选项,而存在仅被现金闸拦下的选项
- *  (gate.cashBlocked=章闸/换贤闸均已通过的结构化判据)→ 放行现金代价最低者——卷轴
- *  永不全灰;放行后的实付由负现金封顶兜底(最多付光现金,不送清算)。 */
+/** 保留全部目录选项和下标，全灰时追加可提交的「无事发生」。 */
 function encounterChoices(e: GameEngine): ChoiceOption[] {
   const def = e.pendingEncounter;
   if (!def?.choices) return [];
-  const gated = def.choices.map((c, i) => ({ index: i, c, gate: encounterOptionGate(e, c) }));
-  if (!gated.some((m) => m.gate.available)) {
-    const cashBlocked = gated.filter((m) => m.gate.cashBlocked === true);
-    if (cashBlocked.length > 0) {
-      const cheapest = cashBlocked.reduce((a, b) =>
-        optionCashCost(b.c) < optionCashCost(a.c) ? b : a,
-      );
-      cheapest.gate = { available: true };
-    }
+  if (def.choices.length === 0) throw new Error(`抉择机遇「${def.id}」目录缺少选项`);
+  const context = { encounterId: def.id, encounterText: def.text, encounterTier: def.tier };
+  const rosterFull = e.activePlayer.heroes.length >= HERO_CAPACITY;
+  const options: ChoiceOption[] = def.choices.map((c, index) => {
+    const reason = encounterOptionReason(e, c);
+    return {
+      ...context,
+      id: `choice:${index}`,
+      label: encounterChoiceLabel(c, rosterFull && c.effect?.kind === "grantHero"),
+      available: reason === undefined,
+      reason,
+    };
+  });
+  if (!options.some((option) => option.available)) {
+    options.push({
+      ...context,
+      id: `choice:${options.length}`,
+      label: ENCOUNTER_NO_EFFECT.text,
+      available: true,
+    });
   }
-  return gated.map(({ index, c, gate }) => ({
-    id: `choice:${index}`,
-    label: c.text,
-    available: gate.available,
-    reason: gate.reason,
-    encounterId: def.id,
-    encounterText: def.text,
-    encounterTier: def.tier,
-  }));
+  return options;
 }
 
 /** AwaitingExhaustion 已随耗竭全自动结算退役(外敌乘虚+休整,无抉择):归 0 不再进

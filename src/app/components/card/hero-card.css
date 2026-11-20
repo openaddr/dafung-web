@@ -303,23 +303,28 @@
   transform: rotate(45deg);
 }
 
-/* ── 技能卡:技名横签、立绘、将名纵向排列。技名可换行并保留 40px 触区,
-   长名称不裁切;技名和选牌各自是可聚焦按钮。 ── */
+/* 右下题签用纸色过渡标出完整触区，保留其余画心。 */
 .hface.skill .skill-name {
-  flex: 0 0 auto;
+  position: absolute;
+  inset: auto 0 0 auto;
+  z-index: 3;
+  width: 50%;
   min-height: 40px;
-  margin: 0.25em 0.3em 0;
-  padding: 0.1em 0.25em;
-  display: grid;
-  place-items: center;
-  writing-mode: horizontal-tb;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  font: 2em / 1.15 var(--font-brush);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 0 calc(0.55 * var(--u)) calc(0.3 * var(--u));
+  font: max(12px, 1.65em) / 1.15 var(--font-brush);
   color: var(--card-ink);
-  background: var(--card-paper);
-  border: 1px solid color-mix(in srgb, var(--card-ink) 50%, transparent);
-  border-radius: 0.22em;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card-paper) 34%, transparent),
+    var(--card-paper) 78%
+  );
+  border: 1px solid color-mix(in srgb, var(--card-ink) 26%, transparent);
+  border-radius: 0.45em 0 0 0;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 .hface.skill .skill-name:focus-visible {
   outline: 2px dashed var(--card-ink);
@@ -337,7 +342,7 @@
 }
 .hface.skill .stage {
   align-self: stretch;
-  margin: 0.35em 0.55em 0;
+  margin: 0.55em 0.55em 0;
 }
 .hface.skill .reason {
   position: static;
@@ -351,9 +356,10 @@
 }
 .hface.skill .skill-hero-name {
   flex: 0 0 auto;
-  padding: 0.18em 0.25em 0.26em;
+  width: 50%;
+  padding: calc(0.3 * var(--u)) calc(0.55 * var(--u));
   color: var(--card-ink);
-  font: 1.9em / 1.15 var(--font-title);
-  text-align: center;
+  font: max(12px, 1.65em) / 1.15 var(--font-title);
+  text-align: left;
   overflow-wrap: anywhere;
 }
