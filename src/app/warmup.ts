@@ -18,6 +18,7 @@
 // manifest.json 是授权台账非资产清单(含已退役路径,盘上不存在),预热不吃它。
 
 import { HEROES } from "@core/heroes";
+import { ENCOUNTER_CHOICE_ART_URLS } from "@app/components/card/encounter-art";
 import { JINNANG_ART_URLS } from "@app/components/card/jinnang-art";
 import { TREASURE_ART_URLS } from "@app/components/card/treasure-art";
 
@@ -33,6 +34,7 @@ function imageUrlSet(): string[] {
     ...HEROES.map((hero) => hero.image),
     ...TREASURE_ART_URLS,
     ...JINNANG_ART_URLS,
+    ...ENCOUNTER_CHOICE_ART_URLS,
     ...TEXTURE_URLS,
   ];
 }
