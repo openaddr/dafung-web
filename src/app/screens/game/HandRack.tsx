@@ -1,11 +1,9 @@
 // 底部手牌架(#238 一期 T3,方案 §4 P1-C):锦囊手牌从侧栏纸签迁到屏幕下缘
 // 漆木架——横排大牌面(手牌无上限,#250 删满手作废;>3 张叠加压缩,点计数章
-// 全展检视,#254)、空手牌斜放一张牌背占位(器物空态,无文案)。显隐随 GameScreen 的
-// 会话内临时态(回合联动+决策保底:亮=我的回合∪决策窗在场∪手动临时开,其余
-// 一律收;窗态可收起,banner-only 形态只宿横幅)。
+// 全展检视,#254)。空手且无技能卡时，手动打开只显示底缘一行「暂无锦囊」(#1519)。
+// 显隐由 GameScreen 的回合、决策窗和手动开收状态控制，banner-only 形态只挂触发技横幅。
 //
-// 视觉基线:tmp/prototype-jinnang-ui.html 其四(.rack / .jia-zhang / .slash),
-// 样式在 hand-rack.css;牌面器物件(JinnangCardFace/Back,card/ 目录只读消费)。
+// 样式在 hand-rack.css，牌面复用 card/ 目录的 JinnangCardFace 和 SkillCardFace。
 //
 // 常态交互(已决事项 5:点牌=抽屉,长按同效):点击/长按(按住 500ms)单张牌 → 详情
 // 弹层,壳走 ui/dialog 底件(Base UI:焦点陷阱/Esc/点外关闭全部白拿,不自写交互
@@ -38,11 +36,7 @@ import {
   type ReactNode,
 } from "react";
 import { Button } from "@base-ui/react/button";
-import {
-  JinnangCardBack,
-  JinnangCardDetail,
-  JinnangCardFace,
-} from "@app/components/card/JinnangCardFace";
+import { JinnangCardDetail, JinnangCardFace } from "@app/components/card/JinnangCardFace";
 import { heroDefOf } from "@app/components/card/HeroCardFace";
 import { SkillCardFace } from "@app/components/card/SkillCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
@@ -511,12 +505,9 @@ interface StackVars {
 }
 
 /** 屏幕下缘手牌架(#238 一期 T3;#700 全浮层骨架改形:透明浮置、chrome 退役):
- *  手牌横排(空态斜放牌背占位)——漆木条底/架首竖排章随仪表条一并退役(原型
- *  席位侧列原型(临时件已佚) ①handzone:透明居中浮置,签面驻左端归 HandZone),藏品双入口
- *  (RackEntry)由右下三圆钮接替(PileButtons,#361 明细入口平移);出牌阶段态(#256)
- *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应锦囊呼吸金边;banner-only 形态
- *  (#1006)架收起而反应窗在场,只渲横幅贴底。
- *  em 基仍在架体(font-size/降档断点在 hand-rack.css),叠加压缩测量口径不变。 */
+ *  手牌与技能卡横排，签面归 HandZone。出牌阶段在架上选牌，反应锦囊在架上以金边提示。
+ *  待决触发技挂在架上缘，收架时只呈现触发技横幅。
+ *  em 基和降档断点见 hand-rack.css，叠加压缩按架体可用宽度测量。 */
 export const HandRack = memo(function HandRack({
   player,
   junshi,
@@ -838,9 +829,7 @@ export const HandRack = memo(function HandRack({
             </div>
           </div>
         ) : (
-          /* 空态:斜放一张漆木牌背占位(暗牌语义,器物空态不写文案;窗态下不可能到这
-              ——hasUsableJinnang 才进 AwaitingJinnang 相位,架上必有选项) */
-          <JinnangCardBack aria-hidden="true" className="hand-rack-back" />
+          <span className="hand-rack-empty">暂无锦囊</span>
         ))}
       {/* 架尾计数章(#751 C2):.many 压缩态常驻,点按切换全展检视;章上数字=信息
           (§4.6 例外),全展中金边点亮(.on)= 状态表达。

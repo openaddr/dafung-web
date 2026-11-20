@@ -175,8 +175,7 @@ interface JinnangCardBackProps extends HTMLAttributes<HTMLDivElement> {
   size?: JinnangFaceSize;
 }
 
-/** 牌背(暗置语义):漆木底 + 「锦囊」朱印 + 回纹双环。空手牌斜放占位、暗牌
- *  展示等场景复用;斜放由消费方经 style.transform 自定。 */
+/** 暗牌牌背由漆木底、「锦囊」朱印和回纹双环组成，用于窥探翻牌。 */
 export function JinnangCardBack({
   size = "standard",
   className,
