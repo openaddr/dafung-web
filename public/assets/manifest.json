@@ -270,22 +270,6 @@
     "fetched_at": "2026-10-31",
     "review_required": false
   },
-  "treasure:lychee": {
-    "path": "assets/treasures/treasure-lychee.webp",
-    "source": "https://www.metmuseum.org/art/collection/search/40232",
-    "license": "CC0 1.0 (Met Open Access)",
-    "author": "The Metropolitan Museum of Art(藏品 Box with lychees,明 16 世纪,剔红荔枝纹漆盒;acc. 2015.500.1.46a, b)→ 500×375 webp q82",
-    "fetched_at": "2026-10-31",
-    "review_required": false
-  },
-  "treasure:hat": {
-    "path": "assets/treasures/treasure-hat.webp",
-    "source": "https://commons.wikimedia.org/wiki/File%3ABamboo_hat_(blue)_-_Indonesia%2C_2012_(2).JPG",
-    "license": "CC BY-SA 4.0",
-    "author": "Elekes Andor",
-    "fetched_at": "2026-10-15",
-    "review_required": false
-  },
   "treasure:qingnang": {
     "path": "assets/treasures/treasure-qingnang.webp",
     "source": "https://www.metmuseum.org/art/collection/search/63182",
@@ -440,5 +424,131 @@
     "author": "ImageGen（#1410 完整小场景）",
     "fetched_at": "2026-11-20",
     "review_required": false
+  },
+  "treasure:hat-photo-retired": {
+    "path": "assets/treasures/treasure-hat.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3ABamboo_hat_(blue)_-_Indonesia%2C_2012_(2).JPG",
+    "license": "CC BY-SA 4.0",
+    "author": "Elekes Andor",
+    "fetched_at": "2026-10-15",
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-11-20",
+    "retired_reason": "#1533 替换素材，原文件位置复用"
+  },
+  "treasure:lychee-photo-retired": {
+    "path": "assets/treasures/treasure-lychee.webp",
+    "source": "https://www.metmuseum.org/art/collection/search/40232",
+    "license": "CC0 1.0 (Met Open Access)",
+    "author": "The Metropolitan Museum of Art(藏品 Box with lychees,明 16 世纪,剔红荔枝纹漆盒;acc. 2015.500.1.46a, b)→ 500×375 webp q82",
+    "fetched_at": "2026-10-31",
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-11-20",
+    "retired_reason": "#1533 替换素材，原文件位置复用"
+  },
+  "treasure:hat": {
+    "path": "assets/treasures/treasure-hat.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/treasures/art/hat.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1409 A 案样张）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:hubing": {
+    "path": "assets/treasures/treasure-hubing.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/treasures/art/hubing.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1409 A 案样张）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:suanchou": {
+    "path": "assets/treasures/treasure-suanchou.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/treasures/art/suanchou.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1409 A 案样张）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:qingmei": {
+    "path": "assets/treasures/treasure-qingmei.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/treasures/art/qingmei.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1409 A 案样张）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:skill-book": {
+    "path": "assets/treasures/skill-book.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/treasures/art/book.webp",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1409 A 案样张）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:lychee": {
+    "path": "assets/treasures/treasure-lychee.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/master/docs/design/珍宝画心来源.md#新静物",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1533 同底同光静物）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:zhuojiu": {
+    "path": "assets/treasures/treasure-zhuojiu.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/master/docs/design/珍宝画心来源.md#新静物",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1533 同底同光静物）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:pushan": {
+    "path": "assets/treasures/treasure-pushan.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/master/docs/design/珍宝画心来源.md#新静物",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1533 同底同光静物）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:shimo": {
+    "path": "assets/treasures/treasure-shimo.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/master/docs/design/珍宝画心来源.md#新静物",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1533 同底同光静物）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:suoyi": {
+    "path": "assets/treasures/treasure-suoyi.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/master/docs/design/珍宝画心来源.md#新静物",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1533 同底同光静物）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:liangce": {
+    "path": "assets/treasures/treasure-liangce.webp",
+    "source": "https://github.com/openaddr/dafung-web/blob/master/docs/design/珍宝画心来源.md#新静物",
+    "license": "项目生成素材，随本项目使用",
+    "author": "ImageGen（#1533 同底同光静物）",
+    "fetched_at": "2026-11-20",
+    "review_required": false
+  },
+  "treasure:doudai": {
+    "path": "assets/treasures/treasure-doudai.webp",
+    "source": "https://commons.wikimedia.org/wiki/File:Hemp-sack%2C_Asabukuro%2C_Japan.jpg",
+    "license": "CC BY 2.5",
+    "author": "Katorisi",
+    "fetched_at": "2026-11-07",
+    "review_required": false
+  },
+  "treasure:duanxian": {
+    "path": "assets/treasures/treasure-duanxian.webp",
+    "source": "https://github.com/openaddr/dafung-web/pull/1172",
+    "license": "原入库记录为 The Met 开放获取，馆藏号待核",
+    "author": "The Metropolitan Museum of Art（原入库记录）",
+    "fetched_at": "2026-11-07",
+    "review_required": true
   }
 }

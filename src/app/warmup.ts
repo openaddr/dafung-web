@@ -13,12 +13,13 @@
 //     并 console 留痕,对局内首现走原生路径照常工作,不写第二条容错链;
 //   ④JS 首执行税不归它管:单包代码常驻内存、函数首次执行才编译,加载救不了
 //     (chunk 级下载+模块求值归它管见 ②;组件隐藏热身收益小侵入大,拍板不做)。
-// 图片清单来自 core 两张武将/珍宝表的 image 字段与下列对局纹理。
+// 对局图片预热复用各展示位的图片清单，避免和实际画心路径分叉。
 // 首页沙盘随首屏加载。
 // manifest.json 是授权台账非资产清单(含已退役路径,盘上不存在),预热不吃它。
 
 import { HEROES } from "@core/heroes";
-import { TREASURES } from "@core/treasures";
+import { JINNANG_ART_URLS } from "@app/components/card/jinnang-art";
+import { TREASURE_ART_URLS } from "@app/components/card/treasure-art";
 
 /** 对局纹理的 URL 来自 victory.css 的竹林与 StaticLayers.tsx 的龚贤山水横带。 */
 const TEXTURE_URLS = [
@@ -26,11 +27,12 @@ const TEXTURE_URLS = [
   "/assets/textures/texture-gongxian-shanshui.webp",
 ];
 
-/** 游戏图片 url 全集(core 两表 image 字段 + 纹理誊录)。 */
+/** 可能在对局中用到的图片。 */
 function imageUrlSet(): string[] {
   return [
     ...HEROES.map((hero) => hero.image),
-    ...TREASURES.flatMap((t) => (t.image == null ? [] : [t.image])),
+    ...TREASURE_ART_URLS,
+    ...JINNANG_ART_URLS,
     ...TEXTURE_URLS,
   ];
 }

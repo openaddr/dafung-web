@@ -316,7 +316,7 @@
   padding: 0.9em;
   z-index: 1;
 }
-/* 画心·配图通道(art,#359):传入节点即渲染(位图/自定 SVG,容器裁剪) */
+/* 装裱框内保留画心及跋文各自的空间。 */
 .jinnang-card.mount .huaxin .art {
   flex: 1;
   min-height: 0;
@@ -324,37 +324,6 @@
   place-items: center;
   overflow: hidden;
   border-radius: 0.2em;
-}
-.jinnang-card.mount .huaxin .art svg,
-.jinnang-card.mount .huaxin .art img {
-  width: 88%;
-  max-height: 96%;
-  object-fit: contain;
-}
-.jinnang-card.mount .huaxin .art svg {
-  stroke: var(--card-ink-dim);
-  stroke-width: 1.6;
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-/* 画心·无图回退:远山肌理沉底(品级大字退役后,无图牌不再与有图牌争视觉重量) */
-.jinnang-card.mount .huaxin .shan {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  opacity: 0.6;
-  margin-top: 0.4em;
-}
-.jinnang-card.mount .huaxin .shan svg {
-  width: 100%;
-  height: 3.2em;
-  stroke: var(--card-ink-dim);
-  stroke-width: 1.4;
-  fill: none;
-  stroke-linecap: round;
 }
 /* 跋文:风味文,画心内底部小字(白纸画心上淡墨字,#511 文字恒在纸底);
    右侧 2.6em 预留鉴藏印位(第三轮遮挡修正:印左缘与跋文尾字净距紧凑档 5.1px /

@@ -11,7 +11,7 @@
 //
 // frameTone 是二期珍宝变体预留的品级框色通道(DESIGN §4.5「品级框色」),
 // 一期消费方不传(默认 none=基线墨框)。
-import type { HTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes, ReactElement, ReactNode } from "react";
 import { jinnangCardOf } from "@core/jinnang";
 import {
   jinnangAliasSplit,
@@ -102,28 +102,14 @@ export function JinnangCardFace({
  *  绫边(程序化斜纹)/四角包角/画心(漆金外框+品级距条内衬,白纸画心)/题签
  *  (竖排承牌名,白纸签墨字)/鉴藏印(朱砂,右下)/跋文 六件套;品级大字退役,
  *  品级=画心距条内衬+右上品级角标(菱形小底+数字,底色随品级)双通道。
- *  画心双通道:art 传入 ReactNode 即渲染(容器裁剪),缺省=远山肌理回退(程序化
- *  SVG)。宝章恒朱砂(DESIGN §4.5「章恒朱砂」);数据单源 core/treasures.ts
- *  (TreasureDef),本组件不复制目录;消费方(手牌架珍宝明细行)经 title 自带
- *  指导价浮签。 */
+ *  宝章恒朱砂。各陈列位共用珍宝画心，指导价由调用方呈现。 */
 interface TreasureCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   name: string;
   /** 品级 1..10(core/treasures.ts TreasureDef.level);越界=数据 bug 显式抛错(零兜底)。 */
   level: number;
   desc?: string;
-  /** 画心配图通道(#359):传入节点即渲染,容器裁剪;缺省=远山肌理回退。 */
-  art?: ReactNode;
+  art: ReactElement;
 }
-
-/** 画心缺省回退·远山线稿:path 自 proto/treasure/backpack.html 原样移植
- *  (viewBox 0 0 100 26,stroke 色/线宽在 jinnang-card.css 按 .shan 给)。 */
-const SHAN_PATHS = (
-  <>
-    <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
-    <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
-    <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
-  </>
-);
 
 export function TreasureCardFace({
   name,
@@ -149,15 +135,7 @@ export function TreasureCardFace({
       <span className="bj c" aria-hidden="true" />
       <span className="bj d" aria-hidden="true" />
       <div className="huaxin">
-        {art == null ? (
-          <span className="shan" aria-hidden="true">
-            <svg viewBox="0 0 100 26" aria-hidden="true">
-              {SHAN_PATHS}
-            </svg>
-          </span>
-        ) : (
-          <div className="art">{art}</div>
-        )}
+        <div className="art">{art}</div>
         <div className="ba">{desc}</div>
       </div>
       <span className="lv-badge">
