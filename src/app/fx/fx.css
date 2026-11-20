@@ -159,10 +159,14 @@
 .fx-svg-floater.neg {
   fill: var(--color-danger);
 }
-/* 事件文案先浮起，停在原位供阅读，再淡出。 */
+/* 文案和实色墨底一同浮起、停留与淡出。 */
 .fx-svg-floater.msg {
+  font-family: var(--font-wenkai);
   fill: var(--color-paper);
   animation-name: fx-svg-float-message;
+}
+.fx-svg-floater.msg > rect {
+  fill: var(--color-bg-deep);
 }
 @keyframes fx-svg-float-message {
   0% {
@@ -171,7 +175,7 @@
   }
   8%,
   82% {
-    transform: translateY(var(--fx-float-peak-y)) scale(1);
+    transform: translateY(var(--fx-float-peak-y)) scale(var(--fx-float-peak-scale));
     opacity: 1;
   }
   100% {

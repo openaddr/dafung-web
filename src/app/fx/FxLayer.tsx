@@ -19,6 +19,7 @@ import { playerColor, rgba, Theme } from "@core/theme";
 import { useGameStore } from "@app/store/gameStore";
 import { TESTIDS } from "@app/screens/game/testids";
 import { BoardHost, boardPxPerUnit, ensureBoardPxPerUnit } from "@app/components/board/boardHost";
+import type { ViewBox } from "@app/components/board/board-viewport";
 import { TILE_SCALE } from "@app/components/board/city-scene";
 import { useFxStore, type CashFlyFx, type FloaterFx, type SealFx } from "./fxStore";
 import { FxViewport } from "./FxViewport";
@@ -42,11 +43,12 @@ import "./fx.css";
 
 /** 浮字基准字号(SVG 逻辑单位;总览(1 unit≈0.4px)下约等于旧版 26px 屏幕字的观感)。 */
 const FLOATER_BASE_UNITS = 26;
-/** 浮字等效屏幕像素下限(D4:高倍缩小视图时也不小于 12px)。 */
+/** 金额与事件浮字等效屏幕像素下限。 */
 const FLOATER_MIN_PX = 12;
-/** X3 同锚点浮字垂直错位步长(逻辑单位,≈1.4 行字高):同格同帧双浮字
- *  (如成交 −300/+300)按出现序上移错开,不再沿同一轨迹精确叠印。 */
+/** 同锚点浮字垂直错位的最小步长(逻辑单位)。 */
 const FLOATER_STAGGER_UNITS = 36;
+/** 事件浮字的墨底内边距，以实际字号为单位。 */
+const MESSAGE_PADDING_EM = 0.25;
 /** 破产撒币枚数上限(每枚随机落点;超过不再加密度)。 */
 const COIN_BURST_MAX = 12;
 
@@ -160,10 +162,14 @@ function pointCircleBox(x: number, y: number, radius: number): EffectBox {
   };
 }
 
+function isMessageFloater(f: FloaterFx): boolean {
+  return f.skill == null && Boolean(f.text);
+}
+
 /** 浮字渲染档(#850 技能演出补课):class/字号/玩家色变量三件随 skill 档分派——
  *  cast=施展升档(1.0× 焦墨 brush 字+玩家色细描边,--player-color 恒随件内联,
  *  CSS 侧零回退值);tag=被动技名小签(0.7× ink-dim);缺省=金额(pos/neg)或
- *  普通文案小字(msg,0.8×)。 */
+ *  事件文案(msg，文楷，字号同金额档)。 */
 function floaterLook(
   f: FloaterFx,
   fontSize: number,
@@ -180,10 +186,10 @@ function floaterLook(
       size: Math.round(fontSize * 0.7),
       playerColorVar: null,
     };
-  if (f.text)
+  if (isMessageFloater(f))
     return {
       cls: "msg",
-      size: Math.round(fontSize * 0.8),
+      size: fontSize,
       playerColorVar: null,
     };
   return {
@@ -194,7 +200,7 @@ function floaterLook(
 }
 
 /** 静态真实字形只在挂载/内容/字号/字体就绪拍测量,不读取动画帧布局。 */
-function useGlyphBox(text: string, size: number, font: "brush" | "title") {
+function useGlyphBox(text: string, size: number, font: "brush" | "title" | "wenkai") {
   const ref = useRef<SVGTextElement>(null);
   const [box, setBox] = useState<EffectBox | null>(null);
   const [sealScale, setSealScale] = useState<number | null>(null);
@@ -230,15 +236,28 @@ function useGlyphBox(text: string, size: number, font: "brush" | "title") {
   return { ref, box, sealScale };
 }
 
-function Floater({ f, y, fontSize }: { f: FloaterFx; y: number; fontSize: number }) {
+function Floater({
+  f,
+  y,
+  fontSize,
+  fit,
+}: {
+  f: FloaterFx;
+  y: number;
+  fontSize: number;
+  fit: ViewBox;
+}) {
   const look = floaterLook(f, fontSize);
   const text = f.text ?? formatFloater(f.amount);
-  const glyph = useGlyphBox(text, look.size, "brush");
+  const message = look.cls === "msg";
+  const font = message ? "wenkai" : "brush";
+  const glyph = useGlyphBox(text, look.size, font);
   const motion = POINT_MOTION;
   const tag = look.cls === "tag";
+  const peakScale = tag ? motion.tag.peakScale : message ? 1 : motion.float.peakScale;
   const style = {
     "--fx-float-start-scale": motion.float.startScale,
-    "--fx-float-peak-scale": motion.float.peakScale,
+    "--fx-float-peak-scale": peakScale,
     "--fx-float-peak-y": `${motion.float.peakY}px`,
     "--fx-float-end-y": `${motion.float.endY}px`,
     "--fx-float-stroke": motion.float.stroke,
@@ -251,14 +270,25 @@ function Floater({ f, y, fontSize }: { f: FloaterFx; y: number; fontSize: number
       "--player-color": look.playerColorVar,
     }),
   } as CSSProperties;
+  const labelPadding = look.size * MESSAGE_PADDING_EM;
+  let x = f.x;
+  // 长句靠近棋盘左右边缘时，墨底和字一同向内移。
+  if (message && glyph.box) {
+    const left = glyph.box.x - labelPadding;
+    const right = glyph.box.x + glyph.box.width + labelPadding;
+    x = Math.min(Math.max(x, fit.x - left), fit.x + fit.w - right);
+  }
+  const textBox = glyph.box && { ...glyph.box, x: glyph.box.x + x, y: glyph.box.y + y };
+  const label = message && textBox ? expandEffectBox(textBox, labelPadding) : null;
   const box =
-    glyph.box &&
+    textBox &&
     translatedScaleBox(
-      expandEffectBox(
-        { ...glyph.box, x: glyph.box.x + f.x, y: glyph.box.y + y },
-        look.cls === "skill" ? (motion.float.stroke * motion.float.miterLimit) / 2 : 0,
-      ),
-      tag ? motion.tag.peakScale : motion.float.peakScale,
+      label ??
+        expandEffectBox(
+          textBox,
+          look.cls === "skill" ? (motion.float.stroke * motion.float.miterLimit) / 2 : 0,
+        ),
+      peakScale,
       tag ? motion.tag.endY : motion.float.endY,
       tag ? motion.tag.startY : 0,
     );
@@ -270,25 +300,22 @@ function Floater({ f, y, fontSize }: { f: FloaterFx; y: number; fontSize: number
           ref={glyph.ref}
           fontSize={look.size}
           textAnchor="middle"
-          style={{ fontFamily: "var(--font-brush)" }}
+          style={{ fontFamily: `var(--font-${font})` }}
         >
           {text}
         </text>
       </svg>
       {box && (
         <FxViewport box={box} style={style}>
-          <text
+          <g
             className={`fx-svg-floater ${look.cls}`}
-            x={f.x}
-            y={y}
-            fontSize={look.size}
-            textAnchor="middle"
-            style={{
-              animationDuration: `${f.durationMs}ms`,
-            }}
+            style={{ animationDuration: `${f.durationMs}ms` }}
           >
-            {text}
-          </text>
+            {label && <rect {...label} rx={labelPadding} />}
+            <text x={x} y={y} fontSize={look.size} textAnchor="middle">
+              {text}
+            </text>
+          </g>
         </FxViewport>
       )}
       {f.coins && <Coins x={f.x} y={y} scatter={f.coinScatter} burst={false} />}
@@ -371,10 +398,12 @@ function Seal({ seal }: { seal: SealFx }) {
 export const BoardFxLayer = memo(function BoardFxLayer({
   svgRef,
   board,
+  fit,
 }: {
   svgRef: React.RefObject<SVGSVGElement | null>;
   /** 底板数据(易主流光按 tileIndex 查世界落位;架构体检 B 批出底板)。 */
   board: import("@core/board").Board;
+  fit: ViewBox;
 }) {
   const floaters = useFxStore((s) => s.floaters);
   const seals = useFxStore((s) => s.seals);
@@ -412,12 +441,15 @@ export const BoardFxLayer = memo(function BoardFxLayer({
           </radialGradient>
         </defs>
       </svg>
-      {/* 浮动金额 + 铜钱雨 + 文案小字(ADR-0013)+ 技能浮字两档(#850):逻辑坐标
-          直接使用,无需换算。X3:同锚点按存活序 y−idx*36 上移错位(store 追加序 = spawn 序) */}
+      {/* 同锚点按存活序上移错位。事件浮字有墨底，间距随放大的字号增长。 */}
       {floaters.map((f, i) => {
-        const overlapIdx = floaters.slice(0, i).filter((g) => g.x === f.x && g.y === f.y).length;
-        const y = f.y - overlapIdx * FLOATER_STAGGER_UNITS;
-        return <Floater key={f.id} f={f} y={y} fontSize={fontSize} />;
+        const previous = floaters.slice(0, i).filter((g) => g.x === f.x && g.y === f.y);
+        const step =
+          isMessageFloater(f) || previous.some(isMessageFloater)
+            ? Math.max(FLOATER_STAGGER_UNITS, fontSize * 2)
+            : FLOATER_STAGGER_UNITS;
+        const y = f.y - previous.length * step;
+        return <Floater key={f.id} f={f} y={y} fontSize={fontSize} fit={fit} />;
       })}
       {/* 技能施展金圈(#850,landPulse 通道唯一生产者;S7 落格定音原产者随 #826 退役)。
           #849 棒3:keyframe 只管形,
