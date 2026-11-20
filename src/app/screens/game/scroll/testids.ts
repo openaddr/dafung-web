@@ -30,7 +30,7 @@ export const SCROLL_TESTIDS = {
   treasureSkip: "scroll-treasure-skip",
   treasureItem: (treasureId: string) => `scroll-treasure-item-${treasureId}` as const,
   treasureBack: "scroll-treasure-back",
-  // ── 交涉选宝弹层(#362):模式选定后的点选弹层 + 二段式成交钮 ──
+  // ── 交涉选宝弹层(#362):模式选定后的点选弹层 + 成交钮 ──
   treasurePick: "scroll-treasure-pick",
   treasureConfirm: "scroll-treasure-confirm",
 

@@ -369,7 +369,11 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     const banner = () => q(el, TESTIDS.reactionBanner);
     expect(banner()!.textContent).toContain("影响 3 位诸侯");
     click(q(el, TESTIDS.jinnangCard("识破诡计"))!);
-    expect(q(el, TESTIDS.seatTarget(1))).toBeNull();
+    const unaffectedSeat = q(el, TESTIDS.seatTarget(1))!;
+    expect(unaffectedSeat.getAttribute("aria-label")).toContain("不在本次影响范围");
+    click(unaffectedSeat);
+    expect(banner()!.textContent).toContain("不在本次影响范围");
+    expect(q(el, TESTIDS.reactionConfirm)!.hasAttribute("disabled")).toBe(true);
     click(q(el, TESTIDS.seatTarget(0))!);
     click(q(el, TESTIDS.seatTarget(2))!);
     expect(banner()!.textContent).toContain(`保护 ${engine.players[2].guohao}`);

@@ -65,6 +65,7 @@
   padding: 0.5rem 1rem 1rem;
   list-style: none;
   overflow-y: auto;
+  overflow-anchor: auto;
 }
 .war-item {
   display: flex;
@@ -470,52 +471,12 @@
 .game-layout .seat .ai.ai-rep.rep-neg .ai-tag {
   color: var(--color-danger);
 }
-/* 活跃方:金圈呼吸(状态全视觉,§4.6;旧「运筹中」文字微标随席位卡形态退役)——
-   静态=金边+1.5px 金圈+外晕,呼吸=外圈 opacity 往复(reduced-motion 退场留静圈)。
-   外圈 inset -2.5(#770 收口:-4 时 8 席连排(格间距 2px)外圈咬进邻格 2px,
-   -2.5 后最外_paint 距格缘 2.5px、越界 0.5px 为亚像素,不再侵入邻格)。 */
-.game-layout .seat.active {
-  border-color: var(--color-gold);
-  box-shadow:
-    0 0 0 1.5px var(--color-gold),
-    0 0 12px rgba(217, 185, 92, 0.35);
-}
-.game-layout .seat.active::after {
-  content: "";
-  position: absolute;
-  inset: -2.5px;
-  border: 1.5px solid rgba(217, 185, 92, 0.6);
-  border-radius: 5.5px;
-  animation: fx-breathe var(--dur-ambient) var(--ease-sine) infinite; /* 呼吸档缺省 0.35/1(motion.css) */
-  pointer-events: none;
-}
 /* 破产:整格降透明+印灰(原型 .is-bankrupt;旧划名随国号名行退役——格上已无名) */
 .game-layout .seat.bankrupt {
   opacity: 0.45;
 }
 .game-layout .seat.bankrupt .pseal {
   filter: grayscale(1);
-}
-/* 死区轻晃(#743 判词 E/#751 C 批):目标段不可选席点按的一次性反馈(位移即状态,
-   §4.6 零文字),~240ms 横向 ±2px;类随 animationEnd 自清(SeatRail)。仅不可选
-   格挂 .shake,与 .candidate 呼吸(互斥态)/.active 盒影(不同属性)无动画争用。 */
-.game-layout .seat.shake {
-  animation: seat-shake 240ms var(--ease-sine) 1;
-}
-@keyframes seat-shake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  25% {
-    transform: translateX(-2px);
-  }
-  55% {
-    transform: translateX(2px);
-  }
-  80% {
-    transform: translateX(-1px);
-  }
 }
 /* 自机:金描边+左金条+金渐变,无「你」字(§4.6;rgba(217,185,92,·) 裸色豁免见文件头) */
 .game-layout .seat.self {
@@ -526,17 +487,6 @@
     color-mix(in srgb, var(--color-paper-lo) 92%, transparent) 46%
   );
   box-shadow: inset 3px 0 0 var(--color-gold);
-}
-/* 自机×活跃复合态(#743 判词 D/#751 C 批):.self 声明在后,同特异性下盒影把
-   .active 的静环吃掉——静态帧/reduced-motion 下自机活跃格(0.6 透明边+左条)反而
-   弱于他人活跃格(全金边+1.5px 静环+外晕),注意力层级倒挂。补复合态一条:左条
-   身份+静环指名两全,呼吸外圈照旧(::after 不受盒影影响)。 */
-.game-layout .seat.self.active {
-  border-color: var(--color-gold);
-  box-shadow:
-    inset 3px 0 0 var(--color-gold),
-    0 0 0 1.5px var(--color-gold),
-    0 0 12px rgba(217, 185, 92, 0.35);
 }
 /* 终局胜者:金色双环(DESIGN §4.6——撤掉文字状态仍可辨则不加文字:胜者身份由
    金环+终局横幅承载,无「胜」字章;终局时活跃光效已停,两态不并立)。 */
@@ -841,40 +791,6 @@
   color: var(--color-paper-dim);
   font-variant-numeric: tabular-nums;
 }
-/* ── 目标段候选席位(#256):金圈呼吸(原型 .selglow 移植;DESIGN §4.6 候选=金圈
-   呼吸,禁文字章),点击层 .seat-target 真按钮覆盖格面(保留原生可达语义);
-   非候选(免战庇护/无效目标)格不动,原因在点击层 aria-label。
-   架构体检 A 批:呼吸由 box-shadow 逐帧插值(主线程逐帧重绘整格)改为谷值影钉
-   基态 + 峰值影叠 ::after 只动 opacity(.seat.active::after 同款先例,合成器插值);
-   峰值叠层 alpha 按合成后≈原 50% 帧取值。 ── */
-.game-layout .seat.candidate {
-  border-color: var(--color-gold);
-  box-shadow:
-    0 0 0 2px rgba(212, 175, 55, 0.55),
-    0 2px 8px rgba(138, 106, 28, 0.35);
-}
-.game-layout .seat.candidate::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: none;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow:
-    0 0 0 1.5px rgba(212, 175, 55, 0.95),
-    0 2px 10px rgba(138, 106, 28, 0.3);
-  opacity: 0;
-  animation: seat-selglow 2.4s ease-in-out infinite;
-}
-@keyframes seat-selglow {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
-}
 .game-layout .seat-target {
   position: absolute;
   /* 38px 席位的边框内高为 36px，上下各扩 2px 吃满两格间距。 */
@@ -918,8 +834,6 @@
 /* ── reduced-motion:呼吸/光效类动画退场(app.css M-4 全局兜层之外的本文件显式口径,
      同原型 @media 尾行)。#256:候选呼吸退场为直接状态变化(静态金圈仍在)。 ── */
 @media (prefers-reduced-motion: reduce) {
-  .game-layout .seat.active::after,
-  .game-layout .seat.candidate::after,
   .game-layout .bv-token-target-ring {
     animation: none;
   }

@@ -25,7 +25,7 @@ import { TESTIDS } from "../testids";
 // ── 抉择机遇(AwaitingEncounter,#124):画心 + 机遇文段 + 目录选项按钮 ──
 // 数据单源快照 choices(choices.ts 注册表产出):encounterId/encounterText 随选项携带,
 // label=选项原文,available/reason=引擎口径(如以宝换贤的「珍宝不足」),UI 不自行判定。
-// 选项下标 = snapshot.choices 数组下标 = def.choices 下标(resolveEncounterChoice 按此结算)。
+// 选项下标 = snapshot.choices 数组下标，末尾可能附引擎提供的「无事发生」。
 // 三档视觉分档(#847,报告 P1-C2「机遇三档零视觉分档,霉运穿金戴银」):题印底色与
 // 题名 4px 侧饰条按档换色——好运=亮金(壳默认金渐变原样)/中性=黛青/霉运=朱砂;
 // 色变即状态(DESIGN §4.6),不加文字标牌。霉运档首选项从金色 primary 降笺钮——
@@ -71,7 +71,6 @@ export function EncounterChoiceScroll({
   //(奇遇三档皆有,分档皮肤照旧);宽卷+金穗只认身份,不认 human/bot。
   const isOncePerGame = isOncePerGameEncounter(encounterId);
   const art = encounterArt(encounterId);
-  const unavailable = choices.find((o) => !o.available);
   return (
     // display:contents 包裹层只作皮肤选择器宿主,不改排版(SeatRail 同法先例);
     // 横幅 overlay 的 absolute 定位仍解析到原包含块,布局零位移。
@@ -90,8 +89,9 @@ export function EncounterChoiceScroll({
               {choices.map((o, i) => (
                 <BannerButton
                   key={o.id}
-                  primary={i === 0 && !isBadTier}
+                  primary={i === 0 && !isBadTier && o.available}
                   disabled={!o.available}
+                  accessibleLabel={o.reason == null ? undefined : `${o.label} · ${o.reason}`}
                   testid={T.encounterOption(i)}
                   onClick={() => onCommand({ type: "resolveEncounterChoice", index: i })}
                 >
@@ -99,9 +99,6 @@ export function EncounterChoiceScroll({
                 </BannerButton>
               ))}
             </div>
-            {unavailable && (
-              <p className="mt-2 text-center text-xs text-paper-dim">{unavailable.reason}</p>
-            )}
           </div>
         </div>
       </BannerShell>

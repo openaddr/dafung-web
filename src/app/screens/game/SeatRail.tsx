@@ -8,25 +8,17 @@
 // 同形、4×6 牌背近隐形「城1 牌9+」连读成「19+」(844×390 实拍实锤);彩色图标
 // 制整线退役(末代放大场消费方诸侯详情/牌架相继改道,AttrIcon 件 2026-11-07
 // 废弃文件清扫批删除)。发丝线组分隔(#770)保留,预算判据见 layout.css .l2。
-// 状态全视觉不用文字(DESIGN §4.6):活跃=金圈呼吸(.active)、目标候选=金圈呼吸
-// (.candidate)+选中实金停持(.picked,#417 统一口径)、破产=降透明印灰(.bankrupt)、
-// 终局胜者=金环(.won)、自机=金描边+左金条+金渐变(.self,无「你」字)、托管(AI
-// 代打)开启=国号印右 8px 齿轮微标(.hosted,#770,取值与 useAutopilotOn 同源:
-// 联机=座位广播逐席 autoPilot、单机=控制器本地标记;开关交互唯设置弹层,ADR-0028)
-// ——旧「自身不出卡」规则与「运筹中」文字微标随席位卡形态一并退役(活跃金圈呼吸
-// 即指名)。
+// 国号印旁的三角标指示回合方，席位格边框和勾表达目标状态。
+// 自机用左金条，出局降透明度；托管由国号印右侧齿轮标识。
 // 列几何(拍板口径):列宽 96 固定、格间距 2px、列 y8 起排;格高=clamp(30,(可用高−14)/8,38),
 // 可用高=视口高−顶距 8−钮区 54(#700 右下三圆钮上缘;落地前该 54px 仅作格高预算),
 // 矮横屏 390/375/320 三档高全部零滚动——式样落 layout.css,组件零断点分支。
 // 无席位目标段时，点任一席位格打开同一份诸侯详情；托管开关在设置内。
-// 目标段点击层(#256/#417)不受影响:点格=选中/再点同席取消,打出走动作条「出」;
-// 不可选席点按=格身轻晃(§4.6 位移即状态;不可指定原因读 aria-label——旧「弹层
-// reason 印条」通路随单人格弹层退役)。自机候选面:自机格目标段随 targets 在场
-// (自选目标 any 域,候选即自机格点击层;react-self-target 同款)。
+// 选席时点候选格选中或取消，点不可选格在动作条显示原因。
 // 变化反馈(#495):全员现金/体力浮标(useDeltaFloat/DeltaFloats 共享单源),自机格
 // 同锚现金主数/体力条——仪表条已随 #700 退役,自机跳变反馈归席位格(评审 #697 收口;
 // 旧「#700 前双挂浮两遍」随仪表条本体不复存在)。
-import { memo, useState } from "react";
+import { memo } from "react";
 import { Button } from "@base-ui/react/button";
 import { formatMoney } from "@core/money";
 import { skillMarksOf } from "@core/roster";
@@ -63,15 +55,17 @@ function fangzhuMarkOf(p: SnapshotPlayer): { mark: number; ready: boolean } | nu
   return { mark, ready: mark >= FANGZHU_THRESHOLD };
 }
 
-/** 目标段(#256/#417)单席点击槽:available=候选(金圈呼吸,点选=选中);
- *  selected=已选中(实金停持,再点取消);不可用席位照列不动,点按=轻晃
- *  (见 SeatCell 目标段注)。 */
-interface SeatTargetSlot {
+/** 目标状态与回合、身份可叠加。已定首选可同时是已选和当前步骤不可选。 */
+interface SeatTargetState {
   available: boolean;
-  selected?: boolean;
+  selected: boolean;
   reason?: string;
+}
+
+interface SeatTargetSlot extends SeatTargetState {
   locked?: boolean;
   onPick: (seat: number) => void;
+  onUnavailable: (seat: number, reason: string) => void;
 }
 
 /** 手牌计数封顶(#743 判词 A/#751 C 批):行 2 内宽预算容不下两位数——≥10 显示
@@ -118,7 +112,8 @@ function seatCellEqual(
     a.target?.selected === b.target?.selected &&
     a.target?.reason === b.target?.reason &&
     a.target?.locked === b.target?.locked &&
-    a.target?.onPick === b.target?.onPick
+    a.target?.onPick === b.target?.onPick &&
+    a.target?.onUnavailable === b.target?.onUnavailable
   );
 }
 
@@ -142,9 +137,9 @@ const SeatCell = memo(function SeatCell({
   target?: SeatTargetSlot;
   onOpenOverview?: () => void;
 }) {
-  // 死区轻晃(#743 判词 E/#751 C 批):目标段不可选席位点按→格身一次轻晃(视觉反馈,
-  // §4.6 色变/位移即状态,不加文字章),随 animationEnd 自清——一次性演出不驻类。
-  const [shake, setShake] = useState(false);
+  const seatLabel = active ? `${p.guohao} · 当前回合` : p.guohao;
+  if (target?.available === false && target.reason == null)
+    throw new Error(`席位 ${seatLabel} 不可选，但缺少原因`);
   // 放逐标记进度(#1378):攒怒中(标记>0)挂席位格底缘金色进度轨,满档呼吸;
   // 状态表达 §4.6(进度即状态,不落文字标牌;数值与名词在 aria-label)。
   const skillMark = fangzhuMarkOf(p);
@@ -155,7 +150,6 @@ const SeatCell = memo(function SeatCell({
   return (
     <div
       data-testid={self ? TESTIDS.seatSelf : TESTIDS.seat(seat)}
-      onAnimationEnd={() => setShake(false)}
       className={
         "seat" +
         (self ? " self" : "") +
@@ -164,7 +158,7 @@ const SeatCell = memo(function SeatCell({
         (p.isBankrupt ? " bankrupt" : "") +
         (target?.available ? " candidate" : "") +
         (target?.selected ? " picked" : "") +
-        (shake ? " shake" : "")
+        (target && !target.available && !target.selected ? " unavailable" : "")
       }
       style={{
         ["--pc" as string]: rgba(playerColor(p.colorIndex)),
@@ -287,40 +281,29 @@ const SeatCell = memo(function SeatCell({
           />
         </span>
       )}
-      {/* 目标段点击层(#256/#417):真按钮覆盖格面(保留原生可达语义);
-          点格=选中/再点取消(选中实金停持 .picked,样式 seat-target.css),打出走
-          动作条「出」确认钮。不可选席(#743 判词 E/#751 C 批):disabled 会吞点击
-          形成死区——改 aria-disabled 挂点,点按=格身轻晃(原「弹层放行+reason
-          印条」随 #1096 决议1 退役,原因读 aria-label)。 */}
       {onOpenOverview && (
         <Button
           type="button"
           data-testid={TESTIDS.seatOverview(seat)}
           className="seat-target"
           aria-haspopup="dialog"
-          aria-label={`诸侯详情 · ${p.guohao}`}
+          aria-label={`诸侯详情 · ${seatLabel}`}
           onClick={onOpenOverview}
         />
       )}
       {target && (
-        <button
+        <Button
           type="button"
           data-testid={TESTIDS.seatTarget(seat)}
-          className={"seat-target" + (target.selected ? " picked" : "")}
+          className="seat-target"
           disabled={target.locked}
-          aria-disabled={!target.available || undefined}
-          aria-pressed={target.available ? Boolean(target.selected) : undefined}
+          aria-pressed={target.available || target.selected ? target.selected : undefined}
           aria-label={
-            target.available
-              ? `指定 ${p.guohao || p.name} 为目标`
-              : `不可指定:${target.reason ?? ""}`
+            target.available ? `指定 ${seatLabel} 为目标` : `查看 ${seatLabel} · ${target.reason}`
           }
           onClick={() => {
-            if (!target.available) {
-              setShake(true);
-              return;
-            }
-            target.onPick(seat);
+            if (target.available) target.onPick(seat);
+            else target.onUnavailable(seat, target.reason!);
           }}
         />
       )}
@@ -328,23 +311,16 @@ const SeatCell = memo(function SeatCell({
   );
 }, seatCellEqual);
 
-/** 席位格列:全员一人一格(自机入列,座序即列序)。
- *  重渲口径(#1140 渲染税):列体随快照重渲定位变席,SeatCell 按值等 memo——内容
- *  没变的席位 bail out,不再每事件 8 席全量 VDOM;唯一的组件内状态是格身的死区
- *  轻晃(一次性演出,随 animationEnd 自清)。旧三槽位切分(右 3+左 3+顶行缩微)随席位卡形态退役
- *  ——满编 8 席在列高自适应下零滚动(拍板口径,layout.css)。targets(#256/#417
- *  目标段):出牌阶段指向性牌的候选席位(键=座位号),在场时候选格金圈呼吸、点格=
- *  选中/再点同格取消(打出归动作条「出」确认钮,GameScreen 从快照 choices 派生,
- *  本件只呈现)。selfSeat(#453 收口契约):「屏前真人的自我身份」——单机热座恒 0、
- *  联机=本座,勿传「决策视角」viewSeat(热座下随 decisionOwner 轮转)。 */
+/** 全员按座序显示。selfSeat 是屏前身份，热座也独立于当前回合和决策视角。 */
 interface SeatRailProps {
   snapshot: GameSnapshot;
   selfSeat: number;
   onOpenOverview: () => void;
   targets?: {
-    bySeat: Map<number, { available: boolean; selected?: boolean; reason?: string }>;
+    bySeat: Map<number, SeatTargetState>;
     locked?: boolean;
     onPick: (seat: number) => void;
+    onUnavailable: (seat: number, reason: string) => void;
   };
 }
 
@@ -363,14 +339,14 @@ export function SeatRail({ snapshot, selfSeat, onOpenOverview, targets }: SeatRa
     seat === selfSeat ? selfHosted : netSeats != null ? netSeats[seat].autoPilot : false;
 
   const targetSlot = (seat: number): SeatTargetSlot | undefined => {
-    const t = targets?.bySeat.get(seat);
-    if (!t || !targets) return undefined;
+    if (targets == null) return undefined;
+    const t = targets.bySeat.get(seat);
+    if (t == null) throw new Error(`选席时缺少席位 ${seat} 的状态`);
     return {
-      available: t.available,
-      selected: t.selected,
-      reason: t.reason,
+      ...t,
       locked: targets.locked,
       onPick: targets.onPick,
+      onUnavailable: targets.onUnavailable,
     };
   };
 

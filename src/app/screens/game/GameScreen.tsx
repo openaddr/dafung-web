@@ -505,20 +505,35 @@ function GameScreenLive({
           })),
         }
       : null;
-  const reactTargets = useTargetSelection(
-    reactTargetStep != null ? JSON.stringify([reactionScope, selectedReaction!.key]) : null,
-    reactTargetStep,
-  );
+  const reactTargetScope =
+    reactTargetStep != null ? JSON.stringify([reactionScope, selectedReaction!.key]) : null;
+  const reactTargets = useTargetSelection(reactTargetScope, reactTargetStep);
   const activeTargetStep = reactTargetStep ?? targetStep;
+  const activeTargetScope = reactTargetScope ?? targetScope;
   const activeTargets = reactTargetStep != null ? reactTargets : targets;
   const cityTargeting = activeTargetStep?.domain === "city";
   const cityOptions = cityTargeting ? activeTargetStep.candidates.filter((o) => o.available) : [];
   const seatOptions = activeTargetStep?.domain === "seat" ? activeTargetStep.candidates : [];
+  const [blockedSeat, setBlockedSeat] = useState<{ scope: string; text: string } | null>(null);
+  const seatReason = blockedSeat?.scope === activeTargetScope ? blockedSeat.text : undefined;
+  useEffect(() => {
+    setBlockedSeat(null);
+  }, [activeTargetScope]);
   const seatTargetPick = useCallback(
     (seat: number) => {
-      if (interactive) activeTargets.toggle(seat);
+      if (!interactive) return;
+      setBlockedSeat(null);
+      activeTargets.toggle(seat);
     },
     [interactive, activeTargets.toggle],
+  );
+  const showSeatReason = useCallback(
+    (seat: number, reason: string) => {
+      if (activeTargetScope != null) {
+        setBlockedSeat({ scope: activeTargetScope, text: `${players[seat].guohao} · ${reason}` });
+      }
+    },
+    [activeTargetScope, players],
   );
   const handleTileClick = (tileIndex: number) => {
     if (cityTargeting) {
@@ -763,8 +778,6 @@ function GameScreenLive({
           viewSeat={viewSeat}
           online={online}
         />
-        {/* 席位格按稳定 selfSeat 识别自机,活跃方金圈指名。
-          目标段由 choices 派生候选,点格选中/再点取消,打出经动作条确认。 */}
         <SeatRail
           snapshot={snapshot}
           selfSeat={selfSeat}
@@ -773,17 +786,29 @@ function GameScreenLive({
             activeTargetStep?.domain === "seat"
               ? {
                   bySeat: new Map(
-                    seatOptions.map((o) => [
-                      o.id,
-                      {
-                        available: o.available,
-                        reason: o.reason,
-                        selected: activeTargets.selected.includes(o.id),
-                      },
-                    ]),
+                    players.map((_, seat) => {
+                      const option = seatOptions.find((o) => o.id === seat);
+                      const firstPick =
+                        reactTargetStep == null &&
+                        junshiPendingCard?.stage === "two-b" &&
+                        junshiPendingCard.picked.includes(seat);
+                      return [
+                        seat,
+                        {
+                          available: option?.available === true,
+                          selected: firstPick || activeTargets.selected.includes(seat),
+                          reason: firstPick
+                            ? "已选为第一位，点「上一步」可更改"
+                            : option == null
+                              ? "不在本次影响范围"
+                              : option.reason,
+                        },
+                      ];
+                    }),
                   ),
                   locked: !interactive,
                   onPick: seatTargetPick,
+                  onUnavailable: showSeatReason,
                 }
               : undefined
           }
@@ -879,7 +904,7 @@ function GameScreenLive({
           <ActionBar
             title={junshiTitle}
             collapsed={rackHidden && !junshiTargeting}
-            detail={junshiDetail}
+            detail={seatReason == null ? junshiDetail : `${junshiDetail} · ${seatReason}`}
             primaryLabel={junshiPrimaryLabel}
             cancelLabel={
               junshiPendingSkill != null
@@ -901,7 +926,8 @@ function GameScreenLive({
             key={reactionScope}
             {...reactionNotice}
             step={
-              reactTargetStep != null
+              seatReason ??
+              (reactTargetStep != null
                 ? `${rackHidden ? `已选 ${selectedReaction!.optionId} · ` : ""}${
                     reactionShare != null
                       ? `保护 ${reactTargetStep.candidates.find((o) => o.id === reactionShare)!.label}`
@@ -911,7 +937,7 @@ function GameScreenLive({
                   }`
                 : reactCardId != null
                   ? `已选 ${reactCardId}`
-                  : null
+                  : null)
             }
             durationMs={reaction.windowMs}
             deadlineAt={reactionDeadlineAt!}

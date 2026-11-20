@@ -203,6 +203,9 @@
 .hand-rack-hand.many > :where(button, .skill-rack-card) + :where(button, .skill-rack-card) {
   margin-left: calc(var(--jn-step) - 15em);
 }
+.hand-rack:not(.spread-all) .hand-rack-hand.many > .skill-rack-card + .skill-rack-card {
+  margin-left: calc(var(--skill-step) - 15em);
+}
 
 /* ── 出牌阶段态(#256:旧弹窗退役,架即出牌面;原型 .playable 口径)──
    .junshi 挂架体(HandRack junshi 载荷在场)。状态语义:
@@ -392,6 +395,6 @@
   }
 }
 
-/* ── 名将技能卡:出牌阶段态用 SkillCardFace 单技装配,技名横排、立绘居中、
-   将名在下;技能描述和固定冷却周期归技能全览,不可用原因留在卡面。样式单源
+/* ── 名将技能卡:出牌阶段态用 SkillCardFace 单技装配,立绘在上、
+   将名和技名分列底签左右;技能描述和固定冷却周期归技能全览,不可用原因留在卡面。样式单源
    card/hero-card.css;卡基经 --hface-base 随架体 em 基走,15u×20u 与锦囊同格。 ── */
