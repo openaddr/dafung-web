@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>胜利页原型 · 群雄逐鹿</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #16110c;
+        color: #f4ecd8;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 844px;
+        margin: 0 auto;
+        padding-block: 12px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        padding-inline: 8px;
+        font-size: 18px;
+        font-weight: 400;
+        color: #ecd28a;
+      }
+      #stage {
+        position: relative;
+        width: 100%;
+        max-width: 844px;
+        aspect-ratio: 844 / 390;
+        overflow: hidden;
+      }
+      #scene-image {
+        position: absolute;
+        width: 100%;
+        height: auto;
+        left: 0;
+      }
+      #restart {
+        position: absolute;
+        inset: 84.615% auto auto 40.284%;
+        width: 19.431%;
+        height: 11.282%;
+        padding: 0;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+      }
+      button:focus-visible {
+        outline: 2px solid #ecd28a;
+        outline-offset: 2px;
+      }
+      nav {
+        display: flex;
+        gap: 6px 14px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+        padding-inline: 8px;
+      }
+      .choices {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .choices button {
+        min-height: 44px;
+        padding: 0 10px;
+        border: 1px solid #9c8a5e;
+        border-radius: 5px;
+        background: #2b2317;
+        color: inherit;
+        font: inherit;
+      }
+      .choices button[aria-pressed="true"] {
+        background: #3d3325;
+        border-color: #ecd28a;
+        color: #ecd28a;
+      }
+      .choices button:disabled {
+        opacity: 0.44;
+      }
+      #status {
+        min-height: 1.5em;
+        margin: 6px 0 0;
+        padding-inline: 8px;
+        color: #c6b491;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>胜利页原型 · <span id="selected-variant">A 胜者画卷</span></h1>
+      <div id="stage">
+        <img id="scene-image" src="compare.png" alt="" width="844" height="844" />
+        <button id="restart" type="button" aria-label="再战一局"></button>
+      </div>
+      <nav aria-label="原型切换">
+        <div class="choices" role="group" aria-label="构图">
+          <button type="button" data-variant="A" aria-pressed="true">A 胜者画卷</button>
+          <button type="button" data-variant="B" aria-pressed="false">B 终榜优先</button>
+        </div>
+        <div class="choices" role="group" aria-label="终局样例">
+          <button type="button" data-scene="eight" aria-pressed="true">八席有将</button>
+          <button type="button" data-scene="two" aria-pressed="false">双席无将</button>
+          <button type="button" data-scene="aborted" aria-pressed="false">对局作废</button>
+        </div>
+      </nav>
+      <p id="status" role="status"></p>
+    </main>
+    <script>
+      const scenes = {
+        eight: {
+          image: "compare.png",
+          alt: "富甲天下。第 17 轮，东魏称帝，都城幽州，持有司马懿、曹仁、邓艾，终局现金 30480 两。终榜按现金降序为东魏 30480 两、蜀 23740 两、吴 21540 两、魏 18660 两、燕 12800 两、赵 8640 两、楚 5230 两、齐 0 两（破产）。",
+        },
+        two: {
+          image: "compare-no-heroes.png",
+          alt: "群雄尽灭。第 9 轮，蜀称帝，都城洛阳，无名将，终局现金 13200 两。终榜为蜀 13200 两、魏 0 两（破产）。",
+        },
+        aborted: {
+          image: "aborted.png",
+          alt: "对局作废。内部错误导致对局终止，详情见对局日志。",
+        },
+      };
+      const names = { A: "A 胜者画卷", B: "B 终榜优先" };
+      const query = new URLSearchParams(location.search);
+      const requestedScene = query.get("scene");
+      let scene = Object.hasOwn(scenes, requestedScene) ? requestedScene : "eight";
+      let variant = query.get("variant") === "B" ? "B" : "A";
+      const img = document.getElementById("scene-image");
+      const status = document.getElementById("status");
+      const title = document.getElementById("selected-variant");
+      const variantButtons = document.querySelectorAll("[data-variant]");
+      const sceneButtons = document.querySelectorAll("[data-scene]");
+
+      function show() {
+        const current = scenes[scene];
+        const aborted = scene === "aborted";
+        const top = aborted ? 0 : variant === "A" ? 32 : 454;
+        img.src = current.image;
+        img.alt = current.alt;
+        img.height = aborted ? 390 : 844;
+        img.style.top = `${(-100 * top) / 390}%`;
+        title.textContent = aborted ? "对局作废" : names[variant];
+        status.textContent = "";
+        for (const button of variantButtons) {
+          button.disabled = aborted;
+          button.setAttribute(
+            "aria-pressed",
+            String(!aborted && variant === button.dataset.variant),
+          );
+        }
+        for (const button of sceneButtons)
+          button.setAttribute("aria-pressed", String(scene === button.dataset.scene));
+      }
+
+      function updateUrl() {
+        history.replaceState(null, "", `?variant=${variant}&scene=${scene}`);
+      }
+
+      for (const button of variantButtons)
+        button.addEventListener("click", () => {
+          variant = button.dataset.variant;
+          show();
+          updateUrl();
+        });
+      for (const button of sceneButtons)
+        button.addEventListener("click", () => {
+          scene = button.dataset.scene;
+          show();
+          updateUrl();
+        });
+      document.getElementById("restart").addEventListener("click", () => {
+        status.textContent = "已点按「再战一局」。";
+      });
+      show();
+    </script>
+  </body>
+</html>
