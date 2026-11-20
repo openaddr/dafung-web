@@ -4,13 +4,13 @@
 import { describe, it, expect } from "bun:test";
 import { readFileSync, existsSync } from "node:fs";
 import { JINNANG_CARDS } from "@core/jinnang";
-import { TREASURES } from "@core/treasures";
+import { makeSkillBook, TREASURES } from "@core/treasures";
+import { treasureArtOf } from "@app/components/card/treasure-art";
 import {
   jinnangAliasSplit,
   JINNANG_FAMILY,
   JINNANG_TARGET_LABEL,
   treasureFrameTone,
-  treasureImagePath,
   rackTilt,
 } from "@app/components/card/jinnang-face-data";
 
@@ -174,25 +174,32 @@ describe("treasureFrameTone(珍宝品级 → 框色档,#234/#281)", () => {
   });
 });
 
-describe("treasureImagePath(装裱卡画心查表,#521)", () => {
-  it("带画心的目录条目路径指向真实存在的文件(素材批同真,防断链)", () => {
-    // #1100 起目录扩容:画心断言只扫 image 非缺省条目(算筹/青梅暂回退远山肌理=合法空态,补图后自动入扫)
-    const withImage = TREASURES.filter((t) => t.image != null);
-    expect(withImage.length).toBe(14);
-    for (const t of withImage) {
-      expect(t.image, `${t.id} 缺画心字段`).toStartWith("/assets/treasures/");
-      expect(
-        existsSync(new URL(`../public${t.image}`, import.meta.url)),
-        `${t.image} 文件不存在`,
-      ).toBe(true);
+describe("treasureArtOf(珍宝画心)", () => {
+  it("全部 16 项目录都有可呈现的画心文件", () => {
+    expect(TREASURES).toHaveLength(16);
+    for (const t of TREASURES) {
+      const { image } = treasureArtOf(t);
+      expect(image, t.id).toStartWith("/assets/treasures/");
+      expect(existsSync(new URL(`../public${image}`, import.meta.url)), t.id).toBe(true);
     }
   });
 
+  it("同一装订册承载不同技名", () => {
+    const jixing = treasureArtOf(makeSkillBook("jixing"));
+    expect(jixing.bookTitle).toBe("疾行");
+    expect(existsSync(new URL(`../public${jixing.image}`, import.meta.url))).toBe(true);
+
+    // 展示快照只含实例 id 时，也能按同一装订册取真实技名。
+    const longTitle = treasureArtOf({ id: "skillbook-wengzhongzhuobie" });
+    expect(longTitle.bookTitle).toBe("瓮中捉鳖");
+    expect(longTitle.image).toBe(jixing.image);
+    expect(() => treasureArtOf({ id: "skillbook-unknown" })).toThrow("unknown");
+  });
+
   it("实例 id(「目录 id-序号」)与裸目录 id 都能查到;目录外 id 抛错(零兜底)", () => {
-    expect(treasureImagePath("seal")).toBe("/assets/treasures/treasure-seal.webp");
-    expect(treasureImagePath("seal-3")).toBe(treasureImagePath("seal")); // 牌堆展开带序号
-    expect(treasureImagePath("hat-12")).toBe("/assets/treasures/treasure-hat.webp");
-    expect(() => treasureImagePath("jade_seal")).toThrow(/TREASURES/);
+    expect(treasureArtOf({ id: "seal" }).image).toBe("/assets/treasures/treasure-seal.webp");
+    expect(treasureArtOf({ id: "seal-3" })).toEqual(treasureArtOf({ id: "seal" }));
+    expect(() => treasureArtOf({ id: "seal-invalid" })).toThrow(/TREASURES/);
   });
 });
 

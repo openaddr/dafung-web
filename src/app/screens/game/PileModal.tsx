@@ -7,8 +7,7 @@
 // 壳走 ui/dialog 底件(Base UI:焦点陷阱/Esc/点外关闭全部白拿,不自写交互语义,
 // 同 JinnangDetailSheet 先例);挂载不夺焦 = initialFocus={false},焦点留在入口
 // 小件上,Esc 直关即可;可见题名即 DialogTitle(可达名=视觉题名同一节点)。
-// 画心双通道:快照珍宝行不带画心数据,展示层经 treasureImagePath 按 id 回查
-// TREASURES 目录(#521 画心批),目录行缺 image 时仍走缺省回退(远山肌理);
+// 快照珍宝行经 TreasureArt 取目录画心或带真实技名的技能书装订册;
 // 无「曾持有」区——UI 只显示当前状态(DESIGN §4.6)。
 // 空陈列照常可开:计数角标如实报 0;空网格接 #768 器物空态制式(斜放朱印+短注,
 // 单源 screens/shared/ArtifactEmpty,#851 接入)。
@@ -23,7 +22,7 @@ import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { useDialogExit } from "@app/hooks/use-dialog-exit";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
-import { treasureImagePath } from "@app/components/card/jinnang-face-data";
+import { TreasureArt } from "@app/components/card/TreasureArt";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { formatMoney } from "@core/money";
 import { guidePriceOf, isSkillBook, type TreasureDef } from "@core/treasures";
@@ -166,17 +165,14 @@ export function PileZone({ children }: { children: ReactNode }) {
   );
 }
 
-/** 珍宝装裱卡陈列件(R2 残余收口):目录画心回查(#521)+ TreasureCardFace(品级
- *  角标+题签+鉴藏印)+ 指导价浮签。静态 cell 的 face 半件,与价签名牌
- *  treasurePrice 配对使用;技能书可点态等交互变体在消费面自行组装 cell。 */
+/** 藏品与选宝共用装裱卡。指导价和可点态由各自的操作场景决定。 */
 export function treasureFace(t: SnapshotPlayer["treasures"][number]) {
-  const image = treasureImagePath(t.id);
   return (
     <TreasureCardFace
       name={t.name}
       level={t.level}
       desc={t.desc}
-      art={image != null ? <img src={image} alt="" /> : undefined}
+      art={<TreasureArt treasure={t} />}
       className="pile-cell-card"
     />
   );
@@ -188,9 +184,8 @@ export function treasurePrice(t: SnapshotPlayer["treasures"][number]) {
 }
 
 /** 珍宝弹层内容:已持有全件的装裱卡大格网格(陈列档 7.6px 基=114×152),
- *  每格 = TreasureCardFace(品级角标+题签+鉴藏印)+ 指导价名牌;画心 = 目录
- *  image(#521 画心批,快照行按 id 回查 TREASURES),目录行缺 image 时走缺省回退
- *  (远山肌理;技能书不在静态目录,恒走回退)。技能书可点态(#1146):己方出牌阶段(bookPlayReady)+麾下可学
+ *  每格 = TreasureCardFace(品级角标+题签+鉴藏印)+ 指导价名牌。
+ *  技能书可点态(#1146):己方出牌阶段(bookPlayReady)+麾下可学
  *  (skillBookLearners 单源)时为真 button——1 名可学直发用书命令、多名开选人弹窗;
  *  0 名可学=不可用态(书=纯交易物照常陈列),非出牌阶段同理,原因显示在书格内。
  *  空网格(#851 空态器物化):裸网格空洞退役,接 #768 斜放朱印制式(单源

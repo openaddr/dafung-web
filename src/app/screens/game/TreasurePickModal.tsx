@@ -2,9 +2,7 @@
 // 坐地起价与公道买卖共用装裱卡网格,点选=预选,两段确认后提交 treasureId。
 // 交易条件与结算预览、成交钮同处固定 footer。
 import { useState, type ReactNode } from "react";
-import { PileShell, PileZone } from "./PileModal";
-import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
-import { treasureImagePath } from "@app/components/card/jinnang-face-data";
+import { PileShell, PileZone, treasureFace } from "./PileModal";
 import type { SnapshotTreasure } from "@app/store/gameStore";
 import "./pile-modal.css";
 import "./treasure-pick.css";
@@ -113,7 +111,6 @@ export function TreasurePickModal({
       <div className="pile-grid">
         {treasures.map((t) => {
           const sel = t.id === pickedId;
-          const image = treasureImagePath(t.id);
           return (
             <button
               type="button"
@@ -126,13 +123,7 @@ export function TreasurePickModal({
               }}
               className={"pile-cell treasure-pick-cell" + (sel ? " treasure-pick-sel" : "")}
             >
-              <TreasureCardFace
-                name={t.name}
-                level={t.level}
-                desc={t.desc}
-                art={image != null ? <img src={image} alt="" /> : undefined}
-                className="pile-cell-card"
-              />
+              {treasureFace(t)}
               <span className="pile-price">{tagOf(t, sel)}</span>
             </button>
           );
