@@ -1,0 +1,223 @@
+/* 同底同光：横竖画心都按短边排版，保留完整主体和四边留白。 */
+.treasure-art[data-treasure-art] {
+  display: grid;
+  align-self: stretch;
+  justify-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  place-items: center;
+  container-type: size;
+  background:
+    repeating-linear-gradient(
+      105deg,
+      transparent 0 1px,
+      color-mix(in srgb, var(--color-paper) 2%, transparent) 1px 2px
+    ),
+    radial-gradient(
+      ellipse at 27% 19%,
+      color-mix(in srgb, var(--color-paper-dim) 20%, var(--color-lacquer)),
+      var(--color-lacquer) 57%,
+      var(--color-paper-lo)
+    );
+}
+
+.treasure-art-scene {
+  position: relative;
+  width: min(100cqw, 100cqh);
+  aspect-ratio: 1;
+  overflow: hidden;
+  filter: drop-shadow(1px 2px 2px color-mix(in srgb, var(--color-bg-deep) 75%, transparent));
+}
+
+.treasure-art-image {
+  position: absolute;
+  top: var(--photo-top, 0);
+  left: var(--photo-left, 0);
+  display: block;
+  width: var(--photo-width, 100%);
+  height: auto;
+  clip-path: var(--photo-outline, none);
+  filter: var(--photo-light, none);
+}
+
+.treasure-art-book-title {
+  --book-title-width: 17cqmin;
+  --book-title-height: 41cqmin;
+  --book-title-border: 1px;
+  position: absolute;
+  top: 29%;
+  left: 45%;
+  display: grid;
+  box-sizing: border-box;
+  width: var(--book-title-width);
+  height: var(--book-title-height);
+  overflow: hidden;
+  place-items: center;
+  border: var(--book-title-border) solid var(--color-gold-deep);
+  background: var(--color-paper);
+  color: var(--color-bg-deep);
+  font-family: var(--font-brush);
+  /* 题签随方形画心短边缩放，每字须在竖排题签的内框内。 */
+  font-size: min(
+    11cqmin,
+    24px,
+    calc(var(--book-title-width) - 2 * var(--book-title-border)),
+    calc((var(--book-title-height) - 2 * var(--book-title-border)) / var(--book-title-length))
+  );
+  letter-spacing: normal;
+  line-height: 1;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  white-space: nowrap;
+}
+
+/* 实拍依原图边缘取景。轮廓随图片一起缩放，不改拍到的器物。 */
+[data-treasure-art="edict"] {
+  --photo-width: 82%;
+  --photo-top: 13%;
+  --photo-left: 9%;
+  --photo-outline: polygon(3% 4%, 96.5% 3%, 98% 95%, 2.5% 98%);
+  --photo-light: sepia(0.35) brightness(0.85);
+}
+
+[data-treasure-art="hu"] {
+  --photo-width: 126%;
+  --photo-top: -2%;
+  --photo-left: -13%;
+  --photo-outline: polygon(
+    20.3% 44%,
+    22.8% 41.6%,
+    26.5% 42.4%,
+    29.4% 36%,
+    34% 31.8%,
+    38.1% 29.5%,
+    35.4% 26.7%,
+    36.1% 23%,
+    40% 20.2%,
+    48% 19.5%,
+    55.6% 20.1%,
+    59.7% 22.9%,
+    60.4% 26.9%,
+    58.1% 30%,
+    64% 32%,
+    69% 37%,
+    71.5% 41.5%,
+    76.4% 40.2%,
+    78.9% 43.1%,
+    78.8% 47.2%,
+    76.1% 50.2%,
+    72.9% 50.9%,
+    72% 57.5%,
+    68% 64.9%,
+    62.6% 69.3%,
+    57.5% 72.4%,
+    62.2% 76.1%,
+    63.3% 80.5%,
+    61.6% 84.2%,
+    55.2% 87.1%,
+    47.8% 88.1%,
+    40.8% 86.8%,
+    36.2% 83.7%,
+    36.4% 79.6%,
+    38.9% 75.6%,
+    43.4% 72.7%,
+    37.7% 71.1%,
+    32.3% 67%,
+    28% 60%,
+    26.4% 51.3%,
+    23.3% 51.7%,
+    20.5% 49.3%
+  );
+  --photo-light: saturate(0.84) brightness(0.95);
+}
+
+[data-treasure-art="seal"] {
+  --photo-outline: polygon(
+    25.2% 54%,
+    26.8% 50%,
+    26.5% 41%,
+    27.8% 34%,
+    31.6% 28%,
+    36.7% 24%,
+    43.8% 20.5%,
+    42.5% 17%,
+    42% 13%,
+    44.2% 10.6%,
+    48.6% 10.3%,
+    52% 9.4%,
+    57.2% 9.4%,
+    62.8% 11.6%,
+    66.5% 15.6%,
+    68.7% 20.4%,
+    71% 24.5%,
+    73.1% 30.6%,
+    74.8% 38%,
+    74.8% 44%,
+    73.2% 47.4%,
+    74% 51.1%,
+    75.2% 53%,
+    75.3% 83.8%,
+    73% 85.4%,
+    67% 86.5%,
+    56% 87.1%,
+    43% 87.1%,
+    32% 86%,
+    26.6% 84.7%,
+    25% 83.4%
+  );
+}
+
+[data-treasure-art="qingnang"] {
+  --photo-width: 61%;
+  --photo-top: 4%;
+  --photo-left: 21%;
+  --photo-outline: polygon(1% 4.7%, 94% 4.7%, 93.5% 95%, 48% 95.7%, 0.4% 95%);
+  --photo-light: saturate(0.82) brightness(0.93);
+}
+
+[data-treasure-art="doudai"] {
+  --photo-width: 74%;
+  --photo-top: 9%;
+  --photo-left: 17%;
+  --photo-outline: polygon(
+    8.8% 9.2%,
+    12.4% 7.3%,
+    20.4% 5.7%,
+    30.6% 1.2%,
+    35% 0%,
+    75% 0%,
+    77.9% 11.3%,
+    79% 24.3%,
+    77.8% 38%,
+    74.9% 51.5%,
+    74.1% 57.5%,
+    74.2% 64%,
+    71.4% 71.3%,
+    72.5% 77.5%,
+    75.2% 83%,
+    81.2% 90.2%,
+    78.7% 90.1%,
+    65.9% 84.4%,
+    59.7% 78.1%,
+    50.5% 75.9%,
+    44.5% 72.5%,
+    39.4% 66.4%,
+    35.6% 60.5%,
+    34.6% 55.1%,
+    29.8% 47%,
+    25% 39.5%,
+    20.1% 30.2%,
+    15.6% 21%,
+    11.3% 14%
+  );
+  --photo-light: saturate(0.82) brightness(0.9);
+}
+
+[data-treasure-art="duanxian"] {
+  --photo-width: 80%;
+  --photo-top: 0%;
+  --photo-left: 10%;
+  --photo-outline: polygon(0% 22.6%, 100% 23.4%, 100% 72.4%, 0% 73.5%);
+  --photo-light: brightness(1.2) sepia(0.14);
+}

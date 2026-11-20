@@ -1,4 +1,4 @@
-// 机遇签(#1072 T3,spec #1069 决议⑤):ENCOUNTERS 全量 30 条按档三组陈列
+// 机遇签(#1072 T3,spec #1069 决议⑤):ENCOUNTERS 全目录按档三组陈列
 // (好运/中性/霉运,组头=档位名+档位点,计数如实报数、随目录数据走),卡墙=
 // EncounterCardFace 新绘机遇笺;点卡开 PileShell 详情叠层(screens 层内复用,
 // #1069 归位口径):壳题名=机遇名、正文全文+choices 选项文案,每选项 text+
@@ -11,6 +11,7 @@
 import { useState } from "react";
 import type { EncounterChoiceOption, EncounterDef, EncounterTier } from "@core/encounters";
 import { ENCOUNTERS } from "@core/encounters";
+import { encounterArt } from "@app/components/card/encounter-art";
 import { PileShell } from "@app/screens/game/PileModal";
 import { MANUAL_TID } from "./testids";
 import { ENCOUNTER_TIER_FACE, EncounterCardFace } from "./EncounterCardFace";
@@ -30,7 +31,7 @@ function SignedNote({ label, delta }: { label: string; delta: number }) {
 /** 抉择选项行:选项文案全文 + 代价注(声望/体力/珍宝,零值与缺省不注)。 */
 function ChoiceRow({ choice }: { choice: EncounterChoiceOption }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 rounded-[3px] bg-[color-mix(in_srgb,var(--color-paper-hi)_55%,transparent)] px-2.5 py-2">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-[3px] bg-[color-mix(in_srgb,var(--color-paper-hi)_55%,transparent)] px-2.5 py-2">
       <span className="font-wenkai text-[13px] leading-[1.7] text-paper">{choice.text}</span>
       <span className="flex flex-none basis-[auto] items-baseline gap-2.5 text-[12px] [font-variant-numeric:tabular-nums]">
         {choice.repDelta !== 0 && <SignedNote label="声望" delta={choice.repDelta} />}
@@ -49,6 +50,7 @@ function ChoiceRow({ choice }: { choice: EncounterChoiceOption }) {
  *  抉择选项(如有,含单选项抉择)。 */
 function EncounterDetail({ def, onClose }: { def: EncounterDef; onClose: () => void }) {
   const tier = ENCOUNTER_TIER_FACE[def.tier];
+  const art = encounterArt(def.id);
   return (
     <PileShell
       title={def.id}
@@ -57,39 +59,42 @@ function EncounterDetail({ def, onClose }: { def: EncounterDef; onClose: () => v
       testid={MANUAL_TID.detail(def.id)}
       onClose={onClose}
     >
-      <div className="mx-auto flex w-[min(620px,92%)] flex-col gap-3 pb-3">
-        <div className="flex items-center gap-2.5">
-          {/* 档位章(笺面语言带入详情):档位色深底小方章 + 档名 */}
-          <span
-            aria-hidden="true"
-            className="inline-grid h-[22px] w-[22px] rotate-[2.5deg] place-items-center rounded-[3px] font-title text-[13px] text-paper"
-            style={{
-              background: `color-mix(in srgb, ${tier.fam} 62%, var(--color-bg-deep))`,
-            }}
-          >
-            {tier.seal}
-          </span>
-          <span className="font-brush text-[16px] tracking-[0.15em] text-paper">{def.tier}</span>
-        </div>
-        <p className="font-wenkai text-[14px] leading-[1.9] [font-variant-numeric:tabular-nums] text-paper">
-          {def.text}
-        </p>
-        {def.choices != null ? (
-          <div className="flex flex-col gap-2 border-t border-dashed border-gold/30 pt-3">
-            {def.choices.map((c) => (
-              <ChoiceRow key={c.text} choice={c} />
-            ))}
+      <div className="encounter-story-layout mx-auto w-[min(620px,92%)] pb-3">
+        <img className="encounter-story-art" src={art.src} alt={art.alt} decoding="async" />
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            {/* 档位章(笺面语言带入详情):档位色深底小方章 + 档名 */}
+            <span
+              aria-hidden="true"
+              className="inline-grid h-[22px] w-[22px] rotate-[2.5deg] place-items-center rounded-[3px] font-title text-[13px] text-paper"
+              style={{
+                background: `color-mix(in srgb, ${tier.fam} 62%, var(--color-bg-deep))`,
+              }}
+            >
+              {tier.seal}
+            </span>
+            <span className="font-brush text-[16px] tracking-[0.15em] text-paper">{def.tier}</span>
           </div>
-        ) : (
-          /* 即时条(无 choices):体力代价注(Q1 拍板),同 choices 注形制;cash 不注 */
-          def.effect != null &&
-          def.effect.staminaDelta != null &&
-          def.effect.staminaDelta !== 0 && (
-            <div className="flex items-baseline justify-end border-t border-dashed border-gold/30 pt-3 text-[12px] [font-variant-numeric:tabular-nums]">
-              <SignedNote label="体力" delta={def.effect.staminaDelta} />
+          <p className="font-wenkai text-[14px] leading-[1.9] [font-variant-numeric:tabular-nums] text-paper">
+            {def.text}
+          </p>
+          {def.choices != null ? (
+            <div className="flex flex-col gap-2 border-t border-dashed border-gold/30 pt-3">
+              {def.choices.map((c) => (
+                <ChoiceRow key={c.text} choice={c} />
+              ))}
             </div>
-          )
-        )}
+          ) : (
+            /* 即时条(无 choices):体力代价注(Q1 拍板),同 choices 注形制;cash 不注 */
+            def.effect != null &&
+            def.effect.staminaDelta != null &&
+            def.effect.staminaDelta !== 0 && (
+              <div className="flex items-baseline justify-end border-t border-dashed border-gold/30 pt-3 text-[12px] [font-variant-numeric:tabular-nums]">
+                <SignedNote label="体力" delta={def.effect.staminaDelta} />
+              </div>
+            )
+          )}
+        </div>
       </div>
     </PileShell>
   );

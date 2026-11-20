@@ -13,6 +13,8 @@ import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
 import { isOncePerGameEncounter, type EncounterTier } from "@core/encounters";
 import { formatMoney } from "@core/money";
+import { encounterArt } from "@app/components/card/encounter-art";
+import "@app/components/card/encounter-art.css";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { EncounterGoldSprays } from "./EncounterSpray";
 import { AffordRow } from "./AffordRow";
@@ -20,7 +22,7 @@ import { ValueTable, type ValueTableProperty } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
-// ── 抉择机遇(AwaitingEncounter,#124):机遇文段 + 目录选项按钮 ──
+// ── 抉择机遇(AwaitingEncounter,#124):画心 + 机遇文段 + 目录选项按钮 ──
 // 数据单源快照 choices(choices.ts 注册表产出):encounterId/encounterText 随选项携带,
 // label=选项原文,available/reason=引擎口径(如以宝换贤的「珍宝不足」),UI 不自行判定。
 // 选项下标 = snapshot.choices 数组下标 = def.choices 下标(resolveEncounterChoice 按此结算)。
@@ -68,6 +70,8 @@ export function EncounterChoiceScroll({
   // 奇遇身份(#1155):id 派生(isOncePerGameEncounter 单源),与档位正交
   //(奇遇三档皆有,分档皮肤照旧);宽卷+金穗只认身份,不认 human/bot。
   const isOncePerGame = isOncePerGameEncounter(encounterId);
+  const art = encounterArt(encounterId);
+  const unavailable = choices.find((o) => !o.available);
   return (
     // display:contents 包裹层只作皮肤选择器宿主,不改排版(SeatRail 同法先例);
     // 横幅 overlay 的 absolute 定位仍解析到原包含块,布局零位移。
@@ -78,26 +82,28 @@ export function EncounterChoiceScroll({
         wide={isOncePerGame}
         sideOrnament={isOncePerGame ? <EncounterGoldSprays /> : undefined}
       >
-        {/* 机遇文段:事件描述正文用霞鹜文楷 */}
-        <p className="m-1 mb-3.5 text-center text-sm text-paper-dim font-wenkai">{encounterText}</p>
-        <div className="flex flex-col gap-2.5">
-          {choices.map((o, i) => (
-            <BannerButton
-              key={o.id}
-              primary={i === 0 && !isBadTier}
-              disabled={!o.available}
-              testid={T.encounterOption(i)}
-              onClick={() => onCommand({ type: "resolveEncounterChoice", index: i })}
-            >
-              {o.label}
-            </BannerButton>
-          ))}
+        <div className="encounter-story-layout">
+          <img className="encounter-story-art" src={art.src} alt={art.alt} decoding="async" />
+          <div>
+            <p className="mb-3.5 font-wenkai text-sm text-paper-dim">{encounterText}</p>
+            <div className="flex flex-col gap-2.5">
+              {choices.map((o, i) => (
+                <BannerButton
+                  key={o.id}
+                  primary={i === 0 && !isBadTier}
+                  disabled={!o.available}
+                  testid={T.encounterOption(i)}
+                  onClick={() => onCommand({ type: "resolveEncounterChoice", index: i })}
+                >
+                  {o.label}
+                </BannerButton>
+              ))}
+            </div>
+            {unavailable && (
+              <p className="mt-2 text-center text-xs text-paper-dim">{unavailable.reason}</p>
+            )}
+          </div>
         </div>
-        {choices.some((o) => !o.available) && (
-          <p className="mt-2 text-center text-xs text-paper-dim">
-            {choices.find((o) => !o.available)?.reason}
-          </p>
-        )}
       </BannerShell>
     </div>
   );

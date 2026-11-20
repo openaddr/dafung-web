@@ -1,8 +1,8 @@
 /* 锦囊牌面器物件样式(#236 一期 T1)——从 tmp/prototype-jinnang-ui.html 第一 <style> 块
    忠实移植(2026-09-24 用户已验收的视觉基线):类名、形制、色值不做自由发挥。
    选择器统一收口在 .jinnang-card / .jinnang-detail 作用域下(原型是裸类名,入库改为
-   组件前缀防全局串扰);#511 卡面 B 案「墨面金框」改制:纸底+金框画心+立绘 img 通道
-   (缺省画心=#763 自绘族母题墨线,立绘通道在上)——用户判词「纸底保证文字可读,立绘只进金框画心」,
+   组件前缀防全局串扰);#511 卡面 B 案「墨面金框」改制:纸底+金框画心+立绘 img 通道。
+   #1532 六张锦囊使用 A 案小场景，三张沿用专属墨线。画心只占金框，
    牌名/标签章/笺脚文字恒在纸底。动效时长/缓动走 --dur-* 与 --ease-* token
    (tokens.css 单源,reduced-motion 由 app.css 全局兜层承担)。
 
@@ -140,24 +140,29 @@
   overflow: hidden;
   min-height: 4.5em; /* 4.5em(#556):为笺脚 1.32em 字级让位(原 6em) */
 }
-/* 画心·立绘通道(#511):art 传入节点即渲染(容器裁剪,位图 cover 铺满画心);
-   缺省=族母题墨线画心(#763 自绘,见 ink-art/jinnang-huaxin)。 */
-.jinnang-card .yang .art {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+/* #1532 小场景只填画框，图片尺寸不挤占笺脚。矮画框略向下取景，保留案上骰子、
+   拿玉的手和泥中车轮等动作。 */
+.jinnang-card .yang:has(> .jinnang-story-art) {
+  position: relative;
 }
-.jinnang-card .yang .art img {
+.jinnang-card .yang > .jinnang-story-art,
+.jinnang-detail .dt-art > .jinnang-story-art {
+  position: absolute;
+  inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
+  pointer-events: none;
+}
+.jinnang-card .yang > .jinnang-story-art {
+  object-position: center 70%;
 }
 /* 画心·墨线(#763):族色描边(描边是族色仅存处之一);path 级 stroke-width
    覆盖基调线宽(毛笔宽窄对,随 viewBox 缩放,.lg 档不再另收细)。
-   #854 画心密度补课:母题占画心 82%→96%、基调 2.2→2.8(票面口径),
-   配合 ink-art/jinnang-huaxin 的族色衬景层(透明 .08-.12)填密画心。 */
-.jinnang-card .yang svg {
+   SVG 占画心 96%，基调线宽 2.8(#854)。 */
+.jinnang-card .yang svg,
+.jinnang-detail .dt-art svg {
   width: 96%;
   height: 96%;
   opacity: 0.85;
@@ -299,7 +304,7 @@
   padding: 0.9em;
   z-index: 1;
 }
-/* 画心·配图通道(art,#359):传入节点即渲染(位图/自定 SVG,容器裁剪) */
+/* 装裱框内保留画心及跋文各自的空间。 */
 .jinnang-card.mount .huaxin .art {
   flex: 1;
   min-height: 0;
@@ -307,37 +312,6 @@
   place-items: center;
   overflow: hidden;
   border-radius: 0.2em;
-}
-.jinnang-card.mount .huaxin .art svg,
-.jinnang-card.mount .huaxin .art img {
-  width: 88%;
-  max-height: 96%;
-  object-fit: contain;
-}
-.jinnang-card.mount .huaxin .art svg {
-  stroke: var(--card-ink-dim);
-  stroke-width: 1.6;
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-/* 画心·无图回退:远山肌理沉底(品级大字退役后,无图牌不再与有图牌争视觉重量) */
-.jinnang-card.mount .huaxin .shan {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  opacity: 0.6;
-  margin-top: 0.4em;
-}
-.jinnang-card.mount .huaxin .shan svg {
-  width: 100%;
-  height: 3.2em;
-  stroke: var(--card-ink-dim);
-  stroke-width: 1.4;
-  fill: none;
-  stroke-linecap: round;
 }
 /* 跋文:风味文,画心内底部小字(白纸画心上淡墨字,#511 文字恒在纸底);
    右侧 2.6em 预留鉴藏印位(第三轮遮挡修正:印左缘与跋文尾字净距紧凑档 5.1px /
@@ -572,11 +546,9 @@
   text-align: center;
 }
 
-/* ── 详情内容面板(JinnangCardDetail):五段 = 牌名 / 章行 / 全文 / 虚线分隔 / 脚注。
-   非弹层——弹层壳(抽屉/浮层)归消费方,本件只是可嵌入的内容面板;
-   墨面用 paper-hi/lo 渐变,消费方可覆盖宽度。 ── */
+/* ── 锦囊详情沿用题名、章行与脚注，金框画心与全文并列。 ── */
 .jinnang-detail {
-  width: 340px;
+  width: 560px;
   max-width: 100%;
   box-sizing: border-box;
   background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
@@ -611,13 +583,28 @@
   color: var(--color-paper-dim);
   font-variant-numeric: tabular-nums;
 }
+.jinnang-detail .dt-body {
+  display: grid;
+  grid-template-columns: min(36%, 180px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.jinnang-detail .dt-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 7 / 5;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 62%, transparent);
+  border-radius: 4px;
+  background: var(--color-paper);
+}
 .jinnang-detail .dt-text {
   margin: 0;
   font-size: 14px;
   line-height: 1.85;
   font-variant-numeric: tabular-nums;
 }
-/* 第④段虚线分隔 + 第⑤段脚注(虚线边即分隔,一段两用) */
 .jinnang-detail .dt-foot {
   margin-top: 14px;
   padding-top: 12px;

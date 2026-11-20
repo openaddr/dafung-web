@@ -5,10 +5,11 @@ import { Button } from "@base-ui/react/button";
 import { Toggle } from "@base-ui/react/toggle";
 import type { GameCommand } from "@core/authority";
 import type { BankruptcyAsset } from "@core/bankruptcy";
-import { guidePriceOf, SKILL_BOOK_ID_PREFIX } from "@core/treasures";
+import { guidePriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import type { SnapshotTreasure } from "@app/store/gameStore";
-import { treasureImagePath } from "@app/components/card/jinnang-face-data";
+import { TreasureArt } from "@app/components/card/TreasureArt";
+import { treasureArtId } from "@app/components/card/treasure-art";
 import { cn } from "@app/utils/cn";
 import { Sym } from "@app/screens/shared/Sym";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
@@ -26,15 +27,16 @@ interface BankruptcyScrollProps {
   onCommand: (cmd: GameCommand) => void;
 }
 
-interface SaleGroup {
+interface SaleGroupFields {
   key: string;
-  kind: BankruptcyAsset["kind"];
   ids: string[];
   name: string;
   price: number;
   level: number;
-  image: string | undefined;
 }
+
+type SaleGroup = SaleGroupFields &
+  ({ kind: "treasure"; treasure: SnapshotTreasure } | { kind: "property" });
 
 type SelectedAsset = BankruptcyAsset & { group: string; price: number };
 const PAGE_SIZE = 6;
@@ -51,10 +53,10 @@ export function BankruptcyScroll({
   const [page, setPage] = useState(0);
   const [confirmingBankruptcy, setConfirmingBankruptcy] = useState(false);
   const isGhost = useContext(BannerGhostContext);
-  const treasureGroups = new Map<string, SaleGroup>();
+  const treasureGroups = new Map<string, SaleGroup & { kind: "treasure" }>();
   for (const t of treasures) {
     // 普通珍宝=目录 id + 牌堆序号;同技多册技能书共用 id,不能用 Set 去重实物。
-    const id = t.id.startsWith(SKILL_BOOK_ID_PREFIX) ? t.id : t.id.replace(/-\d+$/u, "");
+    const id = treasureArtId(t.id);
     const existing = treasureGroups.get(id);
     if (existing) existing.ids.push(t.id);
     else {
@@ -65,7 +67,7 @@ export function BankruptcyScroll({
         name: t.name,
         price: guidePriceOf(t.level),
         level: t.level,
-        image: treasureImagePath(t.id),
+        treasure: t,
       });
     }
   }
@@ -78,7 +80,6 @@ export function BankruptcyScroll({
       name: p.name,
       price: p.sellPrice,
       level: p.level,
-      image: undefined,
     })),
   ];
   const owe = Math.max(0, debtAmount - cash);
@@ -194,24 +195,21 @@ export function BankruptcyScroll({
                 const quantity = selected.filter((asset) => asset.group === group.key).length;
                 const id = groupId(group);
                 const duplicate = group.ids.length > 1;
-                const art = group.image ? (
-                  <img src={group.image} alt="" className="bankruptcy-art" />
-                ) : (
-                  <svg
-                    className="bankruptcy-art"
-                    viewBox="0 0 40 48"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    aria-hidden="true"
-                  >
-                    {group.kind === "property" ? (
+                const art =
+                  group.kind === "treasure" ? (
+                    <TreasureArt treasure={group.treasure} className="bankruptcy-art" />
+                  ) : (
+                    <svg
+                      className="bankruptcy-art"
+                      viewBox="0 0 40 48"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      aria-hidden="true"
+                    >
                       <path d="M3 21 20 8l17 13H3Zm4 0v22h26V21M3 43h34M16 43V29h8v14M11 26v5m18-5v5M12 15V8h16v7" />
-                    ) : (
-                      <path d="M8 4h25v40H8V4Zm5 0v40M5 10h7M5 20h7M5 30h7M19 13h9m-9 8h9m-9 8h9" />
-                    )}
-                  </svg>
-                );
+                    </svg>
+                  );
                 const contents = (
                   <>
                     {art}

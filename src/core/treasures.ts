@@ -11,7 +11,7 @@ export interface TreasureDef {
   level: number; // 1-10
   count?: number; // 牌堆中数量(仅 TREASURES 表用)
   desc?: string; // 风味描述
-  image?: string; // 装裱卡画心(public 下,如 /assets/treasures/treasure-seal.webp;#521 画心批,同华佗 image 先例:纯数据字段,机制零消费;缺省=装裱卡回退远山肌理)
+  image?: string; // 静态珍宝目录画心(public 下);技能书共用装订册,由展示层按技名题字。
   /** 种别(#1146):缺省 "normal"=纯价值物;"book"=技能书——麾下习得器的可交易载体
    *  (白得零特判:交易/变卖/来访求购/窃玉全套珍宝现通路)。判别严格走本字段
    *  (isSkillBook 守卫),不靠 skillId 有无;存量珍宝零改。 */
@@ -21,7 +21,7 @@ export interface TreasureDef {
   skillId?: string;
 }
 
-export const TREASURES: TreasureDef[] = [
+export const TREASURES: (TreasureDef & { image: string })[] = [
   {
     id: "edict",
     name: "带血的诏书",
@@ -71,7 +71,7 @@ export const TREASURES: TreasureDef[] = [
     image: "/assets/treasures/treasure-qingnang.webp",
   },
   // ── 起手珍宝目录扩容(#1100):1 级八品种各 2 件 + 断弦琴/粮册,1 级池合计 17 件
-  // (8 人局开局发放 16 件后余 1)。本批不含画心(image 缺省 = 装裱卡回退远山肌理合法空态)。
+  // (8 人局开局发放 16 件后余 1)。
   {
     id: "zhuojiu",
     name: "浊酒",
@@ -94,6 +94,7 @@ export const TREASURES: TreasureDef[] = [
     level: 1,
     count: 2,
     desc: "账房先生握了一辈子的竹签",
+    image: "/assets/treasures/treasure-suanchou.webp",
   },
   {
     id: "pushan",
@@ -117,6 +118,7 @@ export const TREASURES: TreasureDef[] = [
     level: 1,
     count: 2,
     desc: "煮酒论英雄的同款青梅",
+    image: "/assets/treasures/treasure-qingmei.webp",
   },
   {
     id: "shimo",

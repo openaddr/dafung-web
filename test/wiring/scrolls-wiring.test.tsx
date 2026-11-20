@@ -17,7 +17,7 @@ import { createDice } from "@core/dice";
 import { heroById } from "@core/heroes";
 import { formatMoney } from "@core/money";
 import { applyPlant, type PlantOp } from "@core/planter";
-import { guidePriceOf } from "@core/treasures";
+import { guidePriceOf, makeSkillBook } from "@core/treasures";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
@@ -507,8 +507,8 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
   it("清算跨页预选保留实物顺序,重复珍宝数量可减到零,足额后只允许减选", async () => {
     const { plant, snap, engine } = startGame();
     const treasures = [
-      { id: "skillbook-jixing", name: "技能书·急行", level: 2 },
-      { id: "skillbook-jixing", name: "技能书·急行", level: 2 },
+      makeSkillBook("jixing"),
+      makeSkillBook("jixing"),
       { id: "qingnang-10", name: "青囊书残卷", level: 5 },
       { id: "qingnang-11", name: "青囊书残卷", level: 5 },
       { id: "hat-12", name: "草帽", level: 1 },

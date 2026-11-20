@@ -1,14 +1,8 @@
 // 锦囊牌面纯数据/纯函数(#236 一期 T1):零 DOM 零 React,单测直测。
 // 牌面文案与效果的单源是 core/jinnang.ts(组件经 jinnangCardOf 取数,不复制文案);
-// 本文件只持有「牌面怎么画」的映射——别称剥离、四族色、目标域中文、尺寸档,
+// 本文件只持有「牌面怎么画」的映射——别称剥离、五族色、目标域中文、尺寸档,
 // 消费方:JinnangCardFace.tsx(同目录)与 jinnang-card.css(族色类/尺寸档为镜像)。
 import type { JinnangTag, JinnangTargetDomain } from "@core/jinnang";
-import { SKILL_BOOK_ID_PREFIX, TREASURES } from "@core/treasures";
-
-/** 画心母题族:一标签一族(方案 §4 P0-A 立,#763 起为自绘墨线画心的族通道键)
- *  ——谋=云 / 攻=火 / 守=盾 / 援=枝 / 即时=电(#281 反应锦囊:电光石火,反应窗
- *  一闪即发)。墨线 path 单源在 ink-art/jinnang-huaxin.tsx(JINNANG_INK_FAMILY)。 */
-export type JinnangPattern = "cloud" | "fire" | "shield" | "branch" | "bolt";
 
 /** 牌面尺寸档:em 基准 font-size(standard 8px→120×160 / large 16px→240×320)。
  *  数值唯一事实源是 jinnang-card.css 的档类(.jinnang-card / .jinnang-card.lg,
@@ -28,18 +22,17 @@ export function jinnangAliasSplit(text: string): { alias: string | null; body: s
   return { alias: text.slice(0, i), body: text.slice(i + 1) };
 }
 
-/** 五族映射:族色 token、画心母题、章字、CSS 族色类(jinnang-card.css 的 .f-* ——组件不再
- *  自备第二份映射,单测钉 CSS 镜像)。牌面族色 = tags[0]
- *  (谋=云·黛青 / 攻=火·朱砂 / 守=盾·赭石 / 援=枝·青绿 / 即时=电·靛青)。 */
+/** 五族映射:族色 token、章字、CSS 族色类(jinnang-card.css 的 .f-*,单测钉 CSS 镜像)。
+ *  牌面族色 = tags[0]。 */
 export const JINNANG_FAMILY: Record<
   JinnangTag,
-  { token: string; pattern: JinnangPattern; label: string; faceClass: string }
+  { token: string; label: string; faceClass: string }
 > = {
-  谋: { token: "--color-seal-qing", pattern: "cloud", label: "谋", faceClass: "f-mou" }, // 黛青
-  攻: { token: "--color-danger", pattern: "fire", label: "攻", faceClass: "f-gong" }, // 朱砂
-  守: { token: "--color-road-side", pattern: "shield", label: "守", faceClass: "f-shou" }, // 赭石
-  援: { token: "--color-money", pattern: "branch", label: "援", faceClass: "f-yuan" }, // 青绿
-  即时: { token: "--color-jishi", pattern: "bolt", label: "即时", faceClass: "f-shi" }, // 靛青(#281 反应锦囊正式族)
+  谋: { token: "--color-seal-qing", label: "谋", faceClass: "f-mou" }, // 黛青
+  攻: { token: "--color-danger", label: "攻", faceClass: "f-gong" }, // 朱砂
+  守: { token: "--color-road-side", label: "守", faceClass: "f-shou" }, // 赭石
+  援: { token: "--color-money", label: "援", faceClass: "f-yuan" }, // 青绿
+  即时: { token: "--color-jishi", label: "即时", faceClass: "f-shi" }, // 靛青(#281 反应锦囊正式族)
 };
 
 /** 目标域中文(牌面用语规范口径,与 core/jinnang.ts 文件头注释同一版)。 */
@@ -63,20 +56,6 @@ export function treasureFrameTone(level: number): Exclude<FrameTone, "none"> {
   if (level <= 3) return "tong";
   if (level <= 6) return "yin";
   return "gold";
-}
-
-/** 珍宝画心路径(#521 画心批):快照珍宝实例 id → 目录画心。牌堆实例 id =
- *  「目录 id-序号」(core/treasures.ts createTreasureDeck 展开格式),按目录 id 前缀
- *  回查;目录行有 image 才给路径(缺省=装裱卡远山肌理回退,art 通道既有语义),
- *  目录外 id = 数据 bug 抛错(零兜底)。技能书(#1146)是唯一例外:运行时印书单源
- *  组成(makeSkillBook),不在静态目录是设计内——无画心,恒走远山肌理回退。
- *  快照 TreasureRow 不带 image(瘦下行),故在展示层按 id 回查目录——与 PileModal
- *  经 guidePriceOf 回查同口径。 */
-export function treasureImagePath(treasureId: string): string | undefined {
-  if (treasureId.startsWith(SKILL_BOOK_ID_PREFIX)) return undefined;
-  const def = TREASURES.find((t) => treasureId === t.id || treasureId.startsWith(`${t.id}-`));
-  if (def == null) throw new Error(`珍宝实例 ${treasureId} 不在 TREASURES 目录(数据 bug)`);
-  return def.image;
 }
 
 /** 出牌阶段/反应窗牌面微旋(#234 P2-E TablePile 质感):确定性伪随机 ±1.5°——同一张牌
