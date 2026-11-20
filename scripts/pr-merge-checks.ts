@@ -19,6 +19,7 @@ const rules: Array<[RegExp, string[]]> = [
     [],
   ],
   [/^scripts\/.+\.(?:ts|mjs)$/, ["typecheck:scripts"]],
+  [/^scripts\/build-sound-clips\.ts$/, []],
   [/^scripts\/reaction-deadline\.ts$/, []],
   [
     /^(?:src\/core\/|extensions\/(?!.*\.md$)|public\/(?:maps|config)\/|scripts\/(?:whole-game|state-digest|test-corpus|bot-driver|engine-helpers)\.ts$)/,
