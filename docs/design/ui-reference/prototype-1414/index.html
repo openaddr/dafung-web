@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>城池建筑对照 · #1414</title>
+<style>
+  :root { color-scheme: dark; font: 16px/1.55 system-ui, sans-serif; color: #f4ecd8; background: #16110c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px 12px 128px; }
+  main { max-width: 844px; margin-inline: auto; }
+  h1 { margin: 0; font-size: 21px; font-weight: 400; color: #ecd28a; }
+  p { margin: 5px 0 10px; color: #c6b491; }
+  .board { display: block; width: 100%; height: auto; border: 1px solid #5b4f39; border-radius: 7px; }
+  .switcher { display: flex; flex-direction: column; align-items: center; gap: 6px; position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 10px; background: #16110c; border-top: 1px solid #5b4f39; }
+  .switcher nav { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .switcher a { color: #f4ecd8; background: #2b2317; min-height: 42px; min-width: 50px; display: inline-grid; place-items: center; padding: 4px 12px; border-radius: 5px; border: 1px solid #5b4f39; text-decoration: none; font-size: 14px; }
+  .switcher [aria-current="true"] { border-color: #ecd28a; color: #ecd28a; background: #3d3325; }
+  .switcher a:focus-visible { outline: 2px solid #ecd28a; outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>城池建筑对照</h1>
+  <p id="caption">A 保留淡框，强化灰瓦、重檐、琉璃与砖石。</p>
+  <a id="full" href="a-board.png"><img id="board" class="board" src="a-board.png" width="844" height="390" alt="A 方案，关中图对局总览，含无主城、领地、都城、等级珠和防御盾排"></a>
+</main>
+<div class="switcher">
+  <nav aria-label="建筑方案">
+    <a data-variant="A" href="?variant=A&amp;scene=board" aria-current="true">A 淡框精绘</a>
+    <a data-variant="B" href="?variant=B&amp;scene=board">B 石台落子</a>
+  </nav>
+  <nav aria-label="对照场景">
+    <a data-scene="board" href="?variant=A&amp;scene=board" aria-current="true">对局总览</a>
+    <a data-scene="target" href="?variant=A&amp;scene=target">火烧连营选城</a>
+    <a data-scene="detail" href="?variant=A&amp;scene=detail">城池缩略图</a>
+  </nav>
+</div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const variant = params.get("variant") === "B" ? "B" : "A";
+  const scenes = {
+    board: "关中图对局总览，含无主城、领地、都城、等级珠和防御盾排。",
+    target: "打出火烧连营前，地图上的洛阳出现双金环。",
+    detail: "六座城的缩略图，洛阳剩一盾，许昌有五盾。",
+  };
+  const requested = params.get("scene");
+  const scene = Object.hasOwn(scenes, requested) ? requested : "board";
+  const captions = {
+    A: "A 保留淡框，强化灰瓦、重檐、琉璃与砖石。",
+    B: "B 无主城以低石台落在驿道上，有主城继续用现有归属框。",
+  };
+  const file = variant.toLowerCase() + "-" + scene + ".png";
+  const board = document.querySelector("#board");
+  board.src = file;
+  board.alt = variant + " 方案。" + scenes[scene];
+  document.querySelector("#full").href = file;
+  document.querySelector("#caption").textContent = captions[variant] + scenes[scene];
+
+  for (const link of document.querySelectorAll("[data-variant], [data-scene]")) {
+    const nextVariant = link.dataset.variant || variant;
+    const nextScene = link.dataset.scene || scene;
+    link.href = "?" + new URLSearchParams({ variant: nextVariant, scene: nextScene });
+    if (nextVariant === variant && nextScene === scene) link.setAttribute("aria-current", "true");
+    else link.removeAttribute("aria-current");
+  }
+</script>
+</body>
+</html>
