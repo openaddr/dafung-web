@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>锦囊画心 · 决策原型 #1410</title>
+    <style>
+      /* Tokens, card stock and family colors are snapshots of the project at the listed base. */
+      :root {
+      --color-bg: #1f1a13;
+      --color-bg-deep: #16110c;
+      --color-panel: #2b2317;
+      --color-panel-hi: #3d3325;
+      --color-paper-hi: #3b3222;
+      --color-paper-lo: #241d13;
+      --color-paper: #f4ecd8;
+      --color-paper-dim: #c6b491;
+      --color-lacquer: #332a1e;
+      --color-lacquer-gold: #d9b95c;
+      --color-gold: #d9b95c;
+      --color-gold-bright: #ecd28a;
+      --color-gold-deep: #c8a13a;
+      --color-money: #79a965;
+      --color-danger: #e2634d;
+      --color-success: #35a374;
+      --color-seal-qing: #76aaa5;
+      --color-jishi: #82a4cc;
+      --color-defense-shield: #7aa2d4;
+      --color-road-main: #8a6c44;
+      --color-road-side: #c07f47;
+      --color-gold-wash: #9c8a5e;
+      --color-attr-cash: #7cab66;
+      --color-attr-cash-bright: #8fbf77;
+      --color-attr-city: #76aaa5;
+      --color-attr-city-bright: #7fb0ad;
+      --color-attr-rep: #b58cc5;
+      --color-attr-rep-bright: #c383c5;
+      --color-attr-gem: #d89a55;
+      --color-attr-gem-bright: #e09a52;
+      --color-attr-hero: #e2634d;
+      --color-attr-hero-bright: #e07a6a;
+      --font-title: "ZCOOL KuHei", "Ma Shan Zheng", "KaiTi", "STKaiti", serif;
+      --font-brush: "Ma Shan Zheng", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;
+      --font-deco: "ZCOOL XiaoWei", "KaiTi", serif;
+      --font-wenkai: "LXGW WenKai", "KaiTi", "STKaiti", serif;
+      }
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/73.woff2') format('woff2');unicode-range:U+655B;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/76.woff2') format('woff2');unicode-range:U+63FD,U+7A83,U+8BE1;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/77.woff2') format('woff2');unicode-range:U+7130,U+7AA5,U+FF0F;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/78.woff2') format('woff2');unicode-range:U+4FAF,U+7F34;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/79.woff2') format('woff2');unicode-range:U+5BE8,U+906E;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/80.woff2') format('woff2');unicode-range:U+56CA,U+8D4B;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/81.woff2') format('woff2');unicode-range:U+63F4,U+8BF8,U+8C0B,U+8D54;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/82.woff2') format('woff2');unicode-range:U+300C,U+300D,U+503E,U+593A,U+5E9F,U+62D6,U+820D,U+8D21,U+8D24,U+8FA8;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/83.woff2') format('woff2');unicode-range:U+4EA6,U+500D,U+5077,U+6A2A,U+73CD,U+7F13,U+9526;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/84.woff2') format('woff2');unicode-range:U+23,U+3D,U+5175,U+5200,U+5BF8,U+5C3A,U+62FC,U+6ED1,U+70E7,U+864E,U+8D25,U+8DDD;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/85.woff2') format('woff2');unicode-range:U+26,U+3C,U+D7,U+5BDF,U+6298,U+63A2,U+65CF,U+6740,U+7389,U+7A97,U+7ADE,U+80DC,U+8C6A,U+8DF3,U+9014,U+9759,U+987A;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/86.woff2') format('woff2');unicode-range:U+4ED8,U+4F24,U+4F59,U+5DE7,U+5E10,U+5E8F,U+5EA7,U+5F81,U+653B,U+66B4,U+67B6,U+699C,U+7834,U+7EB3,U+9047;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/87.woff2') format('woff2');unicode-range:U+25,U+4EFD,U+4F4F,U+5199,U+519B,U+51B3,U+5219,U+534A,U+5931,U+5BB3,U+5C3D,U+5C40,U+6B62,U+6EE1,U+72B6,U+753B,U+79BB,U+7B56,U+8BE6,U+8F83,U+95ED,U+968F,U+9999;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/88.woff2') format('woff2');unicode-range:U+2B,U+40,U+518D,U+53D7,U+53EA,U+5404,U+5411,U+5B9D,U+5BC6,U+5DF1,U+5E93,U+5F20,U+5F3A,U+62DB,U+6307,U+6362,U+6548,U+6574,U+666F,U+6B65,U+6BCF,U+706B,U+7167,U+724C,U+73AF,U+7B7E,U+7EC4,U+7EC6,U+8425,U+89C2,U+8BC6,U+8DB3,U+8FDE,U+9020,U+90A3,U+98DF;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/89.woff2') format('woff2');unicode-range:U+4E,U+4E24,U+4E8C,U+4ED6,U+4EF6,U+4EFB,U+514D,U+518C,U+5373,U+539F,U+53CA,U+53CD,U+53D6,U+573A,U+578B,U+57CE,U+5B57,U+5B8C,U+5C06,U+5DF2,U+5E94,U+5F97,U+6001,U+6216,U+6253,U+6295,U+653E,U+67E5,U+6807,U+6837,U+683C,U+6848,U+6B64,U+6BD4,U+6C42,U+6E90,U+76EE,U+7F6E,U+800C,U+88AB,U+8BA1,U+8BA4,U+8D77,U+8DEF,U+8EAB,U+9009,U+91CC,U+9650;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/90.woff2') format('woff2');unicode-range:U+3E,U+4E0A,U+4E0B,U+4E0D,U+4E0E,U+4E3A,U+4E3B,U+4E4B,U+4E8E,U+4EBA,U+4EE4,U+4F4D,U+4F53,U+4F5C,U+4F60,U+5173,U+5176,U+51FA,U+524D,U+52A8,U+53EF,U+5408,U+540D,U+56DE,U+56FE,U+5728,U+5927,U+5B9A,U+5BF9,U+5C0F,U+5E73,U+5F00,U+5FC3,U+60C5,U+610F,U+6210,U+6240,U+624B,U+6280,U+6536,U+6587,U+65B9,U+65E0,U+65F6,U+673A,U+6765,U+6B21,U+7279,U+73B0,U+7528,U+770B,U+7C7B,U+7CFB,U+7ECF,U+8005,U+80FD,U+81EA,U+884C,U+8FC7,U+91D1;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/91.woff2') format('woff2');unicode-range:U+20,U+21,U+22,U+27,U+28,U+29,U+2A,U+2C,U+2D,U+2E,U+2F,U+30,U+31,U+32,U+33,U+34,U+35,U+36,U+37,U+38,U+39,U+3A,U+3B,U+3F,U+41,U+42,U+43,U+44,U+45,U+46,U+47,U+48,U+4A,U+4C,U+4D,U+4F,U+50,U+51,U+52,U+53,U+54,U+55,U+56,U+57,U+59,U+5A,U+5B,U+5C,U+5D,U+61,U+62,U+63,U+64,U+65,U+66,U+67,U+68,U+69,U+6A,U+6B,U+6C,U+6D,U+6E,U+6F,U+70,U+71,U+72,U+73,U+74,U+75,U+76,U+77,U+78,U+79,U+7A,U+7B,U+7D,U+B7,U+3001,U+3002,U+4E00,U+6709,U+70B9,U+7684,U+FF0C;}
+      @font-face{font-family:'Ma Shan Zheng';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/ma-shan-zheng/92.woff2') format('woff2');unicode-range:U+A,U+20,U+21,U+22,U+23,U+25,U+26,U+27,U+28,U+29,U+2A,U+2B,U+2C,U+2D,U+2E,U+2F,U+30,U+31,U+32,U+33,U+34,U+35,U+36,U+37,U+38,U+39,U+3A,U+3B,U+3C,U+3D,U+3E,U+3F,U+40,U+41,U+42,U+43,U+44,U+45,U+46,U+47,U+48,U+4A,U+4C,U+4D,U+4E,U+4F,U+50,U+51,U+52,U+53,U+54,U+55,U+56,U+57,U+59,U+5A,U+5B,U+5C,U+5D,U+61,U+62,U+63,U+64,U+65,U+66,U+67,U+68,U+69,U+6A,U+6B,U+6C,U+6D,U+6E,U+6F,U+70,U+71,U+72,U+73,U+74,U+75,U+76,U+77,U+78,U+79,U+7A,U+7B,U+7D,U+B7,U+D7;}
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/101.woff2') format('woff2');unicode-range:U+655B
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/104.woff2') format('woff2');unicode-range:U+63FD,U+7A83,U+8BE1
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/105.woff2') format('woff2');unicode-range:U+7130,U+7AA5,U+FF0F
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/106.woff2') format('woff2');unicode-range:U+4FAF,U+7F34
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/107.woff2') format('woff2');unicode-range:U+5BE8,U+906E
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/108.woff2') format('woff2');unicode-range:U+56CA,U+8D4B
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/109.woff2') format('woff2');unicode-range:U+63F4,U+8BF8,U+8C0B,U+8D54
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/110.woff2') format('woff2');unicode-range:U+300C,U+300D,U+503E,U+593A,U+5E9F,U+62D6,U+820D,U+8D21,U+8D24,U+8FA8
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/111.woff2') format('woff2');unicode-range:U+4EA6,U+500D,U+5077,U+6A2A,U+73CD,U+7F13,U+9526
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/112.woff2') format('woff2');unicode-range:U+23,U+3D,U+5175,U+5200,U+5BF8,U+5C3A,U+62FC,U+6ED1,U+70E7,U+864E,U+8D25,U+8DDD
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/113.woff2') format('woff2');unicode-range:U+26,U+3C,U+D7,U+4EE4,U+5BDF,U+6298,U+63A2,U+65CF,U+7389,U+7A97,U+7ADE,U+80DC,U+8C6A,U+8DF3,U+9014,U+9759,U+987A
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/114.woff2') format('woff2');unicode-range:U+4ED8,U+4F24,U+4F59,U+5DE7,U+5E10,U+5E8F,U+5EA7,U+5F81,U+653B,U+66B4,U+6740,U+67B6,U+699C,U+7834,U+7EB3,U+9047
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/115.woff2') format('woff2');unicode-range:U+25,U+4EFD,U+4F4F,U+5199,U+519B,U+51B3,U+5219,U+534A,U+5931,U+5BB3,U+5C3D,U+5C40,U+6B62,U+6EE1,U+72B6,U+753B,U+79BB,U+7B56,U+8BE6,U+8F83,U+95ED,U+968F,U+9999
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/116.woff2') format('woff2');unicode-range:U+2B,U+40,U+518D,U+53D7,U+5404,U+5411,U+5B9D,U+5BC6,U+5DF1,U+5E93,U+5F20,U+5F3A,U+62DB,U+6307,U+6362,U+6548,U+6574,U+666F,U+6B65,U+6BCF,U+706B,U+7167,U+724C,U+73AF,U+7B7E,U+7EC4,U+7EC6,U+8425,U+89C2,U+8BC6,U+8DB3,U+8FDE,U+9020,U+90A3,U+98DF
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/117.woff2') format('woff2');unicode-range:U+4E,U+4E24,U+4E8C,U+4ED6,U+4EF6,U+4EFB,U+514D,U+518C,U+5373,U+539F,U+53CA,U+53CD,U+53D6,U+53EA,U+573A,U+578B,U+57CE,U+5B57,U+5B8C,U+5C06,U+5DF2,U+5E94,U+5F97,U+6001,U+6216,U+6253,U+6295,U+653E,U+67E5,U+6807,U+6837,U+683C,U+6848,U+6B64,U+6BD4,U+6C42,U+6E90,U+76EE,U+7F6E,U+800C,U+88AB,U+8BA1,U+8BA4,U+8D77,U+8DEF,U+8EAB,U+9009,U+91CC,U+9650
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/118.woff2') format('woff2');unicode-range:U+3E,U+4E0A,U+4E0B,U+4E0D,U+4E0E,U+4E3A,U+4E3B,U+4E4B,U+4E8E,U+4EBA,U+4F4D,U+4F53,U+4F5C,U+4F60,U+5173,U+5176,U+51FA,U+524D,U+52A8,U+53EF,U+5408,U+540D,U+56DE,U+56FE,U+5728,U+5927,U+5B9A,U+5BF9,U+5C0F,U+5E73,U+5F00,U+5FC3,U+60C5,U+610F,U+6210,U+6240,U+624B,U+6280,U+6536,U+6587,U+65B9,U+65E0,U+65F6,U+673A,U+6765,U+6B21,U+7279,U+73B0,U+7528,U+770B,U+7C7B,U+7CFB,U+7ECF,U+8005,U+80FD,U+81EA,U+884C,U+8FC7,U+91D1
+      @font-face{font-family:'LXGW WenKai';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/wenkai/119.woff2') format('woff2');unicode-range:U+20,U+21,U+22,U+27,U+28,U+29,U+2A,U+2C,U+2D,U+2E,U+2F,U+30,U+31,U+32,U+33,U+34,U+35,U+36,U+37,U+38,U+39,U+3A,U+3B,U+3F,U+41,U+42,U+43,U+44,U+45,U+46,U+47,U+48,U+4A,U+4C,U+4D,U+4F,U+50,U+51,U+52,U+53,U+54,U+55,U+56,U+57,U+59,U+5A,U+5B,U+5C,U+5D,U+61,U+62,U+63,U+64,U+65,U+66,U+67,U+68,U+69,U+6A,U+6B,U+6C,U+6D,U+6E,U+6F,U+70,U+71,U+72,U+73,U+74,U+75,U+76,U+77,U+78,U+79,U+7A,U+7B,U+7D,U+B7,U+3001,U+3002,U+4E00,U+6709,U+70B9,U+7684,U+FF0C
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/1.woff2') format('woff2');unicode-range:U+3002,U+4E00,U+4E0A,U+4E0B,U+4E0D,U+4E0E,U+4E24,U+4E3A,U+4E3B,U+4EF6,U+4F4D,U+4F53,U+51FA,U+524D,U+52A8,U+5373,U+539F,U+53EA,U+53EF,U+5408,U+540D,U+56DE,U+56FE,U+5728,U+57CE,U+5B57,U+5B9A,U+5B9D,U+5BF9,U+5C40,U+5DF2,U+5EA7,U+5F00,U+6001,U+624B,U+6536,U+6587,U+65E0,U+65F6,U+6709,U+673A,U+6807,U+683C,U+70B9,U+7167,U+724C,U+73B0,U+7528,U+7684,U+76EE,U+7A97,U+81EA,U+884C,U+8D77,U+9009,U+91D1,U+968F;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/2.woff2') format('woff2');unicode-range:U+518D,U+5199,U+519B,U+51B3,U+53CD,U+53D6,U+56CA,U+573A,U+5931,U+5C06,U+5E8F,U+5E94,U+6210,U+6280,U+653E,U+6548,U+65B9,U+6B21,U+6B64,U+6B65,U+6E90,U+72B6,U+73CD,U+753B,U+7834,U+7B56,U+7C7B,U+7ECF,U+7F6E,U+8005,U+88AB,U+8BA1,U+8BA4,U+8DEF,U+8FC7,U+8FDE,U+9047,U+9526;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/3.woff2') format('woff2');unicode-range:U+4E4B,U+4EBA,U+4EE4,U+4EFB,U+4EFD,U+4F5C,U+5173,U+518C,U+5219,U+5404,U+578B,U+5927,U+5F97,U+6298,U+6307,U+6362,U+6574,U+67B6,U+67E5,U+6848,U+6A2A,U+7B7E,U+7EC4,U+80FD,U+8EAB,U+9759;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/4.woff2') format('woff2');unicode-range:U+4E8E,U+4F59,U+514D,U+5176,U+5B8C,U+5C0F,U+5F20,U+60C5,U+65CF,U+6837,U+6BCF,U+73AF,U+8BC6,U+8DF3,U+91CC;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/5.woff2') format('woff2');unicode-range:U+4E8C,U+4ED6,U+4ED8,U+5175,U+534A,U+5411,U+5DF1,U+5E73,U+5E93,U+5FC3,U+610F,U+6216,U+6295,U+62D6,U+62DB,U+63A2,U+6765,U+6BD4,U+6EE1,U+79BB,U+7F13,U+800C,U+80DC,U+89C2,U+8BE6,U+8D24,U+8D25,U+8DB3,U+9014,U+95ED;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/6.woff2') format('woff2');unicode-range:U+4F4F,U+6240,U+6253,U+6B62,U+7279,U+770B,U+7CFB,U+8DDD,U+9020,U+906E,U+9650,U+987A;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/7.woff2') format('woff2');unicode-range:U+4F60,U+4FAF,U+53D7,U+5C3D,U+5F3A,U+5F81,U+62FC,U+6C42,U+706B,U+7EC6,U+8BF8;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/8.woff2') format('woff2');unicode-range:U+500D,U+5BC6,U+5BF8,U+5C3A,U+5E9F,U+653B,U+655B,U+666F,U+66B4,U+70E7,U+7A83,U+7AA5,U+8425;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/9.woff2') format('woff2');unicode-range:U+593A,U+6740,U+7389,U+7EB3,U+8D21,U+8FA8,U+90A3;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/10.woff2') format('woff2');unicode-range:U+4EA6,U+5077,U+699C,U+6ED1,U+7ADE,U+864E,U+9999;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/11.woff2') format('woff2');unicode-range:U+53CA,U+8BE1,U+8C0B,U+8D54,U+98DF;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/12.woff2') format('woff2');unicode-range:U+503E,U+5BB3,U+63F4,U+7F34,U+820D,U+8D4B,U+8F83,U+FF0C;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/13.woff2') format('woff2');unicode-range:U+5200,U+5BDF,U+5BE8,U+5E10,U+63FD;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/15.woff2') format('woff2');unicode-range:U+4F24;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/16.woff2') format('woff2');unicode-range:U+5DE7;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/17.woff2') format('woff2');unicode-range:U+8C6A;}
+      @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('../../../../../public/fonts/zcool-kuhei/latin.woff2') format('woff2');unicode-range:U+20,U+21,U+23,U+25,U+26,U+28,U+29,U+2B,U+2D,U+2E,U+2F,U+30,U+31,U+32,U+33,U+34,U+35,U+36,U+37,U+38,U+39,U+3A,U+3B,U+3D,U+3F,U+40,U+41,U+42,U+43,U+44,U+45,U+46,U+47,U+48,U+4A,U+4C,U+4D,U+4E,U+4F,U+50,U+51,U+52,U+53,U+54,U+55,U+56,U+57,U+59,U+5A,U+5B,U+5C,U+5D,U+61,U+62,U+63,U+64,U+65,U+66,U+67,U+68,U+69,U+6A,U+6B,U+6C,U+6D,U+6E,U+6F,U+70,U+71,U+72,U+73,U+74,U+75,U+76,U+77,U+78,U+79,U+7A,U+B7,U+3002,U+FF0C;}
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      body {
+        margin: 0;
+        background: var(--color-bg-deep);
+        color: var(--color-paper);
+        font: 16px/1.5 var(--font-wenkai);
+      }
+      .prototype {
+        width: min(100% - 24px, 878px);
+        margin: 25px auto;
+      }
+      h1, h2, p { margin: 0; font-weight: normal; }
+      h1, h2 { font-family: var(--font-title); }
+      h1 { font-size: 30px; letter-spacing: 0.08em; }
+      .intro { margin: 5px 0 16px; color: var(--color-paper-dim); }
+      .controls, .variants, .groups, .scenes {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 7px;
+      }
+      .controls { margin-bottom: 10px; justify-content: space-between; }
+      button {
+        font: 16px/1.15 var(--font-brush);
+        color: inherit;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      button:focus-visible { outline: 2px solid var(--color-gold-bright); outline-offset: 3px; }
+      .controls button, .variants button {
+        min-height: 44px;
+        padding: 0 11px;
+        border: 1px solid #625439;
+        border-radius: 5px;
+        background: var(--color-panel);
+      }
+      button[aria-pressed="true"] {
+        border-color: var(--color-gold);
+        background: var(--color-panel-hi);
+        color: var(--color-gold-bright);
+      }
+      .stage-wrap {
+        width: 100%;
+        max-width: 844px;
+        aspect-ratio: 844 / 390;
+        margin: auto;
+        outline: 1px solid #625439;
+        background: var(--color-bg);
+        overflow: hidden;
+      }
+      .stage {
+        position: relative;
+        width: 844px;
+        height: 390px;
+        isolation: isolate;
+        transform-origin: top left;
+        overflow: hidden;
+        background: var(--color-bg) url(art/guanzhong.webp) center / 844px 390px no-repeat;
+      }
+      .stage.home { background-image: url(art/home.webp); }
+      .variants { justify-content: center; margin: 12px 0; }
+      .variants button { min-width: 88px; }
+      .view-help {
+        min-height: 24px;
+        text-align: center;
+        font-size: 14px;
+        color: var(--color-paper-dim);
+      }
+      a { color: var(--color-gold-bright); }
+      .hintbar {
+        position: absolute;
+        left: 184px;
+        top: 6px;
+        width: 372px;
+        padding: 8px 14px;
+        border-radius: 5px;
+        border: 1px solid #82714d;
+        background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
+        text-align: center;
+        color: var(--color-paper);
+      }
+      .rack {
+        position: absolute;
+        left: 0;
+        bottom: 14px;
+        width: 738px;
+        display: flex;
+        gap: 19px;
+        justify-content: center;
+        align-items: flex-end;
+      }
+      .face-btn, .rack .face-btn, .manual-grid .face-btn {
+        padding: 0;
+        border: 0;
+        border-radius: 6px;
+        color: inherit;
+        background: transparent;
+      }
+      .face-btn { display: block; flex: 0 0 auto; }
+      .rack .face-btn { position: relative; }
+      .rack .selected-btn { z-index: 2; }
+      .rack .selected-btn .card {
+        outline: 2px solid var(--color-gold);
+        outline-offset: 2px;
+        box-shadow: 0 0 18px #ad8a47aa, 0 7px 18px #0009;
+        transform: translateY(-9px) scale(1.6);
+        transform-origin: bottom center;
+      }
+      .rack .selected-btn .foot { -webkit-line-clamp: 4; max-height: 6.48em; }
+      .rack .selected-btn .card-title { min-height: 2.4em; }
+      .rack .selected-btn .picture { min-height: 3.5em; margin: 0.45em 0; }
+      .card {
+        --card-paper: #ece1c6;
+        --card-paper-deep: #e3d4b2;
+        --card-xin: #f2e8d2;
+        --card-ink: #2f2718;
+        position: relative;
+        isolation: isolate;
+        display: flex;
+        flex-direction: column;
+        flex: 0 0 auto;
+        width: 15em;
+        height: 20em;
+        padding: 1em;
+        overflow: hidden;
+        border: 0.2em solid #bfa567;
+        border-radius: 0.9em;
+        background: linear-gradient(168deg, var(--card-paper), var(--card-paper-deep));
+        box-shadow: 0 0.35em 0.8em #0007, inset 0 0 0 0.15em #2f27182a;
+        color: var(--card-ink);
+        font: 8px/1.62 var(--font-wenkai);
+        text-align: left;
+      }
+      .card.small { font-size: 6.4px; }
+      .f-mou { --fam: var(--color-seal-qing); }
+      .f-gong { --fam: var(--color-danger); }
+      .f-yuan { --fam: var(--color-money); }
+      .f-shi { --fam: var(--color-jishi); }
+      .card-title {
+        display: flex;
+        align-items: stretch;
+        gap: 0.7em;
+        min-height: 3.4em;
+        margin-right: 3.8em;
+        flex: 0 0 auto;
+      }
+      .card-ruling { width: 0.32em; opacity: 0.85; background: var(--fam); border-radius: 0.16em; }
+      .card-name {
+        align-self: center;
+        font: 2em/1.15 var(--font-title);
+        white-space: nowrap;
+        letter-spacing: 0.06em;
+      }
+      .card-name.long { font-size: 1.72em; letter-spacing: 0.04em; }
+      .stamps { position: absolute; top: 0.9em; right: 0.9em; z-index: 1; }
+      .stamps.double { top: 0.6em; }
+      .stamp {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.3em;
+        height: 2.3em;
+        border-radius: 0.28em;
+        background: #944432;
+        color: var(--color-paper);
+        font: 1.5em/1 var(--font-title);
+        transform: rotate(2.5deg);
+        box-shadow: 0 0.15em 0.3em #0004;
+      }
+      .stamp.reaction { font-size: 1.22em; width: 2.82em; height: 2.82em; }
+      .stamps .stamp + .stamp { font-size: 1.22em; margin: -0.9em 0 0 0.63em; transform: rotate(-4deg); }
+      .picture {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 1 1 auto;
+        min-height: 4.5em;
+        margin: 0.9em 0;
+        border: 0.16em solid #bda66a;
+        border-radius: 0.5em;
+        overflow: hidden;
+        background: var(--card-xin, #f2e8d2);
+      }
+      .picture img, .picture svg { position: absolute; }
+      .picture img { inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .picture svg {
+        left: 2%; top: 2%; width: 96%; height: 96%;
+        opacity: 0.85;
+        stroke: var(--fam);
+        stroke-width: 2.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+      .foot {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        height: 3.24em;
+        max-height: 3.24em;
+        overflow: hidden;
+        font-size: 1.32em;
+        flex: 0 0 auto;
+      }
+      .small .foot { font-size: 1.5em; }
+      .rack .selected-btn .foot { height: auto; min-height: 3.24em; }
+      .copies {
+        position: absolute;
+        right: 0.45em;
+        bottom: 0.35em;
+        padding: 0 0.35em;
+        border: 1px solid #2f271824;
+        border-radius: 0.25em;
+        background: var(--card-paper);
+        color: #776a50;
+        font-size: 1.32em;
+        line-height: 1.4;
+      }
+      .blind .card-name, .blind .foot, .blind .copies, .blind .stamps, .blind .card-ruling,
+      .blind .detail-copy { visibility: hidden; }
+      .shade {
+        position: absolute;
+        inset: 0;
+        background: #0009;
+      }
+      .manual-shell {
+        position: absolute;
+        inset: 44px 25px 20px;
+        display: flex;
+        flex-direction: column;
+        padding: 12px 20px 0;
+        border: 1px solid #8d7953;
+        border-radius: 8px;
+        background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
+        box-shadow: 0 12px 24px #0009;
+      }
+      .manual-head {
+        flex: 0 0 auto;
+        padding: 2px 0 7px;
+        border-bottom: 1px solid #726044;
+        font-size: 24px;
+        line-height: 1.1;
+      }
+      .manual-head span {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 3px 5px;
+        border-radius: 3px;
+        background: #944432;
+        font-size: 13px;
+        vertical-align: middle;
+      }
+      .manual-tabs {
+        display: flex;
+        gap: 8px;
+        flex: 0 0 auto;
+        padding: 9px 0 12px;
+      }
+      .manual-tab {
+        padding: 3px 14px;
+        border: 1px solid #66583c;
+        border-radius: 3px;
+        color: var(--color-paper-dim);
+        font: 15px/1.1 var(--font-brush);
+      }
+      .manual-tab.active { border-color: var(--color-gold); color: var(--color-gold-bright); }
+      .manual-grid {
+        display: flex;
+        justify-content: center;
+        align-content: flex-start;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 2px 0 11px;
+        overflow: auto;
+      }
+      .detail-shell {
+        position: absolute;
+        left: 94px;
+        right: 94px;
+        width: 656px;
+        padding: 0;
+        margin: 0;
+        color: var(--color-paper);
+        top: 61px;
+        height: 300px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        border: 1px solid #8d7953;
+        border-radius: 8px;
+        background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
+        box-shadow: 0 12px 24px #000b;
+      }
+      .detail-shell .close {
+        position: absolute;
+        right: 6px;
+        top: 6px;
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        font: 22px/1 sans-serif;
+      }
+      .detail-shell .close span {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid #8d7953;
+        border-radius: 50%;
+      }
+      .detail-picture {
+        width: 234px;
+        height: 160px;
+        margin: 0;
+        border-width: 2px;
+        border-radius: 5px;
+        flex: 0 0 auto;
+      }
+      .detail-copy {
+        width: 320px;
+        font-size: 15px;
+        line-height: 1.85;
+      }
+      .detail-copy h2 { margin-bottom: 7px; font-size: 25px; line-height: 1.2; }
+      .detail-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        color: var(--color-paper-dim);
+      }
+      .detail-meta .stamp { width: auto; min-width: 22px; height: 22px; padding: 0 3px; font-size: 12px; }
+      .detail-copy hr { margin: 12px 0 8px; border: 0; border-top: 1px dashed #77694d; }
+      .detail-copy small { color: var(--color-paper-dim); }
+      @media (max-width: 620px) {
+        .prototype { width: calc(100% - 16px); margin-top: 12px; }
+        .controls { justify-content: flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="prototype">
+      <h1>锦囊画心</h1>
+      <p class="intro">844×390 决策原型 · 在原尺寸比较手牌，遮住文字再认一次画里的动作。</p>
+      <div class="controls">
+        <div class="scenes" aria-label="观察位置">
+          <button type="button" data-scene="hand">手牌架</button>
+          <button type="button" data-scene="manual">手册</button>
+        </div>
+        <div class="groups" aria-label="手牌组">
+          <button type="button" data-group="0">谋系</button>
+          <button type="button" data-group="1">攻系</button>
+          <button type="button" data-group="2">即时</button>
+        </div>
+        <div class="scenes" aria-label="辨图">
+          <button type="button" data-blind>只看画心</button>
+          <button type="button" data-shuffle hidden>换顺序</button>
+        </div>
+      </div>
+      <div class="stage-wrap"><div id="stage" class="stage"></div></div>
+      <nav class="variants" aria-label="画心方案">
+        <button type="button" data-variant="current">现状 · 族图</button>
+        <button type="button" data-variant="a">A · 完整小场景</button>
+        <button type="button" data-variant="b">B · 主体特写</button>
+      </nav>
+      <p id="view-help" class="view-help"></p>
+      <p class="view-help">
+        <a href="compare.png">打开静态对照</a> · <a href="README.md">查看取舍与样张来源</a>
+      </p>
+    </main>
+    <script type="application/json" id="catalog-data">
+      {
+        "连环计": {
+          "id": "连环计",
+          "tags": ["谋"],
+          "family": "f-mou",
+          "target": "指定两名其他诸侯",
+          "copies": 2,
+          "text": "二虎竞食:指定两名其他诸侯拼点,胜者得 300 两,败者向你赔 400 两;平局则此计作废。",
+          "foot": "指定两名其他诸侯拼点,胜者得 300 两,败者向你赔 400 两;平局则此计作废。",
+          "ink": "<g opacity=\"0.11\"><path d=\"M2 63 Q16 57 30 61 Q44 56 58 60 Q72 56 86 61 Q92 58 98 60\" stroke-width=\"1.3\"></path><path d=\"M0 67 Q24 63 48 66 Q72 69 100 64\" stroke-width=\"1.1\"></path></g><path d=\"M16 46 C12 34 24 28 34 31 C36 20 50 16 58 23 C64 14 78 16 82 26 C92 26 95 38 87 44 C84 46 80 47 77 46\" stroke-width=\"3.2\"></path><path d=\"M32 40 C30 33 40 31 42 37 C43 41 38 44 35 41\" stroke-width=\"2\"></path><path d=\"M34 56 C46 51 58 58 72 53 C79 50 85 53 88 56\" stroke-width=\"1.9\"></path>"
+        },
+        "军情密探": {
+          "id": "军情密探",
+          "tags": ["谋"],
+          "family": "f-mou",
+          "target": "指定一名其他诸侯",
+          "copies": 2,
+          "text": "细作出探:指定一名其他诸侯,窥探其锦囊手牌。",
+          "foot": "指定一名其他诸侯,窥探其锦囊手牌。",
+          "ink": "<path d=\"M10 36 C24 18 76 18 90 36 C76 54 24 54 10 36 Z\" stroke-width=\"3.2\"></path><circle cx=\"50\" cy=\"36\" r=\"12\" stroke-width=\"2.8\"></circle><circle cx=\"50\" cy=\"36\" r=\"4.5\" style=\"fill:var(--fam)\" stroke=\"none\"></circle><path d=\"M38 13 L42 19 M62 13 L58 19\" stroke-width=\"1.9\"></path>"
+        },
+        "缓兵之计": {
+          "id": "缓兵之计",
+          "tags": ["谋", "攻"],
+          "family": "f-mou",
+          "target": "指定一名其他诸侯",
+          "copies": 1,
+          "text": "拖刀之计:指定一名其他诸侯,其下回合被跳过。",
+          "foot": "指定一名其他诸侯,其下回合被跳过。",
+          "ink": "<g opacity=\"0.11\"><path d=\"M2 63 Q16 57 30 61 Q44 56 58 60 Q72 56 86 61 Q92 58 98 60\" stroke-width=\"1.3\"></path><path d=\"M0 67 Q24 63 48 66 Q72 69 100 64\" stroke-width=\"1.1\"></path></g><path d=\"M16 46 C12 34 24 28 34 31 C36 20 50 16 58 23 C64 14 78 16 82 26 C92 26 95 38 87 44 C84 46 80 47 77 46\" stroke-width=\"3.2\"></path><path d=\"M32 40 C30 33 40 31 42 37 C43 41 38 44 35 41\" stroke-width=\"2\"></path><path d=\"M34 56 C46 51 58 58 72 53 C79 50 85 53 88 56\" stroke-width=\"1.9\"></path>"
+        },
+        "横征暴敛": {
+          "id": "横征暴敛",
+          "tags": ["攻"],
+          "family": "f-gong",
+          "target": "其余所有诸侯",
+          "copies": 2,
+          "text": "强征贡赋:其余所有诸侯各向你缴纳 200 两;现金不足者倾囊而付。",
+          "foot": "其余所有诸侯各向你缴纳 200 两;现金不足者倾囊而付。",
+          "ink": "<circle cx=\"44\" cy=\"28\" r=\"20\" stroke-width=\"3.4\"></circle><path d=\"M38 22 H50 V34 H38 Z\" stroke-width=\"2.1\"></path><circle cx=\"68\" cy=\"46\" r=\"13\" stroke-width=\"2.8\"></circle><path d=\"M63 41 H73 V51 H63 Z\" stroke-width=\"1.8\"></path>"
+        },
+        "窃玉偷香": {
+          "id": "窃玉偷香",
+          "tags": ["攻"],
+          "family": "f-gong",
+          "target": "指定一名其他诸侯",
+          "copies": 2,
+          "text": "巧取豪夺:指定一名其他诸侯,随机夺其一件珍宝。",
+          "foot": "指定一名其他诸侯,随机夺其一件珍宝。",
+          "ink": "<g opacity=\"0.12\" fill=\"var(--fam)\" stroke=\"none\"><circle cx=\"12\" cy=\"16\" r=\"1.1\"></circle><circle cx=\"18\" cy=\"30\" r=\"0.9\"></circle><circle cx=\"10\" cy=\"44\" r=\"1.2\"></circle><circle cx=\"16\" cy=\"57\" r=\"0.8\"></circle><circle cx=\"88\" cy=\"14\" r=\"1.2\"></circle><circle cx=\"84\" cy=\"28\" r=\"0.9\"></circle><circle cx=\"92\" cy=\"42\" r=\"1.1\"></circle><circle cx=\"86\" cy=\"56\" r=\"0.8\"></circle></g><path d=\"M50 8 C44 18 56 22 52 32 C62 26 62 16 72 12 C68 24 80 32 74 44 C70 54 60 60 48 60 C34 60 26 50 28 40 C29 32 34 28 36 20 C40 26 46 26 46 20 C46 15 48 11 50 8\" stroke-width=\"3.2\"></path><path d=\"M50 58 C44 52 44 45 50 39 C56 45 56 52 50 58\" stroke-width=\"2\"></path><path d=\"M32 64 Q50 68 68 64\" stroke-width=\"1.9\"></path>"
+        },
+        "火烧连营": {
+          "id": "火烧连营",
+          "tags": ["攻"],
+          "family": "f-gong",
+          "target": "指定任意一座城",
+          "copies": 2,
+          "text": "火烧营寨:指定任意一座城为火源,对此城及其前方距离 1、2 格上的城各造成 1 点火焰伤害;无主城不受火焰伤害(作火源则自身免伤),己方城照烧。",
+          "foot": "指定任意一座城为火源,对此城及其前方距离 1、2 格上的城各造成 1 点火焰伤害;无主城不受火焰伤害(作火源则自身免伤),己方城照烧。",
+          "ink": "<g opacity=\"0.12\" fill=\"var(--fam)\" stroke=\"none\"><circle cx=\"12\" cy=\"16\" r=\"1.1\"></circle><circle cx=\"18\" cy=\"30\" r=\"0.9\"></circle><circle cx=\"10\" cy=\"44\" r=\"1.2\"></circle><circle cx=\"16\" cy=\"57\" r=\"0.8\"></circle><circle cx=\"88\" cy=\"14\" r=\"1.2\"></circle><circle cx=\"84\" cy=\"28\" r=\"0.9\"></circle><circle cx=\"92\" cy=\"42\" r=\"1.1\"></circle><circle cx=\"86\" cy=\"56\" r=\"0.8\"></circle></g><path d=\"M50 8 C44 18 56 22 52 32 C62 26 62 16 72 12 C68 24 80 32 74 44 C70 54 60 60 48 60 C34 60 26 50 28 40 C29 32 34 28 36 20 C40 26 46 26 46 20 C46 15 48 11 50 8\" stroke-width=\"3.2\"></path><path d=\"M50 58 C44 52 44 45 50 39 C56 45 56 52 50 58\" stroke-width=\"2\"></path><path d=\"M32 64 Q50 68 68 64\" stroke-width=\"1.9\"></path>"
+        },
+        "识破诡计": {
+          "id": "识破诡计",
+          "tags": ["即时"],
+          "family": "f-shi",
+          "target": "反应窗打出",
+          "copies": 2,
+          "text": "他人锦囊指定任意目标时,可在反应窗打出:此计对那一份失效。识破亦可被识破。",
+          "foot": "此计对那一份失效。识破亦可被识破。",
+          "ink": "<g opacity=\"0.12\"><path d=\"M9 10 L5 20\" stroke-width=\"1.3\"></path><path d=\"M21 26 L17 36\" stroke-width=\"1.3\"></path><path d=\"M11 44 L7 54\" stroke-width=\"1.3\"></path><path d=\"M45 6 L41 14\" stroke-width=\"1.3\"></path><path d=\"M89 10 L85 20\" stroke-width=\"1.3\"></path><path d=\"M95 30 L91 40\" stroke-width=\"1.3\"></path><path d=\"M88 54 L84 64\" stroke-width=\"1.3\"></path></g><path d=\"M58 4 L29 39 L46 40 L34 66 L75 25 L55 24 Z\" stroke-width=\"3\"></path><path d=\"M8 20 H20\" stroke-width=\"2.5\"></path><path d=\"M80 50 H92\" stroke-width=\"2.5\"></path>"
+        },
+        "半路杀出": {
+          "id": "半路杀出",
+          "tags": ["即时"],
+          "family": "f-shi",
+          "target": "反应窗打出",
+          "copies": 3,
+          "text": "他人行军途经你的城时,可在反应窗打出:与之拼点,胜则其止步于此城,平局此计作废。",
+          "foot": "与之拼点,胜则其止步于此城,平局此计作废。",
+          "ink": "<g opacity=\"0.12\"><path d=\"M9 10 L5 20\" stroke-width=\"1.3\"></path><path d=\"M21 26 L17 36\" stroke-width=\"1.3\"></path><path d=\"M11 44 L7 54\" stroke-width=\"1.3\"></path><path d=\"M45 6 L41 14\" stroke-width=\"1.3\"></path><path d=\"M89 10 L85 20\" stroke-width=\"1.3\"></path><path d=\"M95 30 L91 40\" stroke-width=\"1.3\"></path><path d=\"M88 54 L84 64\" stroke-width=\"1.3\"></path></g><path d=\"M58 4 L29 39 L46 40 L34 66 L75 25 L55 24 Z\" stroke-width=\"3\"></path><path d=\"M8 20 H20\" stroke-width=\"2.5\"></path><path d=\"M80 50 H92\" stroke-width=\"2.5\"></path>"
+        },
+        "求贤令": {
+          "id": "求贤令",
+          "tags": ["援"],
+          "family": "f-yuan",
+          "target": "自身",
+          "copies": 2,
+          "text": "张榜求贤:招揽一名名将来投;帐下已满或名将已尽则折现 300 两。",
+          "foot": "招揽一名名将来投;帐下已满或名将已尽则折现 300 两。",
+          "ink": "<path d=\"M22 12 H78\" stroke-width=\"3.4\"></path><circle cx=\"22\" cy=\"12\" r=\"3\" stroke-width=\"2\"></circle><circle cx=\"78\" cy=\"12\" r=\"3\" stroke-width=\"2\"></circle><path d=\"M30 17 V53 M70 17 V53\" stroke-width=\"2.2\"></path><path d=\"M30 53 Q50 59 70 53\" stroke-width=\"2.2\"></path><path d=\"M38 26 H62 M38 34 H62\" stroke-width=\"1.9\"></path><rect x=\"46\" y=\"41\" width=\"9\" height=\"9\" rx=\"1\" stroke-width=\"1.9\"></rect>"
+        }
+      }
+    </script>
+    <script>
+      const catalog = JSON.parse(document.querySelector("#catalog-data").textContent);
+      const motifs = {
+        连环计: "duel",
+        缓兵之计: "delay",
+        窃玉偷香: "jade",
+        火烧连营: "fire",
+        识破诡计: "counter",
+        半路杀出: "ambush",
+      };
+      const groups = [
+        ["连环计", "缓兵之计", "军情密探"],
+        ["窃玉偷香", "火烧连营", "横征暴敛"],
+        ["识破诡计", "半路杀出", "求贤令"],
+      ];
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function picture(id, variant, large = false) {
+        const card = catalog[id];
+        const raster = variant !== "current" && Object.hasOwn(motifs, id);
+        const art = raster
+          ? '<img src="art/' + variant + "-" + motifs[id] + '.webp" alt="">'
+          : '<svg viewBox="0 0 100 70" aria-hidden="true">' + card.ink + "</svg>";
+        return (
+          '<div class="picture ' +
+          card.family +
+          (large ? " detail-picture" : "") +
+          '">' +
+          art +
+          "</div>"
+        );
+      }
+
+      function stamps(tags) {
+        return tags
+          .map(
+            (tag) =>
+              '<span class="stamp' + (tag === "即时" ? " reaction" : "") + '">' + tag + "</span>",
+          )
+          .join("");
+      }
+
+      function face(id, variant, small, copies) {
+        const card = catalog[id];
+        return (
+          '<div class="card ' +
+          card.family +
+          (small ? " small" : "") +
+          '">' +
+          '<div class="card-title"><span class="card-ruling"></span><span class="card-name' +
+          (id.length > 3 ? " long" : "") +
+          '">' +
+          id +
+          "</span></div>" +
+          '<div class="stamps' +
+          (card.tags.length > 1 ? " double" : "") +
+          '">' +
+          stamps(card.tags) +
+          "</div>" +
+          picture(id, variant) +
+          '<div class="foot">' +
+          escapeHtml(card.foot) +
+          "</div>" +
+          (copies ? '<span class="copies">×' + card.copies + "</span>" : "") +
+          "</div>"
+        );
+      }
+
+      function cardButton(id, index, state, manual = false) {
+        const active = !manual && state.focus === id;
+        const label = state.blind ? "画心 " + (index + 1) : id;
+        return (
+          '<button type="button" class="face-btn' +
+          (active ? " selected-btn" : "") +
+          '" data-card="' +
+          id +
+          '" aria-label="' +
+          label +
+          '"' +
+          (manual ? ' aria-haspopup="dialog"' : ' aria-pressed="' + active + '"') +
+          ">" +
+          face(id, state.variant, !manual, manual) +
+          "</button>"
+        );
+      }
+
+      function hand(state) {
+        const [first, second, reference] = groups[state.group];
+        const ids = state.swap ? [second, first, reference] : [first, second, reference];
+        return (
+          '<div class="hintbar">画心比选 · 架上／放大</div><div class="rack" aria-label="锦囊手牌架">' +
+          ids.map((id, index) => cardButton(id, index, state)).join("") +
+          "</div>"
+        );
+      }
+
+      function manual(state) {
+        const ids = Object.keys(catalog);
+        if (state.swap) ids.reverse();
+        return (
+          '<div class="shade"></div><section class="manual-shell" aria-label="手册锦囊"' +
+          (state.focus ? " inert" : "") +
+          ">" +
+          '<h2 class="manual-head">手册<span>册</span></h2>' +
+          '<div class="manual-tabs" aria-hidden="true">' +
+          ["名将", "技能", "锦囊", "珍宝", "机遇"]
+            .map(
+              (tab) =>
+                '<span class="manual-tab' +
+                (tab === "锦囊" ? " active" : "") +
+                '">' +
+                tab +
+                "</span>",
+            )
+            .join("") +
+          '</div><div class="manual-grid">' +
+          ids.map((id, index) => cardButton(id, index, state, true)).join("") +
+          "</div></section>"
+        );
+      }
+
+      function detail(state) {
+        const card = catalog[state.focus];
+        const reaction = card.tags.includes("即时");
+        return (
+          '<div class="shade"></div><dialog open class="detail-shell" aria-label="' +
+          (state.blind ? "画心详情" : card.id + "详情") +
+          '">' +
+          '<button type="button" class="close" data-close aria-label="关闭详情"><span>×</span></button>' +
+          (state.variant === "current" && !state.blind
+            ? ""
+            : picture(card.id, state.variant, true)) +
+          '<div class="detail-copy"><h2>' +
+          card.id +
+          '</h2><div class="detail-meta">' +
+          stamps(card.tags) +
+          "<span>" +
+          card.target +
+          " · 牌库 " +
+          card.copies +
+          " 张</span></div><p>" +
+          escapeHtml(card.text) +
+          "</p><hr><small>" +
+          (reaction
+            ? "「即时」为反应标签"
+            : "每回合每类限用一张 · " + card.tags.map((tag) => "「" + tag + "」").join("")) +
+          "</small></div></dialog>"
+        );
+      }
+
+      function frame(state) {
+        const inManual = state.scene === "manual";
+        return (
+          (inManual ? manual(state) : hand(state)) + (inManual && state.focus ? detail(state) : "")
+        );
+      }
+
+      const stage = document.querySelector("#stage");
+      const url = new URL(location.href);
+      const options = url.protocol === "file:" && url.hash ? url.hash.slice(1) : url.search;
+      const params = new URLSearchParams(options);
+      const variant = params.get("variant");
+      const group = ["0", "1", "2"].indexOf(params.get("group"));
+      const state = {
+        variant: ["current", "a", "b"].includes(variant) ? variant : "current",
+        scene: params.get("scene") === "manual" ? "manual" : "hand",
+        group: group === -1 ? 1 : group,
+        blind: params.get("blind") === "1",
+        swap: params.get("swap") === "1",
+        focus: null,
+      };
+
+      function draw() {
+        const oldGrid = stage.querySelector(".manual-grid");
+        const scroll = oldGrid ? oldGrid.scrollTop : 0;
+        stage.classList.toggle("blind", state.blind);
+        stage.classList.toggle("home", state.scene === "manual");
+        stage.innerHTML = frame(state);
+        const grid = stage.querySelector(".manual-grid");
+        if (grid) grid.scrollTop = scroll;
+        document
+          .querySelectorAll("[data-variant], [data-scene], [data-group]")
+          .forEach((button) => {
+            const [key, value] = Object.entries(button.dataset)[0];
+            button.setAttribute("aria-pressed", String(state[key]) === value);
+          });
+        document.querySelector(".groups").hidden = state.scene !== "hand";
+        document.querySelector("[data-blind]").setAttribute("aria-pressed", state.blind);
+        document.querySelector("[data-shuffle]").hidden = !state.blind;
+        document.querySelector("#view-help").textContent =
+          state.scene === "hand"
+            ? "点牌看 1.6 倍放大，再点收起。"
+            : "点任一张看详情，向下滑可看其余锦囊。";
+      }
+
+      function writeView() {
+        const view = new URLSearchParams({
+          variant: state.variant,
+          scene: state.scene,
+          group: state.group,
+          blind: state.blind ? "1" : "0",
+          swap: state.swap ? "1" : "0",
+        });
+        // file:// pages can rewrite their fragment while preserving direct double-click use.
+        if (url.protocol === "file:") url.hash = view;
+        else url.search = view;
+        history.replaceState(null, "", url);
+      }
+
+      function closeDetail() {
+        const previous = state.focus;
+        state.focus = null;
+        draw();
+        stage.querySelector('[data-card="' + previous + '"]').focus({ preventScroll: true });
+      }
+
+      document.querySelector("main").addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+        const dataset = button.dataset;
+        if (button.hasAttribute("data-close")) {
+          closeDetail();
+          return;
+        }
+        if (dataset.card) {
+          state.focus = state.focus === dataset.card ? null : dataset.card;
+          draw();
+          const focus =
+            state.scene === "manual"
+              ? stage.querySelector("[data-close]")
+              : stage.querySelector('[data-card="' + dataset.card + '"]');
+          focus.focus({ preventScroll: true });
+          return;
+        }
+        if (button.hasAttribute("data-blind")) {
+          state.blind = !state.blind;
+        } else if (button.hasAttribute("data-shuffle")) {
+          state.swap = !state.swap;
+        } else if (dataset.group !== undefined) {
+          state.group = Number(dataset.group);
+          state.focus = null;
+        } else if (dataset.scene) {
+          state.scene = dataset.scene;
+          state.focus = null;
+        } else if (dataset.variant) {
+          state.variant = dataset.variant;
+        }
+        writeView();
+        draw();
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && state.scene === "manual" && state.focus) closeDetail();
+      });
+
+      function scaleStage() {
+        stage.style.transform = "scale(" + stage.parentElement.clientWidth / 844 + ")";
+      }
+      new ResizeObserver(scaleStage).observe(stage.parentElement);
+      scaleStage();
+      draw();
+    </script>
+  </body>
+</html>
