@@ -11,7 +11,7 @@
 //
 // frameTone 是二期珍宝变体预留的品级框色通道(DESIGN §4.5「品级框色」),
 // 一期消费方不传(默认 none=基线墨框)。
-import type { HTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes, ReactElement } from "react";
 import { jinnangCardOf } from "@core/jinnang";
 import {
   jinnangAliasSplit,
@@ -21,31 +21,39 @@ import {
   type FrameTone,
   type JinnangFaceSize,
 } from "./jinnang-face-data";
-import { jinnangInkArtOf } from "./ink-art/jinnang-huaxin";
+import { JINNANG_INK_ART } from "./ink-art/jinnang-huaxin";
+import { JINNANG_STORY_ART } from "./jinnang-art";
 import "./jinnang-card.css";
 
-/** 标签 → 族色类已收口进 jinnang-face-data.ts 的 JINNANG_FAMILY.faceClass
- *  (组件不再自备第二份映射——评审 Standards 轴的三重镜像收敛)。 */
+/** 牌面和详情按同一目录 id 取画心，画框裁切由各处样式负责。 */
+function JinnangArt({ cardId }: { cardId: string }) {
+  const story = JINNANG_STORY_ART.get(cardId);
+  if (story) {
+    return <img className="jinnang-story-art" src={story.src} alt={story.alt} draggable={false} />;
+  }
+  const ink = JINNANG_INK_ART.get(cardId);
+  if (!ink) throw new Error(`锦囊缺少画心:${cardId}`);
+  return (
+    <svg viewBox="0 0 100 70" role="img" aria-label={ink.label}>
+      {ink.paths}
+    </svg>
+  );
+}
 
 interface JinnangCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   cardId: string;
   size?: JinnangFaceSize;
   frameTone?: FrameTone;
-  /** 画心立绘通道(#511 B 案):传入节点即渲染(容器裁剪,位图 cover 铺满画心);
-   *  缺省=族母题墨线画心(#763 自绘,名牌专属母题优先,见 ink-art/jinnang-huaxin
-   *  ——立绘只进金框画心,牌名/标签章/笺脚文字恒在纸底,可读性红线)。 */
-  art?: ReactNode;
 }
 
-/** 锦囊牌面:笺头(界格线+牌名)/ 标签章(右上竖排)/ 金框画心(art 立绘,缺省
- *  族母题墨线,#763)/ 笺脚(别称已剥离,2 行截断;large 4 行)。children 透传到牌面
+/** 锦囊牌面:笺头(界格线+牌名)/ 标签章(右上竖排)/ 金框画心 /
+ *  笺脚(别称已剥离,2 行截断;large 4 行)。children 透传到牌面
  *  末尾——不可用态的原因印条(<span className="reason">,样式见 jinnang-card.css)
  *  由消费方这样挂入。 */
 export function JinnangCardFace({
   cardId,
   size = "standard",
   frameTone = "none",
-  art,
   className,
   children,
   ...rest
@@ -78,13 +86,7 @@ export function JinnangCardFace({
         ))}
       </div>
       <div className="yang">
-        {art == null ? (
-          <svg viewBox="0 0 100 70" aria-hidden="true">
-            {jinnangInkArtOf(def.id, fam.pattern)}
-          </svg>
-        ) : (
-          <div className="art">{art}</div>
-        )}
+        <JinnangArt cardId={def.id} />
       </div>
       <div className="jiao">{jinnangAliasSplit(def.text).body}</div>
       {children}
@@ -97,28 +99,14 @@ export function JinnangCardFace({
  *  绫边(程序化斜纹)/四角包角/画心(漆金外框+品级距条内衬,白纸画心)/题签
  *  (竖排承牌名,白纸签墨字)/鉴藏印(朱砂,右下)/跋文 六件套;品级大字退役,
  *  品级=画心距条内衬+右上品级角标(菱形小底+数字,底色随品级)双通道。
- *  画心双通道:art 传入 ReactNode 即渲染(容器裁剪),缺省=远山肌理回退(程序化
- *  SVG)。宝章恒朱砂(DESIGN §4.5「章恒朱砂」);数据单源 core/treasures.ts
- *  (TreasureDef),本组件不复制目录;消费方(手牌架珍宝明细行)经 title 自带
- *  指导价浮签。 */
+ *  宝章恒朱砂。各陈列位共用珍宝画心，指导价由调用方呈现。 */
 interface TreasureCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   name: string;
   /** 品级 1..10(core/treasures.ts TreasureDef.level);越界=数据 bug 显式抛错(零兜底)。 */
   level: number;
   desc?: string;
-  /** 画心配图通道(#359):传入节点即渲染,容器裁剪;缺省=远山肌理回退。 */
-  art?: ReactNode;
+  art: ReactElement;
 }
-
-/** 画心缺省回退·远山线稿:path 自 proto/treasure/backpack.html 原样移植
- *  (viewBox 0 0 100 26,stroke 色/线宽在 jinnang-card.css 按 .shan 给)。 */
-const SHAN_PATHS = (
-  <>
-    <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
-    <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
-    <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
-  </>
-);
 
 export function TreasureCardFace({
   name,
@@ -144,15 +132,7 @@ export function TreasureCardFace({
       <span className="bj c" aria-hidden="true" />
       <span className="bj d" aria-hidden="true" />
       <div className="huaxin">
-        {art == null ? (
-          <span className="shan" aria-hidden="true">
-            <svg viewBox="0 0 100 26" aria-hidden="true">
-              {SHAN_PATHS}
-            </svg>
-          </span>
-        ) : (
-          <div className="art">{art}</div>
-        )}
+        <div className="art">{art}</div>
         <div className="ba">{desc}</div>
       </div>
       <span className="lv-badge">
@@ -203,10 +183,10 @@ interface JinnangCardDetailProps {
   className?: string;
 }
 
-/** 详情内容面板(非弹层,弹层壳归消费方)五段:牌名 / 标签章横排+目标域+牌库数 /
- *  全文(def.text 原文,含别称前缀)/ 虚线分隔 / 脚注(每回合每类限用一张+标签序列)。 */
+/** 详情内容面板的画心与全文并列，外层弹窗仍负责滚动、触达和关闭。 */
 export function JinnangCardDetail({ cardId, className }: JinnangCardDetailProps) {
   const def = jinnangCardOf(cardId);
+  const fam = JINNANG_FAMILY[def.tags[0]];
   return (
     <div className={["jinnang-detail", className ?? ""].filter(Boolean).join(" ")}>
       <div className="dt-ming">{def.id}</div>
@@ -220,7 +200,12 @@ export function JinnangCardDetail({ cardId, className }: JinnangCardDetailProps)
           {JINNANG_TARGET_LABEL[def.targetDomain]} · 牌库 {def.copies} 张
         </span>
       </div>
-      <p className="dt-text">{def.text}</p>
+      <div className="dt-body">
+        <div className="dt-art" style={{ ["--fam" as string]: `var(${fam.token})` }}>
+          <JinnangArt cardId={def.id} />
+        </div>
+        <p className="dt-text">{def.text}</p>
+      </div>
       <div className="dt-foot">每回合每类限用一张 ·{def.tags.map((t) => `「${t}」`).join("")}</div>
     </div>
   );

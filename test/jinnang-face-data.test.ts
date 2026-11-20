@@ -1,16 +1,16 @@
-// 锦囊牌面纯数据单测(#236 一期 T1):别称切分(8 张真实牌逐张)/ 四族映射 /
+// 锦囊牌面纯数据单测(#236 一期 T1):别称切分 / 五族映射 /
 // 目标域中文 / 尺寸表。牌面数据单源 core/jinnang.ts,本文件只验证「牌面怎么画」
 // 的映射(src/app/components/card/jinnang-face-data.ts)与单源对齐。
 import { describe, it, expect } from "bun:test";
 import { readFileSync, existsSync } from "node:fs";
 import { JINNANG_CARDS } from "@core/jinnang";
-import { TREASURES } from "@core/treasures";
+import { makeSkillBook, TREASURES } from "@core/treasures";
+import { treasureArtOf } from "@app/components/card/treasure-art";
 import {
   jinnangAliasSplit,
   JINNANG_FAMILY,
   JINNANG_TARGET_LABEL,
   treasureFrameTone,
-  treasureImagePath,
   rackTilt,
 } from "@app/components/card/jinnang-face-data";
 
@@ -47,36 +47,31 @@ describe("jinnangAliasSplit(笺脚别称剥离)", () => {
 });
 
 describe("JINNANG_FAMILY(五标签映射:一标签一族)", () => {
-  it("谋/攻/守/援/即时 五标签齐全,pattern 与 token 一一对应", () => {
+  it("谋/攻/守/援/即时 五标签齐全,章字与族色对应", () => {
     expect(new Set(Object.keys(JINNANG_FAMILY))).toEqual(new Set(["谋", "攻", "守", "援", "即时"]));
     expect(JINNANG_FAMILY["谋"]).toEqual({
       token: "--color-seal-qing",
-      pattern: "cloud",
       label: "谋",
       faceClass: "f-mou",
     });
     expect(JINNANG_FAMILY["攻"]).toEqual({
       token: "--color-danger",
-      pattern: "fire",
       label: "攻",
       faceClass: "f-gong",
     });
     expect(JINNANG_FAMILY["守"]).toEqual({
       token: "--color-road-side",
-      pattern: "shield",
       label: "守",
       faceClass: "f-shou",
     });
     expect(JINNANG_FAMILY["援"]).toEqual({
       token: "--color-money",
-      pattern: "branch",
       label: "援",
       faceClass: "f-yuan",
     });
-    // 即时族(#281 正式):电纹·靛青(--color-jishi),章字=即时
+    // 即时族(#281 正式):靛青(--color-jishi),章字=即时
     expect(JINNANG_FAMILY["即时"]).toEqual({
       token: "--color-jishi",
-      pattern: "bolt",
       label: "即时",
       faceClass: "f-shi",
     });
@@ -174,25 +169,47 @@ describe("treasureFrameTone(珍宝品级 → 框色档,#234/#281)", () => {
   });
 });
 
-describe("treasureImagePath(装裱卡画心查表,#521)", () => {
-  it("带画心的目录条目路径指向真实存在的文件(素材批同真,防断链)", () => {
-    // #1100 起目录扩容:画心断言只扫 image 非缺省条目(算筹/青梅暂回退远山肌理=合法空态,补图后自动入扫)
-    const withImage = TREASURES.filter((t) => t.image != null);
-    expect(withImage.length).toBe(14);
-    for (const t of withImage) {
-      expect(t.image, `${t.id} 缺画心字段`).toStartWith("/assets/treasures/");
-      expect(
-        existsSync(new URL(`../public${t.image}`, import.meta.url)),
-        `${t.image} 文件不存在`,
-      ).toBe(true);
+describe("treasureArtOf(珍宝画心)", () => {
+  it("全部 16 项目录都有可呈现的画心文件", () => {
+    expect(TREASURES).toHaveLength(16);
+    for (const t of TREASURES) {
+      const { image } = treasureArtOf(t);
+      expect(image, t.id).toStartWith("/assets/treasures/");
+      expect(existsSync(new URL(`../public${image}`, import.meta.url)), t.id).toBe(true);
     }
   });
 
+  it("同一装订册承载不同技名", () => {
+    const jixing = treasureArtOf(makeSkillBook("jixing"));
+    expect(jixing.bookTitle).toBe("疾行");
+    expect(existsSync(new URL(`../public${jixing.image}`, import.meta.url))).toBe(true);
+
+    const longTitle = treasureArtOf(makeSkillBook("wengzhongzhuobie"));
+    expect(longTitle.bookTitle).toBe("瓮中捉鳖");
+    expect(longTitle.image).toBe(jixing.image);
+  });
+
+  it("技能书实例缺少 kind 时抛错", () => {
+    expect(() => treasureArtOf({ id: "skillbook-jixing", skillId: "jixing" })).toThrow(/kind/);
+  });
+
+  it("技能书实例缺少 skillId 时抛错", () => {
+    expect(() => treasureArtOf({ id: "skillbook-jixing", kind: "book" })).toThrow(/skillId/);
+  });
+
+  it("技能书拒绝与实例 id 不符或不存在的技能", () => {
+    expect(() => treasureArtOf({ ...makeSkillBook("jixing"), id: "skillbook-yuzi" })).toThrow(
+      "jixing",
+    );
+    expect(() =>
+      treasureArtOf({ id: "skillbook-unknown", kind: "book", skillId: "unknown" }),
+    ).toThrow("unknown");
+  });
+
   it("实例 id(「目录 id-序号」)与裸目录 id 都能查到;目录外 id 抛错(零兜底)", () => {
-    expect(treasureImagePath("seal")).toBe("/assets/treasures/treasure-seal.webp");
-    expect(treasureImagePath("seal-3")).toBe(treasureImagePath("seal")); // 牌堆展开带序号
-    expect(treasureImagePath("hat-12")).toBe("/assets/treasures/treasure-hat.webp");
-    expect(() => treasureImagePath("jade_seal")).toThrow(/TREASURES/);
+    expect(treasureArtOf({ id: "seal" }).image).toBe("/assets/treasures/treasure-seal.webp");
+    expect(treasureArtOf({ id: "seal-3" })).toEqual(treasureArtOf({ id: "seal" }));
+    expect(() => treasureArtOf({ id: "seal-invalid" })).toThrow(/TREASURES/);
   });
 });
 

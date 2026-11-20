@@ -3,9 +3,9 @@
 // 目录序陈列；详情叠层打开期间列表保持挂载，返回继续原位置。画心与价格消费单源。
 import { useState } from "react";
 import { Button } from "@base-ui/react/button";
-import { TREASURES, guidePriceOf } from "@core/treasures";
+import { TREASURES, guidePriceOf, type TreasureDef } from "@core/treasures";
 import { formatMoney } from "@core/money";
-import { treasureImagePath } from "@app/components/card/jinnang-face-data";
+import { TreasureArt } from "@app/components/card/TreasureArt";
 import { PileShell } from "@app/screens/game/PileModal";
 import { MANUAL_TID } from "./testids";
 import "./treasure-rows.css";
@@ -13,38 +13,14 @@ import "./treasure-rows.css";
 /** 陈列序:level 升序(同级保持目录序;sort 稳定,模块级只排一次)。 */
 const TREASURE_ROWS = [...TREASURES].sort((a, b) => a.level - b.level);
 
-/** 无画心是目录内正常态；列表与详情使用同一画心槽，不渲染空 src 图片。 */
-function TreasureArt({ id, name, large = false }: { id: string; name: string; large?: boolean }) {
-  const image = treasureImagePath(id);
-  return (
-    <span className={`manual-treasure-art${large ? " manual-treasure-art-detail" : ""}`}>
-      {image != null ? (
-        <img src={image} alt={large ? `${name}画心` : ""} />
-      ) : (
-        <span className="manual-treasure-art-empty">
-          <span aria-hidden="true">宝</span>
-          <span>暂无画心</span>
-        </span>
-      )}
-    </span>
-  );
-}
-
 /** 珍宝大档详情体:画心大图(金框双线语义=漆金描边衬纸)+ 右列品级角标/指导价/描述。 */
-function TreasureDetailBody({
-  id,
-  name,
-  level,
-  desc,
-}: {
-  id: string;
-  name: string;
-  level: number;
-  desc?: string;
-}) {
+function TreasureDetailBody({ treasure }: { treasure: TreasureDef }) {
+  const { name, level, desc } = treasure;
   return (
     <div className="flex items-start justify-center gap-5 py-1">
-      <TreasureArt id={id} name={name} large />
+      <span className="manual-treasure-art manual-treasure-art-detail">
+        <TreasureArt treasure={treasure} alt={`${name}画心`} />
+      </span>
       <div className="flex min-w-0 max-w-[300px] flex-col gap-3 pt-1.5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {/* 品级角标:斜章制式(ManualModal「册」印同法),数字 tabular */}
@@ -76,7 +52,9 @@ export default function ManualTreasuresTab() {
             onClick={() => setDetailId(t.id)}
             className="manual-treasure-row"
           >
-            <TreasureArt id={t.id} name={t.name} />
+            <span className="manual-treasure-art">
+              <TreasureArt treasure={t} />
+            </span>
             <span className="manual-treasure-copy">
               <span className="manual-treasure-name">{t.name}</span>
               {t.desc != null && <span className="manual-treasure-desc">{t.desc}</span>}
@@ -99,12 +77,7 @@ export default function ManualTreasuresTab() {
           testid={MANUAL_TID.detail(detail.id)}
           onClose={() => setDetailId(null)}
         >
-          <TreasureDetailBody
-            id={detail.id}
-            name={detail.name}
-            level={detail.level}
-            desc={detail.desc}
-          />
+          <TreasureDetailBody treasure={detail} />
         </PileShell>
       )}
     </>

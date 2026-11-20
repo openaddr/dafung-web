@@ -39,7 +39,7 @@ function runSetup(e: GameEngine): GameEngine {
 }
 
 describe("起手珍宝目录(#1100 扩容十条)", () => {
-  it("TREASURES 末尾十条与票面内容终稿逐一一致(id/name/level/count/desc),无画心", () => {
+  it("TREASURES 末尾十条与票面内容终稿逐一一致(id/name/level/count/desc)", () => {
     const batch = TREASURES.slice(-10);
     expect(batch.map((t) => [t.id, t.name, t.level, t.count, t.desc])).toEqual([
       ["zhuojiu", "浊酒", 1, 2, "一壶浊酒,笑谈古今"],
@@ -53,11 +53,6 @@ describe("起手珍宝目录(#1100 扩容十条)", () => {
       ["duanxian", "断弦琴", 8, 1, "空城城头武侯抚琴的那张琴"],
       ["liangce", "粮册", 4, 1, "管粮官王垕的账册,小斛亏空笔笔在案"],
     ]);
-    // 画心落位(#1102):八件已配 webp;算筹/青梅暂回退远山肌理(合法空态,补图后自动入防断链扫描)
-    for (const id of ["suanchou", "qingmei"]) {
-      const t = TREASURES.find((x) => x.id === id);
-      expect(t?.image, `${id} 应缺画心字段`).toBeUndefined();
-    }
   });
 
   it("1 级池 17 件(草帽 1 + 八品种各 2):8 人局发放 16 件后余 1 的盘子", () => {
