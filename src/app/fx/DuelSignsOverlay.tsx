@@ -11,9 +11,8 @@
 // #769 判词段再分级:点差大胜档(同 isBlowout 判据)胜方点数 outBack 弹至 1.15、
 // 败方字面泼墨溅;判词磬按己方视角拆胜/败双音高(旁观/平局中性单音);摇签段空签身
 // 加旋转墨旋;签排 gap 随视口收紧、折行时中缝印随首行避让(构建拍量锚)。
-// #849 棒1 大胜峰值三件(P1-B3「大胜档没有哇」):判词拍金圈二次冲击波
-// (--duel-wave-delay 延迟约两拍起爆,--duel-wave-ms 涨散)+金色洗幕一闪(胜方玩家色
-// radial,--duel-wash-ms,色随 duel-blowout 注入 --duel-wash-color)+震屏升大胜档
+// 大胜峰值(#849、#1540):胜签后一笔与淡金二次波共用 --duel-wave-delay /
+// --duel-wave-ms。判词拍洗幕一闪(胜方玩家色 --duel-wash-color、--duel-wash-ms)+震屏
 // (shakeDeskBlowout,6px/0.45s,普通档口径不动);泼墨溅挪卡角+中央挖孔(败方点数
 // 可读,fx.css);时长经 overlay 内联注入(随 e2e 倍率同步,keyframe 只管形)。
 // 签面收场后棋盘后效(止步/续走/银两浮字)才登场:present 串行 await 本组件返回的
@@ -60,6 +59,21 @@ function buildSign(side: DuelSide): SignHandle {
   root.className = "duel-sign"; // 幕启虚位基态(半透立起、字面缺席,fx.css)
   root.setAttribute("data-testid", TESTIDS.duelSign(side.seat));
   root.style.setProperty("--player-color", rgba(playerColor(side.colorIndex)));
+  const surface = document.createElement("div");
+  surface.className = "duel-sign-surface";
+  surface.innerHTML = `
+    <svg class="duel-sign-grain" viewBox="-70 -86 140 172" preserveAspectRatio="none"
+         aria-hidden="true" focusable="false">
+      <g fill="none" stroke-linecap="round">
+        <path stroke="var(--color-lacquer)" stroke-width=".7" opacity=".26"
+              d="M-82 -54q41 -5 61 10t59 14 45 8M-83 -49q33 -4 60 9t58 16 47 9M-82 -44q29 -3 46 5t37 11M41 -19q27 1 44 10
+                 M-82 57q42 15 71 4t48 -6 44 1M-82 64q45 14 73 2t43 -7 48 4M-83 69q21 7 43 5m42 -8q23 -10 79 0
+                 M-83 18q11 7 21 5m116 -5q18 -2 28 5m-141 42 7 5 9 -2 5 3 6 -2m96 -103 -4 8 -9 2 -6 5" />
+        <path stroke="var(--color-paper)" stroke-width="1" opacity=".56"
+              d="M-85 -47q41 -8 70 9t58 15 42 10M-78 63q32 9 66 .5t96 -1M-86 56q37 14 69 7t44 -9 55 -2
+                 M-65 -2l4 3.7 4 -1.3m114 50 -3 5 -5 .5m-114 20 19 -.5m95 -115 10 1" />
+      </g>
+    </svg>`;
   const head = document.createElement("div");
   head.className = "duel-sign-head";
   head.textContent = side.guohao;
@@ -74,10 +88,42 @@ function buildSign(side: DuelSide): SignHandle {
     'stroke-linecap="round"/>';
   const face = document.createElement("div");
   face.className = "duel-sign-face";
-  root.appendChild(head);
-  root.appendChild(face);
-  root.appendChild(swirl);
+  surface.append(head, face, swirl);
+  root.appendChild(surface);
   return { root, face, side };
+}
+
+/** 签后一笔只在大胜判词挂入，显隐与二次波共用现役延迟和时长。 */
+function addBlowoutStroke(sign: HTMLDivElement): void {
+  sign.insertAdjacentHTML(
+    "afterbegin",
+    `<svg class="duel-blowout-stroke" viewBox="-178 -141 356 282" aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="duel-brush-fill" x1="-148" y1="71" x2="115" y2="-130" gradientUnits="userSpaceOnUse">
+          <stop stop-color="var(--color-gold-wash)" stop-opacity=".07" />
+          <stop offset=".29" stop-color="var(--color-gold-wash)" stop-opacity=".78" />
+          <stop offset=".64" stop-color="var(--color-lacquer)" />
+          <stop offset="1" stop-color="var(--color-gold)" stop-opacity=".3" />
+        </linearGradient>
+        <linearGradient id="duel-brush-edge" x1="-151" y1="81" x2="125" y2="-125" gradientUnits="userSpaceOnUse">
+          <stop stop-color="var(--color-gold-wash)" stop-opacity="0" />
+          <stop offset=".36" stop-color="var(--color-gold-deep)" stop-opacity=".75" />
+          <stop offset=".7" stop-color="var(--color-gold-bright)" />
+          <stop offset="1" stop-color="var(--color-gold)" stop-opacity=".24" />
+        </linearGradient>
+      </defs>
+      <path fill="url(#duel-brush-fill)"
+            d="M-166 91C-157 56 -130 13 -99 -23C-56 -72 9 -111 78 -126C100 -132 117 -131 132 -129
+               C115 -126 101 -122 88 -115C81 -114 76 -111 65 -108C16 -88 -24 -56 -54 -21
+               C-85 13 -113 55 -144 79C-150 83 -158 87 -168 99Z" />
+      <g fill="none" stroke="url(#duel-brush-edge)" stroke-linecap="round">
+        <path d="M-164 86Q-134 10 -84 -37T39 -117Q93 -137 132 -129" stroke-width="2.4" />
+        <path d="M-170 96Q-153 50 -122 16T-53 -56Q-1 -102 69 -123
+                 M-159 89Q-110 53 -67 -7T49 -106Q86 -120 118 -126" stroke-width="1.3" opacity=".69" />
+        <path d="M-165 86Q-147 59 -128 44m242 -173 18 -2" stroke-width=".55" />
+      </g>
+    </svg>`,
+  );
 }
 
 /** 起摇:签面入虚影态,墨字虚影按 DUEL.shakeMs/10 周期轮换+微旋(字面不落定=悬念;
@@ -135,6 +181,9 @@ function applyVerdict(
   seal: HTMLDivElement,
   overlay: HTMLDivElement,
 ): void {
+  // 大胜判据同一处供收锋、洗幕和震屏消费。平局点差恒 0。
+  const blowout = isBlowout(ev.sides[0].roll, ev.sides[1].roll);
+  if (blowout) overlay.classList.add("duel-blowout");
   if (ev.winnerSeat == null) {
     seal.dataset.verdict = "tie";
     seal.textContent = "平";
@@ -143,10 +192,10 @@ function applyVerdict(
     for (const s of signs) {
       if (s.side.seat === ev.winnerSeat) {
         s.root.classList.add("duel-sign-win");
-        // 大胜峰值洗幕色(#849 棒1):胜方玩家色。CSS 仅在 .duel-blowout 下消费
-        // --duel-wash-color(小胜/平局挂了无人读),赋值点与胜者判定同分支=单源;
-        // 时长三件(--duel-wave-ms/--duel-wave-delay/--duel-wash-ms)由构建拍注入。
-        overlay.style.setProperty("--duel-wash-color", rgba(playerColor(s.side.colorIndex)));
+        if (blowout) {
+          addBlowoutStroke(s.root);
+          overlay.style.setProperty("--duel-wash-color", rgba(playerColor(s.side.colorIndex)));
+        }
       } else {
         s.root.classList.add("duel-sign-dim");
       }
@@ -162,11 +211,6 @@ function applyVerdict(
     self.root.classList.add("duel-sign-self");
     if (ev.winnerSeat === mySeat) overlay.classList.add("duel-self-win");
   }
-  // 点差分级(#769):判定读事件里既有的两签点数(禁新兜底通道),单源 isBlowout。
-  // 点差≥3 必有胜者(平局点差恒 0),不另设 winnerSeat 前置判。
-  // #849 棒1:大胜档判词拍升大胜震屏(shakeDeskBlowout 6px/0.45s,普通档口径不动)。
-  const blowout = isBlowout(ev.sides[0].roll, ev.sides[1].roll);
-  if (blowout) overlay.classList.add("duel-blowout");
   seal.classList.remove("duel-seal-slam");
   seal.classList.add("duel-seal-pulse");
   // 判词音(#769 双音高):己方视角拆胜/败两音高,旁观局与平局保持中性单音。
@@ -187,9 +231,7 @@ async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
   overlay.className = "duel-overlay";
   overlay.setAttribute("data-testid", TESTIDS.duelOverlay);
   overlay.style.animationDuration = `${DUEL.curtainMs}ms`; // 幕启渐入与编排同拍(含 e2e 倍率)
-  // 大胜峰值三件时长(#849 棒1):CSS var 内联注入(消费点=.duel-blowout 的冲击波/
-  // 洗幕,keyframe 只管形不时刻度,随 e2e 倍率同步,同幕启渐入口径);洗幕色由判词拍
-  // 随胜者注入(--duel-wash-color)。
+  // 收锋与二次波共用延迟和时长，洗幕单用短拍。各值随演出倍率同步。
   overlay.style.setProperty("--duel-wave-ms", `${DUEL.blowoutWaveMs}ms`);
   overlay.style.setProperty("--duel-wave-delay", `${DUEL.blowoutWaveDelayMs}ms`);
   overlay.style.setProperty("--duel-wash-ms", `${DUEL.blowoutWashMs}ms`);

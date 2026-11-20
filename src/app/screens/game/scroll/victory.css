@@ -1,38 +1,30 @@
-/* 胜利屏专属动画(E2 胜利叙事序列)。独立文件:本文件只被 VictoryScreen.tsx 引入。
-   阶梯:标题 0ms → 称帝行 300ms → 终局信息 600ms → 终榜 900ms(E4 第 4 拍);
-   另有称帝朱砂印 450ms 一拍(#95),不入阶梯——与 VictoryScreen 的 stamp 锣声 450ms 定时同帧。
-   → 再战按钮由组件延迟 1800ms 才挂载(防误触,须阻断 pointer-events,CSS 延迟做不到)。
-   S9 #515:烟花粒子/标题辉光等 keyframe 随卷轴壳退役自 scroll.css 归位本文件——
-   它们本就只被胜利屏消费。 */
+/* #1541 胜者画卷与终榜。终榜和再战由同一组件节拍亮出。 */
 
-/* ── 胜利屏背景(S9 #515 接位:S10 #516 退役浅色千里江山横带——与玄墨深底冲突,
-   文件已下架)。接位素材 = S1 入库的竹林深景(noname 内置,manifest 已登记,
-   引用处登记见 textures/README.md):贴屏底一条,上压玄墨渐变只露低透明竹影,
-   层次增强不抢金字。渐变/径向基色取 core/theme.ts 的 bg(#1f1a13)/bgDeep(#16110c)
-   的 rgba alpha 写法(CSS 无法对 hex var 直接调 alpha),非新色。
-   多层背景都在元素自身 background 上,天然压在全部子元素之下,无叠层次序问题。
-   遮罩淡入(--dur-reveal 胜利拍)+ pointer-events:auto(压住棋盘)同规则合并。
-   #837 终局亮化:竹林横带真露脸、金字/朱印层级不被背景吃掉。实拍口径——
-   ①底档 alpha 0.5→0.38:只亮底部竹林带(to top 语义下 alpha 线以上不动,文字区
-   渐变零变化);②竹影层对下层径向基色做 screen 混合,暗部整体抬亮一档。票面曾拟
-   「0.84 档 26%→18%」,实测(to top 下 26→18 是把 0.84 线往屏底压)反而压暗竹林带、
-   与 screen 提亮对冲净持平(像素对比 38.0→37.8),不取;金字/朱印是元素子节点,
-   仍在全部背景层之上,层级不受影响。层是 background layer 不是独立元素,
-   mix-blend-mode 只作用于元素整体(会连渐变层一起与棋盘混合,语义错),故逐层
-   指定 background-blend-mode:渐变 normal / 竹影 screen / 径向 normal。── */
 .victory-anim-overlay {
   pointer-events: auto;
   animation: fx-fade-in var(--dur-reveal) var(--ease-out);
   background:
     linear-gradient(
       to top,
-      rgba(22, 17, 12, 0.38) 0%,
-      rgba(22, 17, 12, 0.84) 26%,
-      rgba(22, 17, 12, 0.96) 42%
+      color-mix(in srgb, var(--color-bg-deep) 38%, transparent) 0%,
+      color-mix(in srgb, var(--color-bg-deep) 84%, transparent) 26%,
+      color-mix(in srgb, var(--color-bg-deep) 96%, transparent) 42%
     ),
     url("/assets/textures/texture-zhulin.webp") center bottom / 100% auto no-repeat,
-    radial-gradient(circle, rgba(31, 26, 19, 0.78), rgba(22, 17, 12, 0.94));
+    radial-gradient(
+      circle,
+      color-mix(in srgb, var(--color-bg) 78%, transparent),
+      color-mix(in srgb, var(--color-bg-deep) 94%, transparent)
+    );
   background-blend-mode: normal, screen, normal;
+}
+
+.victory-fireworks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* ── 烟花粒子:沿 --dx/--dy 飞散并消隐(对照旧 firework-burst)。
@@ -126,20 +118,6 @@
   animation: victory-glow var(--dur-ambient) var(--ease-sine) infinite;
 }
 
-/* reduced-motion:辉光呼吸是 infinite 环境动效,与 stamp-seal 同粒度就地登记——
-   app.css M-4 全局兜层只把 infinite 压成单次瞬时,仍属「跑了动画」;按 board.css
-   M-9 口径直接停用,标题以无辉光的自然态静置(金字对玄墨底对比已足,辉光纯装饰)。 */
-@media (prefers-reduced-motion: reduce) {
-  .victory-anim-title {
-    animation: none;
-    text-shadow: none;
-  }
-  .victory-anim-title::after {
-    animation: none;
-    display: none;
-  }
-}
-
 @keyframes victory-fade-up {
   from {
     opacity: 0;
@@ -156,16 +134,12 @@
 .victory-step {
   animation: victory-fade-up var(--dur-slow) var(--ease-out) backwards;
 }
-/* 特例:0.3/0.6/0.9s 是刻意 300ms 等差的阶梯节拍(标题→称帝→终局→终榜),
-   归任何 --dur-* 档都会破坏节奏,保留字面量。 */
+/* 称帝和战果分别在第 2、3 拍亮出。终榜由组件在第 4 拍挂载。 */
 .victory-step-sub {
   animation-delay: 0.3s;
 }
 .victory-step-info {
   animation-delay: 0.6s;
-}
-.victory-step-standings {
-  animation-delay: 0.9s;
 }
 
 /* ── R3-C8(#95) 称帝朱砂印:450ms stamp 锣声的画面锚点。
@@ -183,20 +157,346 @@
   }
 }
 
-/* 终态 opacity 0.9 由组件 opacity-90 承担;backwards:delay 期间保持 0% 态不可见,
-   满足"锣声响起的同一帧印章才现身"。 */
-.victory-stamp-seal {
-  animation: victory-stamp-in var(--dur-fast) var(--ease-out-back) 0.45s backwards;
-}
-
-/* reduced-motion:app.css 的 M-4 全局兜层只压时长到瞬时,压不掉 0.45s delay
-   (backwards 期间印仍不可见);按 board.css M-9 模式直接停用入场,终态即现。 */
-@media (prefers-reduced-motion: reduce) {
-  .victory-stamp-seal {
-    animation: none;
-  }
-}
-/* 再战按钮挂载即淡入(组件已用定时器延后 1.8s 才渲染) */
+/* 作废面板沿用原出口节拍。 */
 .victory-step-btn {
   animation: victory-fade-up var(--dur-slow) var(--ease-out);
+}
+
+.victory-layout {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 44px;
+  gap: 18px;
+  width: min(100%, 1120px);
+  height: 100%;
+  margin-inline: auto;
+  padding: max(22px, var(--safe-top)) max(28px, var(--safe-right)) max(16px, var(--safe-bottom))
+    max(28px, var(--safe-left));
+  color: var(--color-paper);
+}
+.victory-layout::before {
+  content: "";
+  position: absolute;
+  inset: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 35%, transparent);
+  border-radius: 8px;
+  pointer-events: none;
+}
+.victory-body {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  overflow-y: auto;
+}
+.victory-scroll,
+.victory-standings {
+  min-height: 252px;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 48%, transparent);
+  border-radius: 8px;
+  background: var(--color-panel);
+  box-shadow: var(--ink-shadow-sm);
+}
+.victory-scroll {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  padding: 6px;
+  background: linear-gradient(160deg, var(--color-panel-hi), var(--color-lacquer));
+}
+.victory-art {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0 10px;
+  padding: 8px 12px 6px;
+  background:
+    linear-gradient(
+      to bottom,
+      var(--color-panel-hi),
+      color-mix(in srgb, var(--color-bg-deep) 74%, transparent) 60%
+    ),
+    url("/assets/textures/texture-gongxian-shanshui.webp") center / cover;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 20%, transparent);
+  border-radius: 4px 4px 0 0;
+}
+.victory-identity {
+  position: relative;
+  z-index: 1;
+  grid-area: 1 / 1;
+  align-self: start;
+}
+.victory-identity h1 {
+  margin: 0;
+  color: var(--color-gold-bright);
+  font-size: clamp(22px, 4.5vw, 40px);
+  line-height: 1.12;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.victory-emperor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+}
+.victory-emperor p {
+  margin: 0;
+  font-size: clamp(19px, 3.2vw, 28px);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.victory-stamp-seal {
+  display: grid;
+  flex: 0 0 26px;
+  block-size: 26px;
+  place-items: center;
+  border: 2px solid var(--color-danger);
+  border-radius: 2px;
+  color: var(--color-danger);
+  font-size: 18px;
+  line-height: 1;
+  rotate: -6deg;
+  animation: victory-stamp-in var(--dur-fast) var(--ease-out-back) 0.45s backwards;
+}
+.victory-capital {
+  grid-area: 1 / 2 / span 2;
+  display: grid;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-items: center;
+  margin: 0;
+  color: var(--color-gold);
+  font-size: 16px;
+  line-height: 1.25;
+  text-align: center;
+}
+p.victory-capital {
+  grid-template-rows: 1fr;
+}
+.victory-art.has-heroes .victory-capital {
+  grid-area: 2 / 1;
+  border-inline-end: 1px solid color-mix(in srgb, var(--color-gold) 22%, transparent);
+}
+.victory-capital .city-ledger-thumb {
+  width: 100%;
+  height: 100%;
+  max-height: 198px;
+  overflow: visible;
+}
+.victory-art.has-heroes .city-ledger-thumb {
+  max-height: 124px;
+}
+.victory-heroes {
+  grid-area: 1 / 2 / span 2;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 5px;
+  min-height: 0;
+  padding-block: 10px 4px;
+}
+.victory-hero {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-gold-deep);
+  border-radius: 3px;
+  background: var(--color-bg-deep);
+  text-align: center;
+}
+.victory-hero .lihui {
+  height: 100%;
+  overflow: hidden;
+}
+.victory-hero .lihui img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+.victory-hero .is-ph {
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  color: var(--color-danger);
+  font-size: 12px;
+}
+.victory-hero .ph-xiang {
+  font-family: var(--font-brush);
+  font-size: 26px;
+}
+.victory-hero figcaption {
+  padding: 3px 2px;
+  font-size: clamp(12px, 1.9vw, 16px);
+  line-height: 1.2;
+}
+.victory-facts {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 6px 10px 0;
+  font-size: clamp(13px, 1.85vw, 16px);
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.victory-facts p {
+  margin: 0;
+  color: var(--color-paper-dim);
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+.victory-facts p span {
+  padding-inline-start: 5px;
+  color: var(--color-gold-bright);
+  font-size: 1.45em;
+}
+.victory-standings {
+  padding: 7px 14px 10px;
+}
+.victory-standings-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding: 0 3px 2px;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-gold) 32%, transparent);
+  color: var(--color-paper-dim);
+  font-size: 13px;
+}
+.victory-standings-head h2 {
+  margin: 0;
+  color: var(--color-gold-bright);
+  font-size: 20px;
+  line-height: 24px;
+  letter-spacing: 0.12em;
+}
+.victory-ranks {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+.victory-rank {
+  display: grid;
+  grid-template-columns: 1.35em minmax(max-content, 1fr) max-content max-content;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 26px;
+  padding-inline: 9px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: var(--color-bg);
+  font-size: clamp(14px, 1.9vw, 17px);
+  line-height: 1.25;
+}
+.victory-rank.is-winner {
+  border-color: var(--color-gold-deep);
+  background: var(--color-panel-hi);
+  color: var(--color-gold-bright);
+}
+.victory-rank-order {
+  color: var(--color-paper-dim);
+  text-align: center;
+}
+.victory-rank-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.victory-rank-name i {
+  width: 3px;
+  height: 1em;
+  border-radius: 1px;
+}
+.victory-rank-bankrupt {
+  color: var(--color-danger);
+  font-size: 0.82em;
+}
+.victory-rank-money {
+  grid-column: 4;
+  min-width: 6em;
+  text-align: end;
+  white-space: nowrap;
+}
+.victory-restart {
+  display: flex;
+  justify-content: center;
+}
+.victory-restart button {
+  width: min(164px, 100%);
+  min-height: 44px;
+  font-size: 22px;
+}
+
+@media (max-width: 680px) {
+  .victory-layout {
+    padding-inline: max(14px, var(--safe-left)) max(14px, var(--safe-right));
+  }
+  .victory-body,
+  .victory-art {
+    gap: 8px;
+  }
+  .victory-art,
+  .victory-standings {
+    padding-inline: 7px;
+  }
+  .victory-emperor {
+    gap: 4px;
+  }
+  .victory-stamp-seal {
+    flex-basis: 20px;
+    block-size: 20px;
+    font-size: 14px;
+  }
+  .victory-rank {
+    column-gap: 4px;
+    padding-inline: 4px;
+  }
+}
+
+@media (max-height: 370px) {
+  .victory-layout {
+    gap: 10px;
+    padding-block: max(14px, var(--safe-top)) max(13px, var(--safe-bottom));
+  }
+  .victory-scroll,
+  .victory-standings {
+    min-height: 232px;
+  }
+  .victory-ranks {
+    gap: 2px;
+  }
+  .victory-rank {
+    min-height: 22px;
+  }
+}
+
+@media (max-width: 560px) {
+  .victory-identity h1 {
+    font-size: clamp(18px, 4.2vw, 24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .victory-anim-overlay,
+  .victory-anim-title,
+  .victory-step,
+  .victory-stamp-seal,
+  .victory-step-btn {
+    animation: none;
+  }
+  .victory-anim-title {
+    text-shadow: none;
+  }
+  .victory-anim-title::after,
+  .victory-fireworks {
+    display: none;
+  }
 }
