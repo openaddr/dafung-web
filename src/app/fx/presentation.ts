@@ -66,7 +66,7 @@ export type PresentationEvent =
   | {
       kind: "textFloat";
       playerId: string;
-      /** 文案(无金额,ADR-0013 唯一选项自动执行的轻提示,如「银两不足,未能购城」)。 */
+      /** 棋盘文案，如「城已满级,按兵不动」。 */
       text: string;
       x: number;
       y: number;
