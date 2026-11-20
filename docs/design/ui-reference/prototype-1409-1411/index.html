@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>群雄逐鹿 · 卡牌画心原型</title>
+<style>
+:root {
+  color-scheme: dark;
+  --background: #16110c;
+  --panel: #2b2317;
+  --paper: #f4ecd8;
+  --muted: #c6b491;
+  --gold: #d9b95c;
+  font: 16px/1.55 system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--paper); }
+main { max-width: 924px; margin: auto; padding: 22px 18px 40px; }
+h1 { margin: 0 0 15px; font-size: clamp(24px, 4vw, 32px); font-weight: 400; }
+a { color: inherit; }
+nav, .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+nav a, .actions a { display: inline-flex; align-items: center; min-height: 44px; padding: 3px 14px; text-decoration: none; border-radius: 4px; }
+nav a { border: 1px solid #695a3c; background: var(--panel); }
+nav a[aria-current] { border-color: var(--gold); color: var(--gold); }
+a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+section { margin-top: 15px; padding-top: 14px; border-top: 1px solid #695a3c; }
+p { margin: 0 0 12px; color: var(--muted); }
+.actions a { border: 1px solid #695a3c; }
+.actions .primary { border-color: var(--gold); color: var(--gold); background: var(--panel); }
+.preview { display: block; margin-top: 15px; }
+img { display: block; width: 100%; height: auto; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>卡牌画心原型</h1>
+  <nav aria-label="选择工单">
+    <a href="?ticket=1409" data-ticket="1409" aria-current="page">珍宝与技能书</a>
+    <a href="?ticket=1410" data-ticket="1410">锦囊</a>
+    <a href="?ticket=1411" data-ticket="1411">机遇</a>
+  </nav>
+  <section>
+    <p id="guide">从手册珍宝行册看器物，再点右下「珍宝」看局内技能书。</p>
+    <div class="actions">
+      <a id="demo" class="primary" href="treasures/index.html">打开可点原型</a>
+      <a id="still" href="treasures/compare.png">查看完整对照图</a>
+    </div>
+    <a id="preview" class="preview" href="treasures/compare.png">
+      <img id="picture" src="treasures/compare.png" alt="珍宝与技能书画心对照">
+    </a>
+  </section>
+</main>
+<script>
+const topics = new Map([
+  ["1409", ["treasures", "珍宝与技能书", "从手册珍宝行册看器物，再点右下「珍宝」看局内技能书。"]],
+  ["1410", ["jinnang", "锦囊", "从下方手牌区选牌，也可以遮住牌名，只看画面认牌。"]],
+  ["1411", ["encounters", "机遇", "切换手册机遇和局内卷轴，对比正文、画心和选项的占地。"]],
+]);
+const ticket = new URLSearchParams(location.search).get("ticket");
+if (topics.has(ticket)) {
+  const [folder, name, guide] = topics.get(ticket);
+  for (const link of document.querySelectorAll("nav a")) {
+    if (link.dataset.ticket === ticket) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
+  const image = folder + "/compare.png";
+  document.getElementById("guide").textContent = guide;
+  document.getElementById("demo").href = folder + "/index.html";
+  document.getElementById("still").href = image;
+  document.getElementById("preview").href = image;
+  document.getElementById("picture").src = image;
+  document.getElementById("picture").alt = name + "画心对照";
+}
+</script>
+</body>
+</html>
