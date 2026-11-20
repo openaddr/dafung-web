@@ -1,22 +1,9 @@
-// 组件收口:保留现实现(语义达标,动到时才评估收口)(细则 docs/design/组件收口.md)
-// 联机大厅屏(阶段 8,对照旧 src/render/lobby.ts + network-client 的连接屏合并为一屏):
-// - 未入座:建房(诸侯数/目标身价)、凭房间码加入,或「上次房间 · 一键重进」(#494,
-//   LAST_ROOM_KEY 有记忆时出按钮,主行动墨钮);服务器地址收进「高级」折叠(#766,
-//   探活状态点常驻 summary,展开才出地址输入);
-// - 已入座:房间码 / 座位列表(在线·离线·bot·托管)/ 当前地图(host 可换)/ 房主开局;
-// - 被解散:提示 + 返回首页。
-// #766 双列改版:矮横屏档(844×390 一类,断点同 setup/home/对局屏 A 档)卡片
-// 420px 单列 → min(720px,94vw) 双列栅格——未入座左列=建房组+高级折叠、右列=加入组+
-// 一键重进+返回;已入座左列=房码/文案/地图行/离开、右列=座位表+开局(sticky 钉底)。
-// 高视口/竖屏档信息架构不变(单列 420),只共享构块。构块化 JSX 手筋同 SoloSetupScreen #751。
-// 服务器地址单源 src/app/net/server-base.ts(#279):默认同源 location.origin(网页与引擎
-// 同源部署,scripts/server.ts 托管 dist),localStorage 可覆写——APK 打包 origin 无引擎,
-// 真机联机在大厅改指 LAN 主机/部署服务器;网页用户不碰零影响。
-// 房间状态来自 netStore(OnlineController 把 REST 回包与 WS 广播灌进去),本屏无本地真源。
+// 组件收口：沿用大厅和地图选择底件；大厅入口和开局操作由各自组件承载。
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@base-ui/react/button";
 import { resolveGuohaoClash } from "@core/guohao";
+import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
-import { getServerBase, setServerBase } from "@app/net/server-base";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import { UI } from "@app/fx/timings";
@@ -30,15 +17,12 @@ import {
   CONN_BANNER_BODY_H,
   useConnDown,
 } from "@app/screens/shared/ConnectionBanner";
-// X10(#29):建房诸侯数原生 select → stepper(screens/shared;e2e 点 -/+ 与读数值)
-import { Stepper } from "@app/screens/shared/Stepper";
-// #766:高级折叠箭头用 Sym(裸排 ▾ 会出 tofu,见 DESIGN §4.3;范式同 setup 机遇折叠)
-import { Sym } from "@app/screens/shared/Sym";
-// #766:矮横屏档 JS 结构分支(双列重排),断点串单源 hooks/use-media-query.ts
-// (lobby.css 矮横屏档 media 开口头注同指)
 import { useIsShortLandscape } from "@app/hooks/use-media-query";
 import { useMapCatalog } from "@app/screens/setup/useMapCatalog";
+import { LobbyEntry } from "./LobbyEntry";
+import { LobbyStartActions } from "./LobbyStartActions";
 import { LID } from "./testids";
+import { useLobbyStart } from "./use-lobby-start";
 // W2:大厅局部动画(座位点亮 keyframe 定义在此,见文件内注释)
 import "./lobby.css";
 // S1(#34):大厅卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
@@ -49,7 +33,7 @@ interface LobbyScreenProps {
   onExit: () => void;
 }
 
-/** 最近一次入座成功的房间码(dogfood ISSUE-012 修复):加入框预填,刷新丢局后免凭记忆重输。 */
+/** 最近一次入座成功的房间码，供独立的重进入口使用。 */
 const LAST_ROOM_KEY = "dafung.lastRoomCode";
 
 /** 座位行的状态标签(对照旧 renderSeats:你/人/电脑/空 + 房主 + 离线)。L-5:统一全中文,不混排「bot」。 */
@@ -63,19 +47,6 @@ function seatTag(s: NetSeatMeta, mySeat: number, host: number): string {
     .filter(Boolean)
     .join("·");
   return suffix ? `${who}·${suffix}` : who;
-}
-
-/** 建房目标身价校验(L-2,零兜底:非法阻止提交并显式告知,不静默):
- *  空 = 默认值合法;否则须为正整数且不超过上限(上限取服务器 intField 可表达范围的实用子集)。 */
-const TARGET_MAX = 99_999_999;
-function validateTarget(v: string): string | null {
-  const t = v.trim();
-  if (!t) return null;
-  if (!/^\d+$/.test(t)) return "目标身价需为正整数";
-  const n = parseInt(t, 10);
-  if (n <= 0) return "目标身价需大于 0";
-  if (n > TARGET_MAX) return `目标身价不能超过 ${TARGET_MAX}`;
-  return null;
 }
 
 export function LobbyScreen({ onExit }: LobbyScreenProps) {
@@ -93,29 +64,14 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const hintLevel = useNetStore((s) => s.hintLevel);
   const pushHint = useNetStore((s) => s.pushHint);
 
-  const [seatCount, setSeatCount] = useState(2);
-  const [target, setTarget] = useState("");
-  // L-2:失焦校验后的错误文案(null = 合法或未校验);输入即清,提交前再全量校验
-  const [targetErr, setTargetErr] = useState<string | null>(null);
-  const [joinCode, setJoinCode] = useState(
-    () =>
-      // dogfood 2026-09-28(ISSUE-012):刷新丢局后玩家要凭记忆重输房间码——
-      // 上次加入/建房的码预填进加入框(localStorage 记忆,成功入座时写入)。
-      localStorage.getItem(LAST_ROOM_KEY) ?? "",
+  const [lastRoom, setLastRoom] = useState(() => localStorage.getItem(LAST_ROOM_KEY));
+  const [createdRoom, setCreatedRoom] = useState<{ id: string; target: number | undefined } | null>(
+    null,
   );
-  // #494 一键重进:上次入座成功的房码(与加入框预填同读 LAST_ROOM_KEY,但独立成态——
-  // 玩家改动/清空加入框不影响「上次房间」的指向)。空串 = 无记忆,不出按钮。
-  const [lastRoom] = useState(() => localStorage.getItem(LAST_ROOM_KEY) ?? "");
-  const [busy, setBusy] = useState(false); // 请求进行中:按钮防连点
-  // #494 开局转场态:host 点开局 → 首帧 snapshot 切屏之间的空窗(REST 先回、快照广播
-  // 未到),卡片级遮罩告知「正在开局…」。本屏随切屏(keyed 换屏)卸载,无需手工复位;
-  // 开局请求失败时在 guard 内显式撤掉(遮罩不能盖着错误提示常驻)。
-  const [starting, setStarting] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [showMapSelect, setShowMapSelect] = useState(false);
   // W2:房间码「已复制」小态(1s 自清;不用 pushHint——那是错误/流程通道,复制是即时确认)
   const [copied, setCopied] = useState(false);
-  // W2:等待文案轮换下标(3s 一换,制造"大厅还活着"的心跳感)
-  const [waitIdx, setWaitIdx] = useState(0);
   // S-5:内置图源每渲染 new 会致 MapSelectPanel 重复拉取;useMemo 缓存(组件生命周期内不变)
   // 联机只支持内置图;#947 自建图通路退役后全仓只剩内置图源,直取进程级单例。
   const mapSource = useMemo(() => getMapSource(), []);
@@ -125,21 +81,14 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   useEffect(() => {
     if (mapError) useNetStore.getState().pushHint(`地图清单加载失败:${mapError}`);
   }, [mapError]);
-  const mapName = useMemo(
-    () => (mapId ? (mapEntries?.find((e) => e.id === mapId)?.name ?? mapId) : null),
-    [mapEntries, mapId],
-  );
-  // #559:服务器探活状态(checking=定性中,不渲染状态点)。挂载时探活一次
-  // (GET {base}/health,3s 超时,AbortController 掐断;不重试不轮询,一次定性)。
-  // 应答非 {ok:true}(网络死/非引擎服务)一律「未连通」——只给预期,不禁任何操作
-  // (建房/加入失败仍走既有 hint 通路报错)。
-  const [serverAlive, setServerAlive] = useState<"checking" | "ok" | "fail">("checking");
+  const selectedMap = mapEntries?.find((entry) => entry.id === mapId);
+  const mapName = selectedMap ? selectedMap.name : mapId;
   // L-8:刚「空→有人」的座位集合(仅这些行放入场动画);ref 记上一帧 taken 做状态 diff
   const [seatEntered, setSeatEntered] = useState<ReadonlySet<number>>(new Set());
   const prevTakenRef = useRef<Map<number, boolean>>(new Map());
   // L-7:复制态自清定时器(卸载必须清,否则离开大厅后仍 setState)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // #766:矮横屏档双列重排开关(未入座/已入座两态各有一套双列分栏;高视口档零重排)
+  // #766:矮横屏档收紧入口标题与留量，已入座后切双列。
   const isShortLandscape = useIsShortLandscape();
 
   useEffect(() => {
@@ -148,48 +97,11 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     };
   }, []);
 
-  // #559:挂载探活一次(见 serverAlive 注释)。alive 旗标防卸载后 setState
-  // (cleanup abort 会让 fetch 走 catch);catch 的唯一消费=显式置「未连通」态,
-  // 让死服务器在「服务器」标签旁可见,不再等点「建房」才出 5s 即逝 hint。
-  useEffect(() => {
-    let alive = true;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 3000);
-    fetch(`${getServerBase()}/health`, { signal: ctrl.signal })
-      .then((res) => res.json() as Promise<{ ok: boolean }>)
-      .then((data) => {
-        if (alive) setServerAlive(data.ok === true ? "ok" : "fail");
-      })
-      .catch(() => {
-        // 零兜底例外①:探活失败的显式消费 = 置失败态呈现给用户,不吞错装无事
-        if (alive) setServerAlive("fail");
-      })
-      .finally(() => clearTimeout(timer));
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-      ctrl.abort();
-    };
-  }, []);
-
-  // W2:等待文案轮换。非 host 换着法子说"等房主";host 未满座时轮换催座趣味句
-  // (#84:首句固定为发码指引,不走轮换——房码是开局第一步,常驻不让趣味句顶掉)。
-  // 依赖 (roomId/isHost/needMore) 变化时重置下标,避免切视角后先闪一句不合适的话。
   const isHost = host === mySeat;
-  const needMore = seats.some((s) => !s.taken);
-  // #494 等待区实质进度:已入座/总座位(seats 广播现成,纯派生)。
-  const takenCount = seats.filter((s) => s.taken).length;
-  const hostInviteLine = "把房间码发给好友，入座即可开局"; // #84:固定首句(发码指引)
-  const waitLines = !isHost
-    ? ["等待房主开局…", "主公尚在谋划…", "稍安勿躁…"]
-    : ["虚位以待，静候群雄…", "坐等群雄入席…", "广发英雄帖…"]; // A4:标点全角统一
-  useEffect(() => {
-    setWaitIdx(0);
-    const t = setInterval(() => setWaitIdx((i) => (i + 1) % waitLines.length), 3000);
-    return () => clearInterval(t); // 卸载/条件变化时必须清,否则离开大厅仍在 setState
-    // waitLines 按视角二选一后内容固定,长度恒 3,不列入依赖
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, isHost, needMore]);
+  const start = useLobbyStart(isHost && roomId ? roomId : null);
+  const needMore = seats.some((seat) => !seat.taken);
+  const takenCount = seats.filter((seat) => seat.taken).length;
+  const knownRoomTarget = createdRoom?.id === roomId && isHost ? createdRoom : null;
 
   // L-8:座位「空→有人」翻转检测(key 稳定后,入场动画只在此刻加 class;
   // 上/下线、托管等状态翻转不再整行 remount 重放动画)。首帧视为入场,保留挂载点亮。
@@ -213,12 +125,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     controller.reconnect();
   };
 
-  const guard = async (fn: () => Promise<unknown>) => {
-    if (!controller || busy) return;
+  const guard = async (fn: (owner: OnlineController) => Promise<unknown>) => {
+    if (busy || start.pending) return;
+    if (!controller) {
+      pushHint("联机会话已结束");
+      return;
+    }
     const owner = controller;
     setBusy(true);
     try {
-      await fn();
+      await fn(owner);
     } catch (err) {
       if (getController() === owner) pushHint((err as Error).message);
     } finally {
@@ -226,226 +142,11 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     }
   };
 
-  // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/加入/建房共用基类,只改尺寸)
-  const btnBase =
-    "rounded border px-4 py-2 font-brush text-paper transition-colors disabled:opacity-40 ";
-  // R3-B11(#83):输入框与 Stepper(h-10)/按钮等高——建房排三控件同高,「诸侯数/目标身价」不再错位
-  const inputBase = "h-10 rounded border border-paper/30 bg-bg px-2 py-2 font-deco text-paper";
-
-  // ── 构块化 JSX(#766,手筋同 SoloSetupScreen #751):两档共用件,矮横屏档双列重排
-  //    把同一批块重排进两列,testid 契约零变化(建房/加入/重进/座位行/开局全部原样)──
-
-  // 建房块:建房者 = Seat0(host)。A4:分段头入 note-head 制式(印「建」+ wenkai 标签 + 发丝线)
-  const createBlock = (
-    <div className="font-deco text-sm text-paper">
-      <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-paper-dim">
-        <i>建</i>
-        <span>建房</span>
-      </h3>
-      <div className="flex items-center gap-2">
-        <div className="flex flex-col gap-1">
-          诸侯数
-          <Stepper
-            testid={LID.seatCount}
-            ariaLabel="诸侯数"
-            value={seatCount}
-            min={2}
-            max={8}
-            onChange={setSeatCount}
-          />
-        </div>
-        <label className="flex flex-col gap-1">
-          目标身价(空=默认)
-          <input
-            data-testid={LID.target}
-            value={target}
-            inputMode="numeric"
-            onChange={(e) => {
-              setTarget(e.target.value);
-              setTargetErr(null); // 修改即清错,失焦/提交再校验
-            }}
-            onBlur={() => setTargetErr(validateTarget(target))}
-            // X14(#33):回车与失焦同口径即时校验(小屏回车不必先点别处)
-            onKeyDown={(e) => {
-              if (e.key === "Enter") setTargetErr(validateTarget(target));
-            }}
-            placeholder="如 30000(两)"
-            className={inputBase + " w-28" + (targetErr ? " border-danger" : "")}
-          />
-          {/* L-2:非法/越界的显式原因行(不静默) */}
-          {targetErr && <span className="text-xs text-danger">{targetErr}</span>}
-        </label>
-        <button
-          data-testid={LID.create}
-          disabled={busy || targetErr != null}
-          onClick={() => {
-            // L-2 零兜底:提交前再校验一次,非法则阻止并显示原因(不静默吞掉)
-            const err = validateTarget(target);
-            setTargetErr(err);
-            if (err) return;
-            void guard(async () => {
-              const reply = await controller!.createRoom({
-                seats: seatCount,
-                target: target.trim() ? parseInt(target, 10) : undefined,
-                // R3-D1(#99):建房者预设国号与加入同源(SoloSetup 起兵时写入),不再只有加入路径带
-                guohao: localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
-              });
-              // 建房同记码(dogfood ISSUE-012):host 刷新后也能凭预填码重进自己房间
-              localStorage.setItem(LAST_ROOM_KEY, reply.roomId);
-            });
-          }}
-          // R3-B11(#83):py-0 与输入框对齐;#766:墨钮=主行动触达提档 min-h-44(DESIGN §4.7)
-          className={btnBase + " ink-btn h-10 min-h-[44px] py-0"}
-        >
-          {busy ? "处理中…" : "建房"}
-        </button>
-      </div>
-    </div>
-  );
-
-  // #766:服务器行收进「高级」details 折叠(照 setup 机遇折叠交互范式):默认收起,
-  // 探活状态点常驻 summary(收起也能见服务器死活,S7 点旁带文字),展开才出地址输入。
-  // 未入座才可改址(入座中改址=换服务器,须退出重进)——本折叠只在未入座态渲染。
-  const advancedFold = (
-    <details
-      data-testid={LID.serverToggle}
-      className="group rounded border border-paper/25 bg-bg/40 open:bg-panel-hi/40"
-    >
-      <summary className="flex  select-none items-center justify-between gap-2 px-2 py-1.5 font-wenkai text-sm text-paper [&::-webkit-details-marker]:hidden">
-        <span className="shrink-0">
-          <Sym
-            name="expand"
-            size={12}
-            className="mr-1.5 inline-block transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-open:rotate-180"
-          />
-          <span className="font-brush">高级</span>(服务器地址)
-        </span>
-        {/* #559:探活状态点(挂载定性一次;checking 不渲染)。收起也常驻 summary 可见。 */}
-        {serverAlive !== "checking" && (
-          <span
-            data-testid={LID.serverStatus}
-            className={
-              "flex shrink-0 items-center gap-1 text-xs " +
-              (serverAlive === "ok" ? "text-success" : "text-danger")
-            }
-          >
-            <span
-              className={
-                "w-2 h-2 rounded-full " + (serverAlive === "ok" ? "bg-success" : "bg-danger")
-              }
-            />
-            {serverAlive === "ok" ? "已连" : "未连通"}
-          </span>
-        )}
-      </summary>
-      <div className="flex items-center gap-2 px-2 pb-2 text-sm">
-        <label htmlFor={LID.serverBase} className="shrink-0 text-paper-dim">
-          服务器
-        </label>
-        <input
-          id={LID.serverBase}
-          data-testid={LID.serverBase}
-          defaultValue={getServerBase()}
-          onBlur={(e) => {
-            setServerBase(e.target.value);
-            e.target.value = getServerBase();
-            pushHint(
-              getServerBase() === location.origin ? "服务器:默认同源" : `服务器:${getServerBase()}`,
-              "info",
-            );
-          }}
-          className={inputBase + " w-44"}
-        />
-      </div>
-    </details>
-  );
-
-  // 加入块:凭码占第一个空 human 座位;X14(#33) form 包裹——回车即提交(等价点「加入」;
-  // 空码/处理中不动,与按钮禁用同口径)。小屏键盘弹起时按钮随 #13 滚动容器可达。
-  // #766:矮横屏档双列下左右列自然分隔,高视口单列保留 border-t 分隔线。
-  const joinBlock = (
-    <form
-      className={
-        "font-deco text-sm text-paper" + (isShortLandscape ? "" : " border-t border-paper/20 pt-4")
-      }
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (busy || !joinCode.trim()) return;
-        void guard(async () => {
-          await controller!.joinRoom(
-            joinCode.trim(),
-            localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
-          );
-          // 入座成功即记码(dogfood ISSUE-012):刷新后加入框预填,免凭记忆重输
-          localStorage.setItem(LAST_ROOM_KEY, joinCode.trim().toUpperCase());
-        });
-      }}
-    >
-      {/* A4:分段头 note-head 制式,印文取「入」(加入) */}
-      <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-paper-dim">
-        <i>入</i>
-        <span>加入</span>
-      </h3>
-      <div className="flex items-center gap-2">
-        <input
-          data-testid={LID.joinInput}
-          value={joinCode}
-          onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-          placeholder="房间码"
-          maxLength={8}
-          className={inputBase + " w-44 tracking-[0.3em]"}
-        />
-        <button
-          type="submit"
-          data-testid={LID.join}
-          disabled={busy || !joinCode.trim()}
-          // R3-B11(#83):h-10 py-0,与房间码输入框等高
-          className={btnBase + " note-btn h-10 py-0"}
-        >
-          {busy ? "处理中…" : "加入"}
-        </button>
-      </div>
-      {/* #766:disabled 原因内联(F1 的触屏赎回)——空码灰时钮下 12px 原因行,
-          照「需先选择地图」既有内联范式,busy 期钮面文案已直陈
-          「处理中…」,不另设行重复。 */}
-      {!busy && !joinCode.trim() && (
-        <div className="mt-1 font-deco text-xs text-paper-dim">请输入房间码</div>
-      )}
-    </form>
-  );
-
-  // #494 一键重进:断线/刷新丢局后免凭记忆重输——凭 LAST_ROOM_KEY 直接入座
-  // (走 joinRoom 同一路径;房间已不存在时 error hint 按 5s TTL 显式报错,不静默)。
-  // #766:升主行动(墨钮语义、触达 ≥44),与低频「返回首页」笺钮拉开权重;
-  // 操作标签走 brush,上次房间与房码单独保留阅读字族;
-  // busy 期钮面直陈「处理中…」(原静态 label 灰而不知因,触屏不可见 title 的场景之一)。
-  const rejoinBtn = lastRoom ? (
-    <button
-      disabled={busy}
-      onClick={() => {
-        void guard(async () => {
-          await controller!.joinRoom(lastRoom, localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined);
-        });
-      }}
-      className={btnBase + " ink-btn min-h-[44px] w-full"}
-    >
-      {busy ? (
-        "处理中…"
-      ) : (
-        <>
-          <span className="font-wenkai">上次房间 {lastRoom}</span> · 一键重进
-        </>
-      )}
-    </button>
-  ) : null;
-
-  // 返回首页(低频退路):笺钮次级语义(#766 与重进主钮拉开权重),触达 ≥40
-  const backBtn = (
-    <button onClick={onExit} className={btnBase + " note-btn self-start text-sm min-h-[40px]"}>
-      返回首页
-    </button>
-  );
-
+  const rememberRoom = (id: string) => {
+    localStorage.setItem(LAST_ROOM_KEY, id);
+    setLastRoom(id);
+  };
+  const roomActionsLocked = busy || start.pending;
   // F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致;空 hint 渲染 null)
   const hintBar = <HintBar hint={hint} level={hintLevel} variant="inline" />;
 
@@ -457,81 +158,55 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         className="lobby-safe flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6"
       >
         <h1 className="font-title text-3xl text-paper tracking-widest">房主已解散房间</h1>
-        <button data-testid={LID.back} onClick={onExit} className={btnBase + " ink-btn"}>
+        <Button
+          data-testid={LID.back}
+          onClick={onExit}
+          className="ink-btn min-h-[44px] px-4 font-brush"
+        >
           返回首页
-        </button>
+        </Button>
       </div>
     );
   }
 
-  // ── 未入座:建房 / 加入 ──
-  // #766 分栏策略:高视口/竖屏单列 420 信息架构不变(建房→加入→重进→hint→高级→返回);
-  // 矮横屏档双列 min(720px,94vw)——左列=建房组+高级折叠,右列=加入组+重进主钮+返回,
-  // hint 常驻卡底横贯。内容量实测 844×390 收在 ~300px 竖向预算内,一屏零滚动(根容器
-  // 仍保 overflow-y-auto:E1 #13,小屏键盘弹起时可滚达)。
   if (!roomId) {
     return (
-      // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
-      // 内容不溢出时视觉与 justify-center 一致,溢出(小屏键盘弹起/横屏)时可滚达
       <div
         data-testid={LID.screen}
         className="lobby-safe lobby-root relative flex h-full flex-col overflow-y-auto bg-bg p-6"
         style={connectionSpace}
       >
-        {/* F2 断线横幅:挂在卡片上方(未入座也可能在加入后断线;横幅绝对定位不挤布局) */}
         <ConnectionBanner onReconnect={reconnect} onExit={onExit} />
-        {/* #766:未入座卡轻,不吃 lobby-wrap 满高——m-auto 居中即可(卡随内容贴合);
-            满高 wrap 只服务已入座的 fill/sticky 形态 */}
-        <div className="m-auto flex w-full flex-col items-center">
-          <h1
-            className={`font-title text-paper tracking-widest pl-[0.1em] mb-1 ${
-              isShortLandscape ? "text-3xl leading-none" : "text-4xl"
-            }`}
-          >
-            联机对局
-          </h1>
-          {/* R3-A7(#70):破折号首尾对称,无法抵消 letter-spacing 尾空白,仍补 pl(同 HomeScreen「— 三国大富翁 —」);
-              #766:矮横屏档副标题收纳退役(座次竖向预算让位双列,setup/home 降档同款) */}
-          {!isShortLandscape && (
-            <div className="font-deco text-paper-dim mb-6 tracking-[0.4em] pl-[0.4em]">
-              — 群雄逐鹿 —
-            </div>
-          )}
-          {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
-          <div
-            className={`scroll-anim-unroll note-card rounded-[8px] p-5 flex flex-col ${
-              isShortLandscape
-                ? "lobby-card w-[min(720px,94vw)] gap-2"
-                : "w-[min(420px,92vw)] gap-5"
-            }`}
-          >
-            {isShortLandscape ? (
-              /* ── 矮横屏档(#766):双列栅格,lobby.css 同串媒体查询接管内滚/间距 ── */
-              <div className="lobby-grid">
-                <div className="lobby-col lobby-col-left">
-                  {createBlock}
-                  {advancedFold}
-                </div>
-                <div className="lobby-col lobby-col-right">
-                  {joinBlock}
-                  {rejoinBtn}
-                  {backBtn}
-                </div>
-              </div>
-            ) : (
-              /* ── 高视口/竖屏档:信息架构零变化(竖屏同构,根容器滚动兜底 E1 #13)── */
-              <>
-                {createBlock}
-                {joinBlock}
-                {rejoinBtn}
-                {hintBar}
-                {advancedFold}
-                {backBtn}
-              </>
-            )}
-            {isShortLandscape && hintBar}
-          </div>
-        </div>
+        <LobbyEntry
+          busy={busy}
+          shortLandscape={isShortLandscape}
+          lastRoom={lastRoom}
+          onCreate={(seats, target) => {
+            void guard(async (owner) => {
+              const reply = await owner.createRoom({
+                seats,
+                target,
+                guohao: localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
+              });
+              if (getController() !== owner) return;
+              setCreatedRoom({ id: reply.roomId, target });
+              rememberRoom(reply.roomId);
+            });
+          }}
+          onJoin={(code) => {
+            void guard(async (owner) => {
+              const reply = await owner.joinRoom(
+                code,
+                localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
+              );
+              if (getController() !== owner) return;
+              setCreatedRoom(null);
+              rememberRoom(reply.roomId);
+            });
+          }}
+          onExit={onExit}
+          hint={hintBar}
+        />
       </div>
     );
   }
@@ -539,6 +214,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // ── 已入座:房间大厅 ──
   // W2:房间码点击复制(clipboard API + 1s「已复制」小态;房码是高频转述物,复制比抄写友好)
   const copyRoomCode = () => {
+    if (start.pending) return;
     navigator.clipboard?.writeText(roomId).then(
       () => {
         setCopied(true);
@@ -559,30 +235,25 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       </h1>
       {/* 房间码:大字 + 字距;W2 点击复制 + xs 提示(testid 不变,e2e 只读文本)
         R3-A7(#70):0.4em 字距尾空白以 pl 同量补偿(同 HomeScreen 先例) */}
-      <button
+      <Button
         type="button"
         data-testid={LID.roomCode}
         onClick={copyRoomCode}
+        disabled={start.pending}
         aria-label={`房间码 ${roomId}，点击复制`}
         // 玄墨版(#514):房码签上下金线裱边。
         // #838:房码是拉丁字母(A-Z),font-brush 花笔钩连转述字形自证性差,改 font-deco
         //(囗部四空芯码位已剔出其 unicode-range,拉丁字母不涉);金裱边与 0.4em 字距保留
-        className="block w-full rounded-[3px] border-y-2 border-gold/40 py-1 text-center font-deco text-4xl tracking-[0.4em] pl-[0.4em] text-paper "
+        className="block w-full rounded-[3px] border-y-2 border-gold/40 py-1 text-center font-deco text-4xl tracking-[0.4em] pl-[0.4em] text-paper disabled:opacity-40"
       >
         {roomId}
-      </button>
-      <div className="text-center font-deco text-xs text-paper-dim">
-        {copied ? "已复制" : "点击复制，发给好友凭码入座"}
+      </Button>
+      <div className="min-h-4 text-center font-wenkai text-xs leading-4 text-paper-dim">
+        {!start.pending && (copied ? "已复制" : "点击复制，发给好友凭码入座")}
       </div>
-      <div className="text-center font-deco text-xs text-paper-dim">
-        {
-          isHost
-            ? needMore
-              ? // #494:实质进度前置(已入座 n/m),发码指引次之,趣味句降为末位补充
-                `已入座 ${takenCount}/${seats.length}；${hostInviteLine}；${waitLines[waitIdx]}` // A4:全角分号
-              : "坐席已满，可开局；点开局后未入座自动电脑填充。" // A4:标点全角;L-5(#838):bot→电脑,全中文不混排
-            : waitLines[waitIdx] /* 非 host:轮换等待文案 */
-        }
+      <div className="text-center font-wenkai text-xs text-paper-dim">
+        {isHost ? `已入座 ${takenCount}/${seats.length}` : "等待房主开局…"}
+        {isHost && needMore && !start.pending && "，开局时空位由电脑补齐"}
       </div>
     </div>
   );
@@ -677,82 +348,55 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     </div>
   );
 
-  // 当前地图行(host 可换,选图钮随开局排;非 host 只读)
+  // 已知的自定义目标只来自本座成功建房的请求。重进和来宾只能读取地图预设。
   const mapLine = (
-    <div className="text-center font-deco text-sm text-paper-dim">
-      当前地图:
-      <span data-testid={LID.mapName} className="text-paper ml-1">
+    <div className="text-center font-wenkai text-sm text-paper-dim">
+      当前地图
+      <span data-testid={LID.mapName} className="ml-1 text-paper">
         {mapName ?? "未选择"}
       </span>
+      {knownRoomTarget?.target !== undefined ? (
+        <div>自定义目标 {formatMoney(knownRoomTarget.target)}</div>
+      ) : selectedMap ? (
+        <div>地图默认 {formatMoney(selectedMap.targetNetWorth)}</div>
+      ) : knownRoomTarget && !mapId ? (
+        <div>目标身价按地图默认</div>
+      ) : null}
     </div>
   );
 
-  // host 控件:选图 + 开局(需先选图;开局后由首帧 snapshot 切屏)。
-  // #766:矮横屏档开局排 sticky 钉右列可视底(.lobby-actions,8 席内滚时恒在场,
-  // su-actions #751 同款);高视口档照旧文档流居中。
   const hostActions = isHost ? (
-    <div
-      className={
-        "flex flex-col items-center gap-1 " + (isShortLandscape ? "lobby-actions" : "mt-3")
-      }
-    >
-      <div className="flex items-center justify-center gap-3">
-        <button
-          data-testid={LID.selectMap}
-          disabled={busy}
-          onClick={() => setShowMapSelect(true)}
-          className={btnBase + " note-btn text-sm min-h-[40px]"}
-        >
-          {busy ? "处理中…" : "选择地图"}
-        </button>
-        <button
-          data-testid={LID.start}
-          disabled={busy || !mapId}
-          onClick={() => {
-            // dogfood ISSUE-010:选图面板开着时点开局静默无响应(面板遮挡+未确认),
-            // 玩家以为开局坏了。面板开着 → 先收面板并提示确认地图,不发命令。
-            if (showMapSelect) {
-              setShowMapSelect(false);
-              useNetStore.getState().pushHint("请先在地图面板点「确认选择」", "info");
-              return;
-            }
-            // #494:遮罩从点击起挂(不等 REST);失败撤掉、成功由切屏卸载收尾。
-            setStarting(true);
-            void guard(async () => {
-              try {
-                await controller!.startGame();
-              } catch (err) {
-                setStarting(false);
-                throw err; // guard 统一推 error hint(#494:error 级 5s)
-              }
-            });
-          }}
-          // #766:墨钮=主行动触达提档 min-h-44(DESIGN §4.7,与建房钮同口径)
-          className={btnBase + " ink-btn min-h-[44px]"}
-        >
-          {busy ? "处理中…" : "开局"}
-        </button>
-      </div>
-      {/* F1:按钮下方 xs 原因行 */}
-      {!mapId && !busy && <div className="font-deco text-xs text-paper-dim">需先选择地图</div>}
-    </div>
+    <LobbyStartActions
+      state={start.state}
+      shortLandscape={isShortLandscape}
+      mapSelected={mapId !== null}
+      disabled={busy}
+      connectionDown={connDown}
+      onSelectMap={() => setShowMapSelect(true)}
+      onStart={() => {
+        if (roomActionsLocked || connDown || !mapId) return;
+        if (showMapSelect) {
+          setShowMapSelect(false);
+          pushHint("请先在地图面板点「确认选择」", "info");
+          return;
+        }
+        start.submit(async () => {
+          if (!controller) throw new Error("联机会话已结束");
+          await controller.startGame();
+        });
+      }}
+    />
   ) : null;
 
-  // P0-2:常驻「离开房间」入口(此前唯一退出=房主解散,玩家被困)。
-  // 服务端无 /room/leave 路由(scripts/server.ts 只有 new/join/map/start/dismiss),
-  // 故走本地退出:onExit = App.handleExitLobby(setController(null) → destroy 关 WS 清重连定时器
-  // + netStore.reset + 回设置屏)。座位 token 服务器侧掉线冻结机制已有,重进可重新加入。
   const leaveBtn = (
-    <button
-      data-testid="lobby-leave"
-      disabled={busy}
-      onClick={() => {
-        if (!busy) onExit();
-      }}
-      className={btnBase + " note-btn mx-auto block text-sm min-h-[40px]"}
+    <Button
+      data-testid={LID.leave}
+      disabled={roomActionsLocked}
+      onClick={onExit}
+      className="note-btn mx-auto block min-h-[40px] px-4 py-2 font-brush text-sm disabled:opacity-40"
     >
-      {busy ? "处理中…" : "离开房间"}
-    </button>
+      离开房间
+    </Button>
   );
 
   return (
@@ -803,16 +447,6 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               {leaveBtn}
             </>
           )}
-
-          {/* #494 开局转场遮罩:host 点开局 → 首帧快照切屏的空窗期盖住整卡(消除
-              「点了没反应」的空窗感;盖住即挡交互,防重复点开局/离开)。动画复用
-              scroll-anim-unroll(横向舒展=卷轴再展开一次;reduced-motion 瞬时),
-              文案为动态状态字,字族走 wenkai(混排红线,同横幅)。 */}
-          {starting && (
-            <div className="scroll-anim-unroll absolute inset-0 z-10 flex items-center justify-center rounded-[8px] bg-bg/85">
-              <span className="font-wenkai text-lg text-paper">正在开局…</span>
-            </div>
-          )}
         </div>
       </div>
 
@@ -824,7 +458,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           onConfirm={(id) => {
             setShowMapSelect(false);
             // 只发请求;本地换图由 lobby 广播单路径驱动(见 online.ts rebuildForMap)
-            void guard(() => controller!.pickMap(id));
+            void guard((owner) => owner.pickMap(id));
           }}
           onCancel={() => setShowMapSelect(false)}
         />

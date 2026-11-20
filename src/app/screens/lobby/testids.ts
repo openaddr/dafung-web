@@ -5,8 +5,11 @@ export const LID = {
   create: "lobby-create",
   seatCount: "lobby-seat-count",
   target: "lobby-target",
+  targetMapDefault: "lobby-target-map-default",
+  targetCustom: "lobby-target-custom",
   joinInput: "lobby-join-input",
   join: "lobby-join",
+  rejoin: "lobby-rejoin",
   // #279:联机服务器地址(未入座可改;默认同源,覆写持久化 localStorage)
   serverBase: "lobby-server-base",
   // #766:服务器行收进「高级」details 折叠(默认收起,探活点常驻 summary;展开出地址输入)
@@ -24,5 +27,6 @@ export const LID = {
   mapName: "lobby-map-name",
   selectMap: "lobby-select-map",
   start: "lobby-start",
+  leave: "lobby-leave",
   back: "lobby-back",
 } as const;
