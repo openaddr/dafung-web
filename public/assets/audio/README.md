@@ -1,6 +1,8 @@
 # 音效素材(public/assets/audio)
 
-本目录存放游戏真实录音音效(ogg)。接线与语义的唯一事实源是 `src/app/fx/audio.ts`:`AUDIO_FILES` 把 `SoundEvent` 映射到本目录文件,映射缺失或加载失败的事件走同文件内置合成音回退;音量档与截断收尾在 `FILE_GAIN`/`FILE_TRIM`,个别事件刻意不映射文件(以 `audio.ts` 注释为准)。
+音效事件、素材、音量和收尾都在 [sound-clips.ts](../../../src/app/fx/sound-clips.ts) 登记。根目录 ogg 是录音素材，`playback/` 中是录音的裁剪成品和程序合成的短音。游戏通过 HTML 媒体元素播放。
+
+修改裁剪或合成配方后，安装 ffmpeg 并从仓库根运行 `bun scripts/build-sound-clips.ts`，提交修改过的成品。日常构建使用仓内成品。
 
 ## 授权与登记
 

@@ -1,10 +1,11 @@
 // 音效试听台(dev 工具,?dev=sound 直达,不进 store 路由):全量 SoundEvent 一行一条,
 // 点行出声——音效是唯一无法自动验收的维度,听感裁决归人耳;本页把「进对局等触发点」
 // 的验收成本折成一次点击。行集 = Record<SoundEvent,…> 按联合穷尽:加事件漏登记此处
-// 编译期红。标注(素材/合成/裁剪)读 audio.ts 导出的运行时表,不另造第二事实源。
+// 编译期红。标注(录音/合成/裁剪)读 sound-clips.ts 的素材表。
 // 图标走 Sym 符号表、标题走 font-wenkai(DESIGN §4.3 字体/符号收口)。
 import { AudioProvider, useAudio } from "@app/fx/AudioProvider";
-import { AUDIO_FILES, FILE_TRIM, getAudio, type SoundEvent } from "@app/fx/audio";
+import { getAudio, type SoundEvent } from "@app/fx/audio";
+import { SOUND_CLIPS } from "@app/fx/sound-clips";
 import { Sym } from "@app/screens/shared/Sym";
 
 /** 每个音效事件的试听行:label = 界面名,when = 真实触发时机(听感必须挂在因果上才有意义)。 */
@@ -64,15 +65,11 @@ function Board() {
           <Sym name={audio.muted ? "muted" : "sound"} size={15} />
         </button>
       </div>
-      <p className="text-sm text-paper-dim">
-        标注读运行时映射表(素材文件/合成/播放侧裁剪);首次点击即解锁声音。仅 dev 工具,?dev=sound
-        直达。
-      </p>
+      <p className="text-sm text-paper-dim">点按试听对局音效。开发入口 ?dev=sound。</p>
       <ul>
         {(Object.entries(ROWS) as [SoundEvent, { label: string; when: string }][]).map(
           ([event, row]) => {
-            const file = AUDIO_FILES[event];
-            const trim = FILE_TRIM[event];
+            const clip = SOUND_CLIPS[event];
             return (
               <li
                 key={event}
@@ -89,14 +86,8 @@ function Board() {
                 </button>
                 <span className="min-w-0 flex-1 text-sm text-paper-dim">{row.when}</span>
                 <span className="shrink-0 text-xs text-paper-dim">
-                  {file ? (
-                    <>
-                      素材 {file.split("/").pop()}
-                      {trim ? ` ·截${trim.stopAt}s` : ""}
-                    </>
-                  ) : (
-                    "合成"
-                  )}
+                  {clip.kind === "synth" ? "合成" : "录音"} {clip.file}
+                  {clip.kind === "recording" && clip.trim ? ` ·截${clip.trim.stopAt}s` : ""}
                 </span>
               </li>
             );
