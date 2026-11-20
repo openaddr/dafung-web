@@ -141,9 +141,7 @@ export interface PropertyUpgradedBody {
   propertyId: string;
   newLevel: number;
 }
-/** 购地被拒/按兵不动(#385 缺口 1):ADR-0013 唯一默认行为自动执行的宣告——
- *  reason=insufficient-cash(银两不足)/maxed(城已满级),
- *  文案由 fx 按 reason 派生(与引擎浮字同口径)。 */
+/** ADR-0013 自动执行默认行为的事件，原因是银两不足或城已满级。 */
 export interface PropertyRejectedBody {
   kind: "propertyRejected";
   propertyId: string;

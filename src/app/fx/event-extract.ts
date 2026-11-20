@@ -400,14 +400,9 @@ export function extractBatchEvents(
         break;
       }
       case "propertyRejected": {
-        // 购地被拒/按兵不动(#385):ADR-0013 默认行为自动执行的文案浮字,按 reason 派生
-        events_.push(
-          textFloater(
-            engine,
-            eventSeat(engine, ev),
-            ev.reason === "insufficient-cash" ? "银两不足,未能购城" : "城已满级,按兵不动",
-          ),
-        );
+        if (ev.reason === "maxed") {
+          events_.push(textFloater(engine, eventSeat(engine, ev), "城已满级,按兵不动"));
+        }
         break;
       }
       case "propertyGranted": {

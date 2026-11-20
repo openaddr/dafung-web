@@ -209,8 +209,7 @@ export type GameCommand =
 
 /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家);表现态 floaters 的行类型,
  *  经 engine.presentation.drainFloaters() 消费(破坏性读)。
- *  kind="msg" 为无金额的文案浮字(text 必填,amount 恒 0):ADR-0013 唯一选项自动执行的
- *  轻提示(「银两不足,未能购城」等),1.3s 自消,不打断节奏。 */
+ *  kind="msg" 为文案浮字(text 必填,amount 恒 0)。 */
 type FloaterEvent =
   | {
       playerIndex: number;

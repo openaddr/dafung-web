@@ -568,12 +568,12 @@ function enterDecisionPhase(g: GameEngine): boolean {
   const def = g.pendingLand != null ? pendingLandDef(g) : null;
   g.lastLandOutcome = { kind: "Noop" };
   if (def != null && options.some((o) => o.id === "buy")) {
-    // 购地不可行(银两不足):默认行为=不取(文案口径见 ADR-0013 决议 2,浮字由 fx 按 reason 派生)
+    // 银两不足，自动不取无主城。
     emitGameEvent(g, g.players.indexOf(p), {
       kind: "propertyRejected",
       propertyId: def.id,
       reason: "insufficient-cash",
-    }); // 事件流(#385):购地被拒(文案浮字由 fx 按 reason 派生)
+    });
     g.logEvent(
       "buy",
       p.guohao,

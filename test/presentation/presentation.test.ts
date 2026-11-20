@@ -301,23 +301,17 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     }
   });
 
-  it("购地被拒(#385 缺口闭合):自动不取产 propertyRejected → 文案浮字「银两不足,未能购城」", () => {
+  it("银两不足自动不取无主城时不显示文案浮字", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    const p = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
-    p.cash = def.purchasePrice - 1;
+    setCash(e, e.activeIndex, def.purchasePrice - 1);
     const pre = e.players.map((pl) => pl.position as number | null);
     beginGameEventBatch(e);
     testEngine(e).landActiveAt(tile.index); // 场景组合:摆位 + Land + 落格结算
     const events = extractBatchEvents(e, e.gameEvents, pre);
-    const text = events.find((ev) => ev.kind === "textFloat");
-    expect(text).toBeDefined();
-    if (text?.kind === "textFloat") {
-      expect(text.text).toBe("银两不足,未能购城");
-      expect(text.playerId).toBe(p.id);
-    }
+    expect(events.filter((ev) => ev.kind === "textFloat")).toEqual([]);
   });
 });
 
@@ -562,21 +556,12 @@ describe("事件→动效映射表(合成批)", () => {
 describe("事件→动效映射表(#385 缺口闭合)", () => {
   const E = () => makeEngine(7);
 
-  it("propertyRejected:两种 reason → 引擎同口径文案浮字(缺口 1)", () => {
+  it("propertyRejected(maxed) 显示「城已满级,按兵不动」浮字", () => {
     const e = E();
     const out = synth(e, [
-      {
-        kind: "propertyRejected",
-        seat: 0,
-        round: 1,
-        turn: 1,
-        propertyId: "x",
-        reason: "insufficient-cash",
-      },
       { kind: "propertyRejected", seat: 0, round: 1, turn: 1, propertyId: "x", reason: "maxed" },
     ]);
     expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      "银两不足,未能购城",
       "城已满级,按兵不动",
     ]);
   });
