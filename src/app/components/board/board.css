@@ -171,19 +171,13 @@
    announceTileChange → fxStore.announces 宣告 nonce → Tile 以 nonce 为 React key 重挂
    重播一次。Tile 自身不做 props diff 自触发(R3 的 key={level}/上一值钩子已删);
    「何时播」归播放器,CSS 只承担「怎么播」(keyframes 本体在此)。
-   1. 等级珠落位(.bv-pip-grow):扩军宣告时最末一颗新珠 scale 0.6→1 + opacity 0→1,
-      --dur-med + --ease-out-back,transform-origin 取 fill-box 中心,珠原地长大落位。
-      Tile 以宣告 nonce 为 key 只重挂珠组、动画类只挂末珠,其余珠原地复用静置。
-      (旧「等级印 pop 落章弧 + 城楼顶层生长」双通道随 2026-10-17 档位珠批退役。)
-   2. 易主流光已迁 fx 宿主(架构体检 B 批):SVG 内逐帧流光在底板栅格空间重绘城区,
-      现经 fxStore.ownFlashes→FxLayer mini-svg 出底板(fx.css fx-ownflash-line,
-      几何/虚线扫掠参数原样平移,world 化 ×TILE_SCALE);Tile 只余扩军珠 nonce。 */
-.bv-pip-grow {
+   等级徽记按宣告 nonce 重播一次。易主流光由 FxLayer 的 mini-svg 渲染。 */
+.bv-level-badge-grow {
   transform-box: fill-box;
   transform-origin: center;
-  animation: bv-pip-grow var(--dur-med) var(--ease-out-back) backwards;
+  animation: bv-level-badge-grow var(--dur-med) var(--ease-out-back) backwards;
 }
-@keyframes bv-pip-grow {
+@keyframes bv-level-badge-grow {
   from {
     scale: 0.6;
     opacity: 0;
@@ -197,12 +191,12 @@
 /* ── M-9 降耗:用户偏好减弱动态时,停用本文件的装饰动画。
    常驻 infinite 已全数迁氛围层(ADR-0039:旗摇/都城晕/活跃环/自机微光/回合金环,
    ambient.css 有自己的 M-9 段);此处只余阶段性动画:
-   行军金环(接管期,HTML 转子)/#96 一次性出场(等级珠;易主流光已随迁层出本文件)。
+   行军金环(接管期,HTML 转子)/#96 一次性出场(等级徽记;易主流光已随迁层出本文件)。
    选都候选脉冲已迁氛围层(架构体检 B 批,RM 静态口径随迁 ambient.css);
-   等级珠以默认 scale 1 全形静置。 */
+   等级徽记以默认 scale 1 全形静置。 */
 @media (prefers-reduced-motion: reduce) {
   .bv-token-ring-rotor,
-  .bv-pip-grow {
+  .bv-level-badge-grow {
     animation: none;
   }
 }

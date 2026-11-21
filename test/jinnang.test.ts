@@ -589,7 +589,7 @@ describe("锦囊目标段(T3)", () => {
     expect(e.activePlayer.jinnangHand).toContain("火烧连营");
   });
 
-  it("溅射矩阵(#1389):中心+前方 1、2 格有主城各挨 1 点火焰伤害;中心无主=免伤锚(不调单点)而邻居受击;战报逐城一行", () => {
+  it("溅射矩阵(#1389):中心+前方 1、2 格有主城各挨 8 点火焰伤害;中心无主=免伤锚(不调单点)而邻居受击;战报逐城一行", () => {
     const e = makeEngine(42);
     finishSetup(e);
     e.resolveJinnang(null);
@@ -599,11 +599,11 @@ describe("锦囊目标段(T3)", () => {
       (t) => t.propertyId && e.findOwner(t.propertyId) == null,
     )!;
     const at = (off: number) => e.board.at((centerTile.index + off) % e.board.count);
-    // 前方 1、2 格清走既有持仓(选都落点不确定),种 victim 的 Lv2 城(满防 3)
+    // 前方 1、2 格清走既有持仓(选都落点不确定),种 victim 的 3 级城（满防 20）
     for (const off of [1, 2]) {
       const pid = at(off).propertyId!;
       for (const p of e.players) p.properties = p.properties.filter((h) => h.propertyId !== pid);
-      grantProperty(e, victimSeat, pid, 2);
+      grantProperty(e, victimSeat, pid, 3);
     }
     const n1 = victim.properties.find((h) => h.propertyId === at(1).propertyId)!;
     const n2 = victim.properties.find((h) => h.propertyId === at(2).propertyId)!;
@@ -611,26 +611,26 @@ describe("锦囊目标段(T3)", () => {
     beginGameEventBatch(e);
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [centerTile.index]); // 城指向:提交目标城 tileIndex
-    // 中心无主:免伤(无持有产生),前两格各挨 1 点:防御 3→2
+    // 中心无主:免伤(无持有产生),前两格各挨 8 点:防御 20→12
     expect(e.findOwner(centerTile.propertyId!)).toBeNull();
-    expect(n1.defense).toBe(2);
-    expect(n2.defense).toBe(2);
+    expect(n1.defense).toBe(12);
+    expect(n2.defense).toBe(12);
     // 战报逐城一行(来源段「使用锦囊【火烧连营】」):无主中心免于火焰行 + 两行受击果
     const fireLines = e.log.filter((l) => l.detail.includes("jinnangFireWall"));
     expect(fireLines.length).toBe(3);
     expect(e.log.some((l) => l.brief.includes(`「${centerTile.name}」无主,免于火焰`))).toBe(true);
-    expect(e.log.filter((l) => l.brief.includes(`「${at(1).name}」防御值降至 2`)).length).toBe(1);
-    expect(e.log.filter((l) => l.brief.includes(`「${at(2).name}」防御值降至 2`)).length).toBe(1);
+    expect(e.log.filter((l) => l.brief.includes(`「${at(1).name}」防御值降至 12`)).length).toBe(1);
+    expect(e.log.filter((l) => l.brief.includes(`「${at(2).name}」防御值降至 12`)).length).toBe(1);
   });
 
-  it("火烧连营攻陷 0 级非都城，原城主仍持有防御打空的都城", () => {
+  it("火烧连营攻陷 1 级非都城，原城主仍持有防御打空的都城", () => {
     const e = makeEngine(42);
     finishSetup(e);
     e.resolveJinnang(null);
     const victimSeat = e.players.indexOf(e.activePlayer) === 0 ? 1 : 0;
     const victim = e.players[victimSeat];
     const capId = e.board.at(victim.capitalIndex).propertyId!;
-    // 火源=受害者都城(打空前最后一点:防御 1);前方 1 格=0 级非都城(防御 1,烧毁失城);
+    // 火源=受害者都城(打空前最后一点:防御 1);前方 1 格=1 级非都城(防御 1,烧毁失城);
     // 前方 2 格清成无主(免于火焰,不扰时机断言)
     setDefense(e, victimSeat, capId, 1);
     const at = (off: number) => e.board.at((victim.capitalIndex + off) % e.board.count);
@@ -639,7 +639,7 @@ describe("锦囊目标段(T3)", () => {
       p.properties = p.properties.filter(
         (h) => h.propertyId !== loseTile.propertyId && h.propertyId !== at(2).propertyId,
       );
-    grantProperty(e, victimSeat, loseTile.propertyId!, 0); // 0 级,满防 5
+    grantProperty(e, victimSeat, loseTile.propertyId!, 1); // 1 级满防 40
     setDefense(e, victimSeat, loseTile.propertyId!, 1);
     armJinnang(e, ["火烧连营"]);
     const entries: { moment: string; ctx: unknown }[] = [];
@@ -656,15 +656,15 @@ describe("锦囊目标段(T3)", () => {
     const attacker = e.activePlayer;
     expect(e.findOwner(loseTile.propertyId!)).toBe(attacker);
     expect(attacker.properties.find((h) => h.propertyId === loseTile.propertyId)).toMatchObject({
-      level: 0,
-      defense: 5,
+      level: 1,
+      defense: 40,
       damageRanking: [],
     });
     expect(victim.properties.some((h) => h.propertyId === loseTile.propertyId)).toBe(false);
     const trace = e.propertyChanges[e.propertyChanges.length - 1];
     expect(trace).toEqual({
       tileIndex: loseTile.index,
-      level: 0,
+      level: 1,
       ownerColorIndex: attacker.colorIndex,
       levelChanged: false,
       ownerChanged: true,
@@ -672,10 +672,10 @@ describe("锦囊目标段(T3)", () => {
     // 都城打空即停(absorbed):持仓恒在、防御 0
     expect(e.findOwner(capId)).toBe(victim);
     expect(victim.properties.find((h) => h.propertyId === capId)).toMatchObject({
-      level: 0,
+      level: 1,
       defense: 0,
     });
-    // 时机按果择一逐城派:恰一条 PropertyLost(0 级非都城),无 PropertyDemolished(absorbed 不派)
+    // 时机按果择一逐城派:恰一条 PropertyLost(1 级非都城),无 PropertyDemolished(absorbed 不派)
     expect(entries.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
       { subject: victimSeat, propertyId: loseTile.propertyId, tileIndex: loseTile.index },
     ]);
@@ -695,13 +695,13 @@ describe("锦囊目标段(T3)", () => {
     const victimSeat = userSeat === 0 ? 1 : 0;
     const victim = e.players[victimSeat];
     const capId = e.board.at(victim.capitalIndex).propertyId!;
-    grantProperty(e, victimSeat, capId, 2); // 都城 Lv2(满防 3)——都城可降不可失(#226)
+    grantProperty(e, victimSeat, capId, 3); // 都城 3 级（满防 20）——都城可降不可失(#226)
     setDefense(e, victimSeat, capId, 1); // 再挨 1 点即归零降级
-    // 己城照烧:火源旁种使用者一座 Lv1 城(前方 1 格),同样挨烧
+    // 己城照烧:火源旁种使用者一座 2 级城(前方 1 格),同样挨烧
     const ownTile = e.board.at((victim.capitalIndex + 1) % e.board.count);
     for (const p of e.players)
       p.properties = p.properties.filter((h) => h.propertyId !== ownTile.propertyId);
-    grantProperty(e, userSeat, ownTile.propertyId!, 1); // 满防 4
+    grantProperty(e, userSeat, ownTile.propertyId!, 2); // 满防 30
     const entries: { moment: string; ctx: unknown }[] = [];
     const orig = e.dispatchMoment.bind(e);
     (e as { dispatchMoment: (m: string, ctx: unknown) => void }).dispatchMoment = (
@@ -714,15 +714,15 @@ describe("锦囊目标段(T3)", () => {
     armJinnang(e, ["火烧连营"]);
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [victim.capitalIndex]);
-    // 都城降级:2→1 级,防御回满新等级满值 4(不带损前暗账)
+    // 都城降至 2 级，回满 30 点防御
     expect(victim.properties.find((h) => h.propertyId === capId)).toMatchObject({
-      level: 1,
-      defense: 4,
+      level: 2,
+      defense: 30,
     });
-    // 己城照烧:防御 4→3(等级不动)
+    // 己城照烧，防御 30→22（等级不动）
     expect(user.properties.find((h) => h.propertyId === ownTile.propertyId)).toMatchObject({
-      level: 1,
-      defense: 3,
+      level: 2,
+      defense: 22,
     });
     // 恰一条 PropertyDemolished(都城);己城纯扣防 absorbed 不派
     expect(entries.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
@@ -730,10 +730,10 @@ describe("锦囊目标段(T3)", () => {
     ]);
     expect(
       e.log.some((l) =>
-        l.brief.includes(`「${e.board.at(victim.capitalIndex).name}」城防降为 1 级`),
+        l.brief.includes(`「${e.board.at(victim.capitalIndex).name}」城防降为 2 级`),
       ),
     ).toBe(true);
-    expect(e.log.some((l) => l.brief.includes(`「${ownTile.name}」防御值降至 3`))).toBe(true);
+    expect(e.log.some((l) => l.brief.includes(`「${ownTile.name}」防御值降至 22`))).toBe(true);
   });
 
   it("横征暴敛:全体域无目标段直接执行;上限=现金", () => {

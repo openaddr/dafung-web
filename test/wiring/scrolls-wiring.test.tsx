@@ -289,7 +289,7 @@ describe("城池待决策卷轴", () => {
     const propertyId = tile.propertyId!;
     const price = engine.catalog.get(propertyId)!.purchasePrice;
     plant({ kind: "setCash", seat: 0, cash: price + 1000 });
-    if (kind === "OwnProperty") plant({ kind: "grantProperty", seat: 0, propertyId, level: 0 });
+    if (kind === "OwnProperty") plant({ kind: "grantProperty", seat: 0, propertyId, level: 1 });
     plant({ kind: "armLanding", landing: { kind, propertyId } });
     plant({ kind: "armPhase", turnPhase: "AwaitingDecision", activeIndex: 0 });
     // 组件公共输入缝:金额表现允许独立更新,待决策载荷仍是引擎种出的真实上下文。
@@ -305,7 +305,7 @@ describe("城池待决策卷轴", () => {
     click(confirm);
     expect(snap().turnPhase).not.toBe("AwaitingDecision");
     expect(snap().players[0].properties.find((h) => h.propertyId === propertyId)!.level).toBe(
-      kind === "OwnProperty" ? 1 : 0,
+      kind === "OwnProperty" ? 2 : 1,
     );
     expect(snap().players[0].cash).toBe(kind === "OwnProperty" ? price + 1000 : 1000);
   });

@@ -129,8 +129,9 @@ export function TileDetail({
           : { kind: "view" }
       }
       ownerGuohao={owner?.guohao ?? null}
-      ownerLevel={holding?.level ?? 0}
+      ownerLevel={holding != null ? holding.level : null}
       ownerDefense={holding != null ? holding.defense : null}
+      burning={holding != null ? holding.burning : null}
       damageRanking={holding != null ? holding.damageRanking : null}
       isCapital={owner?.capitalIndex === tileIndex}
       onClose={request.onClose}
@@ -269,8 +270,9 @@ export function DecisionScrollLayer({
         const isVisitorView = viewSeat === snapshot.activeIndex;
         if (showOwner || isVisitorView) {
           const propDef = catalog.get(tv.propertyId);
-          const ownerLevel =
-            owner.properties.find((h) => h.propertyId === tv.propertyId)?.level ?? 0;
+          const holding = owner.properties.find((h) => h.propertyId === tv.propertyId);
+          if (holding === undefined)
+            throw new Error(`珍宝交涉:城 ${tv.propertyId} 不在 ${owner.guohao} 名下`);
           if (propDef) {
             return (
               <TreasureVisitorScroll
@@ -280,7 +282,7 @@ export function DecisionScrollLayer({
                 tileName={board.at(visitor.position)?.name ?? ""}
                 treasures={owner.treasures}
                 property={propDef}
-                cityLevel={ownerLevel}
+                cityLevel={holding.level}
                 onCommand={dispatch}
               />
             );

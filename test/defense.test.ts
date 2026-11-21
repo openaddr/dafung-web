@@ -58,11 +58,11 @@ function freeCity(e: GameEngine, avoid: string[] = []): string {
   )!.propertyId!;
 }
 
-describe("满值表(0级5/1级4/2级3/3级2,按等级索引,#1386)", () => {
-  it("fullDefenseOf 逐级 5/4/3/2;越界等级响亮抛错(零兜底)", () => {
-    expect([0, 1, 2, 3].map(fullDefenseOf)).toEqual([5, 4, 3, 2]);
-    expect(() => fullDefenseOf(4)).toThrow();
-    expect(() => fullDefenseOf(-1)).toThrow();
+describe("1–4 级满防", () => {
+  it("满防依次为 40、30、20、10，越界等级抛错", () => {
+    expect([1, 2, 3, 4].map(fullDefenseOf)).toEqual([40, 30, 20, 10]);
+    expect(() => fullDefenseOf(5)).toThrow();
+    expect(() => fullDefenseOf(0)).toThrow();
   });
 
   it("resetToFull 对越界等级持有行响亮抛错(重置单口不回退)", () => {
@@ -70,9 +70,10 @@ describe("满值表(0级5/1级4/2级3/3级2,按等级索引,#1386)", () => {
       resetToFull({
         propertyId: "x",
         group: "a",
-        level: 4,
-        maxLevel: 3,
+        level: 5,
+        maxLevel: 4,
         defense: 0,
+        burning: null,
         damageRanking: [],
       }),
     ).toThrow();
@@ -91,20 +92,20 @@ describe("等级变动重置挂点(等级一变一律回满,升级回满=奖励)
     });
     const changan = MAP.catalog.get("prop-changan")!;
     buy(p, changan);
-    expect(p.properties[0]!.defense).toBe(5); // 购入 Lv.0 → 满 5
+    expect(p.properties[0]).toMatchObject({ level: 1, defense: 40 });
     upgrade(p, changan);
-    expect(p.properties[0]).toMatchObject({ level: 1, defense: 4 });
+    expect(p.properties[0]).toMatchObject({ level: 2, defense: 30 });
     upgrade(p, changan);
     upgrade(p, changan);
-    expect(p.properties[0]).toMatchObject({ level: 3, defense: 2 });
+    expect(p.properties[0]).toMatchObject({ level: 4, defense: 10 });
   });
 
-  it("建都即满值(入局后各都城防御 5)", () => {
+  it("建都从 1 级满防起步", () => {
     const e = makeEngine(7);
     finishSetup(e);
     for (const p of e.players) {
       const h = p.properties.find((h) => h.propertyId === capitalId(e, e.players.indexOf(p)))!;
-      expect(h.defense).toBe(5);
+      expect(h).toMatchObject({ level: 1, defense: 40 });
     }
   });
 
@@ -115,7 +116,7 @@ describe("等级变动重置挂点(等级一变一律回满,升级回满=奖励)
     grantProperty(e, 0, pid, 2);
     expect(e.players[0].properties.find((h) => h.propertyId === pid)).toMatchObject({
       level: 2,
-      defense: 3,
+      defense: 30,
     });
     expect(() => grantProperty(e, 0, pid, 5)).toThrow(); // 越界等级在满值表处响亮抛错(种不出的状态不静默)
   });
@@ -127,14 +128,15 @@ describe("等级变动重置挂点(等级一变一律回满,升级回满=奖励)
     const ownerSeat = e.players.findIndex((p) => p !== mover);
     const owner = e.players[ownerSeat];
     const def = MAP.catalog.get("prop-luoyang")!;
-    grantProperty(e, ownerSeat, "prop-luoyang", 0);
+    grantProperty(e, ownerSeat, "prop-luoyang", 1);
+    setDefense(e, ownerSeat, "prop-luoyang", 3);
     owner.treasures.push({ id: "t0", name: "测试珍宝", level: 1, count: 1, desc: "" });
     e.treasureVisitor = { def, ownerIdx: ownerSeat };
     testEngine(e).forceTurnPhase("AwaitingTreasureOwner");
     e.resolveTreasureOwner({ type: "fair", treasureId: "t0" });
     expect(owner.properties.find((h) => h.propertyId === "prop-luoyang")).toMatchObject({
-      level: 1,
-      defense: 4, // 0→1 级回满
+      level: 2,
+      defense: 30,
     });
   });
 
@@ -149,7 +151,7 @@ describe("等级变动重置挂点(等级一变一律回满,升级回满=奖励)
     expect(settleDebt(debtor, creditor, debtor.cash + 1)).toBe(true);
     expect(creditor.properties.find((h) => h.propertyId === pid)).toMatchObject({
       level: 2,
-      defense: 3,
+      defense: 30,
       damageRanking: [],
     });
   });
@@ -160,8 +162,8 @@ describe("城池伤害结算 applyCityDamage", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const pid = freeCity(e);
-    grantProperty(e, 0, pid, 2); // Lv2 满防 3
-    const r = applyCityDamage(e, e.players[0], pid, 1, null);
+    grantProperty(e, 0, pid, 2);
+    const { outcome: r } = applyCityDamage(e, e.players[0], pid, 1, null);
     expect(r).toEqual({
       kind: "absorbed",
       propertyId: pid,
@@ -169,48 +171,62 @@ describe("城池伤害结算 applyCityDamage", () => {
     });
     expect(e.players[0].properties.find((h) => h.propertyId === pid)).toMatchObject({
       level: 2,
-      defense: 2,
+      defense: 29,
     });
   });
 
-  it("归零降级回满、剩余点数继续扣新防(demolished);随后 0 级归零失城回无主(lost)", () => {
+  it("一击只扣当前等级的防御，降级后回满，保留本持有期的排名", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const pid = freeCity(e);
-    grantProperty(e, 0, pid, 1); // Lv1 满防 4
-    const r = applyCityDamage(e, e.players[0], pid, 6, null);
-    expect(r.kind).toBe("demolished");
-    const held = e.players[0].properties.find((h) => h.propertyId === pid)!;
-    expect(held).toMatchObject({ level: 0, defense: 3 }); // 4 点破防→降 0 级回满 5→余 2 点扣到 3
-    const r2 = applyCityDamage(e, e.players[0], pid, 3, null);
-    expect(r2.kind).toBe("lost");
-    expect(e.findOwner(pid)).toBeNull(); // 失城回无主
-    expect(e.players[0].properties.some((h) => h.propertyId === pid)).toBe(false);
-    const trace = e.propertyChanges.at(-1)!;
-    expect(trace).toMatchObject({
+    grantProperty(e, 0, pid, 4);
+    const attacker = e.players[1];
+    const { outcome, rewards } = applyCityDamage(e, e.players[0], pid, 20, attacker);
+    expect(outcome.kind).toBe("demolished");
+    expect(e.players[0].properties.find((h) => h.propertyId === pid)).toMatchObject({
+      level: 3,
+      defense: 20,
+      damageRanking: [{ seat: 1, damage: 10 }],
+    });
+    expect(rewards).toMatchObject([{ seat: 1, amount: 50, reason: "city-damage" }]);
+  });
+
+  it("1 级非都城防御打空后攻陷，无合格接城者则回无主", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const pid = freeCity(e);
+    grantProperty(e, 0, pid, 1);
+    expect(applyCityDamage(e, e.players[0], pid, 60, null).outcome.kind).toBe("lost");
+    expect(e.findOwner(pid)).toBeNull();
+    expect(e.propertyChanges.at(-1)).toMatchObject({
       tileIndex: tileIndexOfProperty(MAP.board, pid),
-      level: 0,
+      level: null,
       ownerColorIndex: null,
       levelChanged: false,
       ownerChanged: true,
-    }); // 失城留痕(ADR-0015,写法对照 demolishOnVictim)
+    });
   });
 
-  it("0 级都城打空即停:打空那发 absorbed,此后对一切火焰伤害免疫、持仓恒在", () => {
+  it("1 级都城打空即停:打空那发 absorbed,此后对一切火焰伤害免疫、持仓恒在", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const pid = capitalId(e, 0);
     const p = e.players[0];
     const attacker = e.players[1];
     setDefense(e, 0, pid, 1);
-    expect(applyCityDamage(e, p, pid, 4, attacker)).toMatchObject({ kind: "absorbed" });
-    expect(applyCityDamage(e, p, pid, 5, attacker)).toMatchObject({ kind: "absorbed" });
+    expect(applyCityDamage(e, p, pid, 4, attacker)).toMatchObject({
+      outcome: { kind: "absorbed" },
+      rewards: [{ seat: 1, amount: 5, reason: "city-damage" }],
+    });
+    expect(applyCityDamage(e, p, pid, 5, attacker)).toMatchObject({
+      outcome: { kind: "absorbed" },
+      rewards: [],
+    });
     expect(p.properties.find((h) => h.propertyId === pid)).toMatchObject({
-      level: 0,
+      level: 1,
       defense: 0,
       damageRanking: [{ seat: 1, damage: 1 }],
     });
-    expect(e.gameEvents.filter((event) => event.kind === "cashChanged")).toHaveLength(1);
     expect(e.findOwner(pid)).toBe(p); // 都城不可失
   });
 
@@ -223,21 +239,21 @@ describe("城池伤害结算 applyCityDamage", () => {
 });
 
 describe("外敌乘虚城损", () => {
-  it("扣掉城池当前防御，正等级城降一级回满，零级都城打空后仍归原主", () => {
+  it("扣掉城池当前防御，2 级城降至 1 级回满，1 级都城打空后仍归原主", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const pid = freeCity(e);
-    grantProperty(e, 0, pid, 1); // 满防 4
-    setDefense(e, 0, pid, 2); // 满防 4，已扣 2 点
+    grantProperty(e, 0, pid, 2);
+    setDefense(e, 0, pid, 2);
     setStamina(e, 0, 0);
     expect(e.exhaustIfDepleted(0)).toBe("resolved");
     expect(e.players[0].properties.find((h) => h.propertyId === pid)).toMatchObject({
-      level: 0,
-      defense: 5,
+      level: 1,
+      defense: 40,
     });
     const capital = capitalId(e, 0);
     expect(e.players[0].properties.find((h) => h.propertyId === capital)).toMatchObject({
-      level: 0,
+      level: 1,
       defense: 0,
     });
   });
@@ -250,9 +266,9 @@ describe("快照往返(联机/恢复一致)", () => {
     const pid = freeCity(e);
     grantProperty(e, 0, pid, 1);
     setDefense(e, 0, pid, 2); // 非满值才证明往返的是字段本体而非派生
-    const snap = serializeGame(e);
+    const snap: ReturnType<typeof serializeGame> = JSON.parse(JSON.stringify(serializeGame(e)));
     const row = snap.players[0]!.properties.find((h) => h.propertyId === pid)!;
-    expect(row.defense).toBe(2);
+    expect(row).toMatchObject({ level: 1, defense: 2 });
     const e2 = makeEngine(7);
     restoreGameSnapshot(e2, snap);
     expect(e2.players[0].properties.find((h) => h.propertyId === pid)).toMatchObject({

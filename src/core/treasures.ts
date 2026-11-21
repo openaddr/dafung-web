@@ -1,7 +1,7 @@
 // 珍宝系统:数据驱动的珍宝定义 + 牌堆管理。
 // 新增珍宝 = 往 TREASURES 加一条 TreasureDef。牌堆自动初始化。
 // 珍宝类型随域走(#326 types.ts 解散,ADR-0019):珍宝定义由本文件拥有。
-import type { PropertyDef } from "./economy";
+import { cityTradeTermsOf, type PropertyDef } from "./economy";
 import { skillById } from "./skills";
 
 /** 珍宝定义(牌堆实例与玩家持有共用)。 */
@@ -175,15 +175,14 @@ export function guidePriceOf(level: number): number {
   return price;
 }
 
-/** 坐地起价售价:指导价 × tradeMult[cityLevel] + tradeAdd[cityLevel](先乘再加、四舍五入)。
- *  tradeMult/tradeAdd 逐城必配(地图 schema 必填,loadMap 校验长度 = maxLevel+1),
- *  cityLevel 0..maxLevel 与两表同域(等级由引擎封闭变更),不在此设防。集中公式防漂移,供引擎/UI 复用。 */
+/** 坐地起价售价为指导价 × 当级乘数 + 当级加值，四舍五入。 */
 export function premiumPriceOf(
   guidePrice: number,
   def: Pick<PropertyDef, "tradeAdd" | "tradeMult">,
   cityLevel: number,
 ): number {
-  return Math.round(guidePrice * def.tradeMult[cityLevel] + def.tradeAdd[cityLevel]);
+  const { multiplier, addition } = cityTradeTermsOf(def, cityLevel);
+  return Math.round(guidePrice * multiplier + addition);
 }
 
 /** 初始化牌堆:展开所有珍宝为单独实例(如 荔枝 ×3 → 3 张)。 */

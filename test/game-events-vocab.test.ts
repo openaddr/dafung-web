@@ -140,7 +140,7 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
       (t) =>
         t.event == null && t.propertyId != null && e.board.distance(user.position, t.index) <= 5,
     )!;
-    grantProperty(e, otherSeat, spare.propertyId!, 1);
+    grantProperty(e, otherSeat, spare.propertyId!, 2);
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
     e.resolveHeroSkill("zhouyu", "huogong"); // 城目标域:先入目标段
@@ -155,8 +155,8 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     });
     expect("targetSeat" in events[0]).toBe(false); // 城目标域不带座位字段
     expect(victim.properties.find((h) => h.propertyId === spare.propertyId)?.defense).toBe(
-      fullDefenseOf(1) - 1,
-    ); // 火焰伤害 1 点落账(防御值 4→3)
+      fullDefenseOf(2) - 10,
+    ); // 火焰伤害 10 点落账(防御值 30→20)
   });
 });
 
@@ -213,7 +213,9 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     expect(events[0]).toMatchObject({
       kind: "exhaustionResolved",
       seat,
+      sourceSeat: null,
       downgradedPropertyIds: [],
+      lostPropertyIds: [],
       restTurns: 2,
     });
     expect(mover.stamina).toBe(0); // 归 0 当刻不回血,休整期满才回满
@@ -369,6 +371,7 @@ describe("事件流(#385 缺口 1):购地被拒/按兵不动 propertyRejected", 
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     p.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: "g",
@@ -475,12 +478,13 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
     });
     expect(tile).toBeDefined();
     owner.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: tile!.propertyId!,
       group: "g",
-      level: 0,
-      maxLevel: 3,
-      defense: 5,
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
     });
     owner.jinnangHand = ["半路杀出"];
     owner.jinnangHandCount = 1;
@@ -618,7 +622,7 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
       (x) =>
         x.propertyId != null && x.index !== mover.capitalIndex && e.findOwner(x.propertyId) == null,
     )!;
-    grantProperty(e, seat, tile.propertyId!, 1);
+    grantProperty(e, seat, tile.propertyId!, 2);
     setStamina(e, seat, 0);
     beginGameEventBatch(e);
     expect(e.exhaustIfDepleted(seat)).toBe("resolved");
@@ -631,7 +635,9 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
     expect(events[2]).toMatchObject({
       kind: "exhaustionResolved",
       seat,
+      sourceSeat: null,
       downgradedPropertyIds: [tile.propertyId],
+      lostPropertyIds: [],
       restTurns: 2,
     });
     expect(mover.skipTurns).toBe(2);

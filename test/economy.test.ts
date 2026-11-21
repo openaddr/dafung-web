@@ -19,13 +19,13 @@ function mk(cash = 10000) {
 }
 
 describe("地产交易", () => {
-  it("购买:扣现金、获 holding Lv0", () => {
+  it("购买:扣现金、获 1 级城池", () => {
     const p = mk();
     const r = buy(p, changan);
     expect(r.status).toBe("Ok");
     expect(p.cash).toBe(5200);
     expect(p.properties).toHaveLength(1);
-    expect(p.properties[0].level).toBe(0);
+    expect(p.properties[0].level).toBe(1);
   });
 
   it("现金不足拒绝购买", () => {
@@ -40,28 +40,28 @@ describe("地产交易", () => {
     buy(p, changan);
     const r = upgrade(p, changan);
     expect(r.status).toBe("Ok");
-    if (r.status === "Ok") expect(r.newLevel).toBe(1); // 判别联合:Ok 恒带 newLevel
+    if (r.status === "Ok") expect(r.newLevel).toBe(2); // 判别联合:Ok 恒带 newLevel
     expect(p.cash).toBe(5200); // 升级免费,现金不变
   });
 
-  it("满级拒绝升级(等级 0..maxLevel = 3,共 4 级)", () => {
+  it("满级拒绝升级(已达 4 级)", () => {
     const p = mk(100000);
     buy(p, changan);
-    upgrade(p, changan); // Lv1
     upgrade(p, changan); // Lv2
     upgrade(p, changan); // Lv3
+    upgrade(p, changan); // Lv4
     expect(upgrade(p, changan).status).toBe("AlreadyMaxLevel");
-    expect(p.properties[0].level).toBe(3);
+    expect(p.properties[0].level).toBe(4);
     expect(changan.valueByLevel).toHaveLength(4);
   });
 
   it("变卖价 = valueByLevel 逐档显式定义(#671 正名,旧称城池价值)", () => {
     const p = mk(100000);
     buy(p, changan);
-    expect(sellValueOf(changan, 0)).toBe(2400);
-    expect(sellValueOf(changan, 1)).toBe(3360);
-    expect(sellValueOf(changan, 2)).toBe(4320);
-    expect(sellValueOf(changan, 3)).toBe(5280);
+    expect(sellValueOf(changan, 1)).toBe(2400);
+    expect(sellValueOf(changan, 2)).toBe(3360);
+    expect(sellValueOf(changan, 3)).toBe(4320);
+    expect(sellValueOf(changan, 4)).toBe(5280);
   });
 });
 

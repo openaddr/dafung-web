@@ -229,8 +229,8 @@ type FloaterEvent =
  *  重钤 + 楼生长;易主 → 流光),携带的是变更后的完整归属态。 */
 export interface PropertyChangeTrace {
   tileIndex: number;
-  /** 变更后等级。 */
-  level: number;
+  /** 变更后持有等级，回无主为 null。 */
+  level: number | null;
   /** 变更后归属座位色(null=回无主)。 */
   ownerColorIndex: number | null;
   levelChanged: boolean;

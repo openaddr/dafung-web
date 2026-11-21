@@ -225,7 +225,7 @@ it("终局保留轮末收入，依序播放重掷并揭晓胜者", async () => {
   const lastSeat = (engine.roundAnchor + 2) % engine.players.length;
   armPhase(engine, { activeIndex: lastSeat, phase: "Playing", turnPhase: "EndTurn" });
   for (const seat of [0, 1, 2]) setCash(engine, seat, engine.targetNetWorth);
-  grantProperty(engine, 0, "prop-youzhou", 0); // 幽州收入 54 两，到账后方三家并列。
+  grantProperty(engine, 0, "prop-youzhou", 1); // 幽州收入 54 两，到账后方三家并列。
   setCash(engine, 0, engine.targetNetWorth - 54);
   pinDice(engine, "duel", [4, 5, 5, 2, 6]);
   const controller = mount(engine);

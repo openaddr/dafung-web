@@ -8,6 +8,7 @@
 // reaction-window 续结算经 g.maybeApplyEncounter 委托回调(#318 预案),
 // 锦囊抽牌按 #319 预案跨模块直调自由函数。
 import type { GameEngine } from "./authority";
+import { settleCityDamageMoments } from "./city-damage-moments";
 import { computeChoices } from "./choices";
 import {
   ENCOUNTERS,
@@ -29,12 +30,13 @@ import {
 import { HEROES, heroById } from "./heroes";
 import { grantedNamesLine, rollGrantedSkills } from "./roster";
 import { grantHeroOrBooks } from "./recruitment";
-import { EXHAUSTION_REST_TURNS, HERO_CAPACITY } from "./constants";
+import { EXHAUSTION_REST_TURNS, HERO_CAPACITY, INITIAL_CITY_LEVEL } from "./constants";
 import { drawJinnangTraced } from "./jinnang-execution";
 import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 import { applyCityDamage, createPropertyHolding } from "./defense";
 import type { PropertyDef } from "./economy";
+import { findHolding } from "./player";
 import type { MomentCtx } from "./timing";
 
 export type EncounterSettlement = "settled" | "deciding" | "liquidating" | "bankrupt" | "exhausted";
@@ -58,7 +60,18 @@ export interface StaminaDamageContinuation {
 
 export interface ExhaustionContinuation {
   kind: "exhaustion";
+  sourceSeat: number | null;
   downgradedCount: number;
+  lostCount: number;
+}
+
+export interface ExhaustionCityDamageContinuation {
+  kind: "exhaustionCityDamage";
+  seat: number;
+  sourceSeat: number | null;
+  remainingPropertyIds: string[];
+  downgradedPropertyIds: string[];
+  lostPropertyIds: string[];
 }
 
 /** 扣减体力并保存这次损耗的来源，供应答后结算归零。 */
@@ -101,33 +114,58 @@ export function exhaustIfDepleted(g: GameEngine, seat: number): "none" | "resolv
 
 /** 外敌乘虚扣掉每座城的当前防御，随后进入休整。 */
 function resolveExhaustion(g: GameEngine, seat: number, sourceSeat: number | null): void {
+  if (seat === g.activeIndex) g.pendingEncounterHalt = false;
+  resumeExhaustionCityDamage(g, {
+    kind: "exhaustionCityDamage",
+    seat,
+    sourceSeat,
+    remainingPropertyIds: g.players[seat].properties.map(({ propertyId }) => propertyId),
+    downgradedPropertyIds: [],
+    lostPropertyIds: [],
+  });
+}
+
+export function resumeExhaustionCityDamage(
+  g: GameEngine,
+  state: ExhaustionCityDamageContinuation,
+): void {
+  const { seat, sourceSeat, remainingPropertyIds } = state;
   const p = g.players[seat];
   const source = sourceSeat === null ? null : g.players[sourceSeat];
-  if (seat === g.activeIndex) g.pendingEncounterHalt = false;
-  const downgraded: string[] = [];
-  const holdings = p.properties.slice(); // 攻陷会从原持有表移除城池。
-  for (const { propertyId, level, defense } of holdings) {
-    if (defense === 0 && level === 0 && g.tileIndexOfProperty(propertyId) === p.capitalIndex)
-      continue;
-    const outcome = applyCityDamage(g, p, propertyId, defense, source);
-    if (outcome.kind === "absorbed") continue;
+  const downgraded = [...state.downgradedPropertyIds];
+  const lost = [...state.lostPropertyIds];
+  for (const [i, propertyId] of remainingPropertyIds.entries()) {
+    const holding = findHolding(p, propertyId);
+    if (holding == null) continue; // 前一城的时机结算可能已经改变持有关系。
+    if (holding.defense === 0 && g.tileIndexOfProperty(propertyId) === p.capitalIndex) continue;
+    const settlement = applyCityDamage(g, p, propertyId, holding.defense, source);
+    const { outcome } = settlement;
     if (outcome.kind === "demolished") downgraded.push(propertyId);
-    g.dispatchMoment(outcome.kind === "demolished" ? "PropertyDemolished" : "PropertyLost", {
-      subject: seat,
-      propertyId,
-      tileIndex: outcome.tileIndex,
-    });
+    if (outcome.kind === "lost") lost.push(propertyId);
+    if (
+      settleCityDamageMoments(g, seat, settlement, {
+        ...state,
+        remainingPropertyIds: remainingPropertyIds.slice(i + 1),
+        downgradedPropertyIds: downgraded,
+        lostPropertyIds: lost,
+      })
+    )
+      return;
   }
   p.resting = true;
   p.skipTurns += EXHAUSTION_REST_TURNS;
   emitGameEvent(g, seat, {
     kind: "exhaustionResolved",
+    sourceSeat,
     downgradedPropertyIds: downgraded,
+    lostPropertyIds: lost,
     restTurns: EXHAUSTION_REST_TURNS,
   });
   const continuation: ExhaustionContinuation = {
     kind: "exhaustion",
+    sourceSeat,
     downgradedCount: downgraded.length,
+    lostCount: lost.length,
   };
   g.dispatchMoment("TurnSkipImposed", { subject: seat, reason: "exhaustion" }, continuation);
   if (g.pendingMoment == null) resumeExhaustion(g, seat, continuation);
@@ -136,14 +174,16 @@ function resolveExhaustion(g: GameEngine, seat: number, sourceSeat: number | nul
 /** 休整时机的阶段和应答结清后，完成耗竭善后。 */
 export function resumeExhaustion(g: GameEngine, seat: number, state: ExhaustionContinuation): void {
   const p = g.players[seat];
-  const { downgradedCount } = state;
-  const detail =
-    downgradedCount > 0 ? `外敌乘虚而入,${downgradedCount} 座城池降级` : "外敌乘虚而入";
+  const { sourceSeat, downgradedCount, lostCount } = state;
+  const source = sourceSeat === null ? null : g.players[sourceSeat];
+  const sourceName = source === null ? "无" : source.guohao;
+  const downgraded = downgradedCount > 0 ? `，${downgradedCount} 座城池降级` : "";
+  const lost = lostCount > 0 ? `，${lostCount} 座城池失守` : "";
   g.logEvent(
     "system",
     p.guohao,
-    `${p.guohao} 体力耗竭:${detail},卧床休整${EXHAUSTION_REST_TURNS}回合,期满体力回满`,
-    `exhaustionSettle player=${p.id} downgraded=${downgradedCount} skipTurns=${p.skipTurns} resting=1`,
+    `${p.guohao} 体力耗竭（伤害来源：${sourceName}），外敌乘虚而入${downgraded}${lost}，卧床休整${EXHAUSTION_REST_TURNS}回合，期满体力回满`,
+    `exhaustionSettle player=${p.id} downgraded=${downgradedCount} skipTurns=${p.skipTurns} resting=1 source=${source === null ? "-" : source.id} lost=${lostCount}`,
   );
   if (seat === g.activeIndex) g.endTurn();
 }
@@ -587,11 +627,11 @@ function applyGrantCityEffect(
   }
   const picked = unownedCities[Math.floor(g.dice.nextFloat() * unownedCities.length)];
   const defCity = picked.def;
-  mover.properties.push(createPropertyHolding(defCity, 0));
+  mover.properties.push(createPropertyHolding(defCity, INITIAL_CITY_LEVEL));
   // 城池变更留痕(ADR-0015,本写点补齐 #457):赐城即易主(无主 → 得城者),形状对齐购地
   g.propertyChanges.push({
     tileIndex: picked.tileIndex,
-    level: 0,
+    level: INITIAL_CITY_LEVEL,
     ownerColorIndex: mover.colorIndex,
     levelChanged: false,
     ownerChanged: true,

@@ -383,12 +383,13 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
       (x) => x.event == null && x.propertyId != null && x.index !== visitor.capitalIndex,
     )!;
     owner.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: tile.propertyId!,
       group: "a",
-      level: 0,
-      maxLevel: 3,
-      defense: 5,
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
     });
     owner.treasures.push({ id: "锦囊袋", name: "锦囊袋", level: 1, desc: "" });
     t.place(e.players.indexOf(visitor), tile.index);
@@ -410,7 +411,7 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
     expect(events[0]).toMatchObject({
       kind: "propertyUpgraded",
       propertyId: tile.propertyId,
-      newLevel: 1,
+      newLevel: 2,
     });
     expect(events[3]).toMatchObject({
       kind: "treasureTraded",

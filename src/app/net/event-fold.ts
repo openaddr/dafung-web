@@ -18,14 +18,14 @@
 //                 lastMove/turnPhase=Land(补给金额相邻回填);marchArrived → position/
 //                 lastMove/turnPhase=Land;landingResolved → 最终相位/pendingLand/
 //                 lastLandOutcome/treasureVisitor 与固定事件续接载荷
-//   城池族        capitalSelected → takenCapitalIndices/capitalIndex/position/地产 Lv0 入册
+//   城池族        capitalSelected → takenCapitalIndices/capitalIndex/position/地产 Lv1 入册
 //                 (Setup 期现金不入折叠,#386 注记保持);propertyBought → 现金-价/
 //                 地产入册;propertyUpgraded → 持有等级对齐 newLevel(副本无
 //                 持有则按事件补册,历史赐城缺口级联已随 propertyGranted 闭合,见下);
 //                 propertyRejected → 无状态转移
 //                 (声明性;自动按兵不动由同批 turnStarted 收场);propertyGranted →
-//                 机遇赐城得城者 Lv.0 入册(#719,原级联缺口闭合);
-//                 propertyDamaged → 城池等级、防御值与伤害排行榜
+//                 机遇赐城得城者 Lv.1 入册(#719,原级联缺口闭合);
+//                 propertyDamaged/propertyBurningChanged → 城池等级、防御值、燃烧与伤害排行榜
 //                 assetTransferred → 逐城易主(接手者入册/回无主)
 //   金钱族        cashChanged → 现金逐条累加(delta 带符号)+ 落格表现态相邻回填
 //                 (reason=supply 回填补给金额;商市行情只动账,决策等待 landingResolved)
@@ -100,6 +100,7 @@ import type { Player } from "@core/model";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import { createPropertyHolding, resetToFull, resetTransferredHolding } from "@core/defense";
 import type { PropertyDef } from "@core/economy";
+import { INITIAL_CITY_LEVEL } from "@core/constants";
 import type { ReactionPayload, ReactionView } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/skills";
 import { jinnangCardOf } from "@core/jinnang";
@@ -314,7 +315,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         engine.takenCapitalIndices.add(ev.tileIndex);
         p.capitalIndex = ev.tileIndex;
         p.position = ev.tileIndex;
-        p.properties.push(createPropertyHolding(def, 0));
+        p.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
         // 建城扣费只有 cost 无 cashChanged:Setup 期现金不入折叠(#386 注记保持),开局校准覆盖
         break;
       }
@@ -322,15 +323,15 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const buyer = foldTarget(engine, ev);
         const def = propertyDefOf(engine, ev.propertyId);
         buyer.cash -= ev.price; // 主动支出随领域事件(判定表 cash 行)
-        buyer.properties.push(createPropertyHolding(def, 0));
+        buyer.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
         break;
       }
       case "propertyGranted": {
-        // 机遇赐城(#719,传檄而定):得城者 Lv.0 入册——此前是「已知无事件转移的级联
+        // 机遇赐城(#719,传檄而定):得城者 Lv.1 入册——此前是「已知无事件转移的级联
         // 口径」之一,本事件闭合(赐城后的移除类折叠不再查无目标)
         const grantee = foldTarget(engine, ev);
         const def = propertyDefOf(engine, ev.propertyId);
-        grantee.properties.push(createPropertyHolding(def, 0));
+        grantee.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
         break;
       }
       case "propertyUpgraded": {
@@ -354,9 +355,20 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           throw new Error(`折叠投影:城 ${ev.propertyId} 不在受击城主 ${owner.guohao} 名下`);
         holding.level = ev.level;
         holding.defense = ev.defense;
+        holding.burning = ev.burning;
         holding.damageRanking = ev.damageRanking;
         break;
       }
+      case "propertyBurningChanged": {
+        const owner = foldTarget(engine, ev);
+        const holding = owner.properties.find((h) => h.propertyId === ev.propertyId);
+        if (holding === undefined)
+          throw new Error(`折叠投影:城 ${ev.propertyId} 不在燃烧城主 ${owner.guohao} 名下`);
+        holding.burning = ev.burning;
+        break;
+      }
+      case "propertyBurningTicked":
+        break;
       case "exhaustionResolved": {
         const p = foldTarget(engine, ev);
         p.resting = true;
@@ -533,6 +545,11 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         engine.jinnangUsedTags.push(...card.tags);
         break;
       }
+      case "jinnangPhaseResumed":
+        engine.pendingJinnang = null;
+        engine.pendingSkill = null;
+        engine.turnPhase = ev.turnPhase;
+        break;
       case "reactionOpened": {
         foldTarget(engine, ev);
         const { seq, view } = ev;

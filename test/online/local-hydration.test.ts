@@ -230,7 +230,7 @@ it("结盟互市自动结算后,真实下行将咸阳交易交给城主并可续
       for (let seat = 0; seat < 4; seat++) giveJinnang(authority, seat, []);
       armPhase(authority, { phase: "Playing", turnPhase: "Roll", activeIndex: 3 });
       placePlayer(authority, 3, 9);
-      grantProperty(authority, 0, "prop-xianyang", 1);
+      grantProperty(authority, 0, "prop-xianyang", 2);
       giveTreasureFromDeck(authority, 0, 3);
       setReputation(authority, 3, 80);
       pinDice(authority, "march", [6]);

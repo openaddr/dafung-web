@@ -1,7 +1,7 @@
 // 联机控制器——重构后只做「协议桥」(替代旧 src/render/network-client.ts 的连接/协议部分,零 DOM):
 // - 不跑引擎,只持「只读引擎」——折叠切换⑥(#388)后状态通路 = 事件批消息(到达即
-//   foldEventBatch 折进副本);snapshot 只剩整房摘要(首连/重连)与关键节点校准,到达
-//   即 restoreFromSnapshot 重 hydrate(水合无条件覆盖折叠字段,快照=校准锚)。
+//   foldEventBatch 折进副本);snapshot 只剩整房摘要(首连/重连)与关键节点校准,在对应
+//   地图的引擎上 restoreFromSnapshot(水合无条件覆盖折叠字段,快照=校准锚)。
 // - 连接/重连归 net/reconnecting-socket.ts,REST 大厅归 net/lobby-api.ts,
 //   事件批表现消费归 net/snapshot-effects.ts(原「一类五职责」拆分,ADR-0007 的客户端对偶;
 //   #385 起演出因果 = 服务端事件批,快照 diff 提取已退役)。
@@ -49,6 +49,18 @@ interface GameLogPrefix {
   missing: boolean;
 }
 
+interface ReceivedMessage<T extends ServerMsg = ServerMsg> {
+  msg: T;
+  receivedAt: number;
+  receivedAtMonotonic: number;
+}
+
+interface MapLoad {
+  mapId: string;
+  snapshot: ReceivedMessage<SnapshotMsg> | null;
+  following: ReceivedMessage[];
+}
+
 export class OnlineController extends GameController {
   private _engine: GameEngine; // 只读:每次 snapshot 用 restoreFromSnapshot 重 hydrate
   private readonly api: LobbyApi;
@@ -72,9 +84,8 @@ export class OnlineController extends GameController {
   protected override get mySeat(): number {
     return this.seat;
   }
-  /** 换图重建流水号(#415):每次 rebuildForMap 起步自增,落地时对号——号不对 =
-   *  期间有更新的换图指令,本次作废(取图 await 与下行快照/新换图指令竞速的过期落地防回归)。 */
-  private rebuildSeq = 0;
+  /** 当前连接最新的取图请求。快照先到时，后续下行跟随快照等待地图，保留到达次序。 */
+  private mapLoad: MapLoad | null = null;
   /** 上一帧各座位棋子位置(#385 行军锚定基准,#386 折叠前捕获口径)。#388 起表现
    *  直译改随事件帧走(锚点就地捕获传 play),快照帧的 play 由消费游标去重不再消费
    *  新批——本字段保留给快照帧的既有兜路(空批校准帧等),不再承载跨帧交接。 */
@@ -250,7 +261,7 @@ export class OnlineController extends GameController {
   private connect(): void {
     this.requireLiveSession();
     if (!this.roomId || this.seat < 0 || !this.seatToken) return;
-    this.rebuildSeq++;
+    this.mapLoad = null;
     // 先断开身份,再终止旧 socket/退避链:已捕获的旧订阅也无法再写当前状态。
     const previous = this.sock;
     this.sock = null;
@@ -265,6 +276,8 @@ export class OnlineController extends GameController {
     this.sock = sock;
     sock.onStatus((s) => {
       if (this.sock !== sock) return;
+      // 连接纪元变更后，旧地图请求与随车下行同时失效。
+      this.mapLoad = null;
       // 底层状态映射为控制器恢复状态后投影到 netStore,connected 由 store 派生。
       // 断线边界(s!=="open")废弃在途事件批(#385):断线前收到但未随快照
       // 消费的暂存批不在重连后补播;重连成功(#388 重连语义=整房摘要+清批)则把事件面
@@ -272,8 +285,6 @@ export class OnlineController extends GameController {
       // 唯一来源 = 紧随其后的整房摘要(ADR-0020 决策 4;服务器重启旧批重发的归口在
       // server.ts 恢复登记,见 seenBatches 恢复基线)。
       if (s === "open") {
-        // 自动spawn也开启新连接纪元;前连接的换图await不能覆盖本次权威摘要。
-        this.rebuildSeq++;
         this.fx.resetEventFace();
       } else this.fx.dropStalledBatch();
       this.setConnectionStatus(s === "open" ? "calibrating" : s);
@@ -309,13 +320,22 @@ export class OnlineController extends GameController {
     this.connect();
   }
 
-  private onMessage(msg: ServerMsg, receivedAt: number): void {
-    const receivedAtMonotonic = performance.now();
+  private onMessage(
+    msg: ServerMsg,
+    receivedAt: number,
+    receivedAtMonotonic = performance.now(),
+  ): void {
+    const load = this.mapLoad;
+    if (load?.snapshot && msg.type !== "dismissed" && msg.type !== "error") {
+      load.following.push({ msg, receivedAt, receivedAtMonotonic });
+      return;
+    }
     if (msg.type === "lobby") {
       // lobby/snapshot 两种消息都带完整 NetRoomFields(ServerMsg 已声明),直接透传
       this.applyRoomFields(msg);
-      // 换图单路径:lobby 广播的 mapId 驱动本地重建(占位引擎 + registry 的 MapData)。
+      // 房主换图可回到已加载的图，此时撤销在途请求即可。
       if (msg.mapId && msg.mapId !== this.mapId) void this.rebuildForMap(msg.mapId);
+      else this.mapLoad = null;
       // started 元数据不是对局摘要;未开局 lobby 本身就是完整房间校准。
       if (!msg.started && this.connectionStatus === "calibrating") {
         this.setConnectionStatus("open");
@@ -324,6 +344,16 @@ export class OnlineController extends GameController {
       return;
     }
     if (msg.type === "snapshot") {
+      if (msg.mapId === null) throw new Error("联机对局摘要缺少地图");
+      if (msg.mapId !== this.mapId) {
+        const snapshot = { msg, receivedAt, receivedAtMonotonic };
+        if (load?.mapId === msg.mapId) load.snapshot = snapshot;
+        else void this.rebuildForMap(msg.mapId, snapshot);
+        this.setConnectionStatus("calibrating");
+        this.sync();
+        return;
+      }
+      this.mapLoad = null;
       if (this._engine.gameId !== msg.gameId) finishGameDiagnostics(this);
       const { type: _t, reactionTiming, ...snap } = msg;
       // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
@@ -332,11 +362,6 @@ export class OnlineController extends GameController {
       // 本帧无事件批(空批 flush)时引擎位置未被折叠,水合前捕获口径不变。
       const prePositions = this.pendingMarchAnchors ?? this._engine.players.map((p) => p.position);
       this.pendingMarchAnchors = null;
-      this.applyRoomFields(msg);
-      if (msg.mapId && msg.mapId !== this.mapId) {
-        // 快照带了新图(理论上开局前已由 lobby 广播换好;兜底再同步一次)
-        this.mapId = msg.mapId;
-      }
       if (snap.players.length !== this._engine.players.length) {
         // 座位数不一致 → 按快照座位数重建占位引擎(3+ 座联机局:restoreFromSnapshot
         // 按 e.players[i] 原地覆盖,占位引擎恒 2 座会越界写 undefined;占位座位本就
@@ -345,6 +370,7 @@ export class OnlineController extends GameController {
         setEngine(this._engine);
       }
       this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
+      this.applyRoomFields(msg);
       this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
       this.setConnectionStatus("open");
       this.pending = false;
@@ -414,20 +440,24 @@ export class OnlineController extends GameController {
     }
     // 恢复时收到明确拒绝即终止本次尝试;普通局内命令错误仍沿提示通路。
     if (!this.sessionReady) {
-      const sock = this.sock;
-      this.sock = null;
-      sock?.close();
-      this.rebuildSeq++;
-      this.fx.dropStalledBatch();
-      this.pending = false;
-      useNetStore.getState().setPending(false);
-      this.connectionStatus = "failed";
-      useNetStore.getState().setConnectionFailure(msg.error);
-      this.sync();
+      this.failCalibration(msg.error);
       return;
     }
     // 普通命令错误仍闪提示;pending 解锁等下一帧 events/校准快照校正。
     useGameStore.getState().pushHint(msg.error);
+  }
+
+  private failCalibration(reason: string): void {
+    const sock = this.sock;
+    this.sock = null;
+    sock?.close();
+    this.mapLoad = null;
+    this.fx.dropStalledBatch();
+    this.pending = false;
+    useNetStore.getState().setPending(false);
+    this.connectionStatus = "failed";
+    useNetStore.getState().setConnectionFailure(reason);
+    this.sync();
   }
 
   private anchorGameLog(msg: SnapshotMsg, receivedAt: number): void {
@@ -471,21 +501,27 @@ export class OnlineController extends GameController {
     console.error("[logArchive] 联机日志归档失败:", error);
   }
 
-  /** 换图重建(lobby 广播驱动):fetch 内置图 → 重建占位引擎 + registry 的 MapData。
-   *  BoardView/详情卷轴读的都是 registry 的 MapData,所以两处都要换。 */
-  private async rebuildForMap(mapId: string): Promise<void> {
-    const seq = ++this.rebuildSeq;
+  /** 对应地图的目录装入引擎后，才恢复快照并处理摘要之后的下行。 */
+  private async rebuildForMap(
+    mapId: string,
+    snapshot: ReceivedMessage<SnapshotMsg> | null = null,
+  ): Promise<void> {
+    const load: MapLoad = { mapId, snapshot, following: [] };
+    this.mapLoad = load;
     let map: LoadedMap;
     let data: import("@core/board-loader").MapData;
     try {
       ({ map, data } = await this.loadMapBundle(mapId));
     } catch (err) {
-      if (seq !== this.rebuildSeq) return;
-      useNetStore.getState().pushHint(`加载地图失败:${(err as Error).message}`);
+      if (this.mapLoad !== load) return;
+      this.mapLoad = null;
+      const reason = `加载地图失败:${(err as Error).message}`;
+      if (load.snapshot) this.failCalibration(reason);
+      else useNetStore.getState().pushHint(reason);
       return;
     }
-    // 过期守卫(#415):取图 await 期间可能有更新的换图指令(rebuildSeq 已自增)——本次作废。
-    if (seq !== this.rebuildSeq) return;
+    if (this.mapLoad !== load) return;
+    this.mapLoad = null;
     // 换图边界清演出(ADR-0029 §2 边界作废同族,复审 F5):棋盘几何整体更换,在途
     // 行军会话与待播块烤的都是旧板坐标(不变量①提取即定格),换板后续播/续飞 = 棋子
     // 在新板上走旧板轨迹、浮字锚错格——旧演出无因果意义,统一作废,棋子由新引擎的
@@ -493,28 +529,19 @@ export class OnlineController extends GameController {
     // 连续性(去重)与积压治理都跟棋盘身份正交,新图批照常消费。
     abandonAllMarches();
     this.fx.voidQueuedForBoardSwap();
-    if (this.enteredGame && this.mapId === mapId) {
-      // #415:对局快照已先行水合(开局 flush 与本重建的取图竞速,取图可能后落)——
-      // 此时换新占位引擎会把已水合的对局态打回 2 座空壳;房间静默等真人决策时再无
-      // 后续下行纠偏,该端从此读不到真实局面(并发选都停摆的根因)。改「换板不换局」:
-      // 当前引擎态整卷快照,在新图占位壳上复原,对局态与棋盘一次到位。
-      const snap = this._engine.snapshot();
-      this.map = map;
-      this._engine = this.makePlaceholderEngine(map, snap.players.length);
-      this._engine.restoreFromSnapshot(snap);
-      setEngine(this._engine);
-      // setController 对同一实例不 destroy(见 registry 守卫),只更新 MapData
-      setController(this, data);
-      this.sync();
-      return;
-    }
     this.mapId = mapId;
     this.map = map;
-    this._engine = this.makePlaceholderEngine(map);
+    this._engine = this.makePlaceholderEngine(map, load.snapshot?.msg.players.length);
     setEngine(this._engine);
     // setController 对同一实例不 destroy(见 registry 守卫),只更新 MapData
     setController(this, data);
-    this.sync();
+    if (load.snapshot === null) {
+      this.sync();
+      return;
+    }
+    for (const frame of [load.snapshot, ...load.following]) {
+      this.onMessage(frame.msg, frame.receivedAt, frame.receivedAtMonotonic);
+    }
   }
 
   /** 换图取材(清单回查 + 地图加载):rebuildForMap 的取图步,单独成方法 = 测试注入缝
@@ -531,7 +558,7 @@ export class OnlineController extends GameController {
   destroy(): void {
     if (this.ended) return;
     this.ended = true;
-    this.rebuildSeq++;
+    this.mapLoad = null;
     super.destroy(); // 基类退订行军会话订阅(#611)
     // socket.close 内部先置 closedByUs 再关:onclose 不触发重连,退避定时器一并清
     const sock = this.sock;

@@ -6,7 +6,7 @@
 
 阶段顺序见 [timing.ts](../../src/core/timing.ts) 的 `MOMENT_STAGES`。
 
-某一阶段触发的「你可」选择在该阶段完成，选择产生的效果也结清后再走下一阶段。权威待决时机保存当前进度和续接信息，快照校准后可继续处理同一时机。回合结束相关时机、选择和当轮收益全部结清后，才执行 [ADR-0067](./0067-city-conquest-economy.md) 约定的一次判胜。实现见 [moment-stages.ts](../../src/core/moment-stages.ts) 的 `PendingMoment` 和 `resumePendingMoment`。
+某一阶段触发的「你可」选择在该阶段完成，选择产生的效果也结清后再走下一阶段。权威待决时机保存当前进度和续接信息，快照校准后可继续处理同一时机。回合结束的三段时机结清后，处理到期燃烧及其选择，再结算全桌轮末事项。最后执行 [ADR-0067](./0067-city-conquest-economy.md) 约定的一次判胜。实现见 [moment-stages.ts](../../src/core/moment-stages.ts) 的 `PendingMoment` 和 `resumePendingMoment`，燃烧顺序见 [ADR-0070](./0070-city-levels-and-defense-scale.md)。
 
 扩展技能的同步效果可指定任一已登记时机及阶段。新增需要应答的技能时，在原生效果中声明时机，并由触发它的业务节点提供可序列化的续接操作。曹丕的「放逐」从体力损耗继续，「行殇」从耗竭休整继续。
 

@@ -6,7 +6,7 @@ import { createBoard, TILE_EVENTS } from "./board";
 import type { Board, BoardPos, TileDef, TileType } from "./board";
 import type { CityTier, PropertyDef } from "./economy";
 import { CITY_TIERS } from "./economy";
-import { MIN_TILE_DIST } from "./constants";
+import { INITIAL_CITY_LEVEL, MAX_CITY_LEVEL, MIN_TILE_DIST } from "./constants";
 import { findTooClosePairs } from "./geometry";
 
 // ── 地图 JSON schema(内置图与目录装载)──
@@ -16,7 +16,7 @@ export interface MapData {
   startingCash: number;
   /** 起手珍宝(件/人,必配;0=不发,#1100 起手珍宝)。 */
   startingTreasures: number;
-  /** 等级上限(逐图必配,loadMap 校验 ≥1 整数;城池持有等级 0..maxLevel)。 */
+  /** 等级上限(逐图必配,loadMap 校验 1..4 整数;城池持有等级 1..maxLevel)。 */
   maxLevel: number;
   /** 都城补给(两/次)的地图级固定值(必配,loadMap 校验);不随城池等级变化。 */
   resupply: number;
@@ -34,11 +34,11 @@ export interface MapTile {
   tier: CityTier;
   price?: number; // 购价(两):城池格必配,免费城显式写 0
   buildCost?: number; // 建城费(两):城池格必配
-  /** 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel+1,下标 = 等级。 */
+  /** 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel，按 1..maxLevel 顺序。 */
   valueByLevel?: number[];
-  /** 坐地起价加价值(per-level,两):与 PropertyDef 同义。城池格必配,长度 = maxLevel+1。 */
+  /** 坐地起价加价值(per-level,两):与 PropertyDef 同义。城池格必配,长度 = maxLevel。 */
   tradeAdd: number[];
-  /** 坐地起价乘数(per-level):与 PropertyDef 同义。城池格必配,长度 = maxLevel+1。 */
+  /** 坐地起价乘数(per-level):与 PropertyDef 同义。城池格必配,长度 = maxLevel。 */
   tradeMult: number[];
   /** 特殊城池固定事件(#823/#824,ADR-0037,可选):缺省=普通城(机遇必出照旧);
    *  配了即特殊城池(招贤/锦囊/天命/商市/珍宝五城,#826 起盘面唯一的事件承载)。 */
@@ -80,8 +80,14 @@ export function loadMap(data: unknown): LoadedMap {
   }
   if (!Array.isArray(d.tiles) || d.tiles.length === 0) fail("tiles 为空");
 
-  if (!Number.isInteger(d.maxLevel) || d.maxLevel < 1) {
-    fail(`maxLevel 必配且须为 ≥1 的整数(当前:${String(d.maxLevel)})`);
+  if (
+    !Number.isInteger(d.maxLevel) ||
+    d.maxLevel < INITIAL_CITY_LEVEL ||
+    d.maxLevel > MAX_CITY_LEVEL
+  ) {
+    fail(
+      `maxLevel 必配且须为 ${INITIAL_CITY_LEVEL}..${MAX_CITY_LEVEL} 的整数(当前:${String(d.maxLevel)})`,
+    );
   }
   const maxLevel = d.maxLevel;
   if (typeof d.resupply !== "number") {
@@ -147,14 +153,14 @@ export function loadMap(data: unknown): LoadedMap {
   const properties: PropertyDef[] = [];
   d.tiles.forEach((t, i) => {
     const values = t.valueByLevel;
-    if (!Array.isArray(values) || values.length !== maxLevel + 1) {
-      fail(`第 ${i + 1} 城 valueByLevel 长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);
+    if (!Array.isArray(values) || values.length !== maxLevel) {
+      fail(`第 ${i + 1} 城 valueByLevel 长度必须等于等级数 ${maxLevel}(Lv1..Lv${maxLevel})`);
     }
-    if (!Array.isArray(t.tradeAdd) || t.tradeAdd.length !== maxLevel + 1) {
-      fail(`第 ${i + 1} 城 tradeAdd 必配且长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);
+    if (!Array.isArray(t.tradeAdd) || t.tradeAdd.length !== maxLevel) {
+      fail(`第 ${i + 1} 城 tradeAdd 必配且长度必须等于等级数 ${maxLevel}(Lv1..Lv${maxLevel})`);
     }
-    if (!Array.isArray(t.tradeMult) || t.tradeMult.length !== maxLevel + 1) {
-      fail(`第 ${i + 1} 城 tradeMult 必配且长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);
+    if (!Array.isArray(t.tradeMult) || t.tradeMult.length !== maxLevel) {
+      fail(`第 ${i + 1} 城 tradeMult 必配且长度必须等于等级数 ${maxLevel}(Lv1..Lv${maxLevel})`);
     }
     if (t.price == null || t.buildCost == null) {
       fail(`第 ${i + 1} 城 price/buildCost 必配(免费城显式写 0)`);

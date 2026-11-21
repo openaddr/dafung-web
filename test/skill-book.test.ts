@@ -55,7 +55,7 @@ function fixtureData(tiles: object[]) {
     targetNetWorth: 30000,
     startingCash: 10000,
     startingTreasures: 0,
-    maxLevel: 3,
+    maxLevel: 4,
     resupply: 1000,
     tiles: tiles.map((t) => ({ ...t })),
   };
@@ -334,7 +334,7 @@ describe("用书学技(#1146 命令面)", () => {
         e.findOwner(t.propertyId) == null,
     );
     if (spare == null) throw new Error("测试布场:射程内无空闲普通城");
-    grantProperty(e, otherSeat, spare.propertyId!, 1);
+    grantProperty(e, otherSeat, spare.propertyId!, 2);
     e.turnPhase = "AwaitingJinnang";
     e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "huogong", me.heroes[0]!.heroId);
     expect(e.turnPhase).toBe("AwaitingJinnang"); // 尚有英姿书可用,窗口停留

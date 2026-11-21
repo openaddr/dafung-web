@@ -46,12 +46,13 @@ describe("身价计算", () => {
     });
     p.cash -= changan.buildCost;
     p.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: changan.id,
       group: changan.group,
-      level: 1,
+      level: 2,
       maxLevel: changan.maxLevel,
-      defense: 4,
+      defense: 30,
     });
     expect(netWorth(p)).toBe(7600); // 仅剩现金(建城费 2400)
   });

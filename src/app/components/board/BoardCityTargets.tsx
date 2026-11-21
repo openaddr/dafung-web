@@ -7,7 +7,8 @@ import {
   cityTransform,
   type CityScene,
 } from "./city-scene";
-import { CityLevelPips } from "./Tile";
+import { CityLevelBadge } from "./Tile";
+import { BoardCityBurning } from "./CityBurningBadge";
 
 export const BoardCityTargets = memo(function BoardCityTargets({
   cities,
@@ -58,12 +59,15 @@ export const BoardCityTargets = memo(function BoardCityTargets({
               fill="transparent"
               stroke={rgba(Theme.goldBright)}
             />
-            {painted && painted.state.level > 0 ? (
+            {painted ? (
               <g aria-hidden="true" pointerEvents="none" opacity={cityOpacity(painted, focused)}>
-                <CityLevelPips
+                {painted.state.level !== null ? (
+                  <CityLevelBadge tileIndex={tile.index} level={painted.state.level} />
+                ) : null}
+                <BoardCityBurning
                   tileIndex={tile.index}
-                  level={painted.state.level}
-                  maxLevel={painted.maxLevel}
+                  marks={painted.state.fireMarks}
+                  progress={painted.state.fireProgress}
                 />
               </g>
             ) : null}

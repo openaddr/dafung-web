@@ -121,7 +121,7 @@ export function seizeBankruptAssetsTraced(
   for (const m of moved) {
     g.propertyChanges.push({
       tileIndex: g.tileIndexOfProperty(m.propertyId),
-      level: m.level,
+      level: creditor === null ? null : m.level,
       ownerColorIndex: creditor ? creditor.colorIndex : null,
       levelChanged: false,
       ownerChanged: true,
@@ -202,7 +202,7 @@ function liquidateProperty(g: GameEngine, propId: string): void {
   // 城池变更留痕(ADR-0015):变卖给银行即回无主,等级维度不变
   g.propertyChanges.push({
     tileIndex: g.tileIndexOfProperty(propId),
-    level: h.level,
+    level: null,
     ownerColorIndex: null,
     levelChanged: false,
     ownerChanged: true,

@@ -1,18 +1,16 @@
-// 换图重建落地竞速回归(#415):OnlineController.rebuildForMap 的取图 await 落地时刻,
-// 对局态可能已由快照水合先行推进(开局 flush 与换图广播的取图竞速)——过期落地若照旧
-// 换新占位引擎,会把已水合的对局态打回 2 座空壳;房间此后静默等真人决策(无后续下行
-// 纠偏),该端永远读不到真实局面——并发选都停摆旧案的取证与协议面复现归 test/online/protocol-online.test.ts(ADR-0055)。
-// (原载体 e2e/react-online-secrecy.spec.ts 已随 #1164 协议化迁移删除。)
-// 本文件钉死三条落地语义:①对局已水合 → 换板不换局(快照迁到新图占位壳);
-// ②更新换图在途 → 过期落地丢弃;③开局前落地 → 原语义(整换占位壳)不变。
+// 换图竞速回归(#415):开局摘要可能早于取图完成。等对应地图就绪后再用它的目录恢复，
+// 后续事件按照原顺序折叠。更新换图指令到达时，过期取图作废。
 // 全程注入假取图(覆写 loadMapBundle 私有缝),零网络零浏览器。
-import { describe, it, expect } from "bun:test";
+import { afterEach, describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
 import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
-import type { GameSnapshot } from "@core/snapshot";
 import { OnlineController } from "@app/controllers/online";
 import { beginMarch, isMarching } from "@app/fx/useMarch";
+import { getControllerContext, setController } from "@app/controllers/registry";
+import { setSnapPin } from "@app/fx/catchup";
+import { useNetStore } from "@app/store/netStore";
+import type { ServerMsg, SnapshotMsg } from "../../scripts/wire";
 import guanzhongData from "../../public/maps/guanzhong.json" with { type: "json" };
 import zhongyuanData from "../../public/maps/zhongyuan.json" with { type: "json" };
 
@@ -33,7 +31,7 @@ const ZHONGYUAN: Bundle = {
 /** 私有面访问缝(测试专用;onMessage/loadMapBundle/enteredGame 均 @app 内聚私有)。 */
 interface TestAccess {
   mapId: string | null;
-  onMessage(msg: unknown): void;
+  onMessage(msg: ServerMsg, receivedAt: number): void;
   enteredGame: boolean;
   loadMapBundle(mapId: string): Promise<Bundle>;
 }
@@ -44,7 +42,7 @@ function stubLoader(c: OnlineController): {
   gate(mapId: string, nth?: number): { resolve(b: Bundle): void };
 } {
   const calls: { mapId: string; resolve: (b: Bundle) => void }[] = [];
-  (c as unknown as Record<string, unknown>)["loadMapBundle"] = (mapId: string) =>
+  (c as unknown as TestAccess).loadMapBundle = (mapId: string) =>
     new Promise<Bundle>((resolve) => calls.push({ mapId, resolve }));
   return {
     gate(mapId, nth = 0) {
@@ -57,26 +55,12 @@ function stubLoader(c: OnlineController): {
 
 const drain = () => new Promise<void>((r) => setTimeout(r, 0));
 
-function lobbyMsg(mapId: string): unknown {
+function lobbyMsg(mapId: string): ServerMsg {
   return { type: "lobby", roomId: "TEST", host: 0, started: false, mapId, seatCount: 3, seats: [] };
 }
 
-/** 快照载荷中被断言消费的字段面(其余字段透传给 onMessage,不参与断言)。 */
-type RoomSnapshotPayload = Pick<
-  GameSnapshot,
-  "phase" | "setupPhase" | "currentSetupPlayerIndex" | "players"
-> & {
-  type: "snapshot";
-  roomId: string;
-  seatCount: number;
-  host: number;
-  started: boolean;
-  mapId: string;
-  seats: unknown[];
-};
-
 /** 服务器侧三座房开局快照(种子 430 复刻 startGame+driveBots:座位 2 自动 bot 先选)。 */
-function zhongyuanRoomSnapshot(): RoomSnapshotPayload {
+function zhongyuanRoom(): GameEngine {
   const engine = new GameEngine(ZHONGYUAN.map.board, ZHONGYUAN.map.catalog, createDice(430), {
     seats: [
       { name: "座 1", isBot: false },
@@ -93,44 +77,72 @@ function zhongyuanRoomSnapshot(): RoomSnapshotPayload {
   for (let i = 0; i < 3 && engine.currentSetupPlayerIndex === 2; i++) {
     engine.aiSetupStepFor(2); // 服务器代选:只驱动 bot 座位,轮到真人即停(与 driveBots 同口径)
   }
-  const snap = engine.snapshot();
+  return engine;
+}
+
+function zhongyuanRoomSnapshot(engine: GameEngine): SnapshotMsg {
   return {
     type: "snapshot",
     roomId: "TEST",
-    seatCount: 3,
     host: 0,
     started: true,
     mapId: "zhongyuan",
     seats: [],
-    ...snap,
-  } as RoomSnapshotPayload;
+    ...engine.snapshot(),
+  };
 }
 
 describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
-  it("对局已水合后取图才落地:换板不换局——对局态保全、棋盘换到新图", async () => {
+  afterEach(() => {
+    setController(null);
+    setSnapPin(false);
+    useNetStore.getState().reset();
+  });
+
+  it("开局快照先到时，等待对应地图再恢复城池并折叠后续事件", async () => {
+    setSnapPin(true); // 只检查状态折叠，不留下跨测试的选都演出。
     const c = new OnlineController(GUANZHONG.map, "guanzhong");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
     // 大厅选图广播 → 换图重建起步(取图 await 在途)
-    x.onMessage(lobbyMsg("zhongyuan"));
-    // 开局 flush 先行:快照水合三座对局态(#415 竞速的另一半)
-    const snap = zhongyuanRoomSnapshot();
-    x.onMessage(snap);
-    expect(x.enteredGame).toBe(true);
-    expect(c.engine.players).toHaveLength(3);
-    // 取图后落地:不许打回空壳
+    x.onMessage(lobbyMsg("zhongyuan"), Date.now());
+    // 开局快照含中原独有的新野，取图期间还收到下一座的选都事件。
+    const authority = zhongyuanRoom();
+    const snap = zhongyuanRoomSnapshot(authority);
+    x.onMessage(snap, Date.now());
+    const nextSeat = authority.currentSetupPlayerIndex;
+    const nextCapital = authority.offeredCapitals[0]!;
+    expect(authority.pickCapital(nextSeat, nextCapital).ok).toBe(true);
+    x.onMessage({ type: "events", events: [...authority.gameEvents] }, Date.now());
+    expect(c.sessionReady).toBe(false);
+    expect(x.enteredGame).toBe(false);
+    expect(c.engine.board).toBe(GUANZHONG.map.board);
+    expect(c.engine.players).toHaveLength(2);
+
     gates.gate("zhongyuan").resolve(ZHONGYUAN);
     await drain();
-    expect(x.mapId).toBe("zhongyuan");
+    expect(c.sessionReady).toBe(true);
+    expect(x.enteredGame).toBe(true);
     expect(c.engine.players).toHaveLength(3);
     expect(c.engine.phase).toBe(snap.phase);
     expect(c.engine.setupPhase).toBe(snap.setupPhase);
     expect(c.engine.currentSetupPlayerIndex).toBe(snap.currentSetupPlayerIndex);
     expect(c.engine.players.map((p) => p.capitalIndex)).toEqual(
-      snap.players.map((p) => p.capitalIndex),
+      authority.players.map((p) => p.capitalIndex),
     );
-    expect(c.engine.players.map((p) => p.cash)).toEqual(snap.players.map((p) => p.cash));
-    // 棋盘换到新图(BoardView 与折叠器的 catalog 查询都吃新图面)
+    expect(c.engine.players[2]!.properties[0]?.propertyId).toBe("prop-xinye");
+    expect(c.engine.board).toBe(ZHONGYUAN.map.board);
+    expect(getControllerContext()?.catalog).toBe(ZHONGYUAN.map.catalog);
+  });
+
+  it("首条摘要自带新地图时，即使未收到大厅选图也能入局", async () => {
+    const c = new OnlineController(GUANZHONG.map, "guanzhong");
+    const gates = stubLoader(c);
+    const x = c as unknown as TestAccess;
+    x.onMessage(zhongyuanRoomSnapshot(zhongyuanRoom()), Date.now());
+    gates.gate("zhongyuan").resolve(ZHONGYUAN);
+    await drain();
+    expect(c.sessionReady).toBe(true);
     expect(c.engine.board).toBe(ZHONGYUAN.map.board);
   });
 
@@ -141,8 +153,8 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
     // 大厅先后两次切 zhongyuan(同图重切:首次落地前 mapId 未动,第二次照样起步
     // rebuild,竞速语义与异图连切一致);后到的取图先落地(独立 loadMap 实例,
     // board 对象身份可区分先后)
-    x.onMessage(lobbyMsg("zhongyuan"));
-    x.onMessage(lobbyMsg("zhongyuan"));
+    x.onMessage(lobbyMsg("zhongyuan"), Date.now());
+    x.onMessage(lobbyMsg("zhongyuan"), Date.now());
     expect(x.mapId).toBe("guanzhong"); // 两次取图都在途,mapId 未动
     const LATEST: Bundle = {
       map: loadMap(zhongyuanData),
@@ -163,7 +175,7 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
     const c = new OnlineController(GUANZHONG.map, "guanzhong");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
-    x.onMessage(lobbyMsg("zhongyuan"));
+    x.onMessage(lobbyMsg("zhongyuan"), Date.now());
     expect(x.enteredGame).toBe(false);
     gates.gate("zhongyuan").resolve(ZHONGYUAN);
     await drain();
@@ -176,7 +188,7 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
     const c = new OnlineController(GUANZHONG.map, "guanzhong");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
-    x.onMessage(lobbyMsg("zhongyuan"));
+    x.onMessage(lobbyMsg("zhongyuan"), Date.now());
     // 伪批锚定一枚在途会话(烤的是旧板几何;无 DOM 环境 beginMarch 只走簿记)
     const kf = [
       {

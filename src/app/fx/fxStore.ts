@@ -153,7 +153,7 @@ export interface PeekFx {
  *  level/owner 两维独立计数,各自作为 Tile 内受影响元素的 React key——nonce 变化
  *  即重挂重播,不变则原地静置。0 = 该维从未宣告(开局铺盘/快照恢复不播动画)。 */
 export interface TileAnnounce {
-  /** 扩军宣告 nonce:等级珠末珠落位(bv-pip-grow)以其为 key。 */
+  /** 扩军宣告 nonce:等级徽记落位(bv-level-badge-grow)以其为 key。 */
   level: number;
   /** 易主宣告 nonce:易主流光以其为 key。 */
   owner: number;
@@ -217,6 +217,8 @@ interface FxState {
   marching: ReadonlySet<string>;
   /** 城池宣告记录(ADR-0015),key = tileIndex。 */
   announces: ReadonlyMap<number, TileAnnounce>;
+  /** 到期拍短暂显示消耗前的实心火焰，按城池格记录。 */
+  burningPulses: ReadonlyMap<number, { id: number; marks: number }>;
   /** 易主流光(架构体检 B 批出底板):铭牌顶缘一次性流光,mini-svg 世界坐标挂在
    *  fx 宿主(SVG 动画出 #board——底板内逐帧重绘随迁层拔除,ADR-0045 同法)。 */
   ownFlashes: OwnFlashFx[];
@@ -281,6 +283,7 @@ interface FxState {
     ownerChanged: boolean,
     ownerColorIndex: number | null,
   ): void;
+  showBurningPulse(tileIndex: number, marks: number): void;
   /** 易主流光(架构体检 B 批出底板):ownerChanged 时由 FxSink.announceTileChange
    *  一并下发,FxLayer 在 fx 宿主渲染 mini-svg 流光,TTL=FX.ownFlashMs 自清。 */
   pushOwnFlash(tileIndex: number, colorIndex: number | null): void;
@@ -300,6 +303,7 @@ export const useFxStore = create<FxState>()(
     peek: null,
     marching: new Set<string>(),
     announces: new Map<number, TileAnnounce>(),
+    burningPulses: new Map(),
     ownFlashes: [],
     pulses: [],
     inkBlots: [],
@@ -489,6 +493,19 @@ export const useFxStore = create<FxState>()(
       }, FX.ownFlashMs);
     },
 
+    showBurningPulse(tileIndex, marks) {
+      const id = nextId++;
+      set((s) => ({ burningPulses: new Map(s.burningPulses).set(tileIndex, { id, marks }) }));
+      setTimeout(() => {
+        set((s) => {
+          if (s.burningPulses.get(tileIndex)?.id !== id) return s;
+          const burningPulses = new Map(s.burningPulses);
+          burningPulses.delete(tileIndex);
+          return { burningPulses };
+        });
+      }, FX.burningPulseMs);
+    },
+
     resetFx() {
       clearNoticeTimer();
       set({
@@ -501,6 +518,7 @@ export const useFxStore = create<FxState>()(
         peek: null,
         marching: new Set<string>(),
         announces: new Map(),
+        burningPulses: new Map(),
         ownFlashes: [],
         pulses: [],
         inkBlots: [],

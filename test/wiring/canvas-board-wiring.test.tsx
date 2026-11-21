@@ -13,11 +13,10 @@ it("棋盘仅提交最新城池贴图，地图背景跨城池更新复用", asyn
   const { createRoot } = await import("react-dom/client");
   const { board, catalog } = loadMap(mapData);
   const tile = board.tiles.find((tile) => tile.event === undefined)!;
-  const { maxLevel, tier } = catalog.get(tile.propertyId)!;
+  const { tier } = catalog.get(tile.propertyId)!;
   const fit = computeFitView(board.tiles);
   const initial: CityScene = {
     tile,
-    maxLevel,
     tier,
     state: {
       ownerColorIndex: null,
@@ -31,7 +30,9 @@ it("棋盘仅提交最新城池贴图，地图背景跨城池更新复用", asyn
       isCityTarget: false,
       isCityPicked: false,
       defense: null,
-      level: 0,
+      level: null,
+      fireMarks: 0,
+      fireProgress: 0,
     },
   };
 

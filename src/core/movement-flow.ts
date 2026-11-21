@@ -270,7 +270,7 @@ export function buyProperty(g: GameEngine): void {
   const r = buy(buyer, def);
   g.lastTransaction = r;
   if (r.status === "Ok") {
-    // 城池变更留痕(ADR-0015):购入即易主(无主 → 买家),等级维度不变(购入为 Lv.0)
+    // 城池变更留痕(ADR-0015):购入即易主(无主 → 买家),等级维度不变(购入为 Lv.1)
     g.propertyChanges.push({
       tileIndex: buyer.position,
       level: r.newLevel,

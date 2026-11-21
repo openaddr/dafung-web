@@ -5,6 +5,7 @@
 // 公共方法薄委托(authority.ts);反应窗域(reaction-window.ts)续结算经 g.executeJinnang/
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
 import type { GameEngine } from "./authority";
+import { settleCityDamageMoments } from "./city-damage-moments";
 import {
   activeSkillOf,
   cityTargetOptionId,
@@ -38,7 +39,7 @@ import {
   type ReactionViewSeed,
 } from "./reaction-window";
 import { emitGameEvent } from "./game-events";
-import { applyCityDamage } from "./defense";
+import { applyDirectFireDamage } from "./defense";
 import { findHolding } from "./player";
 import type { Player } from "./model";
 
@@ -62,6 +63,15 @@ export interface PendingJinnang {
 export interface PendingHeroSkill {
   heroId: string;
   skillId: string;
+}
+
+export interface FireWallContinuation {
+  kind: "fireWall";
+  userSeat: number;
+  cardId: string;
+  center: number;
+  damage: number;
+  remainingCities: { propertyId: string; tileIndex: number }[];
 }
 
 /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
@@ -373,7 +383,7 @@ function settleJinnangPlay(
 // ──────────────────────────── 名将主动技(#188 档 3)────────────────────────────
 // 出牌阶段(AwaitingJinnang)内与锦囊同窗决策:resolveHeroSkill 与 resolveJinnang 并列的
 // 命令入口。校验(冷却/持有/目标)单源选项集(choices.ts),UI/bot 永不裁决(ADR-0013);
-// 结算复用城池伤害单点(defense.applyCityDamage)，主动技路不派城损时机。
+// 火攻沿用城池伤害与城损时机的统一结算。
 
 /** 发动主动技(#817 实例定位):heroId+skillId 须定位到决策者麾下主动技实例且选项集
  *  可用(冷却/费用/目标门槛);无目标域发动即结算(直落本实例槽内账),席位域(other/any)
@@ -533,7 +543,7 @@ function fireHeroSkill(
   );
   switch (skill.kind) {
     case "fireBlast":
-      fireBlastOnCity(g, user, skill, targets[0]); // 火攻定向结算(#1388 T2;技路不派城损时机,#457)
+      fireBlastOnCity(g, user, skill, targets[0]);
       break;
     case "relief": {
       const cost = skill.params?.cost;
@@ -582,15 +592,7 @@ function fireHeroSkill(
   }
 }
 
-/** 火攻定向结算(#1388 T2,规格 #1386):对目标城(tileIndex 载荷)造成技表 damage 点
- *  火焰伤害经 defense.applyCityDamage 结算。合法性
- *  (射程/城主/冷却)单源目标段选项集(choices.heroSkillCityTargets 装配 +
- *  resolveHeroSkill 提交复验),本函数只结算;空格/无主到达此处=目标门被绕过,响亮炸
- *  (零兜底)。
- *  战报=「主动技【火攻】」来源段风格,果分文案:demolished=城防降为 N 级 /
- *  absorbed=防御值降至 N，lost=城池攻陷后公布实际归属。
- *  #457 现状拍板:城损时机(PropertyDemolished/Lost)只挂锦囊路调用侧,火攻技路
- *  不派,本票不翻转;降级/失城留痕(propertyChanges)由单点内照 ADR-0015 写。 */
+/** 火攻提交复验后结算火焰伤害并报告结果，城损后的时机可暂停出牌阶段收尾。 */
 function fireBlastOnCity(
   g: GameEngine,
   user: Player,
@@ -605,10 +607,12 @@ function fireBlastOnCity(
   const victim = g.findOwner(propId);
   if (victim == null)
     throw new Error(`火攻目标城 ${propId} 无主(无主城不受火焰伤害,目标门应已拦,状态机 bug)`);
+  const victimSeat = g.players.indexOf(victim);
   const cityName = g.board.at(tileIndex).name;
   const h = findHolding(victim, propId);
   if (h == null) throw new Error(`火攻目标城 ${propId} 不在 ${victim.guohao} 名下(状态机 bug)`); // 零兜底
-  const outcome = applyCityDamage(g, victim, propId, damage, user);
+  const settlement = applyDirectFireDamage(g, victim, propId, damage, user);
+  const { outcome } = settlement;
   const resultTxt =
     outcome.kind === "lost"
       ? `失守,${cityAfterLoss(g, propId)}`
@@ -621,8 +625,17 @@ function fireBlastOnCity(
     "system",
     user.guohao,
     `${user.guohao} 主动技【${skill.name}】:${victim.guohao} 的「${cityName}」${resultTxt}`,
-    `heroFire owner=${user.id} skill=${skill.id} victim=${victim.id} prop=${propId} tile=${tileIndex} outcome=${outcome.kind} level=${h.level} defense=${h.defense}`,
+    `heroFire owner=${user.id} skill=${skill.id} victim=${victim.id} prop=${propId} tile=${tileIndex} outcome=${outcome.kind}${cityDamageLogState(g, propId)}`,
   );
+  settleCityDamageMoments(g, victimSeat, settlement, { kind: "jinnangExit" });
+}
+
+function cityDamageLogState(g: GameEngine, propertyId: string): string {
+  const owner = g.findOwner(propertyId);
+  if (owner === null) return "";
+  const holding = findHolding(owner, propertyId);
+  if (holding === null) throw new Error(`城损战报:城 ${propertyId} 不在 ${owner.guohao} 名下`);
+  return ` level=${holding.level} defense=${holding.defense}`;
 }
 
 function cityAfterLoss(g: GameEngine, propertyId: string): string {
@@ -631,8 +644,12 @@ function cityAfterLoss(g: GameEngine, propertyId: string): string {
 }
 
 /** 用牌收尾(#122/T3):重算卡牌段,同回合仍有可用牌(异类标签)→ 停留卷轴;否则进 Roll。 */
-export function settleJinnangExit(g: GameEngine): void {
-  g.turnPhase = hasUsableJinnang(g) ? "AwaitingJinnang" : "Roll";
+export function settleJinnangExit(g: GameEngine, resumedFromCityDamage = false): void {
+  if (g.pendingMoment !== null) return;
+  const turnPhase = hasUsableJinnang(g) ? "AwaitingJinnang" : "Roll";
+  g.turnPhase = turnPhase;
+  if (resumedFromCityDamage)
+    emitGameEvent(g, g.activeIndex, { kind: "jinnangPhaseResumed", turnPhase });
 }
 
 // ──────────────────────────── 技能书·用书学技(#1146)────────────────────────────
@@ -785,7 +802,7 @@ export function executeJinnang(
       break;
     }
     case "fireWall":
-      fireWallStrike(g, user, def, targets, exempt);
+      fireWallStrike(g, userSeat, def, targets, exempt);
       break;
     case "skipTurn": {
       const victim = g.players[targets[0]];
@@ -913,21 +930,10 @@ export function executeJinnang(
   }
 }
 
-/** 火烧连营溅射结算(#1389,规格 #1386):以中心城格为火源,对「中心 + 前方距离 1、2 格
- *  上的城」(受击清单单源 choices.fireWallSplashCities)各造成技表 damage 点火焰伤害,
- *  逐城经 defense.applyCityDamage 结算。
- *  目标域门(任一座城可为火源,无距离限制;无主城=几何中心而自身免伤)单源目标段候选集
- *  (choices.fireWallCenterTargets 装配 + resolveJinnang 提交复验),本函数只结算。
- *  无主城不调单点(「无主城不受火焰伤害」由清单 ownerSeat=null 表达,中心无主时溅射锚
- *  照成立、前两格照溅);识破免单城(exempt=受击城 tileIndex 集)整城跳过——含溅射账,
- *  免城宣告归识破窗(jinnangVoided),此处不留痕。
- *  果分战报逐城一行(来源段「使用锦囊【火烧连营】」):demolished=城防降为 N 级 /
- *  lost=失「城名」并公布实际归属 / absorbed=防御值降至 N(0 级都城打空=打空吸收)。
- *  #457 口径延续:城损时机(PropertyDemolished/Lost)按果择一逐城派,absorbed 不派;
- *  降级/失城留痕(propertyChanges)由单点内照 ADR-0015 写。 */
+/** 固定火源、格序和识破豁免，逐城结清后按下一城届时的归属处理。 */
 function fireWallStrike(
   g: GameEngine,
-  user: Player,
+  userSeat: number,
   def: ReturnType<typeof jinnangCardOf>,
   targets: number[],
   exempt?: ReadonlySet<number>,
@@ -938,48 +944,67 @@ function fireWallStrike(
   const centerTile = g.board.at(center);
   if (centerTile.propertyId == null)
     throw new Error(`火烧连营火源格 ${center} 无城(候选清单只出城格,状态机 bug)`); // 零兜底
-  const exemptCities = exempt ?? new Set<number>();
-  const splash = fireWallSplashCities(g, center);
-  for (const city of splash) {
-    if (city.ownerSeat == null) {
+  const remainingCities = fireWallSplashCities(g, center)
+    .filter(({ tileIndex }) => !exempt?.has(tileIndex))
+    .map(({ propertyId, tileIndex }) => ({ propertyId, tileIndex }));
+  settleFireWallCities(g, {
+    kind: "fireWall",
+    userSeat,
+    cardId: def.id,
+    center,
+    damage: def.effect.damage,
+    remainingCities,
+  });
+}
+
+export function resumeFireWall(g: GameEngine, state: FireWallContinuation): void {
+  settleFireWallCities(g, state);
+  settleJinnangExit(g, true);
+}
+
+function settleFireWallCities(g: GameEngine, state: FireWallContinuation): void {
+  const { userSeat, cardId, center, damage, remainingCities } = state;
+  const user = g.players[userSeat];
+  for (const [i, { propertyId, tileIndex }] of remainingCities.entries()) {
+    const name = g.board.at(tileIndex).name;
+    const victim = g.findOwner(propertyId);
+    if (victim === null) {
       // 无主城不受火焰伤害(#1386):不调单点;溅射锚/占位照记一行(战报逐城一行)
       g.logEvent(
         "system",
         user.guohao,
-        `${user.guohao} 使用锦囊【火烧连营】:「${city.name}」无主,免于火焰`,
-        `jinnangFireWall card=${def.id} center=${center} tile=${city.tileIndex} prop=${city.propertyId} victim=- outcome=unowned`,
+        `${user.guohao} 使用锦囊【火烧连营】:「${name}」无主,免于火焰`,
+        `jinnangFireWall card=${cardId} center=${center} tile=${tileIndex} prop=${propertyId} victim=- outcome=unowned`,
       );
       continue;
     }
-    if (exemptCities.has(city.tileIndex)) continue; // 识破免单城(#1389):完全不受此次伤害
-    const victim = g.players[city.ownerSeat];
-    const outcome = applyCityDamage(g, victim, city.propertyId, def.effect.damage, user);
-    const holding = outcome.kind === "lost" ? null : findHolding(victim, city.propertyId);
-    if (outcome.kind !== "lost" && holding == null)
-      throw new Error(`火烧连营结算后城 ${city.propertyId} 不在 ${victim.guohao} 名下(状态机 bug)`); // 零兜底
+    const ownerSeat = g.players.indexOf(victim);
+    const h = findHolding(victim, propertyId);
+    if (h == null) throw new Error(`火烧连营目标城 ${propertyId} 不在 ${victim.guohao} 名下`);
+    const settlement = applyDirectFireDamage(g, victim, propertyId, damage, user);
+    const { outcome } = settlement;
+    const holding = outcome.kind === "lost" ? null : h;
     const resultTxt =
-      outcome.kind === "demolished"
-        ? `${victim.guohao} 的「${city.name}」城防降为 ${holding!.level} 级`
-        : outcome.kind === "lost"
-          ? `${victim.guohao} 失「${city.name}」,${cityAfterLoss(g, city.propertyId)}`
-          : holding!.defense === 0
-            ? `${victim.guohao} 的「${city.name}」城防打空,火焰伤害被吸收`
-            : `${victim.guohao} 的「${city.name}」防御值降至 ${holding!.defense}`;
+      holding === null
+        ? `${victim.guohao} 失「${name}」,${cityAfterLoss(g, propertyId)}`
+        : outcome.kind === "demolished"
+          ? `${victim.guohao} 的「${name}」城防降为 ${holding.level} 级`
+          : holding.defense === 0
+            ? `${victim.guohao} 的「${name}」城防打空,火焰伤害被吸收`
+            : `${victim.guohao} 的「${name}」防御值降至 ${holding.defense}`;
     g.logEvent(
       "system",
       user.guohao,
       `${user.guohao} 使用锦囊【火烧连营】:${resultTxt}`,
-      `jinnangFireWall card=${def.id} center=${center} tile=${city.tileIndex} prop=${city.propertyId} victim=${victim.id} outcome=${outcome.kind} level=${holding?.level ?? 0} defense=${holding?.defense ?? 0}`,
+      `jinnangFireWall card=${cardId} center=${center} tile=${tileIndex} prop=${propertyId} victim=${victim.id} outcome=${outcome.kind}${cityDamageLogState(g, propertyId)}`,
     );
-    if (outcome.kind !== "absorbed") {
-      // 时机·PropertyDemolished/Lost:火烧连营城损按果择一逐城派(#457 拍定挂调用侧——
-      // 单点内不派,火攻主动技路不派;absorbed=纯扣防/打空吸收,不派)
-      g.dispatchMoment(outcome.kind === "demolished" ? "PropertyDemolished" : "PropertyLost", {
-        subject: city.ownerSeat,
-        propertyId: city.propertyId,
-        tileIndex: city.tileIndex,
-      });
-    }
+    if (
+      settleCityDamageMoments(g, ownerSeat, settlement, {
+        ...state,
+        remainingCities: remainingCities.slice(i + 1),
+      })
+    )
+      return;
   }
 }
 

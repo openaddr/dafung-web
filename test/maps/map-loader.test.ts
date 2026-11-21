@@ -59,7 +59,7 @@ describe("地图校验(非法应抛可读错误)", () => {
     d.tiles[0].tradeMult = [2, 4];
     expect(() => loadMap(d)).toThrow(/tradeMult/);
   });
-  it("缺 maxLevel(等级上限逐图必配,不再默认 3)", () => {
+  it("缺 maxLevel(等级上限逐图必配)", () => {
     const d = base();
     delete d.maxLevel;
     expect(() => loadMap(d)).toThrow(/maxLevel/);

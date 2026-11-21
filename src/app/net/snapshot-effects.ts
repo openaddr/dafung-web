@@ -187,14 +187,16 @@ export class SnapshotEffects {
             (event) => event.kind === "duelSigns" && event.forVictory === true,
           );
           const cutoff = duelStart < 0 ? presentation.length : duelStart;
-          await present(presentation.slice(0, cutoff), this.fxSink, isCurrent);
-          if (
-            isCurrent() &&
-            liveEvents.some(
+          const prelude = presentation.slice(0, cutoff);
+          await present(prelude, this.fxSink, isCurrent);
+          if (isCurrent()) {
+            const hasCityIncome = liveEvents.some(
               (event) => event.kind === "cashChanged" && event.reason === "city-income",
-            )
-          ) {
-            await delay(FX.cashFlyMs);
+            );
+            if (hasCityIncome) await delay(FX.cashFlyMs);
+            else if (prelude.some((event) => event.kind === "cityBurned")) {
+              await delay(FX.burningPulseMs);
+            }
           }
           await present(presentation.slice(cutoff), this.fxSink, isCurrent);
         }

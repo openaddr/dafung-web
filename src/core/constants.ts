@@ -18,6 +18,12 @@ export const TOKEN_SLOT_OFFSETS = [
 // 城池最小间距:防止 UI 重叠(地图装载校验阈值)
 export const MIN_TILE_DIST = 80;
 
+/** 城池持有等级范围。地图上限必须落在此范围内。 */
+export const INITIAL_CITY_LEVEL = 1;
+export const MAX_CITY_LEVEL = 4;
+/** 燃烧约定的每次扣防间隔，单位为实际回合。 */
+export const CITY_BURN_TURNS = 3;
+
 // 名将(英雄):每人最多持有的数量
 export const HERO_CAPACITY = 3;
 

@@ -17,7 +17,7 @@ import { netWorth } from "./networth";
 import { guidePriceOf, isSkillBook } from "./treasures";
 import { skillBookLearners } from "./roster";
 import { beginGameEventBatch } from "./game-events";
-import { STAMINA_CASH_RATE } from "./constants";
+import { INITIAL_CITY_LEVEL, STAMINA_CASH_RATE } from "./constants";
 import type { BankruptcyAsset } from "./bankruptcy";
 import { sellValueOf } from "./economy";
 
@@ -188,8 +188,8 @@ interface ReactionDecision {
 const EST_COUNTER_CARD_VALUE = 100;
 const EST_SKIP_TURN_LOSS = 200;
 
-/** 火烧连营单城火烧估损(#1389):seat 名下 tileIndex 这座城的火焰损失——等级>0=降 1 级
- *  的变卖价差;0 级非都城=整城变卖价(烧毁失城回无主);0 级都城=0(打空即停免疫,
+/** 火烧连营单城火烧估损(#1389):seat 名下 tileIndex 这座城的火焰损失——等级高于 1 级时估为降一级
+ *  的变卖价差;1 级非都城=整城变卖价;1 级都城=0(打空即停免疫,
  *  不可失 #226 同口径)。城不在 seat 名下=状态机 bug,响亮炸(零兜底)。 */
 function cityFireLossEstimate(engine: GameEngine, seat: number, tileIndex: number): number {
   const propId = engine.board.at(tileIndex).propertyId;
@@ -199,9 +199,8 @@ function cityFireLossEstimate(engine: GameEngine, seat: number, tileIndex: numbe
   if (h == null) throw new Error(`bot 估损:城 ${propId} 不在座位 ${seat} 名下(状态机 bug)`); // 零兜底
   const cd = engine.catalog.get(propId);
   if (!cd) throw new Error(`bot 估损:城 ${propId} 不在 catalog(数据 bug)`); // 零兜底
-  if (h.level > 0) return cd.valueByLevel[h.level] - cd.valueByLevel[h.level - 1];
-  const capPropId = engine.board.at(me.capitalIndex)?.propertyId;
-  return h.propertyId === capPropId ? 0 : cd.valueByLevel[0];
+  if (h.level > INITIAL_CITY_LEVEL) return sellValueOf(cd, h.level) - sellValueOf(cd, h.level - 1);
+  return tileIndex === me.capitalIndex ? 0 : sellValueOf(cd, h.level);
 }
 
 /** 被公告锦囊落在 seat 头上的估损(#281 净值贪心,确定性不掷骰):火烧连营(#1389

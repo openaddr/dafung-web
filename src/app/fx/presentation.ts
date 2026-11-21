@@ -151,6 +151,7 @@ export type PresentationEvent =
     }
   /** 语义音效(得宝/破产/扩军/买入等):不绑定视觉的纯声音事件。 */
   | { kind: "sound"; event: SoundEvent }
+  | { kind: "cityBurned"; tileIndex: number; marks: number }
   /** 城池宣告(ADR-0015):扩军/易主的可播放信号,字段 = 引擎结算留痕
    *  (PropertyChangeTrace)原样透传。消费端双路:sink.announceTileChange 经 fxStore
    *  下发 nonce 驱动 Tile 重播宣告动画;与 sealStamped 等"浮层印"不同,宣告动效
@@ -246,6 +247,7 @@ export interface FxSink {
   /** 城池宣告(ADR-0015):扩军/易主时驱动 Tile 重播宣告动画。生产实现经 fxStore
    *  下发 nonce(Tile 订阅,nonce 变化即重挂重播);测试实现录制供断言序列。 */
   announceTileChange(ev: PropertyChangedEvent): void;
+  showBurningPulse(tileIndex: number, marks: number): void;
   /** 金钱飞行归账(#764):进账从来源棋子格飞一枚铜钱至收账者席位格,抵达拍席位
    *  现金数字 bump。同步下发(无编排时长,飞行动画 CSS 自走、内联注入时长);
    *  同批同席位合并在 present 侧完成,sink 只收合并后的单枚。 */

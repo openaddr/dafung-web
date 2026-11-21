@@ -156,12 +156,13 @@ function benignTile(e: GameEngine): number {
   if (t == null || t.propertyId == null) throw new Error("无中性床位(地图缺无主普城)");
   const def = e.catalog.get(t.propertyId)!;
   other.properties.push({
+    burning: null,
     damageRanking: [],
     propertyId: def.id,
     group: def.group,
-    level: 0,
+    level: 1,
     maxLevel: def.maxLevel,
-    defense: 5,
+    defense: 40,
   });
   return t.index;
 }
@@ -432,7 +433,7 @@ describe("机遇引擎行为", () => {
     ]);
   });
 
-  it("赐城宣告(#719 四件套):传檄而定 grantCity 产 propertyGranted 事件,得城者 Lv.0 入册", () => {
+  it("赐城宣告(#719 四件套):传檄而定 grantCity 产 propertyGranted 事件,得城者 Lv.1 入册", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -451,9 +452,9 @@ describe("机遇引擎行为", () => {
       effect: { kind: "grantCity", fallbackCash: 300 },
     });
     expect(r).toBe("settled");
-    expect(mover.properties).toHaveLength(count0 + 1); // 无主城入册 Lv.0(棋盘无主城恒有,地图守卫)
+    expect(mover.properties).toHaveLength(count0 + 1); // 无主城入册 Lv.1(棋盘无主城恒有,地图守卫)
     const granted = mover.properties[mover.properties.length - 1]!;
-    expect(granted.level).toBe(0);
+    expect(granted).toMatchObject({ level: 1, defense: 40 });
     // 事件半边:propertyGranted(赐城易主宣告,fx=城池宣告动画)
     const events = e.snapshot().events;
     expect(
@@ -1159,6 +1160,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     )!;
     const d = MAP.catalog.get(tile.propertyId)!;
     e.players[seat].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: d.id,
       group: d.group,
@@ -1255,15 +1257,15 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     const seat = e.activeIndex;
     const mover = e.activePlayer;
     mover.reputation = BAD_BIAS_REP; // 与钉种探针同偏置:霉运重仓
-    const p1 = giveProperty(e, seat, 2);
-    const p2 = giveProperty(e, seat, 1); // 两座有级房产:全自动结算逐城齐降
+    const p1 = giveProperty(e, seat, 3);
+    const p2 = giveProperty(e, seat, 2); // 两座有级房产:全自动结算逐城齐降
     mover.stamina = 6; // #789 后粮道被劫体力 −10:垫 6 保归 0
     landOnFreeTile(e); // 真实抽取路径:抽中粮道被劫 → 体力 6−10 → 0
     expect(e.turnPhase).toBe("Roll"); // 全自动耗竭已 endTurn 收尾,占用落格不进购地决策
     expect(e.pendingLand).toBeNull(); // 购地决策未弹出
     expect(testEngine(e).logText().includes("可购(")).toBe(false); // 城池结算确实被跳过
-    expect(mover.properties.find((h) => h.propertyId === p1)!.level).toBe(1); // 2 → 1
-    expect(mover.properties.find((h) => h.propertyId === p2)!.level).toBe(0); // 1 → 0 封底
+    expect(mover.properties.find((h) => h.propertyId === p1)!.level).toBe(2); // 3 → 2
+    expect(mover.properties.find((h) => h.propertyId === p2)!.level).toBe(1); // 2 → 1
     expect(mover.skipTurns).toBe(2); // 休整两回合
     expect(mover.resting).toBe(true);
     expect(mover.stamina).toBe(0); // 归 0 当刻不回血
@@ -1328,7 +1330,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const mover = e.activePlayer;
-    mover.stamina = 20; // 仅 0 级都城在册:耗竭无可用选项 → 自动执行(无可处置)
+    mover.stamina = 20; // 仅 1 级都城在册:耗竭无可用选项 → 自动执行(无可处置)
     const cash0 = mover.cash;
     const turn0 = e.turnNumber;
     testEngine(e).placeActive(benignTile(e));
@@ -1355,6 +1357,7 @@ describe("耗竭自动收口 × 出牌阶段(#452):唯一选项自动路径不�
     )!;
     const d = MAP.catalog.get(tile.propertyId)!;
     e.players[seat].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: d.id,
       group: d.group,

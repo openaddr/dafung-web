@@ -33,8 +33,8 @@ it("火攻即时发银，同一城主升降级后保留伤害，相同点数按�
   const e = makeEngine();
   const city = "prop-jinyang";
   const owner = e.players[1];
-  grantProperty(e, 1, city, 1);
-  setDefense(e, 1, city, 1);
+  grantProperty(e, 1, city, 2);
+  setDefense(e, 1, city, 10);
 
   armPhase(e, { phase: "Playing", activeIndex: 2, turnPhase: "AwaitingJinnang" });
   placePlayer(e, 2, 1);
@@ -42,9 +42,9 @@ it("火攻即时发银，同一城主升降级后保留伤害，相同点数按�
   e.submitCommand({ type: "useHeroSkill", heroId: "zhouyu", skillId: "huogong" });
   e.submitCommand({ type: "useHeroSkill", heroId: "zhouyu", skillId: "huogong", targets: [1] });
   expect(findHolding(owner, city)).toMatchObject({
-    level: 0,
-    defense: 5,
-    damageRanking: [{ seat: 2, damage: 1 }],
+    level: 1,
+    defense: 40,
+    damageRanking: [{ seat: 2, damage: 10 }],
   });
 
   expect(upgrade(owner, MAP.catalog.get(city)!).status).toBe("Ok");
@@ -54,22 +54,22 @@ it("火攻即时发银，同一城主升降级后保留伤害，相同点数按�
   e.submitCommand({ type: "useHeroSkill", heroId: "zhugeliang", skillId: "huogong" });
   e.submitCommand({ type: "useHeroSkill", heroId: "zhugeliang", skillId: "huogong", targets: [1] });
   expect(findHolding(owner, city)).toMatchObject({
-    level: 1,
-    defense: 3,
+    level: 2,
+    defense: 20,
     damageRanking: [
-      { seat: 2, damage: 1 },
-      { seat: 0, damage: 1 },
+      { seat: 2, damage: 10 },
+      { seat: 0, damage: 10 },
     ],
   });
-  expect(e.players.map((p) => p.cash)).toEqual([10036, 10000, 10036]);
+  expect(e.players.map((p) => p.cash)).toEqual([10050, 10000, 10050]);
 });
 
 it("火烧连营在识破保护的城之外结算，己城仅扣防，敌城伤害发银", () => {
   const e = makeEngine();
   armPhase(e, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
-  grantProperty(e, 1, "prop-jinyang", 0);
-  grantProperty(e, 0, "prop-youzhou", 0);
-  grantProperty(e, 2, "prop-liaodong", 0);
+  grantProperty(e, 1, "prop-jinyang", 1);
+  grantProperty(e, 0, "prop-youzhou", 1);
+  grantProperty(e, 2, "prop-liaodong", 1);
   giveJinnang(e, 0, ["火烧连营"]);
   giveJinnang(e, 1, ["识破诡计"]);
 
@@ -84,16 +84,16 @@ it("火烧连营在识破保护的城之外结算，己城仅扣防，敌城伤�
   });
 
   expect(findHolding(e.players[1], "prop-jinyang")).toMatchObject({
-    defense: 5,
+    defense: 40,
     damageRanking: [],
   });
   expect(findHolding(e.players[0], "prop-youzhou")).toMatchObject({
-    defense: 4,
+    defense: 32,
     damageRanking: [],
   });
   expect(findHolding(e.players[2], "prop-liaodong")).toMatchObject({
-    defense: 4,
-    damageRanking: [{ seat: 0, damage: 1 }],
+    defense: 32,
+    damageRanking: [{ seat: 0, damage: 8 }],
   });
-  expect(e.players.map((p) => p.cash)).toEqual([10036, 10000, 10000]);
+  expect(e.players.map((p) => p.cash)).toEqual([10040, 10000, 10000]);
 });

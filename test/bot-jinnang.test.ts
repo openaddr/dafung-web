@@ -207,19 +207,19 @@ describe("锦囊 bot 策略(#148)", () => {
         .map((t) => t.index),
     );
     const isFree = (i: number) => freeSet.has(((i % n) + n) % n);
-    // 中心 A:连续三格无主,前方 1、2 格种 seat1 的 Lv2 城(2 命中,等级和 4;无主中心=锚)
+    // 中心 A:连续三格无主,前方 1、2 格种 seat1 的 Lv3 城(2 命中,等级和 6;无主中心=锚)
     const centerA = e.board.tiles
       .map((t) => t.index)
       .find((i) => isFree(i) && isFree(i + 1) && isFree(i + 2))!;
-    for (const off of [1, 2]) grantProperty(e, 1, at(centerA + off).propertyId!, 2); // 满防 3
+    for (const off of [1, 2]) grantProperty(e, 1, at(centerA + off).propertyId!, 3); // 满防 20
     // 中心 B/C:各前方 1 格一座城(1 命中)——C 的城等级更高(等级和序在 B 前)
     const far = e.board.tiles
       .map((t) => t.index)
       .filter((i) => isFree(i) && isFree(i + 1) && Math.abs(i - centerA) > 4);
     const centerC = far[0]!;
     const centerB = far.find((i) => Math.abs(i - centerC) > 4)!;
-    grantProperty(e, 2, at(centerC + 1).propertyId!, 2);
-    grantProperty(e, 1, at(centerB + 1).propertyId!, 1);
+    grantProperty(e, 2, at(centerC + 1).propertyId!, 3);
+    grantProperty(e, 1, at(centerB + 1).propertyId!, 2);
     const intent = jinnangIntent(e, "火烧连营");
     expect(intent.use).toBe(true);
     expect(intent.targets![0]).toBe(centerA); // 命中数最多(2 > 1)
@@ -230,10 +230,10 @@ describe("锦囊 bot 策略(#148)", () => {
     botAct(e);
     expect(
       e.players[1].properties.find((h) => h.propertyId === at(centerA + 1).propertyId),
-    ).toMatchObject({ level: 2, defense: 2 });
+    ).toMatchObject({ level: 3, defense: 12 });
     expect(
       e.players[1].properties.find((h) => h.propertyId === at(centerA + 2).propertyId),
-    ).toMatchObject({ level: 2, defense: 2 });
+    ).toMatchObject({ level: 3, defense: 12 });
     expect(user.jinnangHand).toEqual([]);
     expect(e.turnPhase).toBe("Roll");
 
@@ -241,7 +241,7 @@ describe("锦囊 bot 策略(#148)", () => {
     const e2 = prepared(42, SEATS3);
     for (let seat = 0; seat < 3; seat++) {
       const capId = e2.board.at(e2.players[seat].capitalIndex).propertyId!;
-      setDefense(e2, seat, capId, 0); // 0 级都城打空=火焰免疫(#1386)
+      setDefense(e2, seat, capId, 0); // 1 级都城打空=火焰免疫(#1386)
     }
     expect(jinnangIntent(e2, "火烧连营")).toEqual({ use: false, targets: [] });
   });

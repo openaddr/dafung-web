@@ -135,12 +135,13 @@ function marchCorridor(e: GameEngine, moverSeat: number, die: number) {
 /** 给 seat 一座非都城房产(城主布场;等级不参与本包任一判定)。 */
 function grantCity(e: GameEngine, seat: number, propertyId: string) {
   e.players[seat].properties.push({
+    burning: null,
     damageRanking: [],
     propertyId,
     group: "a",
-    level: 2,
-    maxLevel: 3,
-    defense: 3,
+    level: 3,
+    maxLevel: 4,
+    defense: 20,
   });
 }
 
@@ -272,19 +273,20 @@ describe("技能扩展内容包:引擎行为(命中/不命中/数值/受益人)"
     )!;
     const propId = tile.propertyId!; // find 谓词已保证非空,窄化给断言用
     me.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: propId,
       group: "a",
-      level: 2,
-      maxLevel: 3,
-      defense: 3,
+      level: 3,
+      maxLevel: 4,
+      defense: 20,
     });
     testEngine(e).placeActive(tile.index);
     testEngine(e).land();
     expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: propId });
     const rep0 = me.reputation;
     e.upgradeProperty(); // 扩军真实路:PropertyUpgraded 派发点
-    expect(me.properties.find((h) => h.propertyId === propId)?.level).toBe(3);
+    expect(me.properties.find((h) => h.propertyId === propId)?.level).toBe(4);
     expect(me.reputation).toBe(rep0 + 10);
     // scope self:他人城升级不触发
     e.dispatchMoment("PropertyUpgraded", {
@@ -292,7 +294,7 @@ describe("技能扩展内容包:引擎行为(命中/不命中/数值/受益人)"
       propertyId: propId,
     });
     expect(me.reputation).toBe(rep0 + 10);
-    // 未满级(1→2)不触发:新局同布场,级别降为 1
+    // 未满级(2→3)不触发:新局同布场,级别降为 2
     const e2 = prepared();
     const me2 = e2.activePlayer;
     arm(e2, e2.players.indexOf(me2), "caoren", "shengshi");
@@ -305,17 +307,18 @@ describe("技能扩展内容包:引擎行为(命中/不命中/数值/受益人)"
         e2.findOwner(t.propertyId!) == null,
     )!;
     me2.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: tile2.propertyId!,
       group: "a",
-      level: 1,
-      maxLevel: 3,
-      defense: 4,
+      level: 2,
+      maxLevel: 4,
+      defense: 30,
     });
     testEngine(e2).placeActive(tile2.index);
     testEngine(e2).land();
     const rep2 = me2.reputation;
-    e2.upgradeProperty(); // 1→2,未满级
+    e2.upgradeProperty(); // 2→3,未满级
     expect(me2.reputation).toBe(rep2);
   });
 

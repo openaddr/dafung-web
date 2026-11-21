@@ -47,7 +47,7 @@ function fixtureData(tiles: object[]) {
     targetNetWorth: 30000,
     startingCash: 10000,
     startingTreasures: 0, // 存量用例隔离:不发起手珍宝(#1100)
-    maxLevel: 3,
+    maxLevel: 4,
     resupply: 1000,
     tiles: tiles.map((t) => ({ ...t })), // 逐格浅拷贝:非法值用例的直写改动不泄给共享 FULL_TILES
   };
@@ -79,12 +79,13 @@ function reseatCapital(e: GameEngine, seat: number, tileIndex: number): void {
   p.properties = p.properties.filter((h) => h.propertyId !== oldId);
   const def = e.catalog.get(e.board.at(tileIndex).propertyId!)!;
   p.properties.push({
+    burning: null,
     damageRanking: [],
     propertyId: def.id,
     group: def.group,
-    level: 0,
+    level: 1,
     maxLevel: def.maxLevel,
-    defense: 5,
+    defense: 40,
   });
   p.capitalIndex = tileIndex;
   p.position = tileIndex;
@@ -197,12 +198,13 @@ describe("事件城落格链(#824)", () => {
     const mover = e.activePlayer;
     const owner = e.players[e.players.findIndex((p) => p !== mover)]; // 城主=非活跃座位
     owner.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: "tile-1",
       group: "a",
-      level: 0,
-      maxLevel: 3,
-      defense: 5,
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
     });
     owner.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" });
     landActiveOn(e, 1);
@@ -217,12 +219,13 @@ describe("事件城落格链(#824)", () => {
     finishSetup(e);
     const p = e.activePlayer;
     p.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: "tile-1",
       group: "a",
-      level: 0,
-      maxLevel: 3,
-      defense: 5,
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
     });
     const cash0 = p.cash;
     landActiveOn(e, 1);

@@ -13,8 +13,11 @@
 // 播放器经 sink 在 fxStore 下发宣告 nonce,本组件订阅重播;组件内不做 props diff 自触发
 // (R3 的 key={level} 重挂 / useOwnerChangeFlash 上一值钩子已删)。动画 keyframes 本体
 // 仍在 board.css/fx.css,CSS 只承担「怎么播」。
-import { memo } from "react";
+import { memo, useId } from "react";
 import type { TileEvent } from "@core/board";
+import { fullDefenseOf } from "@core/defense";
+import { CITY_BURN_TURNS } from "@core/constants";
+import { CityBurningBadge } from "./CityBurningBadge";
 import { Theme, playerColor, rgba } from "@core/theme";
 import { useFxStore } from "@app/fx/fxStore";
 import { Building } from "./tile-building";
@@ -177,119 +180,81 @@ function NamePlaque({
   );
 }
 
-// ── 等级珠(铭牌左下小金珠):城池等级的唯一视觉通道(2026-10-17 拷问定案;旧名「档位珠」
-// 与「城池档位」撞词根,2026-11-01 随 ADR-0042 改名,#916)──
-// 珠数=等级,Lv0 无珠,满级珠外加金框加冕——变卖价/都城补给/坐地起价全挂在等级上,
-// 珠数是离散计数、总览可数不依赖识字。旧双通道(城楼加层+壹贰叁小印)总览双双不可辨
-// (加层每级高差 5px 竖向预算顶死、16px 暗印只是一粒点),随本批退役(GLOSSARY「等级珠」,旧名「档位珠」已入墓碑)。
-// #96/ADR-0015 出场落位:bv-pip-grow(board.css,scale 0.6→1)只挂最末一颗新珠——扩军
-// 宣告 nonce(replay=growNonce>0)经 key 重挂时末珠生长、其余珠静置;快照恢复(nonce=0)
-// 全组静置不播。
-/** 相邻珠心距;满贯金框宽随它推导(level × PIP_STEP + 6),改距不双改。 */
-const PIP_STEP = 10;
-
-export function CityLevelPips({
-  tileIndex,
-  level,
-  maxLevel,
-}: {
-  tileIndex: number;
-  level: number;
-  maxLevel: number;
-}) {
+/** 等级徽记与选都序号使用同一锚点，扩军宣告重播徽记落位。 */
+export function CityLevelBadge({ tileIndex, level }: { tileIndex: number; level: number }) {
   const growNonce = useFxStore((s) => s.announces.get(tileIndex)?.level ?? 0);
-  return <LevelPips key={growNonce} level={level} maxLevel={maxLevel} replay={growNonce > 0} />;
-}
-
-function LevelPips({
-  level,
-  maxLevel,
-  replay,
-}: {
-  level: number;
-  maxLevel: number;
-  replay: boolean;
-}) {
-  const full = level >= maxLevel;
   return (
-    <g className="bv-level-pips" transform="translate(-41 31)" data-level={level}>
-      {/* 满贯金框:满级加冕记(补给 ×(Lv+1) 到顶/变卖顶价),与珠同锚只包珠行 */}
-      {full ? (
+    <g transform="translate(-41 31)" data-level={level} pointerEvents="none">
+      <g key={growNonce} className={growNonce > 0 ? "bv-level-badge-grow" : undefined}>
         <rect
-          className="bv-pips-crown"
-          x={-8}
-          y={-8}
-          width={level * PIP_STEP + 6}
-          height={16}
-          rx={3}
-          fill="none"
-          stroke={rgba(Theme.goldBright)}
-          strokeWidth={1.3}
-        />
-      ) : null}
-      {Array.from({ length: level }, (_, i) => (
-        <circle
-          key={i}
-          className={i === level - 1 && replay ? "bv-pip bv-pip-grow" : "bv-pip"}
-          cx={i * PIP_STEP}
-          cy={0}
-          r={4.5}
-          fill={rgba(Theme.gold)}
-          stroke={rgba(Theme.bgDeep, 0.8)}
+          x={-9}
+          y={-9}
+          width={18}
+          height={18}
+          rx={2}
+          fill={rgba(Theme.goldBright)}
+          stroke={rgba(Theme.bgDeep)}
           strokeWidth={0.8}
         />
-      ))}
+        <text
+          y={1}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontFamily="var(--font-wenkai)"
+          fontSize={16}
+          fill={rgba(Theme.bgDeep)}
+        >
+          {level}
+        </text>
+      </g>
     </g>
   );
 }
 
-// ── 防御盾排(#1391 T5,规格 #1386):城池格常显防御值的唯一视觉通道 ──
-// 盾数=当前防御值(满值表单源 core/defense.ts:0级5/1级4/2级3/3级2),受损即缩短
-// 排列(不设暗槽:满值本就随等级反向、等级珠已示满值,暗槽是双通道复读,§4.6/§5.2
-// 一格一语言);打空都城 absorbed 态=整排耗尽(排标记在、盾件为零)。与等级珠同行
-// 同基线(格底行 y=31):防御与等级反向联动(珠少盾多、珠多盾少),右缘锚定向左生长
-// 恰好填珠让出的空,同行互不侵(最挤组合 Lv3:金框右缘 -13,盾行左缘 3)。盾形=
-// 小盾牌(用户点名盾牌,非圆点),盾色单源 Theme.defenseShield(#1391);无主城整排
-// 不渲染(免疫,无防御语义)。选择器契约:data-shield-row 排标记 + data-defense 当前值
-// + data-shield 盾件(testids 单源 cityShieldRow/cityShield,e2e 数盾断言通道)。
-/** 相邻盾心距;盾行锚在右、向左生长(translate 逐盾左移),改距不双改。 */
-const SHIELD_STEP = 8;
-
-/** 盾牌轮廓(局部坐标,以心为原点):直顶平肩、弧腹收尖的小盾牌,6.8×9.4。 */
+/** 沿用小盾牌的直顶平肩和弧腹尖底。 */
 const SHIELD_PATH = "M -3.4 -4 H 3.4 V -0.5 C 3.4 2.2 2 3.9 0 4.6 C -2 3.9 -3.4 2.2 -3.4 -0.5 Z";
+const SHIELD_X = 1;
+const SHIELD_Y = 29;
 
-function ShieldRow({ defense }: { defense: number }) {
+function CityDefenseShield({ defense, level }: { defense: number; level: number }) {
+  const fillId = useId();
+  const fillBoundary = 1 - defense / fullDefenseOf(level);
+  const blue = rgba(Theme.defenseShield);
   return (
-    <g
-      className="bv-shield-row"
-      transform="translate(18 31)"
-      data-shield-row
-      data-defense={defense}
-    >
-      {Array.from({ length: defense }, (_, i) => (
-        <g key={i} className="bv-shield" data-shield transform={`translate(${-i * SHIELD_STEP} 0)`}>
-          <path
-            d={SHIELD_PATH}
-            fill={rgba(Theme.defenseShield)}
-            stroke={rgba(Theme.bgDeep, 0.8)}
-            strokeWidth={0.8}
-          />
-          {/* 内沿发丝线(纸色低透):小尺寸下勾出盾形空腔,与圆点区分 */}
-          <path
-            d="M -2.1 -2.6 H 2.1 V -0.4 C 2.1 1.3 1.3 2.5 0 3.2 C -1.3 2.5 -2.1 1.3 -2.1 -0.4 Z"
-            fill="none"
-            stroke={rgba(Theme.paper, 0.35)}
-            strokeWidth={0.7}
-          />
-        </g>
-      ))}
+    <g data-shield data-defense={defense} pointerEvents="none">
+      <defs>
+        <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset={fillBoundary} stopColor={rgba(Theme.bgDeep)} />
+          <stop offset={fillBoundary} stopColor={blue} />
+        </linearGradient>
+      </defs>
+      <path
+        d={SHIELD_PATH}
+        transform={`translate(${SHIELD_X} ${SHIELD_Y}) scale(3.1)`}
+        fill={`url(#${fillId})`}
+        stroke={blue}
+        strokeWidth={0.5}
+      />
+      <text
+        x={SHIELD_X}
+        y={SHIELD_Y + 3}
+        textAnchor="middle"
+        fontFamily="var(--font-wenkai)"
+        fontSize={18}
+        fill={rgba(Theme.paper)}
+        stroke={rgba(Theme.bgDeep)}
+        strokeWidth={1.5}
+        paintOrder="stroke"
+      >
+        {defense}
+      </text>
     </g>
   );
 }
 
 // ── X4(#23) 选都候选序号印:壹/贰/叁(引擎滚出顺序=第几候选)──
 // 16×16 圆角方 + 笔书大字,描金变体:玄墨底金框金字——与「宝」印同读作
-// 「印=特殊标记」;候选期无主无等级,与等级珠同锚点(-41 31)而时段互斥(Setup 期
+// 「印=特殊标记」;候选期无主无等级,与等级徽记同锚点(-41 31)而时段互斥(Setup 期
 // Lv 恒 0),不叠印;总览下是一粒金边方点,与脉冲金圈构成「三城仪式组」,放大后读序号
 // (「我选叁号城」)。
 const CANDIDATE_SEAL_CHARS = ["", "壹", "贰", "叁"] as const;
@@ -328,7 +293,7 @@ function CandidateSeal({ order }: { order: number }) {
 // 尺寸:两字印 32×20/单字 11 号(逻辑单位,TILE_SCALE 2.6 屏上单字 ~29px,
 // 844×390 实测可读)。锚点 (49,-34):-6° 旋转后底左角 (34,-22.4) 让开右侧木匾
 // 顶缘(-22),顶右角 (64,-45.6) 出格顶一线=悬挂印旧观感;旗组 #842 已收回左上,
-// 右上角唯此一印不撞木匾(右侧)/王旗(上方)/等级珠(左下)。
+// 右上角唯此一印不撞木匾(右侧)/王旗(上方)/等级徽记(左下)。
 // #665/#828 收编导出:印文词表与徽标组件供 test/tile-badge.test.tsx 同源断言
 // (词表漂移/普通城无徽标在组件级钉住,不靠 e2e)。
 export const TILE_EVENT_BADGES: Record<TileEvent, string> = {
@@ -375,13 +340,7 @@ export function EventSeal({ event }: { event: TileEvent }) {
 // 触发源是播放器/sink 而非组件自 diff(易主在破产清算/变卖等结算点发生,props diff
 // 无法区分「易主」与「终态加载」)。
 
-export const Tile = memo(function Tile({
-  tile,
-  tier,
-  maxLevel,
-  state,
-  rasterSource = false,
-}: TileProps) {
+export const Tile = memo(function Tile({ tile, tier, state, rasterSource = false }: TileProps) {
   const isCapital = state.capitalColorIndex != null;
   const ownerRgb = state.ownerColorIndex != null ? playerColor(state.ownerColorIndex) : null;
   const showsPlinth = ownerRgb === null && !isCapital;
@@ -409,7 +368,7 @@ export const Tile = memo(function Tile({
       data-city-target={(!rasterSource && state.isCityTarget) || undefined}
       data-city-target-selected={(!rasterSource && state.isCityPicked) || undefined}
       transform={cityTransform(tile.position)}
-      opacity={rasterSource ? undefined : cityOpacity({ tile, tier, maxLevel, state }, false)}
+      opacity={rasterSource ? undefined : cityOpacity({ tile, tier, state }, false)}
     >
       {/* 命中高亮底 + 都城/焦点光晕 */}
       <circle
@@ -476,27 +435,25 @@ export const Tile = memo(function Tile({
       {/* 建筑整体 scale 1.08(都城):以城脚(y=12)为锚,只向上长高="微抬升",
             不踩进底座;无主/领地保持原尺度。 */}
       <g transform={isCapital ? "translate(0 12) scale(1.08) translate(0 -12)" : undefined}>
-        {/* 程序化建筑(档位形制,ADR-0042):等级与归属都不上楼——等级归等级珠、
+        {/* 程序化建筑(档位形制,ADR-0042):等级与归属都不上楼——等级归等级徽记、
               归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯规格)。 */}
         <Building tier={tier} />
       </g>
       {/* #96/ADR-0015 易主流光已迁 fx 宿主(架构体检 B 批):SVG 内逐帧流光在底板
             栅格空间重绘城区,现经 FxSink→fxStore.ownFlashes→FxLayer mini-svg 出底板,
-            几何(铭牌顶缘 ±46/-39 线)与流光语义原样平移;Tile 只余扩军珠 nonce。 */}
+            几何(铭牌顶缘 ±46/-39 线)与流光语义原样平移;Tile 只余等级徽记 nonce。 */}
       {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
       <NamePlaque name={tile.name} capital={isCapital} ownerRgb={ownerRgb} />
-      {/* 等级珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
-            无主无等级(Setup 期 Lv 恒 0),两标记互斥不叠印;扩军宣告 nonce 为 key,
-            重挂时末珠生长(ADR-0015),平时/快照恢复静置。 */}
-      {!rasterSource && state.level > 0 ? (
-        <CityLevelPips tileIndex={tile.index} level={state.level} maxLevel={maxLevel} />
+      {!rasterSource && state.level !== null ? (
+        <CityLevelBadge tileIndex={tile.index} level={state.level} />
       ) : null}
-      {/* 防御盾排(#1391 T5):有主城常显,与等级珠同基线不同段(左珠右盾);无主城
-            state.defense 为 null 整排不渲染(免疫,无防御语义)。 */}
-      {state.defense != null ? <ShieldRow defense={state.defense} /> : null}
-      {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):16×16 方章描金变体,
-            Setup 期与等级珠时段互斥(候选期无主恒 Lv0 无珠);非决策席位同见
-            (仪式感是全座的,可点只在本地)。 */}
+      {state.level !== null && state.defense !== null ? (
+        <CityDefenseShield defense={state.defense} level={state.level} />
+      ) : null}
+      {!rasterSource && state.fireMarks > 0 ? (
+        <CityBurningBadge marks={state.fireMarks} fill={state.fireProgress / CITY_BURN_TURNS} />
+      ) : null}
+      {/* 选都候选序号印与有主城等级徽记共用锚点。 */}
       {state.capitalCandidateOrder != null ? (
         <CandidateSeal order={state.capitalCandidateOrder} />
       ) : null}
@@ -563,7 +520,7 @@ export const Tile = memo(function Tile({
             深描边压住轮廓,保证浅色玩家色旗面在漆木深卡上也可辨。
             #842:旗组从格框外路面(原 x 40..62 越框压箭羽)收回格内左上角压角——
             框缘内缩 6px(旗顶 -38=上缘内缩 6、旗杆 -46=左缘内缩 6),杆脚落在檐角
-            线上(下檐尖 ±40,-21),不压箭羽/等级珠(左下)/宝印(右上)/木匾(右侧)。 */}
+            线上(下檐尖 ±40,-21),不压箭羽/等级徽记(左下)/宝印(右上)/木匾(右侧)。 */}
       {!isCapital && ownerRgb ? (
         <g className="bv-tile-owner-flag">
           <line

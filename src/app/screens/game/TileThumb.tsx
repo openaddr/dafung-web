@@ -1,5 +1,5 @@
 // 名下城池清单行首缩略图(#623,规格 #621):非交互真实格缩略图——独立 <svg> 壳
-// 原样复用棋盘 <Tile>,与棋盘逐像素同源:竖排城名木匾、等级珠(满级金框)、
+// 原样复用棋盘 <Tile>,与棋盘逐像素同源:竖排城名木匾、等级徽记、
 // 都城金台座+王旗、特殊城池两字徽标、持有者燕尾旗全是 Tile 自带渲染,本件零特判。
 // 签条、渐变和包围盒与 Canvas 城池贴图共用单源，缩略图以原图稿按当前状态绘制。
 import type { TileDef } from "@core/board";
@@ -18,7 +18,7 @@ export function TileThumb({
 }: {
   /** 棋盘格定义(board.at(tileIndex),含格心 position)。 */
   tile: TileDef;
-  /** 城表定义(catalog.get(propertyId)):tier 选建筑形制(ADR-0042)、maxLevel 判满级金框。 */
+  /** 城表定义(catalog.get(propertyId)):tier 选建筑形制(ADR-0042)。 */
   def: PropertyDef;
   /** 棋盘格 index(都城判定 + Tile 内部 id/data-tile)。 */
   tileIndex: number;
@@ -32,7 +32,7 @@ export function TileThumb({
   const state: TileVisualState = {
     ownerColorIndex: holding?.colorIndex ?? null,
     ownerGuohao: holding?.guohao ?? null,
-    level: holding?.level ?? 0,
+    level: holding ? holding.level : null,
     capitalColorIndex: capitalP?.colorIndex ?? null,
     capitalGuohao: capitalP?.guohao ?? null,
     isActive: false,
@@ -41,9 +41,9 @@ export function TileThumb({
     capitalCandidateOrder: null,
     isCityTarget: false, // 缩略图无目标段语境(#1388 T2 状态字段显式归零,非兜底)
     isCityPicked: false,
-    // 防御盾排随持有账面(#1391 T5,与棋盘同源):无主=null 整排不渲染(非兜底,
-    // 无防御语义是机制语义本尊)
     defense: holding != null ? holding.defense : null,
+    fireMarks: holding?.burning?.marks ?? 0,
+    fireProgress: holding?.burning?.progress ?? 0,
   };
   return (
     <svg
@@ -60,7 +60,7 @@ export function TileThumb({
       ].join(" ")}
       className="city-ledger-thumb pointer-events-none block"
     >
-      <Tile tile={tile} tier={def.tier} maxLevel={def.maxLevel} state={state} />
+      <Tile tile={tile} tier={def.tier} state={state} />
     </svg>
   );
 }

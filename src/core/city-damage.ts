@@ -5,8 +5,8 @@ import { formatMoney } from "./money";
 import type { PropertyHolding } from "./model";
 import type { MomentContinuation } from "./moment-stages";
 
-/** 即时奖励取地图购入价的每点比例。 */
-export const IMMEDIATE_DAMAGE_REWARD_PERCENT = 2;
+/** 国库为每点实际敌城伤害发放的即时奖励，单位为两。 */
+export const CITY_IMMEDIATE_REWARD_PER_POINT = 5;
 
 export function cityPriceShare(def: PropertyDef, percent: number): number {
   return Math.round((def.purchasePrice * percent) / 100);
@@ -26,22 +26,27 @@ export function recordCityDamage(holding: PropertyHolding, seat: number, damage:
   holding.damageRanking = next;
 }
 
-export function awardCityDamage(
+export interface CityReward {
+  seat: number;
+  amount: number;
+  reason: string;
+  description: string;
+  audit: string;
+}
+
+export function planCityDamageReward(
   g: GameEngine,
   seat: number,
-  propertyId: string,
   tileIndex: number,
   damage: number,
-): void {
-  const property = g.catalog.get(propertyId);
-  if (property === null) throw new Error(`即时奖励:城 ${propertyId} 不在目录`);
-  const amount = cityPriceShare(property, IMMEDIATE_DAMAGE_REWARD_PERCENT) * damage;
-  awardCityReward(g, seat, propertyId, {
-    amount,
+): CityReward {
+  return {
+    seat,
+    amount: CITY_IMMEDIATE_REWARD_PER_POINT * damage,
     reason: "city-damage",
     description: `对「${g.board.at(tileIndex).name}」造成 ${damage} 点伤害，得即时奖励`,
     audit: `cityDamageReward damage=${damage}`,
-  });
+  };
 }
 
 /** 城池奖励先到账，再派发得银时机。 */
@@ -49,7 +54,7 @@ export function awardCityReward(
   g: GameEngine,
   seat: number,
   propertyId: string,
-  reward: { amount: number; reason: string; description: string; audit: string },
+  reward: Omit<CityReward, "seat">,
   continuation?: MomentContinuation,
 ): void {
   const { amount, reason, description, audit } = reward;

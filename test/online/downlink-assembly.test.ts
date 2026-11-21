@@ -208,7 +208,20 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "insufficient-cash" },
   { kind: "propertyGranted", propertyId: "xuchang" }, // #719 机遇赐城
-  { kind: "propertyDamaged", propertyId: "xuchang", level: 0, defense: 4, damageRanking: [] },
+  {
+    kind: "propertyDamaged",
+    propertyId: "xuchang",
+    level: 1,
+    defense: 32,
+    burning: null,
+    damageRanking: [],
+  },
+  {
+    kind: "propertyBurningChanged",
+    propertyId: "xuchang",
+    burning: { sourceSeat: 1, marks: 2, progress: 0, ignitedTurn: 1 },
+  },
+  { kind: "propertyBurningTicked", propertyId: "xuchang", marks: 3 },
   { kind: "cashChanged", delta: -200, reason: "stock", counterpartSeat: 1 },
   { kind: "treasureGained", treasureId: "golden-seal-1" },
   { kind: "treasureSold", treasureId: "golden-seal-1", amount: 800 },
@@ -251,8 +264,15 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "turnSkipped" },
   { kind: "encounterTriggered", encounterId: "shibei", tier: "中性" },
   { kind: "encounterChoice", encounterId: "shibei", choiceIndex: 0 },
-  { kind: "exhaustionResolved", downgradedPropertyIds: ["luoyang"], restTurns: 2 },
+  {
+    kind: "exhaustionResolved",
+    sourceSeat: 1,
+    downgradedPropertyIds: ["luoyang"],
+    lostPropertyIds: [],
+    restTurns: 2,
+  },
   { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1, 2] },
+  { kind: "jinnangPhaseResumed", turnPhase: "Roll" },
   { kind: "reactionAnswered", use: false },
   { kind: "reactionFailed", windowKind: "march", tileIndex: 3, aRoll: 2, bRoll: 5 },
   {

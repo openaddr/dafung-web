@@ -70,12 +70,12 @@ function hero(id: string, name: string) {
   };
 }
 
-/** 给玩家塞一座非都城的可变卖城(catalog 里 valueByLevel 齐全的普通城),返回其 Lv.0 变卖价。 */
-function giveSellableCity(e: GameEngine, p: Player): { propId: string; lv0Value: number } {
+/** 给玩家塞一座非都城的可变卖城(catalog 里 valueByLevel 齐全的普通城),返回其 Lv.1 变卖价。 */
+function giveSellableCity(e: GameEngine, p: Player): { propId: string; levelOneValue: number } {
   const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) === null)!;
   const def = e.catalog.get(tile.propertyId!)!;
-  grantProperty(e, e.players.indexOf(p), def.id, 0);
-  return { propId: def.id, lv0Value: def.valueByLevel[0] };
+  grantProperty(e, e.players.indexOf(p), def.id, 1);
+  return { propId: def.id, levelOneValue: def.valueByLevel[0] };
 }
 
 describe("破产清算", () => {
@@ -244,7 +244,7 @@ describe("破产清算", () => {
     const foreign = e.board.at(e.players.find((q) => q !== p)!.capitalIndex).propertyId!;
     const book = { kind: "treasure" as const, id: "book" };
     const property = { kind: "property" as const, id: city.propId };
-    const debt = 20 + 200 + city.lv0Value;
+    const debt = 20 + 200 + city.levelOneValue;
     e.payOrLiquidate(p, null, debt);
     const holdings = structuredClone(p.properties);
     for (const assets of [
@@ -322,13 +322,13 @@ describe("破产清算", () => {
 });
 
 describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
-  it("卖一座城恰好清债:按展示价(Lv.0 变卖价)入账后尚欠归零,免破产", () => {
+  it("卖一座城恰好清债:按展示价(Lv.1 变卖价)入账后尚欠归零,免破产", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
     const city = giveSellableCity(e, p);
-    const price = sellValueOf(e.catalog.get(city.propId)!, 0); // 与卷轴展示同一函数
-    p.cash = 0; // 现金归零:欠恰一座 Lv.0 城的变卖价(仅城可卖 → 仍进清算)
+    const price = sellValueOf(e.catalog.get(city.propId)!, 1); // 与卷轴展示同一函数
+    p.cash = 0; // 现金归零:欠恰一座 Lv.1 城的变卖价(仅城可卖 → 仍进清算)
     e.payOrLiquidate(p, null, price);
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
     // 尚欠(卷轴口径)= max(0, debt − cash)

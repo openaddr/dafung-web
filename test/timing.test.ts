@@ -864,12 +864,13 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     const entries = recordMomentCtx(e);
     landActiveOn(e, tile.index);
@@ -933,12 +934,13 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     mover.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     const entries = recordMomentCtx(e);
     landActiveOn(e, tile.index); // 落己城 → 扩军抉择
@@ -947,7 +949,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const pu = entries.filter((x) => x.moment === "PropertyUpgraded");
     expect(pu).toHaveLength(1);
     expect(pu[0].ctx).toEqual({ subject: e.players.indexOf(mover), propertyId: def.id });
-    expect(mover.properties.find((h) => h.propertyId === def.id)!.level).toBe(1);
+    expect(mover.properties.find((h) => h.propertyId === def.id)!.level).toBe(2);
   });
 
   it("HeroRecruited:招贤选定名将后派发(subject=招贤者,ctx.heroId);落都城补给另派 CashGained", () => {
@@ -992,12 +994,13 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     e.players[ownerSeat].treasures.push({ id: "trade-t", name: "交割测试宝", level: 1 });
     const price = 100; // guidePriceOf(1) = 100 分
@@ -1025,7 +1028,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
       { subject: ownerSeat, amount: price }, // 卖家收款
     ]);
     expect(e.players[visitorSeat].treasures.some((t) => t.id === "trade-t")).toBe(true); // 宝已交割
-    expect(e.players[ownerSeat].properties.find((h) => h.propertyId === def.id)!.level).toBe(1); // 城已升级
+    expect(e.players[ownerSeat].properties.find((h) => h.propertyId === def.id)!.level).toBe(2); // 城已升级
   });
 
   it("买家破产退宝:交割三时机(TreasureSold/TradeSettled/交割 TreasureGained)与收款不触发;PlayerBankrupt→GameOver(群雄尽灭)", () => {
@@ -1036,12 +1039,13 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     e.players[ownerSeat].treasures.push({ id: "trade-t", name: "退宝测试宝", level: 1 });
     e.players[visitorSeat].cash = 0; // 买家无现金且无可变卖资产(仅都城)→ 清算确认
@@ -1070,12 +1074,13 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     e.players[ownerSeat].treasures.push({ id: "escrow-t", name: "托管测试宝", level: 3 }); // 指导价=交涉价
     e.players[visitorSeat].cash = 10; // 付不起 → 变卖自救
@@ -1115,12 +1120,13 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     e.players[ownerSeat].treasures.push({ id: "trade-t", name: "联动测试宝", level: 1 }); // 指导价 100
     const price = guidePriceOf(1);
@@ -1180,12 +1186,13 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     mover.cash = 50; // 欠 200 → 差 150,进清算
     mover.treasures.push({ id: "bk-t", name: "自救宝", level: 1 }); // 变卖得 100,仍差 50
     mover.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: extraDef.id,
       group: extraDef.group,
-      level: 0,
+      level: 1,
       maxLevel: extraDef.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: null };
@@ -1535,6 +1542,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[owner].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
@@ -1623,7 +1631,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const trace = e.propertyChanges[e.propertyChanges.length - 1];
     expect(trace).toEqual({
       tileIndex: e.tileIndexOfProperty(gained!.propertyId),
-      level: 0,
+      level: 1,
       ownerColorIndex: mover.colorIndex,
       levelChanged: false,
       ownerChanged: true,
@@ -1631,12 +1639,12 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     expect(e.findOwner(gained!.propertyId)).toBe(mover); // 印章/涟漪表现通路可走到
   });
 
-  it("PropertyDemolished/Lost:火烧连营锦囊路调用侧按果逐城派(subject=城主,tileIndex 随行;#1389 城指向),火攻主动技路不派", () => {
-    // ① 火烧连营·降级(火源=Lv2 城,防御摆到 1 再挨 1 点归零降级)→ PropertyDemolished,挂调用侧
+  it("城池实际降级、攻陷各派对应时机，纯扣防只更新防御", () => {
+    // ① 火烧连营·降级(火源=3 级城，防御摆到 1 再挨火烧归零降级)→ PropertyDemolished,挂调用侧
     const e = makeEngine(1);
     finishSetup(e);
     const victimSeat = 1 - e.activeIndex;
-    const city = giveCity(e, victimSeat, 2);
+    const city = giveCity(e, victimSeat, 3);
     stripForwardOwners(e, city.tileIndex); // 前方 1、2 格清成无主(免于火焰,不扰「恰一条」断言)
     setDefense(e, victimSeat, city.propertyId, 1);
     armJinnang(e, ["火烧连营"]);
@@ -1645,17 +1653,17 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     e.resolveJinnang("火烧连营", [city.tileIndex]); // 城指向:提交火源城 tileIndex(#1389)
     expect(
       e.players[victimSeat].properties.find((h) => h.propertyId === city.propertyId)!.level,
-    ).toBe(1);
+    ).toBe(2);
     expect(entries.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
       { subject: victimSeat, propertyId: city.propertyId, tileIndex: city.tileIndex },
     ]);
     expect(entries.filter((x) => x.moment === "PropertyLost")).toHaveLength(0);
 
-    // ② 火烧连营·失城(0 级非都城,防御摆到 1 再挨 1 点烧毁失城)→ PropertyLost,挂调用侧
+    // ② 火烧连营·失城(1 级非都城，防御摆到 1 再挨火烧烧毁失城)→ PropertyLost,挂调用侧
     const e2 = makeEngine(1);
     finishSetup(e2);
     const victimSeat2 = 1 - e2.activeIndex;
-    const city2 = giveCity(e2, victimSeat2, 0);
+    const city2 = giveCity(e2, victimSeat2, 1);
     stripForwardOwners(e2, city2.tileIndex);
     setDefense(e2, victimSeat2, city2.propertyId, 1);
     armJinnang(e2, ["火烧连营"]);
@@ -1670,7 +1678,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     ]);
     expect(entries2.filter((x) => x.moment === "PropertyDemolished")).toHaveLength(0);
 
-    // ③ 火攻主动技(#1388 城目标域):城照样损,时机不派(主动技结算内不派发,既有口径)
+    // ③ 火攻主动技(#1388 城目标域):只扣防，未降级或攻陷
     const e3 = makeEngine(1);
     finishSetup(e3);
     armHero(
@@ -1679,7 +1687,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
       HEROES.find((h) => h.id === "zhouyu")!,
     );
     const victimSeat3 = 1 - e3.activeIndex;
-    const city3 = giveCity(e3, victimSeat3, 2);
+    const city3 = giveCity(e3, victimSeat3, 3);
     placePlayer(e3, e3.activeIndex, city3.tileIndex); // 布距离:站上目标城格(distance=0 ≤ 射程 5)
     armJinnang(e3, []);
     const entries3 = recordMomentCtx(e3);
@@ -1687,31 +1695,31 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     e3.resolveHeroSkill("zhouyu", "huogong", [city3.tileIndex]); // 城目标域:提交目标城 tileIndex
     expect(
       e3.players[victimSeat3].properties.find((h) => h.propertyId === city3.propertyId)!.defense,
-    ).toBe(fullDefenseOf(2) - 1); // 城照样损(1 点火焰伤害吸收,等级不动)
+    ).toBe(fullDefenseOf(3) - 10);
     expect(
       entries3.filter((x) => x.moment === "PropertyDemolished" || x.moment === "PropertyLost"),
-    ).toHaveLength(0); // 钉住口径:两调用点分别挂,单点与火攻路都不派
+    ).toHaveLength(0);
 
     // ④ 耗竭·降级(全自动按其果逐城派)→ PropertyDemolished
     const e4 = makeEngine(1);
     finishSetup(e4);
     const mover4 = e4.activePlayer;
     const seat4 = e4.players.indexOf(mover4);
-    const city4 = giveCity(e4, seat4, 1);
+    const city4 = giveCity(e4, seat4, 2);
     const entries4 = recordMomentCtx(e4);
     const r4 = e4.settleEncounter(mover4, enc({ kind: "cash", delta: 0, staminaDelta: -100 }));
     expect(r4).toBe("exhausted");
-    expect(mover4.properties.find((h) => h.propertyId === city4.propertyId)!.level).toBe(0);
+    expect(mover4.properties.find((h) => h.propertyId === city4.propertyId)!.level).toBe(1);
     expect(entries4.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
       { subject: seat4, propertyId: city4.propertyId, tileIndex: city4.tileIndex },
     ]);
 
-    // ⑤ 无来源耗竭攻陷未受过敌方伤害的 0 级城，失城时机记原城主。
+    // ⑤ 无来源耗竭攻陷未受过敌方伤害的 1 级城，失城时机记原城主。
     const e5 = makeEngine(1);
     finishSetup(e5);
     const mover5 = e5.activePlayer;
     const seat5 = e5.players.indexOf(mover5);
-    const city5 = giveCity(e5, seat5, 0);
+    const city5 = giveCity(e5, seat5, 1);
     const entries5 = recordMomentCtx(e5);
     const r5 = e5.settleEncounter(mover5, enc({ kind: "cash", delta: 0, staminaDelta: -100 }));
     expect(r5).toBe("exhausted");
@@ -1722,7 +1730,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     expect(entries5.filter((x) => x.moment === "PropertyDemolished")).toHaveLength(0);
     expect(e5.propertyChanges).toContainEqual({
       tileIndex: city5.tileIndex,
-      level: 0,
+      level: null,
       ownerColorIndex: null,
       levelChanged: false,
       ownerChanged: true,
