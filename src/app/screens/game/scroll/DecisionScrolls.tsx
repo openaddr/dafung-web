@@ -12,7 +12,8 @@ import { useState } from "react";
 import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
 import { cityIncomeOf } from "@core/city-income";
-import type { PropertyDef } from "@core/economy";
+import { INITIAL_CITY_LEVEL } from "@core/constants";
+import { cityTradeTermsOf, sellValueOf, type PropertyDef } from "@core/economy";
 import { isOncePerGameEncounter, type EncounterTier } from "@core/encounters";
 import { formatMoney } from "@core/money";
 import { encounterArt } from "@app/components/card/encounter-art";
@@ -173,9 +174,13 @@ export function BuyDecisionScroll({
           买不买得起 0.5 秒可读(余绿/差红);#566 符号语义照旧(付得起记「余」) */}
       <AffordRow cash={cash} need={property.purchasePrice} purpose="purchase" />
       {/* 复用城池详情的等级表:买地的权衡核心是这座城往后怎么生钱——交易加成(未来
-          坐地卖珍宝的定价参数)与逐级变卖价(破产跑道)。#92:买入即落 Lv.0,高亮购入档 */}
+          坐地卖珍宝的定价参数)与逐级变卖价(破产跑道)。#92:买入即落 Lv.1,高亮购入档 */}
       {showValues ? (
-        <ValueTable property={property} second="sell" highlight={{ level: 0, label: "购入档" }} />
+        <ValueTable
+          property={property}
+          second="sell"
+          highlight={{ level: INITIAL_CITY_LEVEL, label: "购入档" }}
+        />
       ) : (
         <button
           type="button"
@@ -219,15 +224,8 @@ export function UpgradeDecisionScroll({
   // 产出,UI 不再重推 level >= maxLevel(升级免费,无银两门槛)。选项缺失 = 相位与
   // 注册表不符(数据 bug),非空断言让其抛(零兜底)。
   const upgrade = choices.find((o) => o.id === "upgrade")!;
-  // 变化行 = 当前级 → 下一级(下标 = 等级;直接下标,board-loader 已校验各数组
-  // 长度 = maxLevel+1,越界 = 数据 bug 炸出)。#671:等级的真实收益是交易加成上涨
-  // (坐地要价变贵)+ 变卖价上涨——两条都摆出来;补给是地图固定值不随级,无变化行。
-  const multNow = property.tradeMult[level];
-  const multNext = property.tradeMult[level + 1];
-  const addNow = property.tradeAdd[level];
-  const addNext = property.tradeAdd[level + 1];
-  const valueNow = property.valueByLevel[level];
-  const valueNext = property.valueByLevel[level + 1];
+  const current = cityTradeTermsOf(property, level);
+  const next = upgrade.available ? cityTradeTermsOf(property, level + 1) : null;
   // #729:扩军/按兵不动两钮钉底(同购地),变化行与价值表留正文井
   return (
     <BannerShell
@@ -255,13 +253,15 @@ export function UpgradeDecisionScroll({
       <p className="m-1 text-center text-sm text-paper-dim">
         「{tileName}」<span className="text-xs">{tierLabel}</span> 当前 Lv.{level} · 扩军免费
       </p>
-      {upgrade.available ? (
+      {next !== null ? (
         <>
           <p className="m-1 text-center text-sm text-paper-dim">
-            交易加成 ×{multNow} +{formatMoney(addNow)} → ×{multNext} +{formatMoney(addNext)}
+            交易加成 ×{current.multiplier} +{formatMoney(current.addition)} → ×{next.multiplier} +
+            {formatMoney(next.addition)}
           </p>
           <p className="m-1 text-center text-sm text-paper-dim">
-            变卖价 {formatMoney(valueNow)} → {formatMoney(valueNext)}
+            变卖价 {formatMoney(sellValueOf(property, level))} →{" "}
+            {formatMoney(sellValueOf(property, level + 1))}
           </p>
         </>
       ) : (

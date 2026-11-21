@@ -33,7 +33,7 @@ interface CitySprite {
 function sameArt(a: CityScene, b: CityScene) {
   if (a.tile !== b.tile || a.tier !== b.tier) return false;
   if (a.state === b.state) return true;
-  // 等级珠在其演出层更新。压暗和灰化合成时应用，可复用原城池贴图。
+  // 等级徽记在演出层更新，防御盾填充也取当前等级。压暗和灰化在合成时应用。
   const left = a.state;
   const right = b.state;
   return (
@@ -44,6 +44,7 @@ function sameArt(a: CityScene, b: CityScene) {
     left.isActive === right.isActive &&
     left.capitalCandidateOrder === right.capitalCandidateOrder &&
     left.defense === right.defense &&
+    left.level === right.level &&
     left.isCityPicked === right.isCityPicked
   );
 }

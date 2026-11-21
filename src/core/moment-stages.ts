@@ -1,26 +1,34 @@
 import type { GameEngine, TurnPhase } from "./authority";
+import { settleCityDamageMoments, type CityDamageContinuation } from "./city-damage-moments";
 import { openSkillChoice, type PendingSkillChoice } from "./choices";
 import { EFFECTS } from "./effects";
 import {
   resumeEncounterStamina,
   resumeExhaustion,
+  resumeExhaustionCityDamage,
   resumeStaminaDamage,
   type EncounterStaminaContinuation,
+  type ExhaustionCityDamageContinuation,
   type ExhaustionContinuation,
   type StaminaDamageContinuation,
 } from "./encounter-flow";
 import { emitGameEvent, noteMomentEvent } from "./game-events";
 import { heroById } from "./heroes";
+import { resumeFireWall, settleJinnangExit, type FireWallContinuation } from "./jinnang-execution";
 import type { HeroSlot } from "./roster";
 import { isTriggerSkill, skillById, type TriggerSkill } from "./skills";
 import { MOMENT_STAGES, type GameMoment, type MomentCtx, type MomentStage } from "./timing";
 import { resumeTurnEnd, type TurnEndContinuation } from "./turn-end";
 
 export type MomentContinuation =
+  | CityDamageContinuation
   | EncounterStaminaContinuation
   | ExhaustionContinuation
+  | ExhaustionCityDamageContinuation
   | StaminaDamageContinuation
   | TurnEndContinuation
+  | FireWallContinuation
+  | { kind: "jinnangExit" }
   | { kind: "staminaUpdated" };
 
 interface MomentSkill {
@@ -70,10 +78,15 @@ export function startMoment(
 export function resumePendingMoment(g: GameEngine): void {
   const pending = g.pendingMoment;
   if (pending == null) throw new Error("时机续接缺少待决状态");
-  const { moment, ctx, turnPhase, skills, nextSkillIndex, continuation } = pending;
+  const { moment, ctx, turnPhase, skills, nextSkillIndex, continuation: cursor } = pending;
   g.pendingMoment = null;
   g.turnPhase = turnPhase;
-  if (runMoment(g, moment, ctx, skills, nextSkillIndex, continuation) === "suspended") return;
+  if (runMoment(g, moment, ctx, skills, nextSkillIndex, cursor) === "suspended") return;
+  if (cursor.kind === "cityDamage") {
+    const { originalOwnerSeat, settlement, after, nextReward } = cursor;
+    if (settleCityDamageMoments(g, originalOwnerSeat, settlement, after, nextReward)) return;
+  }
+  const continuation = cursor.kind === "cityDamage" ? cursor.after : cursor;
   switch (continuation.kind) {
     case "encounterStamina":
       resumeEncounterStamina(g, ctx, continuation);
@@ -81,12 +94,22 @@ export function resumePendingMoment(g: GameEngine): void {
     case "exhaustion":
       resumeExhaustion(g, ctx.subject, continuation);
       break;
+    case "exhaustionCityDamage":
+      resumeExhaustionCityDamage(g, continuation);
+      break;
     case "staminaDamage":
       resumeStaminaDamage(g, ctx, continuation);
+      break;
+    case "jinnangExit":
+      settleJinnangExit(g, true);
+      break;
+    case "fireWall":
+      resumeFireWall(g, continuation);
       break;
     case "staminaUpdated":
       break;
     case "turnEnd":
+    case "cityBurning":
     case "roundEnd":
     case "cityIncome":
       resumeTurnEnd(g, continuation);

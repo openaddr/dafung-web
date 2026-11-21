@@ -99,7 +99,7 @@ function jinnangLine(
   };
 }
 
-/** 城池宣告事件(ADR-0015):归属色/等级按提取时刻引擎态解析(建城/购地=Lv0 新归属、
+/** 城池宣告事件(ADR-0015):归属色/等级按提取时刻引擎态解析(建城/购地=Lv1 新归属、
  *  扩军=新等级、变卖回无主=无归属;引擎态即权威,不需要事件另带)。 */
 function propertyChangedEvent(
   engine: GameEngine,
@@ -108,7 +108,7 @@ function propertyChangedEvent(
 ): PropertyChangedEvent {
   const tileIndex = tileOfProperty(engine, propertyId);
   let ownerColorIndex: number | null = null;
-  let level = 0;
+  let level: number | null = null;
   for (const p of engine.players) {
     const h = findHolding(p, propertyId);
     if (h != null) {
@@ -304,19 +304,18 @@ function voidLineTarget(
   return announce.userSeat; // two-others(全计作废)与 self(落空)都指使用者
 }
 
-/** 耗竭宣告文案:按 exhaustionResolved 的降级清单派生「外敌乘虚而入」版(城名按
- *  棋盘查得);无降级城(全 0 级/无房产)为纯休整版。 */
+/** 耗竭宣告使用归零一击的来源、降级和失城清单，城名按棋盘查得。 */
 function exhaustionTextOf(
   engine: GameEngine,
   ev: Extract<GameEvent, { kind: "exhaustionResolved" }>,
 ): string {
-  if (ev.downgradedPropertyIds.length > 0) {
-    const names = ev.downgradedPropertyIds
-      .map((id) => `「${tileNameOfProperty(engine, id)}」`)
-      .join("、");
-    return `体力耗竭!外敌乘虚而入,${names}降 1 级;卧床休整两回合`;
-  }
-  return "体力耗竭,卧床休整两回合";
+  const source = ev.sourceSeat === null ? "无" : guohaoOf(engine, ev.sourceSeat);
+  const cities = [
+    ...ev.downgradedPropertyIds.map((id) => `「${tileNameOfProperty(engine, id)}」降 1 级`),
+    ...ev.lostPropertyIds.map((id) => `「${tileNameOfProperty(engine, id)}」失守`),
+  ];
+  const damage = cities.length > 0 ? `，外敌乘虚而入，${cities.join("、")}` : "";
+  return `体力耗竭（伤害来源：${source}）${damage}，卧床休整两回合`;
 }
 
 // ─────────────────────── 主提取 ───────────────────────
@@ -454,6 +453,14 @@ export function extractBatchEvents(
           events_.push(
             propertyChangedEvent(engine, ev.asset.id, { levelChanged: false, ownerChanged: true }),
           );
+        break;
+      }
+      case "propertyBurningTicked": {
+        events_.push({
+          kind: "cityBurned",
+          tileIndex: tileOfProperty(engine, ev.propertyId),
+          marks: ev.marks,
+        });
         break;
       }
       case "assetTransferred": {
@@ -722,8 +729,7 @@ export function extractBatchEvents(
         break;
       }
       case "exhaustionResolved": {
-        // 耗竭宣告(全自动结算的因果事件):文案由降级清单派生(exhaustionTextOf),
-        // 与 delta 无关的状态宣告。
+        // 来源和城损由权威结算事件提供，休整宣告与体力增减浮字分开。
         const seat = eventSeat(engine, ev);
         events_.push(textFloater(engine, seat, exhaustionTextOf(engine, ev)));
         break;

@@ -15,6 +15,7 @@ import {
   placePlayer,
   setDefense,
   setJinnangUsedTags,
+  setStamina,
 } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 
@@ -45,9 +46,12 @@ function burnCity(e: GameEngine, seat: number): void {
 
 it("火攻打空后先达到同伤害者接城，最后一击独得攻陷奖励，事件批同步归属和分银", () => {
   const e = makeEngine();
-  grantProperty(e, 2, CITY, 2);
-  setDefense(e, 2, CITY, 1);
-  for (const seat of [4, 4, 4, 4, 4, 1, 0, 1, 0]) burnCity(e, seat);
+  grantProperty(e, 2, CITY, 1);
+  setDefense(e, 2, CITY, 10);
+  // 种攻陷前的伤害记录，银两断言只核对下面的实际火攻。
+  for (const seat of [4, 4, 4, 4, 4, 1, 0, 1, 0]) {
+    applyCityDamage(e, e.players[2], CITY, 1, e.players[seat]);
+  }
   armBankrupt(e, 4);
 
   armPhase(e, { activeIndex: 3, turnPhase: "AwaitingJinnang" });
@@ -62,14 +66,14 @@ it("火攻打空后先达到同伤害者接城，最后一击独得攻陷奖励�
   for (const engine of [e, replica]) {
     expect(engine.findOwner(CITY)).toBe(engine.players[1]);
     expect(engine.players[1].properties).toEqual([
-      expect.objectContaining({ propertyId: CITY, level: 0, defense: 5, damageRanking: [] }),
+      expect.objectContaining({ propertyId: CITY, level: 1, defense: 40, damageRanking: [] }),
     ]);
     expect(engine.players.map((player) => player.cash)).toEqual([
-      10240, 10240, 10000, 10270, 10300,
+      10120, 10120, 10000, 10215, 10000,
     ]);
   }
   expect(e.gameEvents.filter((event) => event.kind === "cashChanged")).toMatchObject([
-    { seat: 3, reason: "city-damage", delta: 60 },
+    { seat: 3, reason: "city-damage", delta: 5 },
     { seat: 3, reason: "city-conquest", delta: 150 },
     { seat: 3, reason: "city-conquest-pool", delta: 60 },
     { seat: 0, reason: "city-conquest-pool", delta: 120 },
@@ -80,8 +84,10 @@ it("火攻打空后先达到同伤害者接城，最后一击独得攻陷奖励�
 it("己方火烧攻陷时按存活敌方的既有伤害接城，从当前席依次分满 300 两", () => {
   const e = makeEngine();
   grantProperty(e, 2, CITY, 1);
-  setDefense(e, 2, CITY, 3);
-  for (const seat of [0, 1, 3, 0, 1, 3, 3]) burnCity(e, seat);
+  setDefense(e, 2, CITY, 8);
+  for (const seat of [0, 1, 3, 0, 1, 3, 3]) {
+    applyCityDamage(e, e.players[2], CITY, 1, e.players[seat]);
+  }
 
   burnCity(e, 2);
 
@@ -91,17 +97,19 @@ it("己方火烧攻陷时按存活敌方的既有伤害接城，从当前席依�
     { seat: 0, reason: "city-conquest-pool", delta: 86 },
     { seat: 1, reason: "city-conquest-pool", delta: 85 },
   ]);
-  expect(e.players.map((player) => player.cash)).toEqual([10206, 10205, 10000, 10309, 10000]);
+  expect(e.players.map((player) => player.cash)).toEqual([10086, 10085, 10000, 10129, 10000]);
 });
 
 it("攻陷伤害来自另一座位时，攻陷奖金和分池从当前行动诸侯起发放", () => {
   const e = makeEngine();
-  grantProperty(e, 2, CITY, 0);
+  grantProperty(e, 2, CITY, 1);
   setDefense(e, 2, CITY, 2);
-  burnCity(e, 0);
+  setStamina(e, 2, 1);
+  armPhase(e, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+  applyCityDamage(e, e.players[2], CITY, 1, e.players[0]);
 
   beginGameEventBatch(e);
-  applyCityDamage(e, e.players[2], CITY, 1, e.players[1]);
+  e.damageStamina(2, 1, 1);
 
   const rewards = e.gameEvents.filter(
     (event) => event.kind === "cashChanged" && event.reason !== "city-damage",

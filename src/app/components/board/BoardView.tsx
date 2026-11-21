@@ -1,5 +1,6 @@
-// 棋盘装配：底板 Canvas，触达和等级珠走轻量 SVG，棋子与特效走独立宿主。
+// 棋盘装配：底板 Canvas，触达和等级徽记走轻量 SVG，棋子与特效走独立宿主。
 import { useMemo, useRef } from "react";
+import type { PropertyHolding } from "@core/model";
 import { getControllerContext } from "@app/controllers/registry";
 import { AmbientLayer } from "./AmbientLayer";
 import { computeFitView } from "./board-viewport";
@@ -23,9 +24,9 @@ export interface BoardPlayer {
   /** 都城主路索引(-1=未选都)。 */
   capitalIndex: number;
   isBankrupt: boolean;
-  /** 持有城(棋盘只用 propertyId/level/defense 推导归属色、等级珠与防御盾排)。
+  /** 持有城(棋盘只用 propertyId/level/defense 推导归属色、等级徽记与防御盾)。
    */
-  properties: { propertyId: string; level: number; defense: number }[];
+  properties: Pick<PropertyHolding, "propertyId" | "level" | "defense" | "burning">[];
 }
 
 interface BoardViewProps {
@@ -84,7 +85,9 @@ function holdingsEqual(a: Map<string, TileHolding>, b: Map<string, TileHolding>)
       ha.colorIndex !== hb.colorIndex ||
       ha.guohao !== hb.guohao ||
       ha.level !== hb.level ||
-      ha.defense !== hb.defense
+      ha.defense !== hb.defense ||
+      ha.burning?.marks !== hb.burning?.marks ||
+      ha.burning?.progress !== hb.burning?.progress
     )
       return false;
   }
@@ -165,7 +168,7 @@ export function BoardView({
       const next: TileVisualState = {
         ownerColorIndex: holding ? holding.colorIndex : null,
         ownerGuohao: holding ? holding.guohao : null,
-        level: holding?.level ?? 0,
+        level: holding ? holding.level : null,
         capitalColorIndex: capitalP ? capitalP.colorIndex : null,
         capitalGuohao: capitalP ? capitalP.guohao : null,
         isActive: activeTileIndex === tile.index,
@@ -174,8 +177,10 @@ export function BoardView({
         capitalCandidateOrder: candidateOrder.get(tile.index) ?? null,
         isCityTarget: cityTargetTiles?.has(tile.index) ?? false,
         isCityPicked: cityPickedTileIndex === tile.index,
-        // 防御盾排直读(#1391 T5):有主=持有账面当前值,无主=null 整排不渲染
+        // 防御盾直读持有账面当前值，无主城无防御值。
         defense: holding ? holding.defense : null,
+        fireMarks: holding?.burning?.marks ?? 0,
+        fireProgress: holding?.burning?.progress ?? 0,
       };
       const stable = prev?.get(tile.index);
       if (stable !== undefined && tileStateEqual(stable, next)) {
@@ -207,7 +212,7 @@ export function BoardView({
     () =>
       board.tiles.map((tile) => {
         const def = catalog.get(tile.propertyId)!;
-        return { tile, tier: def.tier, maxLevel: def.maxLevel, state: tileStates.get(tile.index)! };
+        return { tile, tier: def.tier, state: tileStates.get(tile.index)! };
       }),
     [board.tiles, catalog, tileStates],
   );

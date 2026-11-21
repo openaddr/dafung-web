@@ -144,9 +144,7 @@ export const TESTIDS = {
   cityTargetAny: "[data-city-target]",
   cityTargetPickedAny: "[data-city-target-selected]",
 
-  /** 城池盾排挂 data-shield-row/data-defense,盾件挂 data-shield;无主城不渲染,都城零盾仍留排。
-   *  TileThumb 复用同件,定位棋盘须带 #board 作用域。 */
-  cityShieldRow: (tileIndex: number) => `#board [data-city-art="${tileIndex}"] [data-shield-row]`,
+  /** 蓝盾挂 data-shield，data-defense 为当前防御值。TileThumb 复用同件。 */
   cityShield: (tileIndex: number) => `#board [data-city-art="${tileIndex}"] [data-shield]`,
 
   // ── 手牌架 ──

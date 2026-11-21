@@ -283,7 +283,7 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
       { kind: "giveJinnang", seat: 3, cards: [] },
     ]);
     const { tileIndex, propertyId } = plantableCityTile(engine);
-    plant({ kind: "grantProperty", seat: 0, propertyId, level: 1 });
+    plant({ kind: "grantProperty", seat: 0, propertyId, level: 2 });
     plant({ kind: "armPhase", activeIndex: 1 });
     for (const op of huoshaoWindow(1, tileIndex)) plant(op, 3950);
     const cityName = engine.board.at(tileIndex).name;
@@ -342,7 +342,7 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     const holding = engine
       .findOwner(propertyId)!
       .properties.find((h) => h.propertyId === propertyId)!;
-    expect(holding.defense).toBe(4);
+    expect(holding.defense).toBe(30);
   });
 
   it("横征开窗先报受影响人数，改选席位后只保护最后选中的诸侯", async () => {

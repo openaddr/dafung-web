@@ -6,8 +6,8 @@ export interface TileVisualState {
   ownerColorIndex: number | null;
   /** 持有者国号(小旌旗文字)。 */
   ownerGuohao: string | null;
-  /** 该城等级(0=未持有)。 */
-  level: number;
+  /** 持有等级，无主城为 null。 */
+  level: number | null;
   /** 是否某玩家都城 + 都城主 colorIndex(王旗)。 */
   capitalColorIndex: number | null;
   capitalGuohao: string | null;
@@ -28,17 +28,16 @@ export interface TileVisualState {
   /** 目标段选城·选中定靶(#1388 T2,#417 同族):实金双环停持(呼吸停、恒定不闪),
    *  挂 data-city-target-selected。 */
   isCityPicked: boolean;
-  /** 当前防御值(#1391 T5,满值表单源 core/defense.ts):有主城由上游显式下发
-   *  (holding.defense),盾排常显、盾数=当前值;null=无主城不渲染盾排(免疫,
-   *  无防御语义)。必填(#585 口径:漏传在类型层面不可表达——有主城漏传=静默不渲染,
-   *  是说谎不是缺省;上游 BoardView/TileThumb 恒显式写键)。 */
+  /** 有主城的当前防御值(holding.defense)，上游显式传值。无主城为 null。 */
   defense: number | null;
+  /** 火焰标记与当前周期已完成的实际回合。 */
+  fireMarks: number;
+  fireProgress: number;
 }
 
 export interface CityScene {
   tile: TileDef;
   tier: CityTier;
-  maxLevel: number;
   state: TileVisualState;
 }
 

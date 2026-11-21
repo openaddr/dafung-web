@@ -40,6 +40,22 @@ import { testEngine } from "../../src/core/testing";
 import { anchorMarches, extractBatchEvents } from "../../src/app/fx/event-extract";
 import { present, resetFxOrchestration } from "../../src/app/fx/orchestrator";
 import { createMemorySink } from "../../src/app/fx/sinks";
+
+it("燃烧到期的实心提示在同批全屏骰签收场后可见", async () => {
+  resetFxOrchestration();
+  const sink = createMemorySink();
+  await present(
+    [
+      { kind: "cityBurned", tileIndex: 1, marks: 2 },
+      { kind: "diceRolled", die: 4 },
+    ],
+    sink,
+  );
+  expect(sink.calls).toEqual([
+    { op: "dice", die: 4 },
+    { op: "burningPulse", tileIndex: 1, marks: 2 },
+  ]);
+});
 import type { MarchSegmentFrames, PresentationEvent } from "../../src/app/fx/presentation";
 
 describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系)", () => {

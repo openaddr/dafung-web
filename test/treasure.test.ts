@@ -54,12 +54,13 @@ function setupOwnerChoice(e: GameEngine, defId: string) {
   const ownerIdx = e.players.indexOf(owner);
   const def = e.catalog.get(defId)!;
   owner.properties.push({
+    burning: null,
     damageRanking: [],
     propertyId: defId,
     group: def.group,
-    level: 0,
+    level: 1,
     maxLevel: def.maxLevel,
-    defense: 5,
+    defense: 40,
   });
   owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
   e.treasureVisitor = { def, ownerIdx };
@@ -91,11 +92,11 @@ describe("珍宝系统", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-jieting")!;
-    expect(def.tradeMult).toEqual([2, 3, 4, 7]); // 奇城逐级(Lv0-3;#827 再平衡 Lv2 5→4),下标 = 等级
+    expect(def.tradeMult).toEqual([2, 3, 4, 7]); // 奇城逐级(Lv1–4; #827 再平衡 Lv3 5→4),首项为 1 级
     const { owner, mover, guide } = setupOwnerChoice(e, "prop-jieting");
     const moverCash0 = mover.cash;
     const ownerCash0 = owner.cash;
-    const price = guide * 2; // Lv0 tradeMult=2(奇城)
+    const price = guide * 2; // Lv1 tradeMult=2(奇城)
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(mover.treasures.length).toBe(1);
     expect(owner.treasures.length).toBe(0);
@@ -108,28 +109,28 @@ describe("珍宝系统", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-xiangyang")!;
-    expect(def.tradeAdd).toEqual([200, 400, 800, 1600]); // 郡城加值逐级(Lv0-3),下标 = 等级
+    expect(def.tradeAdd).toEqual([200, 400, 800, 1600]); // 郡城加值逐级(Lv1–4),首项为 1 级
     expect(def.tradeMult).toEqual([1, 1, 1, 1]); // 纯加城倍率恒 1
     const { mover, guide } = setupOwnerChoice(e, "prop-xiangyang");
     const moverCash0 = mover.cash;
-    const price = guide + 200; // Lv0 = 指导价×tradeMult[0](1) + tradeAdd[0](200),先乘再加
+    const price = guide + 200; // Lv1 = 指导价×tradeMult[0](1) + tradeAdd[0](200),先乘再加
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(mover.treasures.length).toBe(1);
     expect(mover.cash).toBe(moverCash0 - price);
     expect(price).toBeGreaterThan(guide);
   });
 
-  it("坐地起价随城等级提升:Lv3 价格 > Lv0 价格", () => {
+  it("坐地起价随城等级提升:Lv4 价格 > Lv1 价格", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-jieting")!;
     const guide = TREASURE_PRICE[TLEVEL];
-    // Lv0 vs Lv3:奇城 tradeMult=[2,3,5,7](等级 0..3)
-    const priceL0 = premiumPriceOf(guide, def, 0);
-    const priceL3 = premiumPriceOf(guide, def, 3);
-    expect(priceL0).toBe(guide * 2);
-    expect(priceL3).toBe(guide * 7);
-    expect(priceL3).toBeGreaterThan(priceL0);
+    // Lv1 vs Lv4:奇城 tradeMult=[2,3,4,7](等级 1..4)
+    const priceL1 = premiumPriceOf(guide, def, 1);
+    const priceL4 = premiumPriceOf(guide, def, 4);
+    expect(priceL1).toBe(guide * 2);
+    expect(priceL4).toBe(guide * 7);
+    expect(priceL4).toBeGreaterThan(priceL1);
   });
 
   it("跳过:不交易,无珍宝/资金变化,结束回合", () => {
@@ -202,7 +203,7 @@ describe("珍宝系统", () => {
     finishSetup(e);
     const { owner, mover, guide } = setupOwnerChoice(e, "prop-jieting");
     const ownerCash0 = owner.cash;
-    const price = guide * 2; // Lv0 奇城 tradeMult=2
+    const price = guide * 2; // Lv1 奇城 tradeMult=2
     mover.cash = price - 1;
     mover.treasures.push({ id: "other-treasure", name: "旧藏", level: 2, count: 1, desc: "" }); // 有资产可清算
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
@@ -246,7 +247,7 @@ describe("托管清算 JSON 恢复(#1441)", () => {
       const propertyId = e.board.tiles.find(
         (tile) => tile.propertyId != null && e.findOwner(tile.propertyId) == null,
       )!.propertyId!;
-      grantProperty(e, sellerSeat, propertyId, 0);
+      grantProperty(e, sellerSeat, propertyId, 1);
       giveTreasure(e, sellerSeat, [
         { id: "escrow-candidate", name: "待交割珍宝", level: 5, desc: "" },
       ]);
@@ -328,19 +329,20 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     mover.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase).toBe("AwaitingDecision");
     expect(mover.treasures.map((t) => t.id)).toEqual(["probe-t"]); // 探宝先行于扩军决策
     e.upgradeProperty();
-    expect(mover.properties.find((h) => h.propertyId === def.id)!.level).toBe(1);
+    expect(mover.properties.find((h) => h.propertyId === def.id)!.level).toBe(2);
     expect(treasureTrail(e)).toBe(true); // 全程恰落格一次探宝
     expect(passJinnang(e).turnPhase).toBe("Roll"); // 收口结束回合(链尾零探宝)
   });
@@ -353,12 +355,13 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     owner.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
     e.treasureDeck = [];
@@ -377,12 +380,13 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile2 = treasureTile(e2);
     const def2 = e2.catalog.get(tile2.propertyId!)!;
     owner2.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def2.id,
       group: def2.group,
-      level: 0,
+      level: 1,
       maxLevel: def2.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     e2.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     testEngine(e2).landActiveAt(tile2.index);
@@ -416,17 +420,18 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     owner.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
     // 落格探宝先成(probe Lv1 恒得),再交涉:premium 价付不起 → 清算自救挂起
     e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
-    const price = premiumPriceOf(TREASURE_PRICE[TLEVEL], def, 0);
+    const price = premiumPriceOf(TREASURE_PRICE[TLEVEL], def, 1);
     mover.cash = price - 1;
     testEngine(e).landActiveAt(tile.index);
     expect(mover.treasures.map((t) => t.id)).toEqual(["probe-t"]); // 探宝已先行发生(付银之前)
@@ -455,12 +460,13 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     owner.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
     e.treasureDeck = []; // 堆空:探宝事件位沉默留痕(treasureEmpty),不产可变卖资产

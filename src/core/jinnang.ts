@@ -76,7 +76,7 @@ export type JinnangEffect =
   | { kind: "grantHero"; fallbackCash: number } // 求贤令:招贤一枚,名将尽折现
   | { kind: "levyAll"; amount: number } // 横征暴敛:全体其他玩家各付(上限=现金,不清算)
   | { kind: "stealTreasure" } // 窃玉偷香:随机夺目标一张珍宝
-  | { kind: "fireWall"; damage: number } // 火烧连营(#1389 溅射化):以指定城为火源,对此城及前方距离 1、2 格上的城各 damage 点火焰伤害(结算单点 defense.applyFireDamage;识破按城拆份)
+  | { kind: "fireWall"; damage: number } // 火烧连营(#1389 溅射化):以指定城为火源,对此城及前方距离 1、2 格上的城各 damage 点火焰伤害(结算单点 defense.applyCityDamage;识破按城拆份)
   | { kind: "skipTurn" } // 缓兵之计:目标下回合被跳过
   | { kind: "peek" } // 军情密探:即时窥探目标锦囊手牌一次(#575,窥探弹层 viewer-only 演出)
   | { kind: "duel"; winnerBankGain: number; loserPaysUser: number }; // 连环计:二虎竞食
@@ -139,8 +139,8 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     copies: 2,
     tags: ["攻"],
     targetDomain: "one-city",
-    text: "火烧营寨:指定任意一座城为火源,对此城及其前方距离 1、2 格上的城各造成 1 点火焰伤害;无主城不受火焰伤害(作火源则自身免伤),己方城照烧。",
-    effect: { kind: "fireWall", damage: 1 },
+    text: "火烧营寨:指定任意一座城为火源，对火源及其前方第 1、2 格上的有主城各造成 8 点火焰伤害，己城也会受伤。实际扣防且未破防的城施加燃烧，若已燃烧则续火。",
+    effect: { kind: "fireWall", damage: 8 },
   },
   {
     id: "识破诡计",

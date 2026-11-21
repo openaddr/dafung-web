@@ -171,7 +171,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     const pc = events[pcIdx];
     if (pc.kind === "propertyChanged") {
       expect(pc.tileIndex).toBe(tile.index);
-      expect(pc.level).toBe(0); // 购入为 Lv.0:易主维度,等级不变
+      expect(pc.level).toBe(1); // 购入为 Lv.1:易主维度,等级不变
       expect(pc.levelChanged).toBe(false);
       expect(pc.ownerChanged).toBe(true);
       expect(pc.ownerColorIndex).toBe(0);
@@ -213,12 +213,13 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     const propId = tile.propertyId;
     if (propId == null) return;
     e.activePlayer.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: propId,
       group: "g",
-      level: 1,
-      maxLevel: 3,
-      defense: 4,
+      level: 2,
+      maxLevel: 4,
+      defense: 30,
     });
     testEngine(e).landActiveAt(tile.index); // 己城可扩 → AwaitingDecision(OwnProperty)
     if (e.turnPhase !== "AwaitingDecision") return;
@@ -231,7 +232,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     const pc = events[pi];
     if (pc.kind === "propertyChanged") {
       expect(pc.tileIndex).toBe(tile.index);
-      expect(pc.level).toBe(2); // Lv1 → Lv2
+      expect(pc.level).toBe(3); // Lv2 → Lv3
       expect(pc.levelChanged).toBe(true);
       expect(pc.ownerChanged).toBe(false);
       expect(pc.ownerColorIndex).toBe(0);
@@ -328,6 +329,26 @@ function synth(e: GameEngine, events: GameEvent[]): PresentationEvent[] {
 
 describe("事件→动效映射表(合成批)", () => {
   const E = () => makeEngine(7);
+
+  it("燃烧到期使用消耗前的标记数播放实心火焰", async () => {
+    const e = E();
+    const tile = e.board.tiles.find((entry) => entry.propertyId === "prop-jinyang")!;
+    const sink = createMemorySink();
+    await present(
+      synth(e, [
+        {
+          kind: "propertyBurningTicked",
+          seat: 0,
+          round: 2,
+          turn: 4,
+          propertyId: "prop-jinyang",
+          marks: 1,
+        },
+      ]),
+      sink,
+    );
+    expect(sink.calls).toEqual([{ op: "burningPulse", tileIndex: tile.index, marks: 1 }]);
+  });
 
   it("cashChanged:负向=金额浮字;正向=浮字且批内先缀一声铜钱;supply=铜钱雨(#826 起纳税随雨落币随税关退役)", () => {
     const e = E();
@@ -427,12 +448,13 @@ describe("事件→动效映射表(合成批)", () => {
     const capProp = e.board.at(cap).propertyId!;
     // 直译按提取时刻引擎态解析归属:先落持有(建城后玩家 0 持有都城)
     e.players[0].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: capProp,
       group: "g",
-      level: 0,
-      maxLevel: 3,
-      defense: 5,
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
     });
     const out = synth(e, [
       {
@@ -581,12 +603,13 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     )!;
     // 得城者已入册(提取时刻态):宣告归属色=得城者
     e.players[0].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: tile.propertyId!,
       group: "g",
-      level: 0,
-      maxLevel: 3,
-      defense: 5,
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
     });
     const out = synth(e, [
       { kind: "propertyGranted", seat: 0, round: 1, turn: 1, propertyId: tile.propertyId! },
@@ -595,7 +618,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     expect(out[0]).toMatchObject({
       kind: "propertyChanged",
       tileIndex: tile.index,
-      level: 0,
+      level: 1,
       ownerColorIndex: e.players[0].colorIndex,
       levelChanged: false,
       ownerChanged: true,
@@ -610,12 +633,13 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     const propId = tile.propertyId!;
     // 承让方已持有(提取时刻态):宣告归属色=承让方
     e.players[1].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: propId,
       group: "g",
-      level: 1,
-      maxLevel: 3,
-      defense: 4,
+      level: 2,
+      maxLevel: 4,
+      defense: 30,
     });
     const taken = synth(e, [
       { kind: "assetTransferred", seat: 0, round: 1, turn: 1, propertyId: propId, toSeat: 1 },
@@ -719,7 +743,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     ).toThrow();
   });
 
-  it("耗竭宣告:exhaustionResolved 文案带降级清单(外敌乘虚);无降级为纯休整版;休整回满=rest 浮字", () => {
+  it("耗竭宣告显示归零伤害来源、降级和失城，休整回满另播浮字", () => {
     const e = E();
     const tile = e.board.tiles.find((t) => t.propertyId != null)!;
     const propId = tile.propertyId!;
@@ -730,25 +754,29 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
         seat: 0,
         round: 1,
         turn: 1,
+        sourceSeat: null,
         downgradedPropertyIds: [propId],
+        lostPropertyIds: [],
         restTurns: 2,
       },
     ]);
     expect(downgrade.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      `体力耗竭!外敌乘虚而入,「${name}」降 1 级;卧床休整两回合`,
+      `体力耗竭（伤害来源：无），外敌乘虚而入，「${name}」降 1 级，卧床休整两回合`,
     ]);
-    const pure = synth(e, [
+    const loss = synth(e, [
       {
         kind: "exhaustionResolved",
         seat: 1,
         round: 1,
         turn: 1,
+        sourceSeat: 0,
         downgradedPropertyIds: [],
+        lostPropertyIds: [propId],
         restTurns: 2,
       },
     ]);
-    expect(pure.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      "体力耗竭,卧床休整两回合",
+    expect(loss.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
+      `体力耗竭（伤害来源：魏），外敌乘虚而入，「${name}」失守，卧床休整两回合`,
     ]);
     // 休整期满回满(reason=rest):体力浮字点明出处(既有 delta 宣告同通路)
     const rest = synth(e, [

@@ -226,7 +226,7 @@ describe(`机遇逐实体结算 sweep(${rows.length} 行=31 即时+29 抉择×�
     // 全城有主:棋盘上每块带 propertyId 的地都授给另一家(已持的 grantProperty 走升级分支不重复;
     // fallback 判据=逐 tile findOwner==null,授满即全无主城清零,判据单源 encounter-flow:577)
     for (const t of e.board.tiles) {
-      if (t.propertyId != null) grantProperty(e, 1 - seat, t.propertyId, 1);
+      if (t.propertyId != null) grantProperty(e, 1 - seat, t.propertyId, 2);
     }
     const def = ENCOUNTERS.find((c) => c.effect?.kind === "grantCity");
     if (!def) throw new Error("目录无 grantCity 条目(目录 bug)");

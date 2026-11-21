@@ -101,6 +101,9 @@ export function createEngineSink(): FxSink {
       // 易主流光(架构体检 B 批出底板):ownerChanged 一并下发流光件,fx 宿主渲染
       if (ev.ownerChanged) useFxStore.getState().pushOwnFlash(ev.tileIndex, ev.ownerColorIndex);
     },
+    showBurningPulse(tileIndex, marks) {
+      useFxStore.getState().showBurningPulse(tileIndex, marks);
+    },
     cashFly(ev: CashFlyEvent) {
       // 金钱飞行归账(#764):铜钱经 store 下发,FxLayer 的 body portal 渲染,
       // 抵达拍 bump 席位现金数字(渲染组件回调,此处零 DOM)。
@@ -135,12 +138,13 @@ type FxSinkCall =
   | {
       op: "announceTile";
       tileIndex: number;
-      level: number;
+      level: number | null;
       ownerColorIndex: number | null;
       levelChanged: boolean;
       ownerChanged: boolean;
     }
-  | { op: "cashFly"; playerId: string; amount: number; x: number; y: number };
+  | { op: "cashFly"; playerId: string; amount: number; x: number; y: number }
+  | { op: "burningPulse"; tileIndex: number; marks: number };
 
 /** 测试 sink:录制所有调用;march/dice/签面/仪式立即 resolve(不测 DOM 细节,只测事件语义与时序)。 */
 export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
@@ -210,6 +214,9 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
         levelChanged: ev.levelChanged,
         ownerChanged: ev.ownerChanged,
       });
+    },
+    showBurningPulse(tileIndex, marks) {
+      calls.push({ op: "burningPulse", tileIndex, marks });
     },
     cashFly(ev: CashFlyEvent) {
       calls.push({ op: "cashFly", playerId: ev.playerId, amount: ev.amount, x: ev.x, y: ev.y });

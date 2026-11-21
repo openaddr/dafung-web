@@ -1,4 +1,5 @@
 import type { GameEngine } from "./authority";
+import { resumeCityBurning, type CityBurningContinuation } from "./city-burning";
 import { awardCityIncome, planCityIncome } from "./city-income";
 import { STAMINA_MAX } from "./constants";
 import { emitGameEvent } from "./game-events";
@@ -9,6 +10,7 @@ import { checkVictory } from "./victory";
 
 export type TurnEndContinuation =
   | { kind: "turnEnd" }
+  | CityBurningContinuation
   | { kind: "roundEnd"; checkVictoryAfterIncome: boolean }
   | {
       kind: "cityIncome";
@@ -26,7 +28,10 @@ export function endTurn(g: GameEngine): void {
 }
 
 export function resumeTurnEnd(g: GameEngine, state: TurnEndContinuation): void {
-  if (state.kind === "turnEnd") {
+  if (state.kind === "turnEnd" || state.kind === "cityBurning") {
+    const burning: CityBurningContinuation =
+      state.kind === "turnEnd" ? { kind: "cityBurning", nextTile: 0 } : state;
+    if (resumeCityBurning(g, burning)) return;
     const count = g.players.length;
     const first = (g.activeIndex + 1) % count;
     const remaining = (g.roundAnchor - first + count) % count;
@@ -43,7 +48,8 @@ export function resumeTurnEnd(g: GameEngine, state: TurnEndContinuation): void {
   }
 
   // 连整轮都无人行动时也照常走轮次时机和收入，直至能进入一个实际回合。
-  let checkVictoryAfterIncome = state.kind === "turnEnd" || state.checkVictoryAfterIncome;
+  let checkVictoryAfterIncome =
+    state.kind === "turnEnd" || state.kind === "cityBurning" || state.checkVictoryAfterIncome;
   let cities = state.kind === "cityIncome" ? state.cities : planCityIncome(g);
   let from = state.kind === "cityIncome" ? state.next : 0;
   for (;;) {

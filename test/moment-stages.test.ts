@@ -2,8 +2,19 @@ import { afterEach, expect, it } from "bun:test";
 import { GameEngine, type GameCommand } from "@core/authority";
 import type { GameSnapshot } from "@core/snapshot";
 import { loadMap } from "@core/board-loader";
+import { fullDefenseOf } from "@core/defense";
 import { createDice } from "@core/dice";
-import { armHero, armPhase, pinDice, placePlayer, setStamina } from "@core/planter";
+import { defineChoiceEffect, EFFECTS } from "@core/effects";
+import {
+  armHero,
+  armPhase,
+  giveJinnang,
+  grantProperty,
+  pinDice,
+  placePlayer,
+  setDefense,
+  setStamina,
+} from "@core/planter";
 import { SKILLS, type TriggerSkill } from "@core/skills";
 import { foldEventBatch } from "@app/net/event-fold";
 import { redactEvents, redactSnapshotForSeat } from "../scripts/seat-projection";
@@ -43,12 +54,77 @@ const onEncounterStaminaChanged: TriggerSkill = {
   effect: "gainCash",
   params: { amount: 17 },
 };
+const cityBefore: TriggerSkill = {
+  id: "city-demolished-before",
+  name: "城池受损前测试技",
+  desc: "得到银两",
+  when: "PropertyDemolished",
+  stage: "before",
+  effect: "gainCash",
+  params: { amount: 7 },
+};
+const cityChoice: TriggerSkill = {
+  id: "city-demolished-choice",
+  name: "城池受损时测试技",
+  desc: "你可让另一座位被强加跳回合",
+  when: "PropertyDemolished",
+  stage: "during",
+  effect: "cityDemolishedTestChoice",
+};
+const cityAfter: TriggerSkill = {
+  id: "city-demolished-after",
+  name: "城池受损后测试技",
+  desc: "得到银两",
+  when: "PropertyDemolished",
+  stage: "after",
+  effect: "gainCash",
+  params: { amount: 11 },
+};
+const cityLost: TriggerSkill = {
+  id: "city-lost",
+  name: "失城测试技",
+  desc: "得到银两",
+  when: "PropertyLost",
+  stage: "during",
+  effect: "gainCash",
+  params: { amount: 17 },
+};
+const cityRewardChoice: TriggerSkill = {
+  id: "city-reward-choice",
+  name: "城损得银测试技",
+  desc: "你可让另一座位被强加跳回合",
+  when: "CashGained",
+  stage: "during",
+  effect: "cityRewardTestChoice",
+};
+
+function armCityDamageChoice(g: GameEngine, seat: number) {
+  SKILLS.push(cityBefore, cityChoice, cityAfter);
+  EFFECTS[cityChoice.effect] = defineChoiceEffect(cityChoice.when, (_g, ctx) => ({
+    skillId: ctx.skillId,
+    heroId: ctx.slotHeroId,
+    ownerSeat: ctx.owner,
+    subjectSeat: ctx.subject,
+  }));
+  armHero(g, seat, "zhangxingcai", [cityAfter.id, cityChoice.id, cityBefore.id]);
+}
 
 afterEach(() => {
-  for (const skill of [...skills, restAfter, onEncounterStaminaChanged]) {
+  for (const skill of [
+    ...skills,
+    restAfter,
+    onEncounterStaminaChanged,
+    cityBefore,
+    cityChoice,
+    cityAfter,
+    cityLost,
+    cityRewardChoice,
+  ]) {
     const index = SKILLS.indexOf(skill);
     if (index !== -1) SKILLS.splice(index, 1);
   }
+  delete EFFECTS[cityChoice.effect];
+  delete EFFECTS[cityRewardChoice.effect];
 });
 
 function makeEngine(seed: number): GameEngine {
@@ -260,4 +336,162 @@ it("行殇先于休整时机的后阶段应答，派生结算完成才收尾回�
   expect(replica.turnPhase).toBe(restored.turnPhase);
   expect(replica.activeIndex).toBe(1);
   expect(replica.pendingSkillChoices).toHaveLength(0);
+});
+
+it("反识破恢复火烧连营后，城损选择经重连结清才烧下一座己城", () => {
+  const authority = makeEngine(1);
+  armPhase(authority, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+  giveJinnang(authority, 0, ["火烧连营", "识破诡计"]);
+  giveJinnang(authority, 1, ["识破诡计"]);
+  grantProperty(authority, 1, "prop-jinyang", 3);
+  setDefense(authority, 1, "prop-jinyang", 1);
+  grantProperty(authority, 0, "prop-youzhou", 3);
+  setDefense(authority, 0, "prop-youzhou", 1);
+  armCityDamageChoice(authority, 1);
+  armHero(authority, 0, "simayi", ["taoguangyanghui"]);
+
+  const replica = makeEngine(0);
+  replica.restoreFromSnapshot(
+    JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), 1))),
+  );
+  const apply = (engine: GameEngine, command: GameCommand) => {
+    submit(engine, command);
+    foldEventBatch(replica, JSON.parse(JSON.stringify(redactEvents(engine.snapshot().events, 1))));
+  };
+
+  apply(authority, { type: "useJinnang", cardId: "火烧连营" });
+  apply(authority, { type: "useJinnang", cardId: "火烧连营", targets: [1] });
+  apply(authority, {
+    type: "respondReaction",
+    seat: 1,
+    use: true,
+    cardId: "识破诡计",
+    shareSeat: 1,
+  });
+  apply(authority, { type: "respondReaction", seat: 0, use: true, cardId: "识破诡计" });
+
+  expect(authority.turnPhase).toBe("AwaitingSkillChoice");
+  expect(replica.turnPhase).toBe("AwaitingSkillChoice");
+  expect(replica.decisionOwner).toBe(1);
+  expect(replica.players[1].properties[0]).toMatchObject({ level: 2, defense: fullDefenseOf(2) });
+  expect(replica.players[1].cash).toBe(10007);
+  expect(replica.players[0].properties[0]).toMatchObject({ level: 3, defense: 1 });
+  const cashBeforeChoice = authority.players[0].cash;
+
+  const restored = makeEngine(0);
+  restored.restoreFromSnapshot(JSON.parse(JSON.stringify(authority.snapshot())));
+  apply(restored, { type: "respondSkillChoice", seat: 1, use: true, targetSeat: 0 });
+
+  const events = restored.snapshot().events;
+  expect(
+    events.flatMap((event) => {
+      if (event.kind === "skillFired") return [event.skillId];
+      if (event.kind === "propertyDamaged") return [event.propertyId];
+      return [];
+    }),
+  ).toEqual(["taoguangyanghui", cityAfter.id, "prop-youzhou"]);
+  expect(replica.players[0].cash).toBe(cashBeforeChoice + 100);
+  expect(replica.players[1].cash).toBe(10018);
+  expect(replica.players[0].skipTurns).toBe(1);
+  expect(replica.players[0].properties[0]).toMatchObject({ level: 2, defense: fullDefenseOf(2) });
+  expect(restored.turnPhase).toBe("Roll");
+  expect(replica.turnPhase).toBe("Roll");
+});
+
+it("火烧连营的即时奖励触发选择，恢复后发完其余银两并烧下一座城", () => {
+  const engine = makeEngine(1);
+  armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+  giveJinnang(engine, 0, ["火烧连营"]);
+  grantProperty(engine, 1, "prop-jinyang", 1);
+  setDefense(engine, 1, "prop-jinyang", 1);
+  grantProperty(engine, 0, "prop-youzhou", 3);
+  SKILLS.push(cityRewardChoice, cityLost);
+  EFFECTS[cityRewardChoice.effect] = defineChoiceEffect("CashGained", (_g, ctx) =>
+    ctx.amount === 5
+      ? {
+          skillId: ctx.skillId,
+          heroId: ctx.slotHeroId,
+          ownerSeat: ctx.owner,
+          subjectSeat: ctx.subject,
+        }
+      : false,
+  );
+  armHero(engine, 0, "simayi", [cityRewardChoice.id]);
+  armHero(engine, 1, "zhangxingcai", [cityLost.id]);
+
+  submit(engine, { type: "useJinnang", cardId: "火烧连营" });
+  submit(engine, { type: "useJinnang", cardId: "火烧连营", targets: [1] });
+
+  expect(engine.turnPhase).toBe("AwaitingSkillChoice");
+  expect(engine.decisionOwner).toBe(0);
+  expect(engine.findOwner("prop-jinyang")).toBe(engine.players[0]);
+  expect(engine.players[0].cash).toBe(10005);
+  expect(engine.players[1].cash).toBe(10000);
+  expect(engine.activePlayer.properties[0]).toMatchObject({ defense: 20, burning: null });
+
+  const restored = makeEngine(0);
+  restored.restoreFromSnapshot(JSON.parse(JSON.stringify(engine.snapshot())));
+  submit(restored, { type: "respondSkillChoice", seat: 0, use: false });
+
+  expect(restored.activePlayer.cash).toBe(10275);
+  expect(restored.players[1].cash).toBe(10017);
+  expect(restored.activePlayer.properties[0]).toMatchObject({
+    propertyId: "prop-youzhou",
+    defense: 12,
+    burning: { sourceSeat: 0, marks: 3, progress: 0 },
+  });
+  expect(
+    restored.snapshot().events.filter((event) => event.kind === "propertyDamaged"),
+  ).toMatchObject([{ propertyId: "prop-youzhou" }]);
+  expect(restored.turnPhase).toBe("Roll");
+});
+
+it("无来源的一击使对手归零，外敌乘虚逐城等待原城主的选择", () => {
+  const engine = makeEngine(1);
+  armPhase(engine, { phase: "Playing", turnPhase: "Roll", activeIndex: 0 });
+  armCityDamageChoice(engine, 1);
+  SKILLS.push(cityLost);
+  armHero(engine, 1, "huatuo", [cityLost.id]);
+  setStamina(engine, 1, 8);
+  grantProperty(engine, 1, "prop-jinyang", 3);
+  setDefense(engine, 1, "prop-jinyang", 2);
+  grantProperty(engine, 1, "prop-youzhou", 1);
+  setDefense(engine, 1, "prop-youzhou", 1);
+
+  engine.damageStamina(1, 3, 0);
+  engine.damageStamina(1, 5, null);
+
+  expect(engine.turnPhase).toBe("AwaitingSkillChoice");
+  expect(engine.decisionOwner).toBe(1);
+  expect(engine.players[1].properties[0]).toMatchObject({
+    propertyId: "prop-jinyang",
+    level: 2,
+    defense: fullDefenseOf(2),
+    damageRanking: [],
+  });
+  expect(engine.findOwner("prop-youzhou")).toBe(engine.players[1]);
+  expect(engine.players[1].resting).toBe(false);
+
+  const restored = makeEngine(0);
+  restored.restoreFromSnapshot(JSON.parse(JSON.stringify(engine.snapshot())));
+  submit(restored, { type: "respondSkillChoice", seat: 1, use: false });
+
+  expect(restored.findOwner("prop-youzhou")).toBeNull();
+  expect(restored.players[1].resting).toBe(true);
+  expect(restored.players[0].cash).toBe(10000);
+  expect(restored.players[1].cash).toBe(10035);
+  expect(restored.gameEvents).toContainEqual(
+    expect.objectContaining({
+      kind: "exhaustionResolved",
+      sourceSeat: null,
+      downgradedPropertyIds: ["prop-jinyang"],
+      lostPropertyIds: ["prop-youzhou"],
+    }),
+  );
+  expect(restored.snapshot().events.filter((event) => event.kind === "skillFired")).toMatchObject([
+    { skillId: cityAfter.id, seat: 1 },
+    { skillId: cityLost.id, seat: 1 },
+  ]);
+  expect(restored.activeIndex).toBe(0);
+  expect(restored.turnPhase).toBe("Roll");
 });

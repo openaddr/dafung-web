@@ -233,6 +233,12 @@ export async function present(
         // 同步下发(无编排时长)——与相邻事件的相对序由 store 写入序保证。
         sink.announceTileChange(ev);
         break;
+      case "cityBurned": {
+        const showFlame = () => sink.showBurningPulse(ev.tileIndex, ev.marks);
+        if (deferSync) deferred.push(showFlame);
+        else showFlame();
+        break;
+      }
     }
   }
   if (isCurrent()) flushFlies(false); // 批尾冲账:纯进账批的合并枚在此起飞

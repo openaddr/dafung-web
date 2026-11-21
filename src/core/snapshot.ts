@@ -12,7 +12,7 @@ import type { GameEngine, EnginePhase, SetupPhase, TurnPhase, VictoryReason } fr
 import type { ChoiceOption } from "./choices";
 import type { DiceRoll } from "./dice";
 import type { EncounterFlagId } from "./encounters";
-import type { LogEvent } from "./model";
+import type { CityBurning, LogEvent } from "./model";
 import type { MovePath } from "./board";
 import type { LandOutcomeKind, LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import type { GameEvent } from "./game-events";
@@ -83,6 +83,7 @@ export interface SnapshotPlayer {
     level: number;
     group: string;
     defense: number;
+    burning: CityBurning | null;
     damageRanking: readonly CityDamageEntry[];
   }[];
   heroes: HeroSlotRow[];
@@ -677,6 +678,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           level: h.level,
           group: h.group,
           defense: h.defense, // 防御值随快照走(#1386:联机/恢复一致)
+          burning: h.burning,
           damageRanking: h.damageRanking,
         })),
         // 麾下槽位全量(#785):已授技与冷却账是游戏状态,原样深拷贝(展示字段客户端回查表补);
@@ -746,17 +748,19 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           ...(t.kind != null ? { kind: t.kind } : {}), // #1146 技能书实例标识回灌(缺=普通珍宝)
           ...(t.skillId != null ? { skillId: t.skillId } : {}),
         }));
-        // properties:从 catalog 补 group/maxLevel(snapshot 只存 propertyId/level/group)
+        // 持有上限从对应城池定义读取。
         p.properties = ps.properties.map((h) => {
           const def = e.catalog.get(h.propertyId);
+          if (def === null) throw new Error(`恢复快照:未知城池 ${h.propertyId}`);
           return {
             propertyId: h.propertyId,
-            group: h.group ?? def?.group ?? "z",
+            group: def.group,
             level: h.level,
-            maxLevel: def?.maxLevel ?? 3,
+            maxLevel: def.maxLevel,
             // 防御值(#1386):旧落盘记录缺此键不兜底——undefined 直灌让问题暴露
             // (项目零兼容口径,同上方 encounterFlags 的直灌口径)
             defense: h.defense,
+            burning: h.burning,
             damageRanking: h.damageRanking,
           };
         });

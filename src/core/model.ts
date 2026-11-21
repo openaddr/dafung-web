@@ -6,7 +6,15 @@ import type { CityDamageEntry } from "./city-damage";
 import type { HeroSlot } from "./roster";
 import type { TreasureDef } from "./treasures";
 
-/** 玩家持有的地产。Level 0..maxLevel(购入/建都即为 Lv.0);升级免费(到达触发)。
+/** 一组火焰标记共用最近的施火者与当前周期的进度。 */
+export interface CityBurning {
+  readonly sourceSeat: number;
+  readonly marks: number;
+  readonly progress: number;
+  readonly ignitedTurn: number;
+}
+
+/** 玩家持有的地产。等级 1..maxLevel(购入、建都从 1 级起);升级免费(到达触发)。
  *  不存购入价:身价=仅现金、变卖走 def.valueByLevel,持有价零玩法消费(已删)。 */
 export interface PropertyHolding {
   propertyId: string;
@@ -17,6 +25,7 @@ export interface PropertyHolding {
    *  易主)即重置满值(单口 resetToFull,满值表单源 defense.ts;升级回满=奖励),
    *  平时不回复;扣减经 applyCityDamage。 */
   defense: number;
+  burning: CityBurning | null;
   /** 当前持有期的伤害排行榜，累计伤害降序，同分按到达顺序。 */
   damageRanking: readonly CityDamageEntry[];
 }

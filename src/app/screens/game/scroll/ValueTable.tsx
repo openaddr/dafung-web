@@ -9,6 +9,8 @@
 // R3-C5(#92):可选 highlight 标出与当前决策相关的档位(淡金底 + 左金边 + 行尾角标),
 // 免得玩家自己对表;不传时视觉与旧版完全一致。
 import { formatMoney } from "@core/money";
+import { INITIAL_CITY_LEVEL } from "@core/constants";
+import { cityTradeTermsOf } from "@core/economy";
 
 export interface ValueTableProperty {
   maxLevel: number;
@@ -26,7 +28,7 @@ export function ValueTable({
   property: ValueTableProperty;
   /** 第二列口径(#671):普通城 "sell"=变卖价;都城与选都候选 "supply"=都城补给。 */
   second: "sell" | "supply";
-  /** #92:命中的档位下标与角标文案;下标越界(如满级时的「下一档」)则自然无命中行。 */
+  /** #92:命中的城池等级与角标文案;等级越界(如满级时的「下一档」)则自然无命中行。 */
   highlight?: { level: number; label: string };
 }) {
   return (
@@ -39,18 +41,20 @@ export function ValueTable({
         </span>
       </div>
       {property.valueByLevel.map((value, i) => {
-        const hit = highlight !== undefined && i === highlight.level;
+        const level = i + INITIAL_CITY_LEVEL;
+        const { multiplier, addition } = cityTradeTermsOf(property, level);
+        const hit = highlight?.level === level;
         return (
           <div
-            key={i}
+            key={level}
             className={
               "flex border-t border-gold/15 text-paper-dim" +
               (hit ? " bg-[rgba(200,161,58,0.14)] border-l-2 border-l-gold text-paper" : "")
             }
           >
-            <span className="flex-1 px-2 py-1">Lv.{i}</span>
+            <span className="flex-1 px-2 py-1">Lv.{level}</span>
             <span className="flex-1 px-2 py-1 text-right text-paper tabular-nums">
-              ×{property.tradeMult[i]} +{formatMoney(property.tradeAdd[i])}
+              ×{multiplier} +{formatMoney(addition)}
             </span>
             <span className="flex-1 px-2 py-1 text-right text-paper tabular-nums">
               {second === "supply" ? formatMoney(property.resupply) : formatMoney(value)}

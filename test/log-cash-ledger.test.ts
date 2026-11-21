@@ -61,7 +61,7 @@ const tr = (id: string, level: number): TreasureDef => ({
 
 /** 置交涉窗口:当前活跃玩家(买家)对 ownerIdx 卖家就 defId 城交涉。
  *  #619 起 resolveTreasureOwner 断言「城主必持城」(交涉只由有主城落城触发)——白盒把
- *  defId 持有关系归位到 ownerIdx(在他手则整体移交、等级随持,无则种植 Lv0),零现金流
+ *  defId 持有关系归位到 ownerIdx(在他手则整体移交、等级随持,无则种植 Lv1),零现金流
  *  不污染对账窗口;本测试的等级敏感断言仅 S3 premium,发生在任何 fair 升级之前。 */
 function forceVisit(e: GameEngine, defId: string, ownerIdx: number) {
   const owner = e.players[ownerIdx];
@@ -73,12 +73,13 @@ function forceVisit(e: GameEngine, defId: string, ownerIdx: number) {
   if (!owner.properties.some((h) => h.propertyId === defId)) {
     const def = e.catalog.get(defId)!;
     owner.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: defId,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
   }
   e.treasureVisitor = { def: e.catalog.get(defId)!, ownerIdx };
@@ -124,7 +125,7 @@ describe("对局日志现金对账(#617)", () => {
     expect(rowOf(e, `treasureBuy buyer=${shu.id}`, "treasure=t1").amount).toBe(-100); // 买家实付 -
     expect(rowOf(e, "escrowDeliver", "treasure=t1").amount).toBeUndefined(); // 资产交割不挂 amount
 
-    // S3(吴回):吴坐地起价购蜀 t2(街亭 Lv0 奇城 ×2,价 200)——直付 premium
+    // S3(吴回):吴坐地起价购蜀 t2(街亭 Lv1 奇城 ×2,价 200)——直付 premium
     // (ADR-0034 后成都=名城 ×2+200=400,吴现金 300 付不起会走清算;奇城街亭保住直付路径)
     shu.treasures.push(tr("t2", 1));
     forceVisit(e, "prop-jieting", 1);

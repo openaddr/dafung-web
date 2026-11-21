@@ -10,7 +10,7 @@ import { tileIndexOfProperty } from "./board";
 import type { ActiveSkillDef, TriggerSkill } from "./skills";
 import { isActiveSkill, isTriggerSkill, skillById } from "./skills";
 import { findHolding } from "./player";
-import { HERO_CAPACITY, STAMINA_MAX } from "./constants";
+import { HERO_CAPACITY, INITIAL_CITY_LEVEL, STAMINA_MAX } from "./constants";
 import { heroById } from "./heroes";
 import { HEROES } from "./heroes";
 import {
@@ -286,7 +286,7 @@ export function cityTargetOptionId(tileIndex: number): string {
 
 /** 火攻合法城清单(#1388 T2 城目标域,目标域谓词全局唯一单源):userSeat 视角下全部
  *  「距离 ≤ 技表 params.range(双向最短,board.distance,#1386)且城主为他人」
- *  的城,含 0 级城(#1493)。都城在域内合法(可降级,打空即停由 defense 单点管);无主城/己城/射程外
+ *  的城。都城在域内合法(可降级,打空即停由 defense 单点管);无主城/己城/射程外
  *  一律不入选。choices 选项装配、目标段候选、bot 策略全回查本口,UI/bot 不复制谓词
  *  (ADR-0013)。确定性:座位序×持有序遍历,排序归消费方(bot 自带打分)。 */
 export interface HeroSkillCityTarget {
@@ -365,8 +365,8 @@ export function fireWallCenterTargets(e: GameEngine): FireWallCenterTarget[] {
 /** 火烧连营溅射受击清单(#1389 结算/识破份共用谓词):火源=中心 tileIndex,受击面=
  *  中心 + 前方距离 1、2 格上的城(#1386 前方距离谓词;是城才溅——全城池制下恒为城,
  *  propertyId null 的半成品格不入)。「一份=一座受击城」:识破份清单、火烧结算、
- *  bot 打分同读此口。immune=有主但为打空都城(0 级防御 0)——对火焰伤害免疫
- *  (defense.applyFireDamage 吸收),不算受击份(bot 不计命中),但仍在溅射面内
+ *  bot 打分同读此口。immune=有主但为打空都城(1 级防御 0)——对火焰伤害免疫
+ *  (defense.applyCityDamage 吸收),不算受击份(bot 不计命中),但仍在溅射面内
  *  (挨了打只是被吸收,果分战报照记)。确定性:中心→前方 1 格→前方 2 格(格序)。 */
 export interface FireWallBurnCity {
   tileIndex: number;
@@ -375,7 +375,7 @@ export interface FireWallBurnCity {
   ownerSeat: number | null; // null=无主:不受火焰伤害(不调结算单点,溅射锚/占位照记)
   level: number | null; // 与 ownerSeat 同步为 null(无主无持有态)
   defense: number | null; // 同上
-  immune: boolean; // 有主打空都城:伤害被吸收(0 级都城打空即停免疫,#1386)
+  immune: boolean; // 有主打空都城:伤害被吸收(1 级都城打空即停免疫,#1386)
 }
 
 export function fireWallSplashCities(e: GameEngine, centerTileIndex: number): FireWallBurnCity[] {
@@ -391,7 +391,7 @@ export function fireWallSplashCities(e: GameEngine, centerTileIndex: number): Fi
     const ownerSeat = owner == null ? null : e.players.indexOf(owner);
     const immune =
       holding != null &&
-      holding.level === 0 &&
+      holding.level === INITIAL_CITY_LEVEL &&
       holding.defense === 0 &&
       tile.propertyId === e.board.at(owner!.capitalIndex)?.propertyId;
     out.push({

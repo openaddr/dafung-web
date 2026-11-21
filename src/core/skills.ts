@@ -33,7 +33,7 @@ export interface TriggerSkill {
 }
 
 /** 名将主动技(#188 档 3):数据声明,与被动技(TriggerSkill·时机驱动)同表并存。
- *  结算复用既有单点(火攻=defense.applyFireDamage,#1388 T2 定向化);
+ *  结算复用既有单点(火攻=defense.applyCityDamage,#1388 T2 定向化);
  *  技能结算内不派发时机(与 grantSkillCash 的防连锁口径一致)。
  *  目标校验单源在 choices.ts(引擎命令提交时复核,UI/bot 永不裁决,ADR-0013)。 */
 export interface ActiveSkillDef {
@@ -43,10 +43,10 @@ export interface ActiveSkillDef {
   desc: string; // 卷轴文案(效果自证,与结算互证)
   /** 目标域:none=无目标(发动即结算);other=一名其他存活玩家;any=任一存活玩家(含自己);
    *  city=一座合法城(#1388 T2 城目标域:候选=合法城清单,谓词单源 choices.heroSkillCityTargets
-   *  ——距离 ≤ params.range 且城主为他人,含 0 级城;提交通道=目标城 tileIndex)。 */
+   *  ——距离 ≤ params.range 且城主为他人;提交通道=目标城 tileIndex)。 */
   target: "none" | "other" | "any" | "city";
   /** 结算路径(游戏内唯一定义处):fireBlast=对目标城造成 params.damage 点火焰伤害
-   *  (结算单点 defense.applyFireDamage,#1388;#1389 起火烧连营锦囊路同走该单点);
+   *  (结算单点 defense.applyCityDamage,#1388;#1389 起火烧连营锦囊路同走该单点);
    *  relief=付费回体力;warDrum=本回合下一次掷骰步数加成。 */
   kind: "fireBlast" | "relief" | "warDrum";
   /** 技能参数(纯数据,可序列化):fireBlast={range,damage};relief={cost,stamina};
@@ -287,13 +287,11 @@ export const SKILLS: SkillDef[] = [
     id: "huogong",
     name: "火攻",
     cooldown: 5,
-    // #1388 T2 定向化(规格 #1386 定稿文案):城目标域,目标域谓词单源
-    // choices.heroSkillCityTargets(距离 ≤ range 且城主为他人,含 0 级城,#1493);
-    // 结算单点 defense.applyFireDamage(1 点火焰伤害,#1386/#1387 防御值系统)。
-    desc: "出牌阶段，你可指定距离你 5 格以内的一座其他诸侯的城池，对其造成 1 点火焰伤害。",
+    // 目标由 choices.heroSkillCityTargets 校验，结算走统一城池伤害。
+    desc: "出牌阶段，你可指定距离你 5 格以内的一座其他诸侯的城池，对其造成 10 点火焰伤害。实际扣防且未破防时施加燃烧，若已燃烧则续火。",
     target: "city",
     kind: "fireBlast",
-    params: { range: 5, damage: 1 },
+    params: { range: 5, damage: 10 },
   },
   {
     id: "leigu",

@@ -75,10 +75,10 @@ function submit(e: GameEngine, command: GameCommand): void {
 
 it("轮末按易主后归属逐城发银，跳过者照领，先前达标者败于收益造成的最高现金并列", () => {
   const e = makeEngine();
-  grantProperty(e, 1, contestedCity, 0);
+  grantProperty(e, 1, contestedCity, 1);
   setDefense(e, 1, contestedCity, 1);
-  grantProperty(e, 3, "prop-xiapi", 1); // 下邳 3000 两，升级不改变 90 两收入
-  grantProperty(e, 3, "prop-youzhou", 0); // 幽州 1800 两，收入 54 两
+  grantProperty(e, 3, "prop-xiapi", 2); // 下邳 3000 两，升级不改变 90 两收入
+  grantProperty(e, 3, "prop-youzhou", 1); // 幽州 1800 两，收入 54 两
   const tile = tileIndexOfProperty(board, contestedCity);
   armPhase(e, { phase: "Playing", activeIndex: 2, turnPhase: "AwaitingJinnang" });
   placePlayer(e, 2, tile);
@@ -126,7 +126,7 @@ it("轮末按易主后归属逐城发银，跳过者照领，先前达标者败�
 it("结束实际回合后，下一轮所有诸侯休整也立即按本轮持城收益判胜", () => {
   const e = makeEngine();
   armPhase(e, { phase: "Playing", activeIndex: 3, turnPhase: "Roll" });
-  grantProperty(e, 0, "prop-youzhou", 1); // 降为 0 级后仍保有幽州，收入 54 两
+  grantProperty(e, 0, "prop-youzhou", 2); // 降为 1 级后仍保有幽州，收入 54 两
   setCash(e, 0, 29946);
 
   for (const seat of [0, 1, 2, 3]) e.damageStamina(seat, 100, null);
@@ -142,7 +142,7 @@ it("空轮收入达标也要等下一次实际回合结束，空轮的轮末选�
   const e = makeEngine();
   armPhase(e, { phase: "Playing", activeIndex: 3, turnPhase: "Roll" });
   giveJinnang(e, 0, []);
-  grantProperty(e, 0, "prop-youzhou", 1);
+  grantProperty(e, 0, "prop-youzhou", 2);
   setCash(e, 0, 29900);
   EFFECTS[roundEndEffect] = defineChoiceEffect("RoundEnd", offerChoice);
   SKILLS.push(chooseAtRoundEnd);
@@ -183,8 +183,8 @@ it("轮末与首笔得银各自应答后续发，跨过跳行动的轮次锚点�
     (propertyId) => e.findOwner(propertyId) == null,
   );
   expect(eligibleCities.length).toBeGreaterThanOrEqual(2);
-  grantProperty(e, anchor, eligibleCities[0], 0);
-  grantProperty(e, later, eligibleCities[1], 0);
+  grantProperty(e, anchor, eligibleCities[0], 1);
+  grantProperty(e, later, eligibleCities[1], 1);
   const cashBefore = e.players.map(({ cash }) => cash);
 
   for (const [seat] of e.players.entries()) giveJinnang(e, seat, []);

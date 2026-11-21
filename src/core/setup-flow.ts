@@ -17,6 +17,7 @@ import { isSingleCjk } from "./constants";
 import { formatMoney } from "./money";
 import { beginGameEventBatch, emitGameEvent } from "./game-events";
 import { createPropertyHolding } from "./defense";
+import { INITIAL_CITY_LEVEL } from "./constants";
 import type { TileDef } from "./board";
 
 /** 设置某座位的国号(单汉字);非法/冲突清空拒绝。 */
@@ -170,7 +171,7 @@ function pickCapitalInternal(
     );
   }
   player.cash -= def.buildCost;
-  player.properties.push(createPropertyHolding(def, 0));
+  player.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
   player.capitalIndex = tileIndex;
   player.position = tileIndex;
   g.takenCapitalIndices.add(tileIndex);

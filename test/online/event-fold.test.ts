@@ -4,7 +4,7 @@
 // 锦囊(含反应窗)、声望/体力、跳过、破产、机遇;以及契约边界(未知 kind 忽略 = 范围
 // 定义、无主座位/事件序违反当场炸)与快照对账(折叠漂移被水合无条件校正,快照=校准锚)。
 // 真实命令与 JSON 下行的决策续行接缝见同目录 local-hydration.test.ts。
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, spyOn } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, GameCommand, SeatConfig, TurnPhase } from "@core/authority";
 import { createDice } from "@core/dice";
@@ -31,6 +31,7 @@ import type { GameEvent, GameEventBody } from "@core/game-events";
 import { armHero } from "@core/testing";
 import guanzhongData from "../../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
+import { extractBatchEvents } from "@app/fx/event-extract";
 import { foldEventBatch } from "@app/net/event-fold";
 import { redactEvents, redactSnapshotForSeat } from "../../scripts/seat-projection";
 
@@ -81,7 +82,7 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     const debtor = e.activeIndex;
     const nextSeat = 1 - debtor;
     giveJinnang(e, nextSeat, []);
-    grantProperty(e, debtor, "prop-jinyang", 0); // 关中晋阳 Lv.0 变卖价 900
+    grantProperty(e, debtor, "prop-jinyang", 1); // 关中晋阳 1 级变卖价 900
     setCash(e, debtor, 50);
     e.payOrLiquidate(e.activePlayer, null, 400);
     const replica = makeEngine();
@@ -349,6 +350,57 @@ describe("折叠投影器 · 掷骰/行军族", () => {
 });
 
 describe("折叠投影器 · 城池族", () => {
+  it("火烧连营对不同购入价的敌城逐城扣防发银，事件批同步伤害和到账金额", () => {
+    const e = makeEngine();
+    armPhase(e, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    // 临淄购入价 1800，下邳 3000。两座城都剩 1 点防御。
+    for (const propertyId of ["prop-linzi", "prop-xiapi"]) {
+      grantProperty(e, 1, propertyId, 3);
+      setDefense(e, 1, propertyId, 1);
+    }
+    giveJinnang(e, 0, ["火烧连营"]);
+    e.submitCommand({ type: "useJinnang", cardId: "火烧连营" });
+    const replica = makeEngine();
+    replica.restoreFromSnapshot(JSON.parse(JSON.stringify(redactSnapshotForSeat(e.snapshot(), 1))));
+    const linzi = MAP.board.tiles.find((tile) => tile.propertyId === "prop-linzi")!;
+    const message = JSON.parse(
+      cmdMsg({ type: "useJinnang", cardId: "火烧连营", targets: [linzi.index] }),
+    ) as Extract<InboundMsg, { type: "cmd" }>;
+    using dispatchMoment = spyOn(e, "dispatchMoment");
+
+    e.submitCommand(message.cmd);
+    const events: GameEvent[] = JSON.parse(JSON.stringify(redactEvents(e.gameEvents, 1)));
+    foldEventBatch(replica, events);
+
+    expect(events.filter((event) => event.kind === "cashChanged")).toMatchObject([
+      { seat: 0, reason: "city-damage", delta: 5 },
+      { seat: 0, reason: "city-damage", delta: 5 },
+    ]);
+    expect(e.players[0].cash).toBe(10010);
+    expect(replica.players[0].cash).toBe(10010);
+    expect(e.players[1].properties).toMatchObject([
+      { propertyId: "prop-linzi", level: 2, defense: 30, damageRanking: [{ seat: 0, damage: 1 }] },
+      { propertyId: "prop-xiapi", level: 2, defense: 30, damageRanking: [{ seat: 0, damage: 1 }] },
+    ]);
+    expect(replica.players[1].properties).toEqual(e.players[1].properties);
+    expect(
+      dispatchMoment.mock.calls.filter(([moment]) => moment === "CashGained").map(([, ctx]) => ctx),
+    ).toEqual([
+      { subject: 0, amount: 5 },
+      { subject: 0, amount: 5 },
+    ]);
+    expect(e.log.filter(({ detail }) => detail.startsWith("cityDamageReward"))).toMatchObject([
+      { brief: expect.stringContaining("「临淄」造成 1 点伤害，得即时奖励 5 两"), amount: 5 },
+      { brief: expect.stringContaining("「下邳」造成 1 点伤害，得即时奖励 5 两"), amount: 5 },
+    ]);
+    expect(
+      extractBatchEvents(replica, events).filter((event) => event.kind === "cashDelta"),
+    ).toMatchObject([
+      { playerId: e.players[0].id, amount: 5 },
+      { playerId: e.players[0].id, amount: 5 },
+    ]);
+  });
+
   it("capitalSelected 入册都城(现金不入折叠,#386 口径)", () => {
     const e = makeEngine();
     const cash0 = e.players[0].cash;
@@ -368,9 +420,10 @@ describe("折叠投影器 · 城池族", () => {
       {
         propertyId: "prop-changan",
         group: "a",
-        level: 0,
-        maxLevel: 3,
-        defense: 5,
+        level: 1,
+        maxLevel: 4,
+        defense: 40,
+        burning: null,
         damageRanking: [],
       },
     ]);
@@ -390,21 +443,22 @@ describe("折叠投影器 · 城池族", () => {
 
     const e2 = makeEngine(); // 赐城缺口级联:副本无持有,按事件面补册
     foldEventBatch(e2, [
-      ev(0, { kind: "propertyUpgraded", propertyId: "prop-luoyang", newLevel: 3 }),
+      ev(0, { kind: "propertyUpgraded", propertyId: "prop-luoyang", newLevel: 4 }),
     ]);
-    expect(e2.players[0].properties[0]).toMatchObject({ propertyId: "prop-luoyang", level: 3 });
+    expect(e2.players[0].properties[0]).toMatchObject({ propertyId: "prop-luoyang", level: 4 });
   });
 
-  it("propertyGranted 机遇赐城 Lv.0 入册(#719,原级联缺口闭合)", () => {
+  it("propertyGranted 机遇赐城按 1 级满防入册", () => {
     const e = makeEngine();
     foldEventBatch(e, [ev(0, { kind: "propertyGranted", propertyId: "prop-luoyang" })]);
     expect(e.players[0].properties).toEqual([
       {
         propertyId: "prop-luoyang",
         group: "a",
-        level: 0,
-        maxLevel: 3,
-        defense: 5,
+        level: 1,
+        maxLevel: 4,
+        defense: 40,
+        burning: null,
         damageRanking: [],
       },
     ]);
@@ -422,14 +476,18 @@ describe("折叠投影器 · 城池族", () => {
 
   it("assetTransferred 破产逐城易主:承让方接册保等级,无债主回无主", () => {
     const e = makeEngine();
-    grantProperty(e, 0, "prop-luoyang", 2);
+    grantProperty(e, 0, "prop-luoyang", 3);
     foldEventBatch(e, [ev(0, { kind: "assetTransferred", propertyId: "prop-luoyang", toSeat: 1 })]);
 
     expect(e.players[0].properties).toEqual([]);
-    expect(e.players[1].properties[0]).toMatchObject({ propertyId: "prop-luoyang", level: 2 });
+    expect(e.players[1].properties[0]).toMatchObject({
+      propertyId: "prop-luoyang",
+      level: 3,
+      defense: 20,
+    });
 
     const e2 = makeEngine();
-    grantProperty(e2, 0, "prop-luoyang", 2);
+    grantProperty(e2, 0, "prop-luoyang", 3);
     foldEventBatch(e2, [
       ev(0, { kind: "assetTransferred", propertyId: "prop-luoyang", toSeat: null }),
     ]);
@@ -508,7 +566,7 @@ describe("折叠投影器 · 金钱族相邻回填", () => {
     const market = MAP.board.tiles.find((t) => t.event === "market")!;
     armPhase(e, { phase: "Playing", turnPhase: "Roll", activeIndex: 0 });
     placePlayer(e, 0, market.index - 1);
-    if (own) grantProperty(e, 0, market.propertyId!, 0);
+    if (own) grantProperty(e, 0, market.propertyId!, 1);
     if (crossesPrice) setCash(e, 0, MAP.catalog.get(market.propertyId!)!.purchasePrice - 50);
     pinDice(e, "march", [1]);
     const replica = makeEngine();
@@ -670,7 +728,7 @@ describe("折叠投影器 · 名将族", () => {
   it("assetLiquidated 两类变卖:现金+所得、珍宝和城池出册", () => {
     const e = makeEngine();
     e.players[0].treasures.push({ ...TREASURES[0], id: "edict-0" });
-    grantProperty(e, 0, "prop-luoyang", 1);
+    grantProperty(e, 0, "prop-luoyang", 2);
     const cash0 = e.players[0].cash;
 
     foldEventBatch(e, [
@@ -749,8 +807,8 @@ describe("折叠投影器 · 锦囊族", () => {
     armPhase(authority, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
     giveJinnang(authority, 0, ["火烧连营", "识破诡计"]);
     giveJinnang(authority, 1, ["识破诡计"]);
-    grantProperty(authority, 1, "prop-jinyang", 2);
-    grantProperty(authority, 1, "prop-youzhou", 2);
+    grantProperty(authority, 1, "prop-jinyang", 3);
+    grantProperty(authority, 1, "prop-youzhou", 3);
     const replica = makeEngine();
     replica.restoreFromSnapshot(redactSnapshotForSeat(authority.snapshot(), 1));
 
@@ -791,10 +849,10 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(replica.jinnangUsedTags).toEqual(["攻"]);
     for (const engine of [authority, replica]) {
       expect(engine.players[1].properties).toMatchObject([
-        { propertyId: "prop-jinyang", defense: 2, damageRanking: [{ seat: 0, damage: 1 }] },
-        { propertyId: "prop-youzhou", defense: 2, damageRanking: [{ seat: 0, damage: 1 }] },
+        { propertyId: "prop-jinyang", defense: 12, damageRanking: [{ seat: 0, damage: 8 }] },
+        { propertyId: "prop-youzhou", defense: 12, damageRanking: [{ seat: 0, damage: 8 }] },
       ]);
-      expect(engine.players[0].cash).toBe(10072); // 两座购入价各 1800，各奖励 36 两
+      expect(engine.players[0].cash).toBe(10080); // 两座城各扣 8 点防御，各发 40 两
     }
   });
 
@@ -949,9 +1007,9 @@ describe("折叠投影器 · 声望/体力/跳过族", () => {
     setReputation(e, 0, -300);
     placePlayer(e, 0, 1); // 晋阳 → 无主幽州，粮道被劫扣 10 体力
     pinDice(e, "march", [1]);
-    grantProperty(e, 0, "prop-jinyang", 0);
+    grantProperty(e, 0, "prop-jinyang", 1);
     applyCityDamage(e, e.players[0], "prop-jinyang", 1, e.players[1]);
-    grantProperty(e, 0, "prop-luoyang", 2);
+    grantProperty(e, 0, "prop-luoyang", 3);
     setDefense(e, 0, "prop-luoyang", 1);
     expect(e.damageStamina(0, 94, 1)).toBe(6);
 
@@ -969,15 +1027,15 @@ describe("折叠投影器 · 声望/体力/跳过族", () => {
       expect.objectContaining({ kind: "staminaChanged", delta: -6, reason: "encounter" }),
     );
     expect(e.players[0].properties).toMatchObject([
-      { propertyId: "prop-luoyang", level: 1, defense: 4, damageRanking: [] },
+      { propertyId: "prop-luoyang", level: 2, defense: 30, damageRanking: [] },
     ]);
     expect(e.players[1].properties).toMatchObject([
-      { propertyId: "prop-jinyang", level: 0, defense: 5, damageRanking: [] },
+      { propertyId: "prop-jinyang", level: 1, defense: 40, damageRanking: [] },
     ]);
-    expect(e.players[1].cash).toBe(10216); // 旧城损得 36 两，接城后只领 180 两结算奖励
+    expect(e.players[1].cash).toBe(10180); // 先前布下伤害，接城领取 180 两结算奖励
     expect(replica.players[0].properties).toEqual(e.players[0].properties);
     expect(replica.players[1].properties).toEqual(e.players[1].properties);
-    expect(replica.players[1].cash).toBe(10216);
+    expect(replica.players[1].cash).toBe(10180);
     expect(replica.players[0]).toMatchObject({ stamina: 0, skipTurns: 2, resting: true });
     expect([replica.activeIndex, replica.turnPhase]).toEqual([1, "Roll"]);
   });

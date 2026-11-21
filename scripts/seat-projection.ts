@@ -347,6 +347,8 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "propertyBought":
       case "propertyUpgraded":
       case "propertyDamaged":
+      case "propertyBurningChanged":
+      case "propertyBurningTicked":
       case "propertyRejected":
       case "propertyGranted": // #719:机遇赐城易主宣告(赐城本就公开——城池归属棋盘可见)
       case "cashChanged":
@@ -376,6 +378,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "encounterChoice":
       case "exhaustionResolved":
       case "jinnangAnnounced":
+      case "jinnangPhaseResumed":
       case "reactionAnswered":
       case "reactionFailed":
       case "duelResolved": // 参与座位、点数与胜者均公开

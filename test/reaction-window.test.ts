@@ -91,12 +91,13 @@ function scriptDice(e: GameEngine, opts: { die?: number; rollDies?: number[] }) 
 /** 给 seat 一座非都城房产(拦检/火烧布场),capitalIndex 挪出路径格。 */
 function grantCity(e: GameEngine, seat: number, propertyId: string) {
   e.players[seat].properties.push({
+    burning: null,
     damageRanking: [],
     propertyId,
     group: "a",
-    level: 2,
-    maxLevel: 3,
-    defense: 3,
+    level: 3,
+    maxLevel: 4,
+    defense: 20,
   });
 }
 
@@ -141,7 +142,7 @@ function marchUp(opts: { ownerCards: string[]; ownerTreasure?: boolean; ownerBot
 }
 
 describe("识破诡计(JinnangAnnounced 反应窗)", () => {
-  /** 火烧连营打向 victim 都城的布场(#1389 城指向):都城 Lv2(满防 3),前方 1、2 格
+  /** 火烧连营打向 victim 都城的布场(#1389 城指向):都城 Lv3(满防 20),前方 1、2 格
    *  清成无主(份清单=受击城=[都城格],断言面单一份不掺邻城)。 */
   function burnCapitalUp(seed = 42) {
     const e = prepared(seed);
@@ -151,7 +152,15 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     const victim = e.players[victimSeat];
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [
-      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+      {
+        burning: null,
+        damageRanking: [],
+        propertyId: capId!,
+        group: "a",
+        level: 3,
+        maxLevel: 4,
+        defense: 20,
+      },
     ];
     for (const off of [1, 2]) {
       const t = e.board.at((victim.capitalIndex + off) % e.board.count);
@@ -177,12 +186,12 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
       windowMs: 30_000, // 权威开窗时长随 view 走
     });
     expect(e.pendingReaction!.seq).toBeGreaterThan(0); // #284:窗实例号单调分配
-    expect(victim.properties[0].level).toBe(2); // 挂起中未结算
+    expect(victim.properties[0].level).toBe(3); // 挂起中未结算
     e.respondReaction(victimSeat, true, "识破诡计", capTile); // 免单城:被保护份=城格
     // 结算:识破生效,这一城免烧(完全不受此次伤害,含溅射账)
     expect(e.pendingReaction).toBeNull();
-    expect(victim.properties[0].level).toBe(2); // 城防原样
-    expect(victim.properties[0].defense).toBe(3);
+    expect(victim.properties[0].level).toBe(3); // 城防原样
+    expect(victim.properties[0].defense).toBe(20);
     expect(user.jinnangHand).toEqual([]); // 火烧连营已耗(识破只护份,不退牌)
     expect(victim.jinnangHand).toEqual([]); // 识破诡计已耗
     expect(e.jinnangDiscard).toContain("火烧连营");
@@ -198,8 +207,8 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [capTile]);
     e.respondReaction(victimSeat, false); // 不用(超时代发的同款命令)
-    expect(victim.properties[0].defense).toBe(2); // 照常结算:1 点火焰伤害扣防
-    expect(victim.properties[0].level).toBe(2); // 防御未归零,等级不动
+    expect(victim.properties[0].defense).toBe(12); // 照常结算:8 点火焰伤害扣防
+    expect(victim.properties[0].level).toBe(3); // 防御未归零,等级不动
     expect(victim.jinnangHand).toEqual(["识破诡计"]); // 没用牌,仍在手
     expect(e.turnPhase).toBe("Roll");
   });
@@ -213,7 +222,15 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     const victim = e.players[victimSeat];
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [
-      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+      {
+        burning: null,
+        damageRanking: [],
+        propertyId: capId!,
+        group: "a",
+        level: 3,
+        maxLevel: 4,
+        defense: 20,
+      },
     ];
     // 中心=受害者都城;前方 1 格=holder 的城(第二份受击城);前方 2 格清成无主
     const at = (off: number) => e.board.at((victim.capitalIndex + off) % e.board.count);
@@ -223,7 +240,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
       p.properties = p.properties.filter(
         (h) => h.propertyId !== sideTile.propertyId && h.propertyId !== farTile.propertyId,
       );
-    grantProperty(e, holderSeat, sideTile.propertyId!, 2); // 满防 3
+    grantProperty(e, holderSeat, sideTile.propertyId!, 3); // 满防 20
     setHand(e, holderSeat, ["识破诡计"]);
     armUser(e, userSeat, ["火烧连营"]);
     e.resolveJinnang("火烧连营");
@@ -237,8 +254,8 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     expect(e.pendingReaction).toBeNull();
     expect(
       e.players[holderSeat].properties.find((h) => h.propertyId === sideTile.propertyId)!.defense,
-    ).toBe(3); // 免烧
-    expect(victim.properties[0].defense).toBe(2); // 照烧:扣防
+    ).toBe(20); // 免烧
+    expect(victim.properties[0].defense).toBe(12); // 照烧:扣防
     expect(e.log.some((l) => l.detail.includes(`share=tile#${sideTile.index}`))).toBe(true);
   });
 
@@ -332,7 +349,15 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     setHand(e, y, ["识破诡计"]);
     const capId = e.board.at(e.players[x].capitalIndex)?.propertyId;
     e.players[x].properties = [
-      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+      {
+        burning: null,
+        damageRanking: [],
+        propertyId: capId!,
+        group: "a",
+        level: 3,
+        maxLevel: 4,
+        defense: 20,
+      },
     ];
     const capTile = e.players[x].capitalIndex;
     e.resolveJinnang("火烧连营");
@@ -367,8 +392,8 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     );
     e2.respondReaction(y, false);
     expect(e2.pendingReaction).toBeNull();
-    expect(e2.players[x].properties[0].level).toBe(2);
-    expect(e2.players[x].properties[0].defense).toBe(3); // 识破站住:这一城免烧
+    expect(e2.players[x].properties[0].level).toBe(3);
+    expect(e2.players[x].properties[0].defense).toBe(20); // 识破站住:这一城免烧
   });
 });
 
@@ -381,7 +406,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     for (const player of e.players)
       expect([START, PASSED, LAND]).not.toContain(player.capitalIndex);
     placePlayer(e, moverSeat, START);
-    grantProperty(e, ownerSeat, "prop-xianyang", 2);
+    grantProperty(e, ownerSeat, "prop-xianyang", 3);
     giveJinnang(e, ownerSeat, ["半路杀出"]);
     pinDice(e, "march", [2]);
     e.rollAndMove();
@@ -571,7 +596,15 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
     const victim = e.players[victimSeat];
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [
-      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+      {
+        burning: null,
+        damageRanking: [],
+        propertyId: capId!,
+        group: "a",
+        level: 3,
+        maxLevel: 4,
+        defense: 20,
+      },
     ];
     for (const off of [1, 2]) {
       const t = e.board.at((victim.capitalIndex + off) % e.board.count);
@@ -582,7 +615,7 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
     e.resolveJinnang("火烧连营", [victim.capitalIndex]); // 城指向:中心=受害者都城(#1389)
     // bot 即席「不用」:窗收掉,火烧照常结算(份=受害者都城,与 bot 无涉)
     expect(e.pendingReaction).toBeNull();
-    expect(victim.properties[0].defense).toBe(2); // 1 点火焰伤害扣防
+    expect(victim.properties[0].defense).toBe(12); // 8 点火焰伤害扣防
     expect(e.players[botSeat].jinnangHand).toEqual(["识破诡计"]); // bot 不替他人拆招
   });
 
@@ -617,7 +650,15 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [
-      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+      {
+        burning: null,
+        damageRanking: [],
+        propertyId: capId!,
+        group: "a",
+        level: 3,
+        maxLevel: 4,
+        defense: 20,
+      },
     ];
     const zhouyu = HEROES.find((h) => h.id === "zhouyu");
     if (!zhouyu) throw new Error("HEROES 表缺 zhouyu(数据 bug)");
@@ -630,8 +671,8 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     expect(e.pendingReaction).toBeNull(); // 不开窗
     const phaseAfter = e.turnPhase as TurnPhase; // 断言收窄:结算收卷相位
     expect(phaseAfter).toBe("Roll");
-    expect(victim.properties[0].level).toBe(2); // 火攻照常结算(1 点火焰伤害:防御值吸收,等级不动)
-    expect(victim.properties[0].defense).toBe(2); // 防御值 3→2
+    expect(victim.properties[0].level).toBe(3); // 火攻照常结算(10 点火焰伤害，等级不动)
+    expect(victim.properties[0].defense).toBe(10); // 防御值 20→10
     expect(victim.jinnangHand).toEqual(["识破诡计"]); // 牌留手
   });
 });
@@ -693,7 +734,7 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     const e2 = armCounterWindow(SEATS3, { cardId: "火烧连营", userSeat: 0, targetSeats: [2] });
     const tile2 = e2.board.at(2).propertyId!;
     for (const p of e2.players) p.properties = p.properties.filter((h) => h.propertyId !== tile2);
-    grantProperty(e2, 2, tile2, 1); // 份城归 seat2:seat1 无涉 → 不拆
+    grantProperty(e2, 2, tile2, 2); // 份城归 seat2:seat1 无涉 → 不拆
     setHand(e2, 1, ["识破诡计"]);
     expect(botReactionDecision(e2, 1)).toEqual({ use: false });
     const freeTile = e2.board.tiles.find(
@@ -701,13 +742,13 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     )!;
     for (const p of e2.players)
       p.properties = p.properties.filter((h) => h.propertyId !== freeTile.propertyId);
-    grantProperty(e2, 1, freeTile.propertyId!, 2); // 我名下 Lv2 城(降级价差 > 底价 100)
+    grantProperty(e2, 1, freeTile.propertyId!, 3); // 我名下 Lv3 城(降级价差 > 底价 100)
     const e3 = armCounterWindow(SEATS3, {
       cardId: "火烧连营",
       userSeat: 0,
       targetSeats: [freeTile.index],
     });
-    grantProperty(e3, 1, freeTile.propertyId!, 2);
+    grantProperty(e3, 1, freeTile.propertyId!, 3);
     setHand(e3, 1, ["识破诡计"]);
     expect(botReactionDecision(e3, 1)).toEqual({
       use: true,
@@ -771,7 +812,15 @@ describe("反识破链(#571/ADR-0060)", () => {
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [
-      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+      {
+        burning: null,
+        damageRanking: [],
+        propertyId: capId!,
+        group: "a",
+        level: 3,
+        maxLevel: 4,
+        defense: 20,
+      },
     ];
     for (const off of [1, 2]) {
       const t = e.board.at((victim.capitalIndex + off) % e.board.count);
@@ -793,7 +842,7 @@ describe("反识破链(#571/ADR-0060)", () => {
     expect(e.players[victimSeat].jinnangHand).toEqual([]); // 宣布环已扣账
     e.respondReaction(userSeat, true, "识破诡计"); // 救计(链环应答不带份)
     expect(e.pendingReaction).toBeNull(); // victim 空手无人可反:站住(protects=false)→ 计恢复
-    expect(victim.properties[0].defense).toBe(2); // 火烧照常结算:1 点火焰伤害扣防
+    expect(victim.properties[0].defense).toBe(12); // 火烧照常结算:8 点火焰伤害扣防
     expect(e.players[userSeat].jinnangHand).toEqual([]); // 火烧+救计识破皆耗
     expect(e.players[victimSeat].jinnangHand).toEqual([]); // 被反识破也不回手
     expect(e.jinnangDiscard.filter((c) => c === "识破诡计").length).toBe(2);
@@ -808,7 +857,7 @@ describe("反识破链(#571/ADR-0060)", () => {
     expect(e2.pendingReaction).toEqual(e.pendingReaction); // counter 载荷随挂起态往返
     e2.respondReaction(userSeat, true, "识破诡计");
     expect(e2.pendingReaction).toBeNull();
-    expect(e2.players[victimSeat].properties[0].defense).toBe(2); // 恢复端结算落到恢复引擎的对象上
+    expect(e2.players[victimSeat].properties[0].defense).toBe(12); // 恢复端结算落到恢复引擎的对象上
   });
 
   it("AOE 护招被拆:第三者反识破拆掉保护→该份恢复受击,两牌皆耗", () => {

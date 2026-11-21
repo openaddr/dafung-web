@@ -201,7 +201,7 @@ describe("选都三选一:快照与极端地图", () => {
 });
 
 describe("选都落账守卫(#226):建城费与都城持仓双写一致", () => {
-  it("2-8 座位全座位选都后:每座位 capitalIndex 指向的城都在 properties 中且 Lv.0、现金=起手−建城费", () => {
+  it("2-8 座位全座位选都后:每座位 capitalIndex 指向的城都在 properties 中且为 1 级满防、现金=起手−建城费", () => {
     for (let n = 2; n <= 8; n++) {
       for (const seed of [3, 42]) {
         const e = makeEngine(
@@ -221,7 +221,7 @@ describe("选都落账守卫(#226):建城费与都城持仓双写一致", () => 
             holding,
             `${p.id}(${p.guohao}) seed=${seed} n=${n}:都城持仓缺失(#226)`,
           ).toBeDefined();
-          expect(holding!.level).toBe(0); // 建都即 Lv.0
+          expect(holding).toMatchObject({ level: 1, defense: 40 });
           expect(p.cash).toBe(e.startingCash - def.buildCost); // 钱账一致:恰好扣一次建城费
         }
       }

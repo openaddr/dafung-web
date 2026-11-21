@@ -56,11 +56,10 @@ export type GameMoment =
   /** 城池升级后:扩军 upgradeProperty 成功 + 公道买卖成交升级,两处(满级不触发)。
    *  ctx.propertyId = 升级城。subject = 城主。 */
   | "PropertyUpgraded"
-  /** 城池降级:火烧连营和外敌乘虚按城池伤害结算结果派发。
-   *  火攻主动技沿用主动技结算的时机规则。
+  /** 城池受损:火攻、火烧连营和外敌乘虚在城池实际降级后派发。
    *  ctx.propertyId/ctx.tileIndex = 涉事城。subject = 城主。 */
   | "PropertyDemolished"
-  /** 失城:火烧连营和外敌乘虚攻陷 0 级非都城后派发。
+  /** 失城:火攻、火烧连营和外敌乘虚攻陷非都城后派发。
    *  ctx.propertyId/ctx.tileIndex = 被攻陷的城。subject = 原城主。 */
   | "PropertyLost"
   /** 招贤后:resolveHeroPick 选定名将(tryRecruitHero 只出三选一候选)。ctx.heroId。subject = 招贤者。 */

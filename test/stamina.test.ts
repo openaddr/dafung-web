@@ -59,17 +59,17 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
   it("诸城各降 1 级(含都城):多座齐降、skipTurns=2、resting 立、体力保持 0、endTurn 收尾", () => {
     const e = makeEngine();
     finishSetupLite(e);
-    const p1 = giveProperty(e, 0, 2);
-    const p2 = giveProperty(e, 0, 1);
+    const p1 = giveProperty(e, 0, 3);
+    const p2 = giveProperty(e, 0, 2);
     const cap = capitalHolding(e, 0);
-    grantProperty(e, 0, cap.propertyId, 3); // 都城同规:可降
+    grantProperty(e, 0, cap.propertyId, 4); // 都城同规:可降
     setStamina(e, 0, 0);
     const r = e.exhaustIfDepleted(0);
     expect(r).toBe("resolved"); // 全自动,无相位
     expect(e.turnPhase).toBe("Roll"); // endTurn 已收尾(空手牌 → 无出牌阶段)
-    expect(e.players[0].properties.find((h) => h.propertyId === p1)!.level).toBe(1); // 2→1
-    expect(e.players[0].properties.find((h) => h.propertyId === p2)!.level).toBe(0); // 1→0 封底
-    expect(capitalHolding(e, 0).level).toBe(2); // 都城 3→2
+    expect(e.players[0].properties.find((h) => h.propertyId === p1)!.level).toBe(2); // 3→2
+    expect(e.players[0].properties.find((h) => h.propertyId === p2)!.level).toBe(1); // 2→1
+    expect(capitalHolding(e, 0).level).toBe(3); // 都城 4→3
     expect(e.players[0].skipTurns).toBe(2); // 休整两回合
     expect(e.players[0].resting).toBe(true);
     expect(e.players[0].stamina).toBe(0); // 归 0 当刻不回血,卧床状态可见
@@ -82,16 +82,16 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
     expect(ev && ev.kind === "exhaustionResolved" ? ev.restTurns : null).toBe(2);
   });
 
-  it("零级城池打空：都城归原主，普通城在没有累计敌伤时回无主", () => {
+  it("1 级城池打空：都城归原主，普通城在没有累计敌伤时回无主", () => {
     const e = makeEngine();
     finishSetupLite(e);
-    const city = giveProperty(e, 0, 0);
+    const city = giveProperty(e, 0, 1);
     const cap = capitalHolding(e, 0);
     setStamina(e, 0, 0);
     expect(e.exhaustIfDepleted(0)).toBe("resolved");
     expect(e.findOwner(city)).toBeNull();
     expect(e.findOwner(cap.propertyId)).toBe(e.players[0]);
-    expect(cap).toMatchObject({ level: 0, defense: 0 });
+    expect(cap).toMatchObject({ level: 1, defense: 0 });
     const ev = e.gameEvents.find((x) => x.kind === "exhaustionResolved");
     expect(ev && ev.kind === "exhaustionResolved" ? ev.downgradedPropertyIds : null).toEqual([]); // 清单空
     expect(e.players[0].skipTurns).toBe(2);
@@ -112,7 +112,7 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
   it("休整期满回满:跳回合消费完 → 体力 100、resting 清、staminaChanged(reason=rest)", () => {
     const e = makeEngine();
     finishSetupLite(e);
-    giveProperty(e, 0, 2);
+    giveProperty(e, 0, 3);
     e.players[0].stamina = 0;
     e.exhaustIfDepleted(0); // 内含 endTurn:活跃已让位下家
     expect(e.players[0].skipTurns).toBe(2);

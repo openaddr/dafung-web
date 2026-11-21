@@ -14,7 +14,7 @@
 // 未购地/破产清场均可达)。
 import { memo } from "react";
 import { formatMoney } from "@core/money";
-import { sellValueOf } from "@core/economy";
+import { cityTradeTermsOf, sellValueOf } from "@core/economy";
 import { tileIndexOfProperty } from "@core/board";
 import { Theme } from "@core/theme";
 import type { SnapshotPlayer } from "@app/store/gameStore";
@@ -95,6 +95,7 @@ export const CityLedgerModal = memo(function CityLedgerModal({
             <span className="text-right">交易加成</span>
           </div>
           {rows.map(({ h, tile, def, tileIndex }) => {
+            const { multiplier, addition } = cityTradeTermsOf(def, h.level);
             return (
               <div
                 key={def.id}
@@ -126,7 +127,7 @@ export const CityLedgerModal = memo(function CityLedgerModal({
                   {formatMoney(sellValueOf(def, h.level))}
                 </span>
                 <span className="text-right text-paper tabular-nums">
-                  ×{def.tradeMult[h.level]} +{formatMoney(def.tradeAdd[h.level])}
+                  ×{multiplier} +{formatMoney(addition)}
                 </span>
               </div>
             );

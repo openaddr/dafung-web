@@ -24,6 +24,7 @@ import type { EncounterTier } from "./encounters";
 import type { ReactionCardSpend, ReactionView } from "./reaction-window";
 import type { MovePath } from "./board";
 import type { CityDamageEntry } from "./city-damage";
+import type { CityBurning } from "./model";
 import { findHolding } from "./player";
 import { heroSlotOf } from "./roster";
 import { netWorth } from "./networth";
@@ -124,7 +125,7 @@ export interface CapitalHaltBody {
   tileIndex: number;
   path: MovePath;
 }
-/** 选都建城(开局三段式落子:建都即获城 Lv.0,扣建城费)。 */
+/** 选都建城(开局三段式落子:建都即获城 Lv.1,扣建城费)。 */
 export interface CapitalSelectedBody {
   kind: "capitalSelected";
   tileIndex: number;
@@ -143,13 +144,26 @@ export interface PropertyUpgradedBody {
   propertyId: string;
   newLevel: number;
 }
-/** 城池受损后的等级、防御值和持有期伤害排行榜；seat 为受击城主。 */
+/** 城池受损后的等级、防御值、燃烧和持有期伤害排行榜；seat 为受击城主。 */
 export interface PropertyDamagedBody {
   kind: "propertyDamaged";
   propertyId: string;
   level: number;
   defense: number;
+  burning: CityBurning | null;
   damageRanking: readonly CityDamageEntry[];
+}
+/** 燃烧计时独立变化；seat 为当前城主。 */
+export interface PropertyBurningChangedBody {
+  kind: "propertyBurningChanged";
+  propertyId: string;
+  burning: CityBurning | null;
+}
+/** 燃烧到期扣防；marks 为本次扣防前的火焰标记数。 */
+export interface PropertyBurningTickedBody {
+  kind: "propertyBurningTicked";
+  propertyId: string;
+  marks: number;
 }
 /** ADR-0013 自动执行默认行为的事件，原因是银两不足或城已满级。 */
 export interface PropertyRejectedBody {
@@ -159,7 +173,7 @@ export interface PropertyRejectedBody {
 }
 /** 机遇赐城(#719,传檄而定):无主城随机赐予的易主宣告——PropertyGained 时机派发点
  *  同步产出(与 PropertyBought 同表模式);效果名与「购」语义区分(#457)。折面=得城者
- *  Lv.0 入册(机遇赐城此前是折叠器已知无事件转移的级联缺口,本事件将其闭合);
+ *  Lv.1 入册(机遇赐城此前是折叠器已知无事件转移的级联缺口,本事件将其闭合);
  *  表现=城池易主宣告(fx 面派生,与购地/破产易主同通路)。 */
 export interface PropertyGrantedBody {
   kind: "propertyGranted";
@@ -364,11 +378,13 @@ export interface EncounterChosenBody {
   choiceIndex: number;
   grantsSkillBooks?: true;
 }
-/** 体力耗竭开始休整。downgradedPropertyIds 供演出宣告；城损及易主分别由
+/** 体力耗竭开始休整。归零伤害来源、实际降级及失城清单供演出宣告；城损及易主分别由
  *  propertyDamaged、assetTransferred 同步，休整按 restTurns 累加。 */
 export interface ExhaustionResolvedBody {
   kind: "exhaustionResolved";
+  sourceSeat: number | null;
   downgradedPropertyIds: string[];
+  lostPropertyIds: string[];
   restTurns: number;
 }
 /** 锦囊宣布(出牌扣账后、识破窗开窗前;targetSeats=受影响份清单)。 */
@@ -376,6 +392,11 @@ export interface JinnangAnnouncedBody {
   kind: "jinnangAnnounced";
   cardId: string;
   targetSeats: number[];
+}
+/** 城损技能应答后，整次出牌或出技结束时的权威相位。 */
+export interface JinnangPhaseResumedBody {
+  kind: "jinnangPhaseResumed";
+  turnPhase: "AwaitingJinnang" | "Roll";
 }
 /** 权威窗号、时长和影响范围随开窗公告一起下行；询问身份按席位投影。 */
 export interface ReactionOpenedBody {
@@ -451,6 +472,8 @@ export type GameEventBody =
   | PropertyBoughtBody
   | PropertyUpgradedBody
   | PropertyDamagedBody
+  | PropertyBurningChangedBody
+  | PropertyBurningTickedBody
   | PropertyRejectedBody
   | PropertyGrantedBody
   | CashChangedBody
@@ -480,6 +503,7 @@ export type GameEventBody =
   | EncounterChosenBody
   | ExhaustionResolvedBody
   | JinnangAnnouncedBody
+  | JinnangPhaseResumedBody
   | ReactionOpenedBody
   | ReactionAnsweredBody
   | ReactionFailedBody
@@ -510,6 +534,8 @@ export const GAME_EVENT_KINDS = [
   "propertyBought",
   "propertyUpgraded",
   "propertyDamaged",
+  "propertyBurningChanged",
+  "propertyBurningTicked",
   "propertyRejected",
   "propertyGranted",
   "cashChanged",
@@ -538,6 +564,7 @@ export const GAME_EVENT_KINDS = [
   "encounterChoice",
   "exhaustionResolved",
   "jinnangAnnounced",
+  "jinnangPhaseResumed",
   "reactionOpened",
   "reactionAnswered",
   "reactionFailed",

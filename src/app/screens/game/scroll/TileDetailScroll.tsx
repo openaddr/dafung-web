@@ -1,5 +1,5 @@
 // 城池详情卷轴(#33/#34/#35):
-//   - 只读查看:城名 / 地域 / 持有者(含都城等级)/ 伤害排行榜 / 购入价 / 等级表
+//   - 只读查看:城名 / 地域 / 持有者(含都城等级)/ 燃烧 / 伤害排行榜 / 购入价 / 等级表
 //     (交易加成 + 变卖价或都城补给,#671)。
 //   - S10(#43):保留右上 ×(壳 44px 热区),关闭 = ×/遮罩/Esc;
 //     hideClose 只留给必须决策的卷轴(详情卷轴均放弃性,不占用)。
@@ -12,6 +12,7 @@ import { fullDefenseOf } from "@core/defense";
 import type { TileDef } from "@core/board";
 import type { PropertyDef } from "@core/economy";
 import type { CityDamageEntry } from "@core/city-damage";
+import type { CityBurning } from "@core/model";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { AffordRow } from "./AffordRow";
@@ -38,10 +39,11 @@ interface TileDetailScrollProps {
   context: { kind: "capital"; cash: number; onConfirm: () => void } | { kind: "view" };
   /** 持有者国号;null = 无主。 */
   ownerGuohao: string | null;
-  /** 持有者当前城等级(0 起);无主时忽略。 */
-  ownerLevel: number;
+  /** 持有者当前城等级，无主城为 null。 */
+  ownerLevel: number | null;
   /** 持有者当前防御值(#1391 T5);null=无主,不渲染防御值行(免疫,无防御语义)。 */
   ownerDefense: number | null;
+  burning: CityBurning | null;
   /** 当前持有期的公开伤害排行榜；无主城为 null。 */
   damageRanking: readonly CityDamageEntry[] | null;
   /** 是否某家都城(都城展示 Lv 徽记)。 */
@@ -69,6 +71,7 @@ function tileDetailScrollEqual(a: TileDetailScrollProps, b: TileDetailScrollProp
     a.ownerGuohao === b.ownerGuohao &&
     a.ownerLevel === b.ownerLevel &&
     a.ownerDefense === b.ownerDefense &&
+    a.burning === b.burning &&
     a.damageRanking === b.damageRanking &&
     a.isCapital === b.isCapital
   );
@@ -133,11 +136,18 @@ export const TileDetailScroll = memo(function TileDetailScroll({
   ownerGuohao,
   ownerLevel,
   ownerDefense,
+  burning,
   damageRanking,
   isCapital,
   onClose,
 }: TileDetailScrollProps) {
   const pickCapital = context.kind === "capital";
+  let burningText: string | null = null;
+  if (burning !== null) {
+    const source = players[burning.sourceSeat];
+    if (source === undefined) throw new Error(`城池燃烧:不存在来源座位 ${burning.sourceSeat}`);
+    burningText = `燃烧x${burning.marks}, 伤害来源[${source.guohao}]`;
+  }
   // #729:选都态「定都于此/再想想」钉底(壳 footer 槽);只读查看态不传 footer,
   // 槽不渲染零余白(详情内容矮,无需钉底段)。
   return (
@@ -173,9 +183,9 @@ export const TileDetailScroll = memo(function TileDetailScroll({
             <p className="m-0">
               {groupLabel ? `${groupLabel} · ` : ""}
               {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
-              {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""}
+              {isCapital && ownerLevel !== null ? ` · 都城 Lv.${ownerLevel}` : ""}
               {/* 防御值沿用core/defense单源;无主城无防御语义。 */}
-              {ownerGuohao != null && ownerDefense != null ? (
+              {ownerLevel !== null && ownerDefense !== null ? (
                 <>
                   {" · 防御 "}
                   <span data-testid={T.tileDetailDefense} className="text-paper">
@@ -184,6 +194,7 @@ export const TileDetailScroll = memo(function TileDetailScroll({
                 </>
               ) : null}
             </p>
+            {burningText !== null && <p className="m-0 mt-1 text-paper">{burningText}</p>}
           </div>
         </div>
         {pickCapital ? (
@@ -202,11 +213,11 @@ export const TileDetailScroll = memo(function TileDetailScroll({
         {/* 等级表:抽成共用 ValueTable(购地/扩军卷轴复用同一张表,避免三处漂移)。
             #671:主列=交易加成;第二列按城型——都城与选都候选显示补给(变卖价对都城
             是死信息:都城永不可变卖),普通城显示变卖价。
-            #92:持有城高亮持有者当前档;无主城没有「当前」可言(ownerLevel 仅为占位 0),不标 */}
+            #92:持有城高亮持有者当前档;无主城省略当前等级高亮 */}
         <ValueTable
           property={property}
           second={isCapital || pickCapital ? "supply" : "sell"}
-          highlight={ownerGuohao ? { level: ownerLevel, label: "当前" } : undefined}
+          highlight={ownerLevel !== null ? { level: ownerLevel, label: "当前" } : undefined}
         />
       </>
     </BannerShell>

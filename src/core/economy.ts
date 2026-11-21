@@ -4,6 +4,7 @@
 import type { Player, PropertyHolding } from "./model";
 import { createPropertyHolding, resetToFull, resetTransferredHolding } from "./defense";
 import { findHolding } from "./player";
+import { INITIAL_CITY_LEVEL } from "./constants";
 
 /** 城池档位(ADR-0034 四档城制;ADR-0042 决策 3 数据面显式化):单字中文口径,
  *  地图 JSON 逐城必配(`"tier": "名"`),loadMap 白名单校验,零兜底。
@@ -21,13 +22,13 @@ export interface PropertyDef {
   group: string; // 'a'..'h'
   tier: CityTier; // 城池档位(县/郡/奇/名):逐城必配,loadMap 校验;购价与坐地起价曲线形状随档走
   purchasePrice: number;
-  maxLevel: number; // 最高等级(地图逐图必配,loadMap 校验;持有等级 0..maxLevel,购入/建都即 Lv.0)
-  valueByLevel: number[]; // 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel+1,下标 = 等级
+  maxLevel: number; // 最高等级(地图逐图必配,loadMap 校验;持有等级 1..maxLevel,购入/建都即 Lv.1)
+  valueByLevel: number[]; // 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel，从 1 级起按等级排
   buildCost: number;
   resupply: number; // 都城补给(两/次,固定;地图顶层 resupply 注入,城侧不逐城配置)
-  /** 坐地起价加价值(per-level,两;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。地图逐城必配,长度由 loadMap 校验。 */
+  /** 坐地起价加价值(per-level,两;按 1..maxLevel 顺序):premiumPriceOf = 指导价×乘数 + 加值。地图逐城必配,长度由 loadMap 校验。 */
   tradeAdd: number[];
-  /** 坐地起价乘数(per-level;下标=城池等级 0..maxLevel):同上公式。地图逐城必配,长度由 loadMap 校验。 */
+  /** 坐地起价乘数(per-level;按 1..maxLevel 顺序):同上公式。地图逐城必配,长度由 loadMap 校验。 */
   tradeMult: number[];
 }
 
@@ -41,12 +42,12 @@ export type TransactionResult =
 
 export const canUpgrade = (h: PropertyHolding): boolean => h.level < h.maxLevel;
 
-/** 购买无主地产(购入即为 Lv.0,防御=满值——购入即易主,#1386)。现金不足拒绝。 */
+/** 购买无主地产(购入即为 Lv.1,防御=满值——购入即易主,#1386)。现金不足拒绝。 */
 export function buy(buyer: Player, def: PropertyDef): TransactionResult {
   if (buyer.cash < def.purchasePrice) return { status: "InsufficientFunds" };
   buyer.cash -= def.purchasePrice;
-  buyer.properties.push(createPropertyHolding(def, 0));
-  return { status: "Ok", newLevel: 0 };
+  buyer.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
+  return { status: "Ok", newLevel: INITIAL_CITY_LEVEL };
 }
 
 /** 升级自有地产(L+1,免费——自己到达己城可选扩军,本作无升级费)。满级/未持有拒绝。
@@ -60,9 +61,18 @@ export function upgrade(owner: Player, def: PropertyDef): TransactionResult {
   return { status: "Ok", newLevel: h.level };
 }
 
-/** 城池当前等级的变卖价(各等级变卖价显式定义于地图 json 的 valueByLevel,下标 = 等级)。 */
-export function sellValueOf(def: PropertyDef, level: number): number {
-  return def.valueByLevel[level];
+/** 变卖价由地图的 valueByLevel 按 1..maxLevel 逐级定义。 */
+export function sellValueOf(def: Pick<PropertyDef, "valueByLevel">, level: number): number {
+  return def.valueByLevel[level - INITIAL_CITY_LEVEL];
+}
+
+/** 城池当前等级的珍宝议价乘数与加值。 */
+export function cityTradeTermsOf(
+  def: Pick<PropertyDef, "tradeAdd" | "tradeMult">,
+  level: number,
+): { multiplier: number; addition: number } {
+  const index = level - INITIAL_CITY_LEVEL;
+  return { multiplier: def.tradeMult[index], addition: def.tradeAdd[index] };
 }
 
 /**

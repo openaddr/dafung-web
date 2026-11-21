@@ -1,5 +1,5 @@
 import type { GameEngine } from "./authority";
-import { awardCityReward, cityPriceShare, type CityDamageEntry } from "./city-damage";
+import { cityPriceShare, type CityDamageEntry, type CityReward } from "./city-damage";
 import type { PropertyHolding } from "./model";
 
 export const CONQUEST_REWARD_PERCENT = 5;
@@ -17,7 +17,8 @@ export function planCityConquest(
   ownerSeat: number,
   holding: PropertyHolding,
   attackerSeat: number | null,
-): { toSeat: number | null; rewards: ConquestReward[] } {
+  tileIndex: number,
+): { toSeat: number | null; rewards: CityReward[] } {
   const eligible = holding.damageRanking.filter(
     ({ seat }) => seat !== ownerSeat && !g.players[seat].isBankrupt,
   );
@@ -40,7 +41,7 @@ export function planCityConquest(
   }
   rewards.push(...splitConquestPool(cityPriceShare(property, CONQUEST_POOL_PERCENT), eligible));
   rewards.sort((a, b) => distanceFromActor(a.seat) - distanceFromActor(b.seat));
-  return { toSeat: winner.seat, rewards };
+  return { toSeat: winner.seat, rewards: describeConquestRewards(g, tileIndex, rewards) };
 }
 
 function splitConquestPool(pool: number, eligible: CityDamageEntry[]): ConquestReward[] {
@@ -61,20 +62,20 @@ function splitConquestPool(pool: number, eligible: CityDamageEntry[]): ConquestR
   return shares.map(({ seat, amount }) => ({ seat, amount, kind: "pool" }));
 }
 
-export function awardCityConquest(
+function describeConquestRewards(
   g: GameEngine,
-  propertyId: string,
   tileIndex: number,
   rewards: ConquestReward[],
-): void {
+): CityReward[] {
   const cityName = g.board.at(tileIndex).name;
-  for (const { seat, amount, kind } of rewards) {
+  return rewards.map(({ seat, amount, kind }) => {
     const lastHit = kind === "last-hit";
-    awardCityReward(g, seat, propertyId, {
+    return {
+      seat,
       amount,
       reason: lastHit ? "city-conquest" : "city-conquest-pool",
       description: `得「${cityName}」${lastHit ? "攻陷奖励" : "结算奖励"}`,
       audit: lastHit ? "cityConquestReward" : "cityConquestPoolReward",
-    });
-  }
+    };
+  });
 }

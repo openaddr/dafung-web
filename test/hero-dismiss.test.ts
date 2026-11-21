@@ -46,7 +46,7 @@ function fixtureData(tiles: object[]) {
     targetNetWorth: 30000,
     startingCash: 10000,
     startingTreasures: 0,
-    maxLevel: 3,
+    maxLevel: 4,
     resupply: 1000,
     tiles: tiles.map((t) => ({ ...t })),
   };

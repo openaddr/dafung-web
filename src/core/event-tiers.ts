@@ -106,7 +106,7 @@ export const EVENT_TIERS = {
   capitalSelected: {
     fold: "fold+calibration",
     fx: "presented",
-    why: "建城入册(占都/落位/Lv0 持有);建城扣费无 cashChanged,Setup 期现金不入折叠由开局校准覆盖(#386 注记)",
+    why: "建城入册(占都/落位/Lv1 持有);建城扣费无 cashChanged,Setup 期现金不入折叠由开局校准覆盖(#386 注记)",
   },
   propertyBought: {
     fold: "must-fold",
@@ -121,7 +121,17 @@ export const EVENT_TIERS = {
   propertyDamaged: {
     fold: "must-fold",
     fx: "silent",
-    why: "以权威结算后的城池等级、防御值和伤害排行榜更新持有记录",
+    why: "以权威结算后的城池等级、防御值、燃烧和伤害排行榜更新持有记录",
+  },
+  propertyBurningChanged: {
+    fold: "must-fold",
+    fx: "silent",
+    why: "按权威进度更新城池燃烧",
+  },
+  propertyBurningTicked: {
+    fold: "declarative",
+    fx: "presented",
+    why: "以扣防前的标记数播放满焰；扣防和剩余标记由随后 propertyDamaged 同步",
   },
   propertyRejected: {
     fold: "declarative",
@@ -131,12 +141,12 @@ export const EVENT_TIERS = {
   propertyGranted: {
     fold: "must-fold",
     fx: "presented",
-    why: "机遇赐城入册(#719,传檄而定):得城者 Lv.0 持有入册——此前是折叠器已知无事件转移的级联缺口,本事件闭合;表现=城池易主宣告(与购地/破产易主同通路)",
+    why: "机遇赐城入册(#719,传檄而定):得城者 Lv.1 持有入册——此前是折叠器已知无事件转移的级联缺口,本事件闭合;表现=城池易主宣告(与购地/破产易主同通路)",
   },
   exhaustionResolved: {
     fold: "must-fold",
     fx: "presented",
-    why: "进入休整并按 restTurns 累加跳过回合；先前的城损和易主由各自的事件折叠",
+    why: "进入休整并按 restTurns 累加跳过回合；演出宣告归零伤害来源及降级失城清单",
   },
   assetTransferred: {
     fold: "must-fold",
@@ -236,6 +246,11 @@ export const EVENT_TIERS = {
     fold: "fold+calibration",
     fx: "presented",
     why: "主动出牌扣账与清除目标段载荷；反应锦囊公告提供表现。直接结算后是否还有可用暗牌由权威端判定，出牌阶段闭沿由校准同步相位。表现为出牌线和浮字。",
+  },
+  jinnangPhaseResumed: {
+    fold: "must-fold",
+    fx: "silent",
+    why: "城损技能应答后，批内折叠出牌或出技结清后的权威相位",
   },
   reactionOpened: {
     fold: "must-fold",

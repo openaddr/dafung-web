@@ -929,7 +929,15 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     if (e.turnPhase !== "AwaitingJinnang") e.turnPhase = "AwaitingJinnang";
     const capId = e.board.at(e.players[victimSeat].capitalIndex!)?.propertyId;
     e.players[victimSeat].properties = [
-      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+      {
+        burning: null,
+        damageRanking: [],
+        propertyId: capId!,
+        group: "a",
+        level: 3,
+        maxLevel: 4,
+        defense: 20,
+      },
     ];
     e.resolveJinnang("火烧连营"); // 入目标段
     e.resolveJinnang("火烧连营", [e.players[victimSeat].capitalIndex!]); // 宣布 → 反应窗挂起

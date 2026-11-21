@@ -193,7 +193,7 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     e.players[2].jinnangHandCount = 1;
     e.players[1].jinnangHand = ["识破诡计"];
     e.players[1].jinnangHandCount = 1;
-    // seat1 种一座非都城 Lv1 城当火源(城指向域 #1389,提交火源城 tileIndex):
+    // seat1 种一座非都城 Lv2 城当火源(城指向域 #1389,提交火源城 tileIndex):
     // 都城挪出落点格防重叠,城从 catalog 取无主格。
     const capId1 = e.board.at(e.players[1].capitalIndex)?.propertyId;
     const lotTile = e.board.tiles.find(
@@ -213,12 +213,13 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     e.players[0].treasures = [];
     e.players[1].treasures = [];
     e.players[1].properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: lot,
       group: "a",
-      level: 1,
-      maxLevel: 3,
-      defense: 4,
+      level: 2,
+      maxLevel: 4,
+      defense: 30,
     });
     const turnBefore = e.turnNumber;
 
@@ -257,9 +258,9 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     expect(
       e.log.some((l) => l.detail.includes("reactionRespond") && l.detail.includes("use=0")),
     ).toBe(true);
-    // 结算照走:火烧连营执行,seat1 的城挨 1 点火焰伤害(不用不救城):防御 4→3,等级不动
-    expect(e.players[1].properties.find((h) => h.propertyId === lot)?.defense).toBe(3);
-    expect(e.players[1].properties.find((h) => h.propertyId === lot)?.level).toBe(1);
+    // 结算照走:火烧连营执行,seat1 的城挨 8 点火焰伤害(不用不救城):防御 30→22,等级不动
+    expect(e.players[1].properties.find((h) => h.propertyId === lot)?.defense).toBe(22);
+    expect(e.players[1].properties.find((h) => h.propertyId === lot)?.level).toBe(2);
     // 对局继续推进:链驱动 bot 走完本回合,回合数前进(不冻结在断线座位)
     for (let i = 0; i < 4000 && e.turnNumber <= turnBefore && !e.isOver; i++) {
       clock.fireAll();

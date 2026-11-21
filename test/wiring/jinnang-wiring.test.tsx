@@ -253,7 +253,7 @@ it("地图选择收架，可重开并保留目标，取消后仍能以同一入�
     armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
     armHero(e, 0, "zhouyu", ["huogong"]);
     placePlayer(e, 0, city);
-    grantProperty(e, 1, "prop-xianyang", 1);
+    grantProperty(e, 1, "prop-xianyang", 2);
   });
   const confirm = () => q(el, TESTIDS.actionbarTarget)!;
   click(q(el, TESTIDS.jinnangCard("火烧连营"))!);
@@ -546,7 +546,7 @@ describe("手牌架内容与临时显隐", () => {
       armHero(e, 0, "zhouyu", ["huogong"]);
       armHero(e, 0, "zhugeliang", ["huogong"]);
       placePlayer(e, 0, city);
-      grantProperty(e, 1, "prop-xianyang", 1);
+      grantProperty(e, 1, "prop-xianyang", 2);
       armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
     });
     const zhouyu = q(el, TESTIDS.jinnangCard(skillOptionId("zhouyu", "huogong")))!;

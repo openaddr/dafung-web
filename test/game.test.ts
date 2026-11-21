@@ -347,8 +347,8 @@ describe("decisionOwner(决策归属统一查询)", () => {
   });
 });
 
-describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升级费)", () => {
-  it("购买:获 holding Lv0", () => {
+describe("地产规则(等级 1–4 级 / 购入即 1 级 / 无过路费升级费)", () => {
+  it("购买:获 1 级城池", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -357,7 +357,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     testEngine(e).landActiveAt(tile.index); // 场景组合:摆位 + Land + 落格结算
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     e.buyProperty();
-    expect(mover.properties.find((x) => x.propertyId === def.id)!.level).toBe(0);
+    expect(mover.properties.find((x) => x.propertyId === def.id)!.level).toBe(1);
   });
 
   it("到达他人城池:不升级(无珍宝 → 无事发生,双方现金不变)", () => {
@@ -368,17 +368,18 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
     owner.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     const cash0 = mover.cash;
     testEngine(e).landActiveAt(tile.index);
     // 城主无珍宝 → 无事发生;等级不变(升级只挂在公道买卖成交上)
-    expect(owner.properties.find((x) => x.propertyId === def.id)!.level).toBe(0);
+    expect(owner.properties.find((x) => x.propertyId === def.id)!.level).toBe(1);
     expect(mover.cash).toBe(cash0);
     expect(e.turnPhase as string).toBe("Roll"); // endTurn 已推进
   });
@@ -391,12 +392,13 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
     owner.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     const holding = () => owner.properties.find((x) => x.propertyId === def.id)!;
     /** 手工置 AwaitingTreasureOwner(endTurn 会推进 activeIndex,每步拨回访客)。 */
@@ -407,21 +409,21 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
       owner.treasures.push({ id: treasureId, name: "测试珍宝", level: 1, count: 1, desc: "" });
     };
 
-    // fair:成交 → Lv0→1,访客得宝
+    // fair:成交 → 1→2 级,访客得宝
     armTrade("t-fair");
     e.resolveTreasureOwner({ type: "fair", treasureId: "t-fair" });
-    expect(holding().level).toBe(1);
+    expect(holding().level).toBe(2);
     expect(mover.treasures).toHaveLength(1);
 
     // premium:不升级
     armTrade("t-premium");
     e.resolveTreasureOwner({ type: "premium", treasureId: "t-premium" });
-    expect(holding().level).toBe(1);
+    expect(holding().level).toBe(2);
 
     // skip:不升级
     armTrade("t-skip");
     e.resolveTreasureOwner({ type: "skip" });
-    expect(holding().level).toBe(1);
+    expect(holding().level).toBe(2);
   });
 
   it("自己到达己城:扩军免费(现金不变)", () => {
@@ -434,18 +436,19 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({
+      burning: null,
       damageRanking: [],
       propertyId: def.id,
       group: def.group,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
-      defense: 5,
+      defense: 40,
     });
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     const cash0 = me.cash;
     e.upgradeProperty();
-    expect(me.properties.find((x) => x.propertyId === def.id)!.level).toBe(1);
+    expect(me.properties.find((x) => x.propertyId === def.id)!.level).toBe(2);
     expect(me.cash).toBe(cash0); // 升级免费
   });
 });

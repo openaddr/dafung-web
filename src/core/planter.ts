@@ -327,9 +327,7 @@ export function placePlayer(e: GameEngine, seat: number, position: number): void
  *  group 与 maxLevel 自城目录(catalog PropertyDef)派生:loadMap 校验 group 必配、
  *  maxLevel 地图级必配,无兜底可加;旧站点手写行的 purchasePrice:1000 是已删字段的
  *  死重量(持有价零玩法消费,模型注释单源),随收编退役。目录外地块与越界座位当场
- *  炸;level 原不校验(负级/超上限是测试作者的场景决定),防御值(#1386)入模后
- *  持有行必带防御——等级写定即 resetToFull,越界等级在满值表处响亮抛错(越界等级
- *  无满值可回,种不出的状态不静默);「种受损态」由 setDefense 在本件之后叠加。 */
+ *  炸；等级必须在本图上限内。等级写定即回满防御，可用 setDefense 叠加受损态。 */
 export function grantProperty(
   e: GameEngine,
   seat: number,
@@ -340,6 +338,8 @@ export function grantProperty(
   if (p == null) throw new Error(`grantProperty:座位 ${seat} 不存在(共 ${e.players.length} 席)`);
   const def = e.catalog.get(propertyId);
   if (def == null) throw new Error(`grantProperty:目录外地块 ${propertyId}`);
+  if (level > def.maxLevel)
+    throw new Error(`grantProperty:城 ${propertyId} 等级 ${level} 超出上限 ${def.maxLevel}`);
   const held = p.properties.find((h) => h.propertyId === propertyId);
   if (held) {
     held.level = level;

@@ -158,27 +158,28 @@ describe("grantProperty(授房产/等级,裸写形)", () => {
   it("未持有=入册持有行(group/maxLevel 自城目录派生,行形状单源 PropertyHolding);已持有=改等级(upsert 同一终态语义两面)", () => {
     const e = makeEngine();
     const pid = e.board.at(3).propertyId!;
-    grantProperty(e, 0, pid, 1);
+    grantProperty(e, 0, pid, 2);
     const def = e.catalog.get(pid)!;
     expect(e.players[0].properties).toEqual([
       {
+        burning: null,
         damageRanking: [],
         propertyId: pid,
         group: def.group,
-        level: 1,
+        level: 2,
         maxLevel: def.maxLevel,
-        defense: 4,
+        defense: 30,
       },
     ]);
-    grantProperty(e, 0, pid, 3); // 已持有=改等级(bot 城拉级/满级金框形态)
+    grantProperty(e, 0, pid, 4); // 已持有=改等级(bot 城拉级/满级城局面)
     expect(e.players[0].properties).toHaveLength(1);
-    expect(e.players[0].properties[0]!.level).toBe(3);
+    expect(e.players[0].properties[0]!.level).toBe(4);
   });
 
   it("目录外地块与越界座位当场炸(零兜底:种错的场要响)", () => {
     const e = makeEngine();
-    expect(() => grantProperty(e, 0, "no-such-city", 1)).toThrow();
-    expect(() => grantProperty(e, 9, e.board.at(3).propertyId!, 1)).toThrow();
+    expect(() => grantProperty(e, 0, "no-such-city", 2)).toThrow();
+    expect(() => grantProperty(e, 9, e.board.at(3).propertyId!, 2)).toThrow();
   });
 });
 
@@ -375,7 +376,7 @@ describe("armLanding/armVisitor(落格投影+交涉挂起载荷,裸写形;#1303)
     const pid = e.board.tiles.find(
       (t) => t.propertyId && e.findOwner(t.propertyId) == null,
     )!.propertyId!;
-    grantProperty(e, 0, pid, 1);
+    grantProperty(e, 0, pid, 2);
     armLanding(e, { kind: "OwnProperty", propertyId: pid });
     expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: pid });
     expect(e.lastLandOutcome).toEqual({
@@ -391,7 +392,7 @@ describe("armLanding/armVisitor(落格投影+交涉挂起载荷,裸写形;#1303)
       (t) => t.propertyId && e.findOwner(t.propertyId) == null,
     )!.propertyId!;
     expect(() => armLanding(e, { kind: "OwnProperty", propertyId: pid })).toThrow(); // 无主却种己城形
-    grantProperty(e, 0, pid, 0);
+    grantProperty(e, 0, pid, 1);
     expect(() => armLanding(e, { kind: "PropertyAvailable", propertyId: pid })).toThrow(); // 有主却种可购形
     expect(() =>
       armLanding(e, { kind: "PropertyAvailable", propertyId: "no-such-city" }),
@@ -535,7 +536,7 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     b.treasureDeck = createTreasureDeck();
     const pid = a.board.at(3).propertyId!;
     placePlayer(a, 1, 5);
-    grantProperty(a, 0, pid, 2);
+    grantProperty(a, 0, pid, 3);
     armHero(a, 1, "zhouyu");
     armHeroOffer(a, ["zhouyu", "huatuo"]);
     giveTreasureFromDeck(a, 0, 2);
@@ -544,7 +545,7 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
       kind: "grantProperty",
       seat: 0,
       propertyId: pid,
-      level: 2,
+      level: 3,
     });
     applyPlant(b, { kind: "armHero", seat: 1, heroId: "zhouyu" });
     applyPlant(b, { kind: "armHeroOffer", heroIds: ["zhouyu", "huatuo"] });
@@ -630,8 +631,8 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     const pid = a.board.tiles.find(
       (t) => t.propertyId && a.findOwner(t.propertyId) == null,
     )!.propertyId!;
-    grantProperty(a, 0, pid, 1);
-    grantProperty(b, 0, pid, 1);
+    grantProperty(a, 0, pid, 2);
+    grantProperty(b, 0, pid, 2);
     armLanding(a, { kind: "OwnProperty", propertyId: pid });
     armVisitor(a, a.board.at(3).propertyId!, 0);
     setBot(a, 1, true);
