@@ -70,7 +70,7 @@ export function GuohaoPicker({
         字盘
       </DialogTrigger>
       <DialogContent className="su-picker gap-3 pt-1" initialFocus={false}>
-        <DialogDragHandle className="flex min-h-10 shrink-0 items-center pr-10">
+        <DialogDragHandle className="flex min-h-(--touch-primary) shrink-0 items-center pr-(--touch-primary)">
           <DialogTitle className="text-lg">字盘快选</DialogTitle>
         </DialogDragHandle>
         <div className="su-picker-scroll">

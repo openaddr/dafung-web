@@ -13,7 +13,7 @@
   --su-columns: minmax(0, 1.05fr) minmax(0, 1fr);
   --su-gutter: clamp(12px, 1.8vw, 20px);
   display: grid;
-  grid-template-rows: 40px minmax(0, 1fr);
+  grid-template-rows: var(--touch-target) minmax(0, 1fr);
   gap: clamp(8px, 2dvh, 14px);
   width: min(100%, 920px);
   height: min(100%, 456px);
@@ -21,7 +21,7 @@
 
 .su-header {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  grid-template-columns: var(--touch-target) minmax(0, 1fr) var(--touch-target);
   align-items: center;
 }
 
@@ -81,7 +81,7 @@
   grid-template-columns: 4rem minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  min-height: 40px;
+  min-height: var(--touch-target);
   font-size: 14px;
 }
 
@@ -90,8 +90,8 @@
 }
 
 .su-secondary {
-  min-width: 40px;
-  min-height: 40px;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
   padding-inline: 12px;
   border-radius: 3px;
   font-size: 14px;
@@ -136,7 +136,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 40px;
+  min-height: var(--touch-target);
   padding-inline: 10px;
   border: 1px solid var(--hairline);
   border-radius: 3px;
@@ -164,7 +164,7 @@
 
 .su-guohao-input {
   width: 56px;
-  min-height: 40px;
+  min-height: var(--touch-target);
   border: 1px solid var(--hairline);
   border-radius: 3px;
   background: var(--color-bg);
@@ -252,7 +252,7 @@
 
 .su-start {
   grid-column: 2;
-  min-height: 44px;
+  min-height: var(--touch-primary);
   margin-inline: var(--su-gutter);
   border-radius: 5px;
   font-size: 19px;
@@ -296,14 +296,14 @@
 /* 弹层内宽 570px 恰好容纳十三方印，宽度减小时由格网重排。 */
 .su-pool {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--touch-target), 1fr));
   gap: 4px;
 }
 
 .su-pool-key {
   display: grid;
   place-items: center;
-  min-height: 40px;
+  min-height: var(--touch-target);
   aspect-ratio: 1;
   border: 1px solid var(--hairline);
   border-radius: 2px;

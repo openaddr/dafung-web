@@ -1,14 +1,7 @@
-// 组件收口:保留现实现——#1378「你可」选择闸触发卡:反应窗同形横幅(落印/不用同款
-// 裸钮,非弹层不夺焦;细则 docs/design/组件收口.md)
-// 「你可」触发卡(#1378,#1377 选择闸的呈现面):待决技触发卡从手牌架上缘长出——
-// 文案段(「X「放逐」可达发动条件…」)+ 目标候选笺行(放逐选人:点笺=选中/再点同笺
-// 取消,复用反应窗 AOE 选份笺形)+ 发动墨钮 / 暂不发漆钮。行殇目标既定(载荷
-// targetSeat)免选,文案带目标括注;交互语义自持(真按钮,不自写 role)。
-// 样式在 skill-choice-banner.css(独立类名,反应窗按钮种口径:墨钮/同底漆钮;
-// reaction-btn 作用域锁 .reaction-banner 内,不跨件复用选择器——ReactionBanner 同判词)。
-// 无倒计时弧:引擎对此窗无窗级 deadline(单机决策不限时;联机停摆超时=权威侧看门狗
-// 代发「暂不发」,#1378 真修,窗长不经快照下发,客户端无源可映)——呈现零自造定时。
-// 超时语义归权威侧(暂不发,标记保留);本件只呈现与发命令。
+// 组件收口：复用动作条和 Base UI Button，触发卡从手牌架上缘展开。
+// 行殇的目标既定，放逐从候选笺点选。联机停摆超时由权威侧应答「暂不发」。
+import { Button } from "@base-ui/react/button";
+import { TargetActionBar, TargetActionButton } from "./TargetActionBar";
 import { TESTIDS } from "./testids";
 import "./skill-choice-banner.css";
 
@@ -43,43 +36,41 @@ export function SkillChoiceBanner({
   onDecline,
 }: SkillChoiceBannerProps) {
   return (
-    <div className="skill-banner" data-testid={TESTIDS.skillChoiceBanner}>
-      <span className="skill-banner-text" data-testid={TESTIDS.skillChoiceText}>
-        {text}
-      </span>
-      {seats.length > 0 && (
-        <span className="skill-banner-seats">
-          {seats.map(({ seat, label }) => (
-            <button
-              key={seat}
-              type="button"
-              data-testid={TESTIDS.skillChoiceSeat(seat)}
-              className={"skill-banner-seat-chip" + (pickedSeat === seat ? " picked" : "")}
-              aria-pressed={pickedSeat === seat}
-              onClick={() => onPickSeat(seat)}
-            >
-              {label}
-            </button>
-          ))}
-        </span>
-      )}
-      <button
-        type="button"
-        className="skill-banner-btn mo"
-        data-testid={TESTIDS.skillChoiceConfirm}
-        disabled={!confirmEnabled}
-        onClick={onConfirm}
-      >
-        发动
-      </button>
-      <button
-        type="button"
-        className="skill-banner-btn qian"
-        data-testid={TESTIDS.skillChoiceDecline}
-        onClick={onDecline}
-      >
-        暂不发
-      </button>
-    </div>
+    <TargetActionBar
+      className="skill-banner"
+      testId={TESTIDS.skillChoiceBanner}
+      title={<span data-testid={TESTIDS.skillChoiceText}>{text}</span>}
+      actions={
+        <>
+          {seats.length > 0 && (
+            <div className="skill-banner-seats">
+              {seats.map(({ seat, label }) => (
+                <Button
+                  key={seat}
+                  type="button"
+                  data-testid={TESTIDS.skillChoiceSeat(seat)}
+                  className={"skill-banner-seat-chip" + (pickedSeat === seat ? " picked" : "")}
+                  aria-pressed={pickedSeat === seat}
+                  onClick={() => onPickSeat(seat)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          )}
+          <TargetActionButton data-testid={TESTIDS.skillChoiceDecline} onClick={onDecline}>
+            暂不发
+          </TargetActionButton>
+          <TargetActionButton
+            variant="commit"
+            data-testid={TESTIDS.skillChoiceConfirm}
+            disabled={!confirmEnabled}
+            onClick={onConfirm}
+          >
+            发动
+          </TargetActionButton>
+        </>
+      }
+    />
   );
 }

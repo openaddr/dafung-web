@@ -43,7 +43,8 @@ import {
   useDialogDrag,
 } from "@app/hooks/use-dialog-drag";
 // 叠层开栈(#767):同帧多弹层时上层遮罩减淡,计数器单源在 hook 文件
-import { useDialogStackSlot } from "@app/hooks/dialog-stack";
+import { useDialogPeekSurface, useDialogStackSlot } from "@app/hooks/dialog-stack";
+import { DialogMinimize } from "@app/components/ui/dialog-minimize";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
@@ -60,8 +61,7 @@ interface BannerShellProps {
    *  拍板钮恒在场、永不滚出视口。传了才渲染:不可决断的弹层(机遇选项集/详情等
    *  钮即内容或无可拍板)不传,槽不占位、零余白。 */
   footer?: ReactNode;
-  /** 只有可放弃的弹层(详情/确认/等待视角)才传;抉择类必须选,不误关(旧卷轴同策略)。
-   *  传了 onClose 即支持点遮罩空白或关闭钮收起。 */
+  /** 可放弃的弹层提供关闭钮。 */
   onClose?: () => void;
   /** 外层容器上的 data-testid(各决策弹层用自己的 id;e2e 契约:scroll-* 前缀保留)。 */
   testid?: string;
@@ -128,7 +128,7 @@ export function BannerShell({
   className,
   sideOrnament,
 }: BannerShellProps) {
-  // #90(R3-C3)收起:×/遮罩统一走 requestClose——先置 closing(壳体挂退场类、
+  // #90(R3-C3)关闭:× 走 requestClose——先置 closing(壳体挂退场类、
   // 遮罩淡出并放行点击、aria-hidden),210ms 后(退场动画 var(--dur-fast) =150ms 已走完)
   // 再调真 onClose 卸载。「播完再移除」模式照抄 useDeltaFloat 的定时出列;
   // 零兜底:只有一个明确的 setTimeout,不设超时兜底分支。
@@ -180,7 +180,8 @@ export function BannerShell({
   const drag = useDialogDrag({ popupRef: shellRef, resetKey: title });
   // 叠层开栈(#767):活横幅入栈、幽灵帧不入栈(纯视觉重放);栈深>1 且本层为上层时
   // 遮罩消费减淡档 --mask-dim-stacked(alpha 单源 app.css,rgb 三元组与两档同族)。
-  const stacked = useDialogStackSlot(!isGhost);
+  const peek = useDialogPeekSurface(!exiting);
+  const { stacked, frontmost } = useDialogStackSlot(!exiting && !peek.hidden, false);
 
   // 壳体本体(横幅带 + 金印题行 + 正文井):活横幅与退场帧两条渲染路径共用同一份 JSX。
   // role=dialog/aria-modal 挂壳体(可达名称用 aria-label=题名);退场帧的父层已
@@ -193,7 +194,10 @@ export function BannerShell({
   // ——844 标准档 675px,金穗侧饰与「宽一号」形制共同承载奇遇身份(纯视觉,无文字牌)。
   const shellBody = (
     <div
-      ref={shellRef}
+      ref={(node) => {
+        shellRef.current = node;
+        peek.element.current = node;
+      }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -210,6 +214,8 @@ export function BannerShell({
       <div
         {...drag.handleProps}
         data-testid={TESTIDS.modalDragHandle}
+        data-peek-heading={peek.minimize !== undefined || undefined}
+        data-peek-close={onClose !== undefined || undefined}
         className="relative mb-3 flex shrink-0 items-center justify-center gap-2.5 border-b border-[rgba(217,185,92,0.35)] px-1 pb-2 pt-0.5"
       >
         {/* 题印投影 rgba(43,35,23,·) 为裸色:墨影族阴影豁免,登记本体见同域 banner.css 头注 */}
@@ -237,7 +243,7 @@ export function BannerShell({
               requestClose();
             }}
             disabled={isGhost}
-            className="absolute top-1/2 right-[-8px] flex h-11 w-11 -translate-y-1/2 items-center justify-center "
+            className="absolute top-1/2 right-[-8px] flex size-(--touch-primary) -translate-y-1/2 items-center justify-center "
           >
             <span
               aria-hidden="true"
@@ -247,6 +253,7 @@ export function BannerShell({
             </span>
           </button>
         )}
+        {peek.minimize !== undefined && <DialogMinimize onClick={peek.minimize} />}
         {/* 题行侧饰槽(#1155 奇遇金穗):末位渲染保住「首子题印 span/次子题名 h2」
             的皮肤选择器契约;纹饰自带绝对定位与 pointer-events-none(见 EncounterSpray)。 */}
         {sideOrnament}
@@ -277,52 +284,37 @@ export function BannerShell({
     </div>
   );
 
-  // 收起中/幽灵帧:纯视觉退场帧——FocusScope 树已卸载(焦点陷阱只属于活横幅),本帧自带
-  // aria-hidden/inert 语义,沿用旧遮罩点击出口(仅可关弹层;收起中重复出口由
-  // requestClose 的计时器在途守卫挡掉)。
-  if (exiting) {
-    return (
-      <div
-        className="banner-overlay banner-overlay-out absolute inset-0 z-30 flex items-center justify-center"
-        // 退场帧恒常色(减淡只属活横幅的拖离态);色值单源在 hook 文件
-        style={{ backgroundColor: OVERLAY_TINT }}
-        aria-hidden={exiting || undefined}
-        // 幽灵帧整体 inert:退场重放帧里的按钮是旧闭包死钮,浏览器层面禁掉
-        // 命中/聚焦,任何 `.first()` 类选择器都不会再点到它(#90 e2e 回归教训)
-        inert={isGhost || undefined}
-        // 点遮罩空白处关闭(仅可关弹层);收起中放行点击,重复出口由 requestClose 挡掉
-        onClick={(e) => {
-          if (e.target === e.currentTarget) requestClose();
-        }}
-      >
-        {shellBody}
-      </div>
-    );
-  }
-
-  // 活横幅:DialogFocusScope(自研焦点陷阱,#174 收编/#175 移除 radix)提供焦点陷阱
-  // 与关闭还焦;role/aria-modal 由壳体自带。刻意不用 Dialog.Content——它内部强制
-  // Portal 到 body,会破坏 #scroll-layer 定位栈与幽灵帧协议。挂载不夺焦(封装内置
-  // onMountAutoFocus preventDefault:× 关闭钮在 DOM 首位,默认首焦会落在它上,Enter
-  // 误关)。可放弃的弹层支持关闭钮及点遮罩关闭。
+  // 原地保留正文树。最小化时遮罩退出命中，横幅退出焦点栈。
   return (
     <div
-      className="banner-overlay absolute inset-0 z-30 flex items-center justify-center"
+      className={`banner-overlay absolute inset-0 z-30 flex items-center justify-center${exiting ? " banner-overlay-out" : ""}`}
+      data-testid={peek.minimize !== undefined ? TESTIDS.modalBackdrop : undefined}
+      hidden={peek.hidden}
+      aria-hidden={peek.hidden || exiting || undefined}
+      inert={peek.hidden || exiting || undefined}
       // 遮罩两档减淡(#674 拖离 + #767 叠层):拖离减淡(0.15)强于叠层减淡(0.28),
       // 两者同时命中取更强;色值单源在 hook 文件
       style={{
-        backgroundColor: drag.dimmed
-          ? OVERLAY_TINT_DIMMED
-          : stacked
-            ? OVERLAY_TINT_STACKED
-            : OVERLAY_TINT,
+        backgroundColor:
+          !exiting && drag.dimmed
+            ? OVERLAY_TINT_DIMMED
+            : !exiting && stacked
+              ? OVERLAY_TINT_STACKED
+              : OVERLAY_TINT,
       }}
-      // 点遮罩空白处关闭(仅可关弹层);收起中放行点击,重复出口由 requestClose 挡掉
       onClick={(e) => {
-        if (e.target === e.currentTarget) requestClose();
+        if (e.target !== e.currentTarget || peek.hidden || exiting || !frontmost) return;
+        if (peek.minimize !== undefined) peek.minimize();
+        else requestClose();
       }}
     >
-      <DialogFocusScope asChild>{shellBody}</DialogFocusScope>
+      <DialogFocusScope
+        asChild
+        active={!exiting && !peek.hidden && frontmost}
+        restoreOnClose={!peek.hidden && frontmost}
+      >
+        {shellBody}
+      </DialogFocusScope>
     </div>
   );
 }

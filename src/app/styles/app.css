@@ -183,6 +183,13 @@ body {
   --safe-left: env(safe-area-inset-left, 0px);
 }
 
+/* DESIGN §4.7 安卓触达下限，器物自身的视觉尺寸由组件决定。 */
+:root {
+  --touch-target: 40px;
+  --touch-primary: 44px;
+  --touch-minimize: 48px;
+}
+
 /* ── S2(#35) 可见焦点全局圈:虚线墨圈,与首页 H-4 同一口径 ──
    :where() 零特异度:组件想要别的焦点样式可无 specificity 代价地覆盖;
    只在 :focus-visible 命中时显示,普通触屏点按不出圈。 */
@@ -235,6 +242,34 @@ button:not(:disabled):active {
 ::-webkit-scrollbar-thumb {
   background: var(--color-gold);
   border-radius: 3px;
+}
+
+/* ScrollArea 的轨道叠在正文边缘。触屏从正文任意位置滑动，只有可见滑块接收拖动。 */
+[data-slot="scroll-area-scrollbar"] {
+  pointer-events: none;
+  opacity: 0;
+}
+[data-slot="scroll-area-scrollbar"]:is(
+  [data-orientation="vertical"][data-has-overflow-y],
+  [data-orientation="horizontal"][data-has-overflow-x]
+) {
+  pointer-events: auto;
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  [data-slot="scroll-area-scrollbar"]:is(
+    [data-orientation="vertical"][data-has-overflow-y],
+    [data-orientation="horizontal"][data-has-overflow-x]
+  ) {
+    pointer-events: none;
+  }
+  [data-slot="scroll-area-scrollbar"]:is(
+      [data-orientation="vertical"][data-has-overflow-y],
+      [data-orientation="horizontal"][data-has-overflow-x]
+    )
+    > [data-slot="scroll-area-thumb"] {
+    pointer-events: auto;
+  }
 }
 
 /* ── 纸纹(玄墨鎏金 #514 改版):深底鎏金噪点。

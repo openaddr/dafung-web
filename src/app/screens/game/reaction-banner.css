@@ -1,37 +1,35 @@
-/* 顶部 B 分区。信息可跨行，倒计时、降噪口和出牌按钮保持各自的横向位置。 */
-.game-layout .reaction-action-bar {
-  gap: 6px 8px;
-}
-
-.game-layout .reaction-action-bar:has(.reaction-timerbox.danger) {
+/* 倒计时和事件同组，长范围和目标说明按可用宽度换行。 */
+.reaction-action-bar:has(.reaction-timerbox.danger)::before {
   border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
 }
 
-.reaction-action-bar .target-action-copy {
-  flex: 1 1 10em;
+.reaction-action-bar .target-action-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
 }
 
 .reaction-range {
   color: var(--color-paper);
 }
 
-.reaction-step {
-  margin-top: 2px;
-}
-
 .reaction-mute-group {
+  position: relative;
   display: flex;
   align-items: center;
-  align-self: stretch;
   margin-inline-end: 2px;
   padding-inline: 4px;
+}
+
+.reaction-mute-group::before {
+  content: "";
+  position: absolute;
+  inset: 9px 0;
   border-inline: 1px solid color-mix(in srgb, var(--color-paper-dim) 22%, transparent);
 }
 
-.reaction-action-bar .reaction-mute {
-  padding-inline: 4px;
-  color: var(--color-paper-dim);
-  background: none;
+.reaction-mute-group .reaction-mute {
   font: 12px / 1.2 var(--font-wenkai);
   text-decoration: underline color-mix(in srgb, var(--color-paper-dim) 40%, transparent);
   text-underline-offset: 3px;
@@ -42,7 +40,7 @@
    退役,时长与开窗已过时间经 TSX 内联变量传入；周长 2π·15 ≈ 94.2478 作
    dasharray 与收敛终点，TSX 只留 r=15。秒数=信息(§4.6 例外)，文楷 tabular-nums。
    #760 重校:常态弧由朱砂退墨金弱轨 goldWash——倒计时是常驻状态不是警报,朱砂
-   只留给危急;≤5s danger 档(#834 P1-B5:朱砂+呼吸曾全困在 30px 圆里,横幅其余
+   只留给危急;≤5s danger 档(#834 P1-B5:朱砂+呼吸曾全困在小圆里,横幅其余
    600px 毫无变化,紧迫感只剩滴答音单通道——现危急信号出盒):timerbox scale 1.33
    (transform 不参与布局,横幅高度稳定)、秒数 10→13px、横幅 border 经 :has()
    同拍过渡朱砂 55%;呼吸由「负向变暗」改「亮度正向脉冲」——box-shadow 朱砂
@@ -53,8 +51,8 @@
 .reaction-timerbox {
   position: relative;
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
 }
 .reaction-timer {
   display: block;

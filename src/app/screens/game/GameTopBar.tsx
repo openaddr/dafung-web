@@ -18,11 +18,13 @@ interface GameTopBarProps {
    *  右上挂 6px 呼吸金点(战报入口的未读表达;打开抽屉即清账)。 */
   warUnread: number;
   onOpenSettings: () => void;
+  settingsDisabled?: boolean;
 }
 
 export function GameTopBar({
   warUnread,
   onOpenSettings,
+  settingsDisabled,
   overviewOpen,
   onOpenOverview,
 }: GameTopBarProps) {
@@ -36,10 +38,11 @@ export function GameTopBar({
           aria-label={warUnread > 0 ? "设置,战报有新条目" : "设置"}
           aria-haspopup="dialog"
           onClick={onOpenSettings}
+          disabled={settingsDisabled}
           className="tbtn"
         >
           <Sym name="settings" size={15} />
-          {/* 战报未读金点(#768):绝对定位挂件不进钮盒(32×32 几何断言不动);
+          {/* 战报未读金点(#768):绝对定位挂在视觉钮面；
               可达语义并入 aria-label(§4.6 状态用视觉,读屏走名)。 */}
           {warUnread > 0 && (
             <i

@@ -9,25 +9,30 @@
 import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { cn } from "@app/utils/cn";
-import { OVERLAY_TINT } from "@app/hooks/use-dialog-drag";
+import { OVERLAY_TINT, OVERLAY_TINT_STACKED } from "@app/hooks/use-dialog-drag";
+import { useDialogStackSlot } from "@app/hooks/dialog-stack";
+import { TESTIDS } from "@app/screens/game/testids";
+import { Dialog, useDialogMinimize } from "./dialog";
+import { DialogMinimize } from "./dialog-minimize";
 
-const Sheet = SheetPrimitive.Root;
+const Sheet = Dialog;
 const SheetTrigger = SheetPrimitive.Trigger;
 const SheetClose = SheetPrimitive.Close;
 const SheetPortal = SheetPrimitive.Portal;
 
 function SheetOverlay({
   className,
+  stacked = false,
   style,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Backdrop>) {
+}: React.ComponentProps<typeof SheetPrimitive.Backdrop> & { stacked?: boolean }) {
   return (
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       // 遮罩同 ui/dialog 水墨墨影(不沿用 shadcn 的 bg-black/10+毛玻璃,纸卷世界无玻璃);
       // 色值单源 = use-dialog-drag 的 OVERLAY_TINT(#845 深底重定标后两系仍同值同拍)
       className={cn("fixed inset-0 z-50", className)}
-      style={{ backgroundColor: OVERLAY_TINT, ...style }}
+      style={{ backgroundColor: stacked ? OVERLAY_TINT_STACKED : OVERLAY_TINT, ...style }}
       {...props}
     />
   );
@@ -49,16 +54,30 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  ref,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Popup> & {
   side?: "top" | "right" | "bottom" | "left";
   showCloseButton?: boolean;
 }) {
+  const peek = useDialogMinimize();
+  const hidden = peek?.hidden === true;
+  const minimize = peek?.minimize;
+  const { stacked } = useDialogStackSlot(!hidden);
   return (
-    <SheetPortal>
-      <SheetOverlay />
+    <SheetPortal keepMounted={hidden || minimize !== undefined} hidden={hidden}>
+      <SheetOverlay
+        data-testid={minimize !== undefined ? TESTIDS.modalBackdrop : undefined}
+        stacked={stacked}
+      />
       <SheetPrimitive.Popup
         data-slot="sheet-content"
+        data-peek-available={minimize !== undefined || undefined}
+        ref={(node: HTMLDivElement | null) => {
+          if (peek !== null) peek.element.current = node;
+          if (typeof ref === "function") ref(node);
+          else if (ref != null) ref.current = node;
+        }}
         data-side={side}
         className={cn(
           // paper-skin(#845/P1-A4):Portal 挂 body 罩不到 #app 材质膜,纸面自带颗粒+晕影
@@ -67,26 +86,31 @@ function SheetContent({
           className,
         )}
         {...props}
+        inert={hidden || props.inert}
+        finalFocus={hidden ? false : props.finalFocus}
         /* 挂载不夺焦(AGENTS §6,恒定不可覆盖;详情/抽屉类只读浮层,焦点留在触发钮) */
         initialFocus={false}
       >
         {children}
+        {minimize !== undefined && <DialogMinimize onClick={minimize} />}
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"
             aria-label="关闭"
-            className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-[3px] border border-gold/30 bg-panel text-paper-dim focus-visible:outline-2 focus-visible:outline-dashed focus-visible:outline-gold"
+            className="absolute top-1 right-1 flex size-[var(--touch-primary)] items-center justify-center text-paper-dim focus-visible:outline-2 focus-visible:outline-dashed focus-visible:outline-gold"
           >
             {/* × 符号走内联 SVG(Sym 同款口径:箭头/符号类不在字体栈内裸排,离线字体零 tofu) */}
-            <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true" focusable="false">
-              <path
-                d="M3.5 3.5 12.5 12.5 M12.5 3.5 3.5 12.5"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                fill="none"
-              />
-            </svg>
+            <span className="grid size-8 place-items-center rounded-[3px] border border-gold/30 bg-panel">
+              <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true" focusable="false">
+                <path
+                  d="M3.5 3.5 12.5 12.5 M12.5 3.5 3.5 12.5"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  fill="none"
+                />
+              </svg>
+            </span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

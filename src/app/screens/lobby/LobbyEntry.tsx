@@ -21,12 +21,12 @@ interface LobbyEntryProps {
 }
 
 const buttonSkin = "rounded-[5px] px-4 font-brush transition-colors disabled:opacity-40";
-const primaryButton = `${buttonSkin} ink-btn min-h-[44px] w-full text-lg`;
-const secondaryButton = `${buttonSkin} note-btn min-h-10 text-sm`;
+const primaryButton = `${buttonSkin} ink-btn min-h-(--touch-primary) w-full text-lg`;
+const secondaryButton = `${buttonSkin} note-btn min-h-(--touch-target) min-w-(--touch-target) text-sm`;
 const inputSkin =
-  "min-h-10 w-full min-w-0 rounded-[3px] border border-paper/30 bg-bg px-2.5 font-wenkai text-base tabular-nums text-paper aria-invalid:border-danger";
+  "min-h-(--touch-target) w-full min-w-0 rounded-[3px] border border-paper/30 bg-bg px-2.5 font-wenkai text-base tabular-nums text-paper aria-invalid:border-danger";
 const targetOptionSkin =
-  "inline-flex min-h-10 items-center rounded-[5px] border border-paper/25 bg-bg/60 px-3 font-brush text-sm text-paper-dim data-checked:border-gold data-checked:bg-gold/25 data-checked:text-paper data-disabled:opacity-40";
+  "inline-flex min-h-(--touch-target) items-center rounded-[5px] border border-paper/25 bg-bg/60 px-3 font-brush text-sm text-paper-dim data-checked:border-gold data-checked:bg-gold/25 data-checked:text-paper data-disabled:opacity-40";
 const TARGET_MAX = 99_999_999;
 
 function validateTarget(value: string): string | null {
@@ -200,7 +200,7 @@ function JoinRoomForm({
           data-testid={LID.rejoin}
           disabled={busy}
           onClick={() => onJoin(lastRoom)}
-          className={`${buttonSkin} note-btn mt-3 flex min-h-[44px] w-full items-center justify-between gap-2 text-sm`}
+          className={`${buttonSkin} note-btn mt-3 flex min-h-(--touch-primary) w-full items-center justify-between gap-2 text-sm`}
         >
           <span className="text-left font-wenkai text-paper-dim">
             上次房间 <span className="tabular-nums tracking-widest text-paper">{lastRoom}</span>

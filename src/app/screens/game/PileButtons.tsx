@@ -24,6 +24,7 @@ import { TESTIDS } from "./testids";
 import "./layout.css";
 
 interface PileButtonsProps {
+  inert: boolean;
   /** 本地视角玩家(对局屏挂载期恒在座)。 */
   player: SnapshotPlayer;
   /** 牌架当前有效显隐(亮=显示;GameScreen 计算:!rackHidden——窗态不再强制)。 */
@@ -38,8 +39,9 @@ interface PileButtonsProps {
   /** 用书学技通路(#1146):treasureId+heroId 直落 useBookSkill 命令(GameScreen 包装
    *  dispatchCommand);缺省=珍宝弹层书恒不可点态(无命令通路的挂载语境)。 */
   onUseBook?: (treasureId: string, heroId: string) => void;
-  /** 用书可点窗口(#1146):己方出牌阶段卡牌段(GameScreen 计算 junshiUp && !targeting);
-   *  缺省=false——书恒陈列不可点。 */
+  /** 本次可研读的出牌阶段，进入目标段后关闭。 */
+  bookPlayScope: string | null;
+  /** 当前可提交用书命令。 */
   bookPlayReady?: boolean;
   /** 遣散可点窗口(#1147):己方回合(GameScreen 计算);缺省=false——遣散钮恒禁用态。 */
   dismissReady?: boolean;
@@ -52,12 +54,14 @@ interface PileButtonsProps {
  *  useCallback 回调——演出期三圆钮区不再随每拍 sync 重渲(呼吸金光是 CSS 动画,
  *  不吃重渲)。 */
 export const PileButtons = memo(function PileButtons({
+  inert,
   player,
   rackVisible,
   breathe = false,
   nudgePulse,
   onToggleRack,
   onUseBook,
+  bookPlayScope,
   bookPlayReady = false,
   dismissReady = false,
   onDismiss,
@@ -73,7 +77,7 @@ export const PileButtons = memo(function PileButtons({
 
   return (
     <>
-      <div className="pilebtns" data-testid={TESTIDS.pileButtons}>
+      <div className="pilebtns" data-testid={TESTIDS.pileButtons} inert={inert}>
         <button
           type="button"
           data-testid={TESTIDS.jinnangToggle}
@@ -137,6 +141,7 @@ export const PileButtons = memo(function PileButtons({
         <PileModal
           kind={pileModal}
           player={player}
+          bookPlayScope={bookPlayScope}
           bookPlayReady={bookPlayReady}
           onUseBook={onUseBook}
           dismissReady={dismissReady}

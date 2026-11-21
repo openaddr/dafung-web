@@ -22,10 +22,12 @@ export function TargetActionBar({
 }: TargetActionBarProps) {
   return (
     <div data-testid={testId} className={`target-action-bar ${className}`}>
-      {leading}
-      <div className="target-action-copy" aria-live="polite">
-        <div className="target-action-title">{title}</div>
-        {detail != null && <div className="target-action-detail">{detail}</div>}
+      <div className="target-action-info">
+        {leading}
+        <div className="target-action-copy" aria-live="polite">
+          <div className="target-action-title">{title}</div>
+          {detail != null && <div className="target-action-detail">{detail}</div>}
+        </div>
       </div>
       <div className="target-action-buttons">{actions}</div>
     </div>
@@ -33,15 +35,19 @@ export function TargetActionBar({
 }
 
 export function TargetActionButton({
-  primary,
+  variant,
   className = "",
   ...props
-}: Omit<ComponentProps<typeof Button>, "className"> & { primary?: boolean; className?: string }) {
+}: Omit<ComponentProps<typeof Button>, "className"> & {
+  variant?: "primary" | "commit";
+  className?: string;
+}) {
   return (
     <Button
       {...props}
       type="button"
-      className={`target-action-button${primary ? " primary" : ""} ${className}`}
+      data-variant={variant}
+      className={`target-action-button ${className}`}
     />
   );
 }

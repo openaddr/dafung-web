@@ -77,6 +77,9 @@ export const TESTIDS = {
   bookLearnModal: "book-learn-modal",
   bookLearnItem: (heroId: string) => `book-learn-${heroId}` as const,
   modalClose: "modal-close",
+  modalMinimize: "modal-minimize",
+  modalBackdrop: "modal-backdrop",
+  modalRestore: "modal-restore",
   /** 题名拖动把手,ui/dialog 与 BannerShell 共用;叠层时按容器作用域区分。 */
   modalDragHandle: "modal-drag-handle",
   /** PileShell 体部滚动容器。 */
@@ -134,6 +137,7 @@ export const TESTIDS = {
   seatTarget: (seat: number) => `seat-target-${seat}` as const,
   /** 目标城的 Tile 根挂 data-city-target;同格再点取消、点他格改选,确认/作罢走动作条。 */
   cityTarget: (tileIndex: number) => `[data-tile="${tileIndex}"][data-city-target]`,
+  city: (tileIndex: number) => `[data-tile="${tileIndex}"]`,
   /** 目标段选城·选中定靶态(实金双环停持,呼吸停;Tile 根挂 data-city-target-selected)。 */
   cityTargetPicked: (tileIndex: number) => `[data-tile="${tileIndex}"][data-city-target-selected]`,
   /** 全局计数选择器(skillChipAny 同款:候选总数/选中总数断言用)。 */

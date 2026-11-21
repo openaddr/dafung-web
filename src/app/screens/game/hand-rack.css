@@ -333,8 +333,7 @@
    两档各探进手牌区右缘 ~48/72px,贴地绝对定位会被锦囊钮盖住点不到(实拍取证);
    bottom 8.5em 两档(6.4/9.6px 基)均越过钮区上界。章=漆木小圆章 + 文楷计数
    (数字=信息,§4.6 例外);全展中(.on)金边点亮=状态表达。
-   视觉 36px 不变,透明命中垫扩到 44×44 制式(#761 ⑦,触达口径主行动档;
-   ::after inset −4,topbar .tbtn 命中垫同惯例,绝对定位不进 grid 流)。 ── */
+   36px 圆章居中叠加普通触区。 ── */
 .rack-spread-badge {
   position: absolute;
   right: 0.5em;
@@ -360,7 +359,10 @@
 .rack-spread-badge::after {
   content: "";
   position: absolute;
-  inset: -4px;
+  inset: 50% auto auto 50%;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  translate: -50% -50%;
 }
 .rack-spread-badge.on {
   border-color: var(--color-gold-bright);

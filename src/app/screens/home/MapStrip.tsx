@@ -43,7 +43,10 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
     return (
       <div data-testid={HOME_TID.mapStrip} className="home-map-status">
         <p className="home-map-name text-sm text-danger">加载失败:{error}</p>
-        <Button onClick={reload} className="note-btn min-h-10 rounded-[3px] px-3 font-brush">
+        <Button
+          onClick={reload}
+          className="note-btn min-h-(--touch-target) rounded-[3px] px-3 font-brush"
+        >
           重试
         </Button>
       </div>

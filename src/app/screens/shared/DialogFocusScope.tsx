@@ -11,7 +11,15 @@
 // 3. 关闭还焦:卸载时把焦点还给挂载前的元素(元素已离 DOM 则放弃,不猜转移目标)。
 // (原 useDialogFocus 的 focusKey 异步重试随其最后一个消费方 MapSelectPanel 迁往
 //  ui/dialog(#173)一并退场,不再保留无主能力。)
-import { cloneElement, isValidElement, useEffect, useRef, type ReactNode, type Ref } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+  type Ref,
+} from "react";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -33,22 +41,40 @@ interface DialogFocusScopeProps {
   /** 把陷阱行为合并到子元素上(BannerShell/VictoryScreen 均以此挂壳,不引入额外 DOM 节点;
    *  子元素自带 ref 时与其组合,不覆盖)。 */
   asChild?: boolean;
+  /** 当前是否拥有焦点；临时让出时保留内容树和滚动。 */
+  active?: boolean;
+  /** 被上层覆盖或收为看局面时，焦点由当前界面管理。 */
+  restoreOnClose?: boolean;
   children: ReactNode;
 }
 
-export function DialogFocusScope({ asChild, children }: DialogFocusScopeProps) {
+export function DialogFocusScope({
+  asChild,
+  active = true,
+  restoreOnClose = true,
+  children,
+}: DialogFocusScopeProps) {
   const containerRef = useRef<HTMLElement | null>(null);
   // 挂载前持有焦点的元素(卸载还焦目标);lastInner = 最近一次容器内焦点位(拉回锚点)。
-  const prevFocusRef = useRef<HTMLElement | null>(null);
+  const prevFocusRef = useRef<HTMLElement | null | undefined>(undefined);
   const lastInnerRef = useRef<HTMLElement | null>(null);
+  const restoreOnCloseRef = useRef(restoreOnClose);
+  useLayoutEffect(() => {
+    restoreOnCloseRef.current = restoreOnClose;
+  }, [restoreOnClose]);
 
   useEffect(() => {
+    if (!active) return;
     const container = containerRef.current;
     if (!container) return;
-    prevFocusRef.current = document.activeElement as HTMLElement | null;
-    lastInnerRef.current = container.contains(document.activeElement)
-      ? (document.activeElement as HTMLElement)
-      : null;
+    const currentFocus = document.activeElement;
+    if (prevFocusRef.current === undefined) {
+      prevFocusRef.current = currentFocus instanceof HTMLElement ? currentFocus : null;
+    }
+    if (currentFocus instanceof HTMLElement && container.contains(currentFocus)) {
+      lastInnerRef.current = currentFocus;
+    }
+    let focusOutTimer: ReturnType<typeof setTimeout> | undefined;
 
     // Tab 圈定:容器内到边缘回绕;焦点在外时重新进容器(方向跟随 Shift)。
     const onKeydown = (e: KeyboardEvent) => {
@@ -108,7 +134,8 @@ export function DialogFocusScope({ asChild, children }: DialogFocusScopeProps) {
         lastInnerRef.current && scope.contains(lastInnerRef.current)
           ? lastInnerRef.current
           : focusableIn(scope)[0];
-      setTimeout(() => {
+      clearTimeout(focusOutTimer);
+      focusOutTimer = setTimeout(() => {
         const live = containerRef.current;
         if (!live) return;
         const active = document.activeElement;
@@ -124,11 +151,18 @@ export function DialogFocusScope({ asChild, children }: DialogFocusScopeProps) {
       document.removeEventListener("keydown", onKeydown, true);
       document.removeEventListener("focusin", onFocusIn, true);
       container.removeEventListener("focusout", onFocusOut);
-      // 关闭还焦:还给挂载前持有者;已被卸载/离 DOM 则放弃(不猜转移目标)。
-      const prev = prevFocusRef.current;
-      if (prev && document.contains(prev)) prev.focus();
+      clearTimeout(focusOutTimer);
     };
-  }, []);
+  }, [active]);
+  useEffect(
+    () => () => {
+      const prev = prevFocusRef.current;
+      if (restoreOnCloseRef.current && prev?.isConnected && !prev.closest("[hidden], [inert]")) {
+        prev.focus();
+      }
+    },
+    [],
+  );
 
   if (!asChild || !isValidElement(children)) {
     return (

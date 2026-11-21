@@ -92,7 +92,7 @@
 .home-menu-btn {
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  min-height: var(--touch-target);
   padding: 4px;
   border-radius: 5px;
   font-family: var(--font-brush);
@@ -102,7 +102,7 @@
 }
 
 .home-primary {
-  min-height: 55px;
+  min-height: max(55px, var(--touch-primary));
   font-size: 26px;
   letter-spacing: 0.12em;
 }
@@ -110,7 +110,7 @@
 .home-map-trigger {
   display: flex;
   min-width: 0;
-  min-height: 40px;
+  min-height: var(--touch-target);
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -137,7 +137,7 @@
 .home-map-card {
   display: flex;
   flex: 1 1 0;
-  min-width: 0;
+  min-width: var(--touch-target);
   min-height: 54px;
   flex-direction: column;
   justify-content: center;
@@ -196,8 +196,8 @@
 
 .home-diagnostic {
   justify-self: center;
-  min-width: 40px;
-  min-height: 40px;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
   padding-inline: 8px;
   color: var(--color-paper-dim);
   font: 15px var(--font-brush);

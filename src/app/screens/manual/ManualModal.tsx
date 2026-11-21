@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { useDialogExit } from "@app/hooks/use-dialog-exit";
+import { Sym } from "@app/screens/shared/Sym";
 import { MANUAL_TID } from "./testids";
 import ManualHeroesTab from "./ManualHeroesTab";
 import ManualSkillsTab from "./ManualSkillsTab";
@@ -49,12 +50,11 @@ const TABS: ReadonlyArray<{
   { key: "encounters", label: "机遇", tid: MANUAL_TID.tabEncounters },
 ];
 
-/** 签行按钮公共形制:真 button;触达制式(#751)视觉不足 40px 以 after 垫扩区
- *  (PileShell 关闭钮同手筋);选中=金描边+上浮 2px+底色抬档(§4.6),过渡走 token。 */
+/** 每签独立占位，签间留出空白。选中签上浮 2px 并显示金边。 */
 const TAB_CLS =
-  "relative flex-none rounded-[3px] border px-3.5 py-1 font-brush text-[15px] " +
+  "min-h-(--touch-target) min-w-(--touch-target) flex-none rounded-[3px] border px-2.5 py-1 font-brush text-[15px] sm:px-3.5 " +
   "tracking-[0.2em] transition-[border-color,color,background-color,transform,box-shadow] " +
-  "duration-[var(--dur-fast)] ease-[var(--ease-out)] after:absolute after:-inset-2 after:content-['']";
+  "duration-[var(--dur-fast)] ease-[var(--ease-out)]";
 
 /** 手册大弹层(#1069 决议③/⑥:入口钮与题名同名「手册」)。 */
 export function ManualModal({ open, onClose }: ManualModalProps) {
@@ -107,16 +107,16 @@ export function ManualModal({ open, onClose }: ManualModalProps) {
               data-testid={MANUAL_TID.close}
               aria-label="关闭"
               onClick={requestClose}
-              className="relative ml-auto flex h-[26px] w-[26px] flex-none place-items-center rounded-full border border-gold/35 text-[15px] leading-none text-paper-dim transition-[color,border-color,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] after:absolute after:-inset-[9px] after:content-['']"
+              className="relative ml-auto flex size-[26px] flex-none items-center justify-center rounded-full border border-gold/35 text-paper-dim transition-[color,border-color,transform] duration-[var(--dur-fast)] ease-[var(--ease-out)] after:absolute after:top-1/2 after:left-1/2 after:size-(--touch-primary) after:-translate-1/2 after:content-['']"
             >
-              ×
+              <Sym name="close" size={13} />
             </button>
           </DialogDragHandle>
           {/* 五签行(钉住不随滚):选中态=金描边+上浮,无文字标牌(§4.6) */}
           <div
             role="tablist"
             aria-label="手册分类"
-            className="mt-3 flex flex-none items-center justify-center gap-2"
+            className="mt-3 flex flex-none flex-wrap items-center justify-center gap-2"
           >
             {TABS.map((t) => {
               const selected = t.key === tab;

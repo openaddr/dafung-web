@@ -1,0 +1,116 @@
+.banner-overlay[hidden] {
+  display: none;
+  pointer-events: none;
+}
+
+.dialog-minimize {
+  position: absolute;
+  z-index: 11;
+  inset-block-start: 2px;
+  inset-inline-end: calc(var(--touch-primary) + 4px);
+  display: grid;
+  width: var(--touch-minimize);
+  height: var(--touch-minimize);
+  place-items: center;
+  color: var(--color-gold-bright);
+}
+
+.dialog-minimize > span {
+  display: grid;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  place-items: center;
+  border: 1px solid var(--color-gold-deep);
+  border-radius: 50%;
+  background: var(--color-lacquer);
+}
+
+[data-peek-heading] {
+  min-height: var(--touch-minimize);
+  padding-inline: calc(var(--touch-minimize) + 4px);
+}
+
+[data-peek-heading] > .dialog-minimize {
+  inset-block-start: 50%;
+  inset-inline-end: -8px;
+  translate: 0 -50%;
+}
+
+[data-peek-heading][data-peek-close] {
+  padding-inline: calc(var(--touch-minimize) + var(--touch-primary));
+}
+
+[data-peek-heading][data-peek-close] > .dialog-minimize {
+  inset-inline-end: calc(var(--touch-primary) - 8px);
+}
+
+.pile-modal[data-peek-available] .pile-head {
+  min-height: var(--touch-minimize);
+}
+
+.pile-modal[data-peek-available] .pile-head > div:first-child {
+  margin-inline-end: var(--touch-minimize);
+}
+
+.pile-modal > .dialog-minimize {
+  inset-block-start: 8px;
+  inset-inline-end: calc(var(--touch-primary) + 14px);
+}
+
+.zl[data-peek-available] .zl-head,
+.settings-dialog[data-peek-available] .setheading,
+[data-peek-available] > [data-slot="sheet-header"] {
+  min-height: var(--touch-minimize);
+  padding-inline-end: calc(var(--touch-minimize) + var(--touch-primary));
+}
+
+.banner-shell[data-peek-available] > .dialog-minimize {
+  inset-inline-end: 2px;
+}
+
+.banner-shell[data-peek-available] > [data-slot="dialog-title"] {
+  min-height: var(--touch-minimize);
+  align-content: center;
+  padding-inline: var(--touch-minimize);
+}
+
+.game-dialog-restore {
+  position: absolute;
+  z-index: 8;
+  inset-block-start: var(--safe-top);
+  inset-inline-start: calc(var(--safe-left) + 88px);
+  display: inline-flex;
+  height: var(--touch-primary);
+  align-items: center;
+  gap: 5px;
+  isolation: isolate;
+  padding-inline: 10px;
+  color: var(--color-gold-bright);
+  font: 600 15px/1.2 var(--font-wenkai);
+}
+
+.game-dialog-restore::before {
+  position: absolute;
+  z-index: -1;
+  inset: 8px 0;
+  border: 1px solid var(--color-gold-deep);
+  border-radius: 4px;
+  background: var(--color-panel);
+  box-shadow: var(--ink-shadow-sm);
+  content: "";
+}
+
+.game-dialog-restore[aria-disabled="true"] {
+  opacity: 0.6;
+}
+
+.game-dialog-restore:focus-visible,
+.dialog-minimize:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: -2px;
+}
+
+.handzone[inert],
+.pilebtns[inert] {
+  visibility: hidden;
+}

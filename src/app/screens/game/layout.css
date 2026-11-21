@@ -111,9 +111,11 @@
 }
 /* 「加载更早」:窗口化渲染按窗放开更早历史;列表底部的安静墨字钮,不要抢戏 */
 .war-earlier {
+  flex: none;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
   margin: 0 1rem 0.75rem;
   padding: 6px 14px;
-  position: relative; /* ::after 命中垫定位上下文(#840 ③) */
   align-self: center;
   border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
   border-radius: 3px;
@@ -126,14 +128,6 @@
     transform var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out);
-}
-/* 触达命中垫(#840 ③,审计 P1-C4:触达欠账两处之一,视觉 ~30px 掉队):视觉不动,
-   上下外扩 10px → 触高 ~50px 过主行动 ≥44 口径(#751;::after 垫先例 .tbtn);
-   横向不垫——抽屉内横宽本就富余,垫了反吞左右空白条带的点击。 */
-.war-earlier::after {
-  content: "";
-  position: absolute;
-  inset: -10px 0;
 }
 
 /* ── 空态空白笺(#768 空态器物化):无条目时一张待墨的空笺+三道虚线格空行——
@@ -158,8 +152,8 @@
 }
 
 /* ── 战报未读金点(#768):有未读条目时 ⚙ 设置钮右上金点,呼吸 --dur-ambient
-   (呼吸类统一 token)。挂件绝对定位不进钮盒——react-float-skeleton 对 .tbtn
-   32×32 有几何断言,不许撑动。清账口径:打开战报抽屉即清(GameScreen 本地已读
+   (呼吸类统一 token)。挂件绝对定位在 32px 视觉钮面上。打开战报抽屉即清账
+   (GameScreen 本地已读
    游标对比 warEntriesOf,不进快照);样式寄战报段:金点是战报的未读表达,
    非设置钮自身的状态。
    #840 ⑥(审计 R6「未读金点 6px 存在感弱」)提存在感三拍:点 6→8px、外圈
@@ -215,14 +209,10 @@
   pointer-events: none; /* 容器不挡棋盘拖拽,钮自身放行 */
 }
 .game-layout .topbtns {
-  /* inline-flex 收宽度=内容(display:flex 是块级盒会撑满 topbar 全行,pointer-events
-     auto 的全宽条带吞掉右上自机格点击层——react-self-target e2e 实锤,#700 修复);
-     #853 起行内两件(设置/详情),居中互齐。
-     间隙 6→10px(#743 F):两钮命中垫扩到 44 后防热区互贴误触。 */
+  /* 两个 32px 钮面各有 40px 触区，10px 视觉间距留出 2px 可透传的间隔。 */
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  pointer-events: auto;
 }
 .game-layout .tbtn {
   position: relative;
@@ -235,17 +225,21 @@
   border: 1px solid color-mix(in srgb, var(--color-paper) 16%, transparent);
   color: var(--color-paper-dim);
   padding: 0;
+  pointer-events: auto;
   transition:
     transform var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
 }
-/* 触达命中垫(#743 F):视觉 32 不动,透明命中垫扩到 44×44 制式(inset −6)。 */
+/* 触区从钮面中心量取，包含钮面边框。 */
 .game-layout .tbtn::after {
   content: "";
   position: absolute;
-  inset: -6px;
+  inset: 50% auto auto 50%;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  translate: -50% -50%;
 }
 .game-layout .tbtn:disabled {
   opacity: 0.45;
@@ -266,11 +260,14 @@
 /* 列层几何=视觉列(#743 判词 H/#751 C 批):原 inset:0 全视口包围盒是工程卫生
    缺口(e2e/取证管线按元素 bbox 裁切会得全屏帧)——收成与 .seatcol 同几何,
    testid/z-index/事件通路全不变,弹层经 Portal 出 body 不受连坐。 */
+.game-layout {
+  --pile-button-size: var(--touch-primary);
+}
 .game-layout .seat-rail {
   position: absolute;
   top: calc(var(--safe-top) + 8px);
   right: calc(var(--safe-right) + 8px);
-  bottom: 54px;
+  bottom: calc(var(--safe-bottom) + var(--pile-button-size) + 10px);
   width: 96px;
   z-index: 4;
   pointer-events: none;
@@ -279,8 +276,7 @@
   pointer-events: auto;
 }
 /* 列:宽 96 固定、格间距 2px、y8 起排(安全区让位沿用 --safe-*);列区可用高=
-   视口高−顶距 8−钮区预算(基准档 54 = 44 钮高 + 10 底距;高视口档舒展 52+10=62,
-   断点覆写见文件尾高视口档块)。#751 C 批:列层收成同几何后本层改 inset:0 填满
+   视口扣除安全区、顶距 8px 与钮区预算(钮高 + 10px 底距)。#751 C 批:列层收成同几何后本层改 inset:0 填满
    列层——偏移只在列层记一次,双层各记会二倍扣减(e2e 满编 8 席格高断言实锤)。 */
 .game-layout .seatcol {
   position: absolute;
@@ -588,7 +584,7 @@
 .game-layout .handzone .hand-rack:has(> .skill-banner) {
   flex: 1 1 auto;
 }
-.game-layout .handzone .hand-rack :is(button, .skill-banner *) {
+.game-layout .handzone .hand-rack button {
   pointer-events: auto;
 }
 /* 签面(原仪表条「签」徽章平移,testid dice-face 不变;原型 .diceseal 制式):
@@ -642,8 +638,7 @@
 
 /* ── 右下三圆钮(#700,原型 ①gembtns 判决移植):锦囊(手牌显隐开关,亮=显示)/
    珍宝 / 名将,44px 圆 + 计数角标(名将含上限 x/3;高视口档舒展 52px,见文件尾);
-   上缘 = 席位列区下界(基准 44 钮高 + 10 底距 = 54px 列区预算,几何不变量见
-   SeatRail/layout 席位列;高视口档 62px 随拍)。 ── */
+   圆钮上缘与席位列区下界共用钮高、底距和安全区。 ── */
 .game-layout .pilebtns {
   position: absolute;
   right: calc(var(--safe-right) + 8px);
@@ -661,8 +656,8 @@
 }
 .game-layout .gbtn {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: var(--pile-button-size);
+  height: var(--pile-button-size);
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -779,9 +774,9 @@
     var(--ink-shadow-lg);
 }
 .setheading {
-  /* RoundClose 的 top-1 与 h-11 共占 12 个间距单位，首行从关闭触区下方开始。 */
+  /* 首行从 RoundClose 的触区下方开始。 */
   flex: none;
-  min-height: calc(var(--spacing) * 12);
+  min-height: calc(var(--spacing) + var(--touch-primary));
   padding-block: 12px 9px;
 }
 .setrow {
@@ -804,7 +799,7 @@
 }
 .setrow-switch,
 .setrow-btn {
-  min-height: 40px;
+  min-height: var(--touch-target);
 }
 .setrow-switch {
   position: relative;
@@ -941,13 +936,11 @@
     font-size: 9.6px;
     --hface-base: 9.6px; /* 名将卡面卡基随槽位 em 基(#360,hand-rack.css 同款) */
   }
-  .game-layout .gbtn {
-    width: 52px;
-    height: 52px;
-    font-size: 12px;
+  .game-layout {
+    --pile-button-size: 52px;
   }
-  .game-layout .seat-rail {
-    bottom: 62px; /* 列层已同几何,列本体 inset:0 跟随,偏移只此一处 */
+  .game-layout .gbtn {
+    font-size: 12px;
   }
 }
 

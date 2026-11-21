@@ -7,7 +7,16 @@
 // 不可辨,席位格改汉字五账式);要属性图标先立新件并在此登记判词。
 import type { ReactNode } from "react";
 
-type SymName = "back" | "sound" | "muted" | "play" | "close" | "expand" | "overview" | "settings";
+type SymName =
+  | "back"
+  | "sound"
+  | "muted"
+  | "play"
+  | "close"
+  | "minus"
+  | "expand"
+  | "overview"
+  | "settings";
 
 const PATHS: Record<SymName, ReactNode> = {
   // 返回 ←:所有「返回/回退」按钮统一用此,勿混近义形
@@ -36,6 +45,8 @@ const PATHS: Record<SymName, ReactNode> = {
   // 交涉访客视角/战报抽屉)必须保留;必须决策的卷轴(购地/扩军/招贤/破产/交涉城主)
   // 不渲染(不传 onClose,hideClose 仅为此保留)
   close: <path d="M4 4 L16 14 M16 4 L4 14" fill="none" />,
+  // 最小化 −:隐藏对局弹层，保留当前步骤。
+  minus: <path d="M5 8 H17" fill="none" />,
   // 展开/下拉 ▾:行尾「还有下级可选」提示(地图行尾/设置分组)
   expand: <path d="M4 6 L10 11.5 L16 6" fill="none" />,
   // 详情 ☰(三横册页):诸侯详情弹窗入口(GameTopBar 左上;#732 正名,前称「诸侯总览」已废)

@@ -32,8 +32,14 @@ import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
 import { checkpointGameDiagnostics, mountGameDiagnostics } from "@app/game-diagnostics";
 import { VERSION } from "../../../version";
-import { HandRack, type RackCardSelection } from "./HandRack";
+import {
+  HandRack,
+  JinnangDetailSheet,
+  type RackCardSelection,
+  type RackInspection,
+} from "./HandRack";
 import { HandZone } from "./HandZone";
+import { SkillGlossaryDialog } from "./SkillGlossaryDialog";
 import { ReactionBanner } from "./ReactionBanner";
 import { SkillChoiceBanner } from "./SkillChoiceBanner";
 import { reactionMuteEngage, reactionMuted, type ReactionMuteState } from "./reaction-mute";
@@ -42,12 +48,18 @@ import { SeatRail } from "./SeatRail";
 import { WarlordsOverview } from "./WarlordsOverview";
 import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
-import { ActionBar } from "./ActionBar";
+import { ActionBar, type PrimaryAction } from "./ActionBar";
 import { targetCandidates, useTargetSelection, type TargetSelectionStep } from "./target-selection";
 import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
-import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
+import {
+  DecisionScrollLayer,
+  decisionScrollIdentity,
+  TileDetail,
+} from "./scroll/DecisionScrollLayer";
+import { DialogPeekContext, DialogPeekInspection } from "@app/hooks/dialog-stack";
+import { RestoreGameDialog, useGameDialogPeek } from "./dialog-peek";
 import { selectableCapitalTiles, useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
 import {
@@ -126,7 +138,14 @@ export function GameScreen() {
       </div>
     );
   }
-  return <GameScreenLive snapshot={snapshot} board={context.board} controller={controller} />;
+  return (
+    <GameScreenLive
+      key={snapshot.gameId}
+      snapshot={snapshot}
+      board={context.board}
+      controller={controller}
+    />
+  );
 }
 
 /** 竖屏手机「请横屏」提示层:移动端只做横屏形态。
@@ -209,9 +228,18 @@ function GameScreenLive({
   const players = useStablePlayers(snapshot.players);
   // 挂载时已入座;座位缺位表示快照与座位表不一致,直取使接线错误暴露。
   const selfPlayer = players[selfSeat];
+  const gameOver = snapshot.phase === "GameOver";
+  const dialogPeek = useGameDialogPeek(!gameOver);
+  const { peeking } = dialogPeek;
+  const decisionKey = decisionScrollIdentity(snapshot, viewSeat);
   const [warlordsOpen, setWarlordsOpen] = useState(false);
-  const openWarlords = useCallback(() => setWarlordsOpen(true), []);
+  const [warlordsInspection, setWarlordsInspection] = useState(false);
+  const openWarlords = useCallback(() => {
+    if (peeking) setWarlordsInspection(true);
+    else setWarlordsOpen(true);
+  }, [peeking]);
   const closeWarlords = useCallback(() => setWarlordsOpen(false), []);
+  const closeWarlordsInspection = useCallback(() => setWarlordsInspection(false), []);
   // 入手音按手牌多重集差量播放,不跟随牌架挂载;同名牌逐张记账,收架期间照响。
   // 账本只活在本屏,换局重挂即重开。
   const prevHandRef = useRef<string[]>([]);
@@ -229,6 +257,8 @@ function GameScreenLive({
   // 托管态单源取值收口 useAutopilotOn(netStore):联机已入座=座位广播,单机=控制器本地
   // 标记(托管以在座为前提,未入座恒 false)。
   const autopilotOn = useAutopilotOn(controller);
+  const parkedDecision =
+    decisionKey !== null && dialogPeek.decision === decisionKey && !autopilotOn;
   // 行军接管的棋子:fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
@@ -247,11 +277,18 @@ function GameScreenLive({
   const warUnread = warReadCount > warTotal ? warTotal : warTotal - warReadCount;
   // null=随内容自动显隐;手动开/收只保持至下一次回合或决策窗边界。
   const [rackManualHidden, setRackManualHidden] = useState<boolean | null>(null);
+  const [rackInspection, setRackInspection] = useState<RackInspection | null>(null);
+  const closeRackInspection = useCallback(() => setRackInspection(null), []);
   // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
   // onTileClick 相位路由 + 详情/定都确认时序。
-  const { offeredCapitals, selectableTiles, onTileClick, tileDetail } = useCapitalPick({
-    snapshot,
-  });
+  const { offeredCapitals, selectableTiles, onTileClick, tileDetail, inspection, closeInspection } =
+    useCapitalPick({ snapshot, readOnly: peeking });
+  useLayoutEffect(() => {
+    if (!peeking) {
+      closeInspection();
+      closeWarlordsInspection();
+    }
+  }, [peeking, closeInspection, closeWarlordsInspection]);
 
   // 决策归属与命令在途分开：锁住操作期间继续显示这一步的选择。
   const junshiWindowUp =
@@ -337,7 +374,9 @@ function GameScreenLive({
     controller.reconnect();
   };
   // 设置弹层开合回调:引用稳定化同上(SettingsDialog memo 前提)。
-  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const openSettings = useCallback(() => {
+    if (!peeking) setSettingsOpen(true);
+  }, [peeking]);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
   const openWarReport = useCallback(() => {
     // 打开抽屉即清账:条数取点击拍当下快照(getState 读,不闭包捕获渲染拍)。
@@ -394,12 +433,12 @@ function GameScreenLive({
         TARGET_DOMAIN_STAGES[jinnangCardOf(junshiSelected.id).targetDomain].stages > 0;
   const junshiTitle = pendingCard?.id ?? pendingSkill?.name ?? junshiSelected?.label ?? "出牌阶段";
   const stepHint = junshiCityTargeting
-    ? "在地图上选一座城"
+    ? "选城"
     : junshiPendingCard?.stage === "two-a"
-      ? "在右侧席位区选第一位诸侯"
+      ? "选第一位诸侯"
       : junshiPendingCard?.stage === "two-b"
-        ? "在右侧席位区选第二位诸侯"
-        : "在右侧席位区选一位诸侯";
+        ? "选第二位诸侯"
+        : "选诸侯";
   const chosenLabels = targets.selected.map(
     (id) => targetStep!.candidates.find((candidate) => candidate.id === id)!.label,
   );
@@ -414,14 +453,14 @@ function GameScreenLive({
     : levy != null
       ? `对其余 ${levy.affectedSeats.length} 位诸侯各征至多 ${formatMoney(levy.maxPerSeat)}`
       : undefined;
-  const junshiPrimaryLabel =
+  const junshiPrimaryAction: PrimaryAction =
     junshiPendingCard?.stage === "two-a"
-      ? "下一步"
+      ? { label: "下一步", variant: "primary" }
       : pendingSkill != null || (selectedSkill != null && !selectedNeedsTarget)
-        ? "发动"
+        ? { label: "发动", variant: "commit" }
         : junshiTargeting || (junshiSelected != null && !selectedNeedsTarget)
-          ? "出牌"
-          : "选目标";
+          ? { label: "出牌", variant: "commit" }
+          : { label: "选目标", variant: "primary" };
 
   const reactionChoices = reactionChoicesForSeat(snapshot, selfSeat);
   const reactionUp =
@@ -430,6 +469,7 @@ function GameScreenLive({
     ? JSON.stringify([snapshot.gameId, selfSeat, snapshot.pendingReaction!.seq])
     : null;
   const turnScope = reactionTurnScope(snapshot);
+  const bookPlayScope = junshiUp && !junshiTargeting ? turnScope : null;
   const [reactMute, setReactMute] = useState<{ scope: string; state: ReactionMuteState } | null>(
     null,
   );
@@ -521,7 +561,7 @@ function GameScreenLive({
     [interactive, activeTargets.toggle],
   );
   const handleTileClick = (tileIndex: number) => {
-    if (cityTargeting) {
+    if (cityTargeting && !peeking) {
       if (interactive) activeTargets.toggle(tileIndex);
       return;
     }
@@ -657,8 +697,13 @@ function GameScreenLive({
 
   if (reaction != null && reactionDeadlineAt == null)
     throw new Error(`反应窗 ${snapshot.pendingReaction!.seq} 缺少截止时刻`);
+  const restoreLocked =
+    parkedDecision &&
+    snapshot.phase === "Playing" &&
+    snapshot.decisionOwner === viewSeat &&
+    !interactive;
 
-  return (
+  const game = (
     <AudioProvider>
       {/* 掷骰签演出宿主与 AudioProvider 同挂在对局屏,生命周期为一局。 */}
       <DiceOverlay />
@@ -682,16 +727,20 @@ function GameScreenLive({
                城目标段在窗时改选格路由
                (候选格=选格,handleTileClick) */
             onTileClick={handleTileClick}
-            selectableTiles={selectableTiles}
+            selectableTiles={peeking ? undefined : selectableTiles}
             /* 目标段选城:候选金环呼吸(选都 crown 同通路)+ 选中实金停持环;
                候选集/选中格从快照 choices 城选项派生,非城域恒 undefined/null */
-            cityTargetTiles={cityTargeting ? new Set(cityOptions.map((o) => o.id)) : undefined}
-            cityPickedTileIndex={cityTargeting ? (activeTargets.selected[0] ?? null) : null}
+            cityTargetTiles={
+              cityTargeting && !peeking ? new Set(cityOptions.map((o) => o.id)) : undefined
+            }
+            cityPickedTileIndex={
+              cityTargeting && !peeking ? (activeTargets.selected[0] ?? null) : null
+            }
             /* 候选集全座位透传——非决策席也见静态金圈与壹贰叁序号印 */
             candidateTiles={offeredCapitals ?? undefined}
             /* 目标段:可用候选席位的棋子金虚线环呼吸(与席位格金圈同步) */
             targetedPlayerIds={
-              activeTargetStep?.domain === "seat"
+              activeTargetStep?.domain === "seat" && !peeking
                 ? new Set(seatOptions.filter((o) => o.available).map((o) => players[o.id].id))
                 : undefined
             }
@@ -729,30 +778,55 @@ function GameScreenLive({
             选都/详情流程只下发一个窄 props(tileDetail,状态机在 useCapitalPick)。 */}
           <div id="scroll-layer" className="pointer-events-none absolute inset-0">
             <DecisionScrollLayer
-              key={snapshot.gameId}
               snapshot={snapshot}
               viewSeat={viewSeat}
-              interactive={interactive}
+              interactive={interactive && !peeking}
+              decisionKey={decisionKey}
+              parked={parkedDecision}
               tileDetail={tileDetail}
             />
+            {inspection !== null && (
+              <DialogPeekInspection.Provider value={closeInspection}>
+                <TileDetail snapshot={snapshot} viewSeat={viewSeat} request={inspection} />
+              </DialogPeekInspection.Provider>
+            )}
           </div>
         </div>
         {/* 顶左设置/详情两钮,顶中留给知会槽。 */}
         <GameTopBar
           warUnread={warUnread}
           onOpenSettings={openSettings}
-          overviewOpen={warlordsOpen}
+          settingsDisabled={peeking}
+          overviewOpen={peeking ? warlordsInspection : warlordsOpen}
           onOpenOverview={openWarlords}
         />
-        {warlordsOpen && (
+        {peeking && (
+          <RestoreGameDialog
+            decision={parkedDecision}
+            locked={restoreLocked}
+            buttonRef={dialogPeek.restoreButton}
+            onRestore={dialogPeek.restore}
+          />
+        )}
+        {!gameOver && warlordsOpen && (
           <WarlordsOverview
-            key={snapshot.gameId}
             players={players}
             selfSeat={selfSeat}
             activeSeat={snapshot.phase === "Playing" ? snapshot.activeIndex : null}
             round={snapshot.round}
             onClose={closeWarlords}
           />
+        )}
+        {peeking && warlordsInspection && (
+          <DialogPeekInspection.Provider value={closeWarlordsInspection}>
+            <WarlordsOverview
+              players={players}
+              selfSeat={selfSeat}
+              activeSeat={snapshot.phase === "Playing" ? snapshot.activeIndex : null}
+              round={snapshot.round}
+              onClose={closeWarlordsInspection}
+            />
+          </DialogPeekInspection.Provider>
         )}
         {/* 顶中知会槽承载回合胶囊/都城停条带/等待条,瞬态知会优先,由 fxStore 槽泵排队互斥。 */}
         <NoticeBanner
@@ -770,7 +844,7 @@ function GameScreenLive({
           selfSeat={selfSeat}
           onOpenOverview={openWarlords}
           targets={
-            activeTargetStep?.domain === "seat"
+            activeTargetStep?.domain === "seat" && !peeking
               ? {
                   bySeat: new Map(
                     seatOptions.map((o) => [
@@ -789,8 +863,9 @@ function GameScreenLive({
           }
         />
         {/* 收架时仅待决触发技保留手牌区入口。 */}
-        {(!rackHidden || skillBanner != null) && (
+        {!gameOver && (!rackHidden || skillBanner != null) && (
           <HandZone
+            inert={peeking}
             snapshot={snapshot}
             player={selfPlayer}
             autopilotOn={autopilotOn}
@@ -802,6 +877,8 @@ function GameScreenLive({
                 player={selfPlayer}
                 nudgePulse={playNudge}
                 bannerOnly={rackBannerOnly}
+                detailKey={rackInspection?.kind === "jinnang" ? rackInspection.key : null}
+                onInspect={setRackInspection}
                 junshi={
                   junshiUp
                     ? {
@@ -842,32 +919,43 @@ function GameScreenLive({
             }
           />
         )}
+        {/* 详情跟随对局，跨过回合边界自动收架后仍可继续查阅。 */}
+        {!gameOver && rackInspection?.kind === "jinnang" && (
+          <JinnangDetailSheet cardId={rackInspection.cardId} onClose={closeRackInspection} />
+        )}
+        {!gameOver && rackInspection?.kind === "skill" && (
+          <SkillGlossaryDialog target={rackInspection.target} onClose={closeRackInspection} />
+        )}
         {/* 锦囊钮控制牌架显隐,收架且有决策窗时呼吸提示;珍宝/名将弹层由 PileButtons 自持。 */}
-        <PileButtons
-          player={selfPlayer}
-          rackVisible={!rackHidden}
-          breathe={rackBreathe}
-          nudgePulse={rackHidden ? playNudge : undefined}
-          onToggleRack={toggleRackHidden}
-          bookPlayReady={interactive && junshiUp && !junshiTargeting} // 己方出牌阶段卡牌段可用技能书
-          onUseBook={(treasureId, heroId) => {
-            getAudio().play("stamp");
-            dispatchCommand({ type: "useBookSkill", treasureId, heroId });
-          }}
-          dismissReady={
-            // 遣散窗口:本地决策+对局中+自己回合
-            interactive &&
-            snapshot.phase === "Playing" &&
-            snapshot.activeIndex === selfSeat &&
-            snapshot.turnPhase !== "AwaitingBankruptcySettle"
-          }
-          onDismiss={(heroId) => {
-            getAudio().play("stamp");
-            dispatchCommand({ type: "dismissHero", heroId });
-          }}
-        />
+        {!gameOver && (
+          <PileButtons
+            inert={peeking}
+            player={selfPlayer}
+            rackVisible={!rackHidden}
+            breathe={rackBreathe}
+            nudgePulse={rackHidden ? playNudge : undefined}
+            onToggleRack={toggleRackHidden}
+            bookPlayScope={bookPlayScope}
+            bookPlayReady={interactive && !peeking && bookPlayScope !== null}
+            onUseBook={(treasureId, heroId) => {
+              getAudio().play("stamp");
+              dispatchCommand({ type: "useBookSkill", treasureId, heroId });
+            }}
+            dismissReady={
+              // 遣散窗口:本地决策+对局中+自己回合
+              interactive &&
+              snapshot.phase === "Playing" &&
+              snapshot.activeIndex === selfSeat &&
+              snapshot.turnPhase !== "AwaitingBankruptcySettle"
+            }
+            onDismiss={(heroId) => {
+              getAudio().play("stamp");
+              dispatchCommand({ type: "dismissHero", heroId });
+            }}
+          />
+        )}
         {/* 设置弹层提供战报、托管、音效、诊断与回主页等入口。 */}
-        {settingsOpen && (
+        {!gameOver && settingsOpen && (
           <SettingsDialog
             onClose={closeSettings}
             onOpenWarReport={openWarReport}
@@ -875,12 +963,12 @@ function GameScreenLive({
             onCaptureDiagnostic={checkpointGameDiagnostics}
           />
         )}
-        {junshiUp && (
+        {!peeking && junshiUp && (
           <ActionBar
             title={junshiTitle}
             collapsed={rackHidden && !junshiTargeting}
             detail={junshiDetail}
-            primaryLabel={junshiPrimaryLabel}
+            primaryAction={junshiPrimaryAction}
             cancelLabel={
               junshiPendingSkill != null
                 ? "作罢"
@@ -896,7 +984,7 @@ function GameScreenLive({
             onBlockedAttempt={() => setPlayNudge((n) => n + 1)}
           />
         )}
-        {reaction != null && reactionNotice != null && (
+        {!peeking && reaction != null && reactionNotice != null && (
           <ReactionBanner
             key={reactionScope}
             {...reactionNotice}
@@ -929,15 +1017,16 @@ function GameScreenLive({
           />
         )}
         {/* 战报抽屉(入口在设置内):条件挂载,常收零占位。 */}
-        {warReportOpen && (
+        {!gameOver && warReportOpen && (
           <WarReportDrawer snapshot={snapshot} onClose={() => setWarReportOpen(false)} />
         )}
         {/* 窥探弹层:军情密探即时窥探的 viewer-only 演出——开关态单源 fxStore
           (peekApplied 表现事件驱动,关闭即清),组件按 viewerSeat===本座自门。 */}
-        <PeekModal selfSeat={selfSeat} />
+        {!gameOver && <PeekModal selfSeat={selfSeat} />}
         {/* 竖屏手机「请横屏」提示层:常驻 DOM,显隐在 layout.css 媒询。 */}
         <RotateHintOverlay />
       </div>
     </AudioProvider>
   );
+  return <DialogPeekContext.Provider value={dialogPeek.context}>{game}</DialogPeekContext.Provider>;
 }

@@ -121,7 +121,7 @@ export const WarReportDrawer = memo(function WarReportDrawer({
             <i />
           </div>
         ) : (
-          <ul className="war-list">
+          <ul className="war-list" data-peek-scroll>
             {entries.map((e, i) => {
               const actorColor = e.player ? colorByGuohao.get(e.player) : undefined;
               // 回合分组锚(#556):倒序呈现下组首=该轮最新一条。仅组首显轮签,

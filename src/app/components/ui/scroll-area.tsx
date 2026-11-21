@@ -45,9 +45,6 @@ function ScrollBar({
       keepMounted={keepMounted}
       className={cn(
         "flex touch-none p-px transition-opacity select-none",
-        /* 首帧可见滚动提示(#708):有纵向溢出即常显(不伴 hover/滚动态消失),
-           无溢出 0 透明零残影;横向轨道同门控不常显(弹层族只用纵向)。 */
-        "opacity-0 data-[has-overflow-y]:opacity-100",
         /* 方向档宽高:Base UI 下发 data-orientation(布尔 data-vertical 不存在,
            拷贝管线原版 data-vertical:* 变体永不命中,轨道零宽——#708 实拍修皮) */
         "data-[orientation=horizontal]:h-2.5 data-[orientation=horizontal]:flex-col data-[orientation=horizontal]:border-t data-[orientation=horizontal]:border-t-transparent",

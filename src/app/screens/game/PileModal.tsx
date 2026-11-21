@@ -16,7 +16,7 @@
 // 矮屏规范(#708,五族一处收口):壳最大高=视口高−64px(上下安全边);头部钉住,
 // 体部=ui/scroll-area 内滚(首帧可见滚动提示),底部操作行经 footer 槽钉住不随滚;
 // 矮横屏档行高自适应(卡基/列宽缩档)断头防治,细则全在 pile-modal.css 规范块。
-import { memo, useState, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
@@ -25,16 +25,13 @@ import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { TreasureArt } from "@app/components/card/TreasureArt";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { formatMoney } from "@core/money";
-import { guidePriceOf, isSkillBook, type TreasureDef } from "@core/treasures";
+import { guidePriceOf, isSkillBook } from "@core/treasures";
 import { skillBookLearners } from "@core/roster";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
 import { SkillBookLearnModal } from "./SkillBookLearnModal";
 import { HeroInspectionModal } from "./HeroInspectionModal";
 import "./pile-modal.css";
-
-/** 技能书条目形状(isSkillBook 收窄面):选人弹窗本地态的最小类型。 */
-type SkillBook = TreasureDef & { kind: "book"; skillId: string };
 
 /** 弹层种类(与牌架入口一一对应;标题随入口,HandRack 持有开合态)。 */
 export type PileModalKind = "treasures" | "heroes";
@@ -192,15 +189,29 @@ export function treasurePrice(t: SnapshotPlayer["treasures"][number]) {
  *  ArtifactEmpty,MapStrip 先例);计数行如实报 0 口径不变。 */
 function TreasureGrid({
   player,
+  bookPlayScope,
   bookPlayReady,
   onUseBook,
 }: {
   player: SnapshotPlayer;
+  bookPlayScope: string | null;
   bookPlayReady: boolean;
   onUseBook?: (treasureId: string, heroId: string) => void;
 }) {
-  // 多名可学的书 → 选人弹窗(本地态;一册一开,拍板即发命令并随快照刷新)
-  const [learnPick, setLearnPick] = useState<SkillBook | null>(null);
+  // 选将跟随同一次出牌机会和当前藏品，临时操作锁仅禁止提交。
+  const [learnPick, setLearnPick] = useState<{ bookId: string; scope: string } | null>(null);
+  const selectedTreasure =
+    learnPick !== null && learnPick.scope === bookPlayScope
+      ? player.treasures.find((treasure) => treasure.id === learnPick.bookId)
+      : undefined;
+  const selectedBook =
+    selectedTreasure !== undefined && isSkillBook(selectedTreasure) ? selectedTreasure : null;
+  const learnersForPick =
+    selectedBook === null ? [] : skillBookLearners(player, selectedBook.skillId);
+  const canKeepPick = learnersForPick.length > 0;
+  useEffect(() => {
+    if (!canKeepPick && learnPick !== null) setLearnPick(null);
+  }, [canKeepPick, learnPick]);
   return (
     <>
       <PileZone>
@@ -225,13 +236,14 @@ function TreasureGrid({
             }
             const book = t;
             const learners = skillBookLearners(player, book.skillId);
-            if (!bookPlayReady || learners.length === 0 || onUseBook == null) {
+            if (bookPlayScope === null || learners.length === 0 || onUseBook == null) {
               // 不可用态静态陈列,原因随书格可见且可被读屏读取。
-              const why = !bookPlayReady
-                ? "出牌阶段可研读"
-                : learners.length === 0
-                  ? "麾下无人可习此技(可交易变卖)"
-                  : "此处不可研读";
+              const why =
+                bookPlayScope === null
+                  ? "出牌阶段可研读"
+                  : learners.length === 0
+                    ? "麾下无人可习此技(可交易变卖)"
+                    : "此处不可研读";
               return (
                 <div className="pile-cell" key={`${book.id}:${i}`}>
                   {face}
@@ -247,9 +259,11 @@ function TreasureGrid({
                 key={`${book.id}:${i}`}
                 data-testid={TESTIDS.bookUse(book.id)}
                 aria-label={`研读${book.name}`}
+                disabled={!bookPlayReady}
                 onClick={() => {
+                  if (!bookPlayReady) return;
                   if (learners.length === 1) onUseBook(book.id, learners[0]!.heroId);
-                  else setLearnPick(book);
+                  else setLearnPick({ bookId: book.id, scope: bookPlayScope });
                 }}
               >
                 {face}
@@ -259,13 +273,15 @@ function TreasureGrid({
           })}
         </div>
       )}
-      {learnPick != null && (
+      {selectedBook !== null && canKeepPick && (
         <SkillBookLearnModal
-          bookName={learnPick.name}
-          skillId={learnPick.skillId}
-          learners={skillBookLearners(player, learnPick.skillId)}
+          bookName={selectedBook.name}
+          skillId={selectedBook.skillId}
+          learners={learnersForPick}
+          locked={!bookPlayReady}
           onPick={(heroId) => {
-            onUseBook?.(learnPick.id, heroId);
+            if (!bookPlayReady || !learnersForPick.some((slot) => slot.heroId === heroId)) return;
+            onUseBook?.(selectedBook.id, heroId);
             setLearnPick(null);
           }}
           onClose={() => setLearnPick(null)}
@@ -282,7 +298,9 @@ function TreasureGrid({
 interface PileModalProps {
   kind: PileModalKind;
   player: SnapshotPlayer;
-  /** 己方出牌阶段卡牌段(GameScreen 计算);书可点窗口。 */
+  /** 本次可研读的出牌阶段。 */
+  bookPlayScope: string | null;
+  /** 当前可提交用书命令。 */
   bookPlayReady?: boolean;
   /** 用书学技命令通路(useBookSkill;缺省=无通路,书恒不可点)。 */
   onUseBook?: (treasureId: string, heroId: string) => void;
@@ -302,6 +320,7 @@ function pileModalEqual(a: PileModalProps, b: PileModalProps): boolean {
   return (
     a.kind === b.kind &&
     a.player === b.player &&
+    a.bookPlayScope === b.bookPlayScope &&
     a.bookPlayReady === b.bookPlayReady &&
     a.dismissReady === b.dismissReady
   );
@@ -310,6 +329,7 @@ function pileModalEqual(a: PileModalProps, b: PileModalProps): boolean {
 export const PileModal = memo(function PileModal({
   kind,
   player,
+  bookPlayScope,
   bookPlayReady = false,
   onUseBook,
   dismissReady = false,
@@ -336,7 +356,12 @@ export const PileModal = memo(function PileModal({
       ariaLabel={`${KIND_META[kind].title} · ${player.guohao}`}
       onClose={onClose}
     >
-      <TreasureGrid player={player} bookPlayReady={bookPlayReady} onUseBook={onUseBook} />
+      <TreasureGrid
+        player={player}
+        bookPlayScope={bookPlayScope}
+        bookPlayReady={bookPlayReady}
+        onUseBook={onUseBook}
+      />
     </PileShell>
   );
 }, pileModalEqual);

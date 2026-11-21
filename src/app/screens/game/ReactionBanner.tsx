@@ -79,11 +79,7 @@ export function ReactionBanner({
       detail={
         <>
           <div className="reaction-range">{range}</div>
-          {step != null && (
-            <div className="reaction-step" data-testid={TESTIDS.reactionStep}>
-              {step}
-            </div>
-          )}
+          {step != null && <div data-testid={TESTIDS.reactionStep}>{step}</div>}
         </>
       }
       actions={
@@ -107,7 +103,7 @@ export function ReactionBanner({
           </TargetActionButton>
           <TargetActionButton
             data-testid={TESTIDS.reactionConfirm}
-            primary
+            variant="commit"
             disabled={disabled || !confirmEnabled}
             onClick={onConfirm}
           >
