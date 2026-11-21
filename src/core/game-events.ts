@@ -16,12 +16,14 @@
 //     抽锦囊进手/声望变更/体力变更/跳过回合)在各域
 //     模块结算点直呼,reason 用领域词
 //     短横 slug(供应/税/行情/机遇/横征/连环/天命/耗竭……开放词表,新来源即新 slug)。
-import type { GameEngine, GameCommand, VictoryReason } from "./authority";
+import type { GameEngine, GameCommand, TurnPhase, VictoryReason } from "./authority";
+import type { PendingSkillChoice } from "./choices";
 import type { LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
 import type { EncounterTier } from "./encounters";
 import type { ReactionCardSpend, ReactionView } from "./reaction-window";
 import type { MovePath } from "./board";
+import type { CityDamageEntry } from "./city-damage";
 import { findHolding } from "./player";
 import { heroSlotOf } from "./roster";
 import { netWorth } from "./networth";
@@ -141,6 +143,14 @@ export interface PropertyUpgradedBody {
   propertyId: string;
   newLevel: number;
 }
+/** 城池受损后的等级、防御值和持有期伤害排行榜；seat 为受击城主。 */
+export interface PropertyDamagedBody {
+  kind: "propertyDamaged";
+  propertyId: string;
+  level: number;
+  defense: number;
+  damageRanking: readonly CityDamageEntry[];
+}
 /** ADR-0013 自动执行默认行为的事件，原因是银两不足或城已满级。 */
 export interface PropertyRejectedBody {
   kind: "propertyRejected";
@@ -203,8 +213,7 @@ export interface BankruptcySettledBody {
   cashAfter: number;
   creditor: { seat: number; cashAfter: number } | null;
 }
-/** 破产清算资产逐城易主(#385 缺口 2):settleDebt 破产转移的每处城池一条——
- *  toSeat=承让方座位(债主接管),null=无债主回无主/销毁;易主宣告由 fx 据此产出。 */
+/** 城池易主，seat 为原城主；toSeat 为接手者，null 表示回无主。 */
 export interface AssetTransferredBody {
   kind: "assetTransferred";
   propertyId: string;
@@ -248,6 +257,29 @@ export interface SkillFiredBody {
   heroId: string;
   skillId: string;
   moment: GameMoment;
+}
+
+export interface SkillChoiceOpenedBody {
+  kind: "skillChoiceOpened";
+  choice: PendingSkillChoice;
+  marks: number | null;
+}
+
+export interface SkillMarksChangedBody {
+  kind: "skillMarksChanged";
+  heroId: string;
+  skillId: string;
+  marks: number;
+}
+
+export interface SkillChoiceAnsweredBody {
+  kind: "skillChoiceAnswered";
+  heroId: string;
+  skillId: string;
+  targetSeat: number | null;
+  skipTurns: number | null;
+  remainingMarks: number | null;
+  resumePhase: TurnPhase;
 }
 /** 名将主动技发动(#384,#188 档 3 三类;#1388 T2 火攻定向化定形 kind=fireBlast/relief/warDrum);
  *  seat=发动者,heroId=属主槽定位(#785 槽位化:冷却账内嵌槽,折叠按 heroId 定槽记账,
@@ -308,15 +340,13 @@ export interface ReputationChangedBody {
   reason: string;
 }
 /** 体力变更(#384):delta=夹紧 0~100 后的实际增减,reason=领域词 slug(机遇=
- *  encounter/被动技=skill/主动技赈济=heroRelief/休整期满回满=rest,开放词表)。 */
+ *  encounter/体力伤害=damage/被动技=skill/主动技赈济=heroRelief/休整期满回满=rest,开放词表)。 */
 export interface StaminaChangedBody {
   kind: "staminaChanged";
   delta: number;
   reason: string;
 }
-/** 跳过回合(#384):skipTurns 消费点(endTurn 推进环)产出,seat=被跳过者——
- *  体力耗竭/缓兵之计共用 skipTurns 机制,标记侧由各自因果事件相邻覆盖
- *  (jinnangAnnounced/staminaChanged/marchArrived),此处宣告「本回合被跳过」。 */
+/** 跳过回合(#384):skipTurns 消费点产出，seat 为被跳过者，消费完即结束休整。 */
 export interface TurnSkippedBody {
   kind: "turnSkipped";
 }
@@ -334,10 +364,8 @@ export interface EncounterChosenBody {
   encounterId: string;
   choiceIndex: number;
 }
-/** 体力耗竭落定:归 0 全自动结算(无抉择相位)的单一因果事件——downgradedPropertyIds=
- *  实际降级的城池(等级 >0 者,含都城;0 级封底不列入),restTurns=休整回合数
- *  (constants.ts EXHAUSTION_REST_TURNS,skipTurns 折叠的显式数据源,不做相邻推断);
- *  体力回满发生在休整期满(跳回合环消费点),以 staminaChanged(reason=rest) 单独成事。 */
+/** 体力耗竭开始休整。downgradedPropertyIds 供演出宣告；城损及易主分别由
+ *  propertyDamaged、assetTransferred 同步，休整按 restTurns 累加。 */
 export interface ExhaustionResolvedBody {
   kind: "exhaustionResolved";
   downgradedPropertyIds: string[];
@@ -372,17 +400,11 @@ export interface ReactionFailedBody {
   aRoll: number;
   bRoll: number;
 }
-/** 拼点结算(#636,ADR-0030):公共拼点 resolveDuel 单点产出,拦检(半路杀出)与
- *  连环计(二虎竞食)两调用点天然全覆盖——两方座位(aSeat/bSeat)、两枚点数
- *  (aRoll/bRoll)、胜者座位(平局 winnerSeat=null)。探宝拼点是单人 2d6 判定、不走
- *  resolveDuel,不产本事件;拼点骰是独立词汇:不派 diceRolled、不触发掷骰时机
- *  (张星彩掷金边界不变,rules 08)。 */
+/** 公开拼点结算，包含本次各参与座位的点数及胜者；平局 winnerSeat=null。
+ *  适用拦检、连环计和称帝。 */
 export interface DuelResolvedBody {
   kind: "duelResolved";
-  aSeat: number;
-  bSeat: number;
-  aRoll: number;
-  bRoll: number;
+  sides: { seat: number; roll: number }[];
   winnerSeat: number | null;
 }
 /** 识破生效(锦囊被拆:shareSeat=被保住的份——AOE=座位、火烧连营城指向域(#1389)=
@@ -428,6 +450,7 @@ export type GameEventBody =
   | CapitalSelectedBody
   | PropertyBoughtBody
   | PropertyUpgradedBody
+  | PropertyDamagedBody
   | PropertyRejectedBody
   | PropertyGrantedBody
   | CashChangedBody
@@ -443,6 +466,9 @@ export type GameEventBody =
   | HeroDismissedBody
   | SkillLearnedBody
   | SkillFiredBody
+  | SkillChoiceOpenedBody
+  | SkillMarksChangedBody
+  | SkillChoiceAnsweredBody
   | HeroSkillActivatedBody
   | JinnangDrawnBody
   | JinnangReshuffledBody
@@ -483,6 +509,7 @@ export const GAME_EVENT_KINDS = [
   "capitalSelected",
   "propertyBought",
   "propertyUpgraded",
+  "propertyDamaged",
   "propertyRejected",
   "propertyGranted",
   "cashChanged",
@@ -496,6 +523,9 @@ export const GAME_EVENT_KINDS = [
   "heroRecruited",
   "playerBankrupt",
   "skillFired",
+  "skillChoiceOpened",
+  "skillMarksChanged",
+  "skillChoiceAnswered",
   "skillLearned",
   "heroSkillActivated",
   "jinnangDrawn",

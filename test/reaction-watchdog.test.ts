@@ -213,6 +213,7 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     e.players[0].treasures = [];
     e.players[1].treasures = [];
     e.players[1].properties.push({
+      damageRanking: [],
       propertyId: lot,
       group: "a",
       level: 1,

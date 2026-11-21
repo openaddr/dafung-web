@@ -1,16 +1,17 @@
 // 城池详情卷轴(#33/#34/#35):
-//   - 只读查看:城名 / 地域 / 持有者(含都城等级)/ 购入价 / 等级表(交易加成 + 变卖价
-//     或都城补给,#671)。#826 全城池制:旧「特殊地点类型说明」分支随功能格退役而删。
+//   - 只读查看:城名 / 地域 / 持有者(含都城等级)/ 伤害排行榜 / 购入价 / 等级表
+//     (交易加成 + 变卖价或都城补给,#671)。
 //   - S10(#43):保留右上 ×(壳 44px 热区),关闭 = ×/遮罩/Esc;
 //     hideClose 只留给必须决策的卷轴(详情卷轴均放弃性,不占用)。
 //   - #35:选都模式下详情内嵌「定都于此 / 再想想」,确认才落子(整合旧 pendingCapital 确认框)。
 //   - #767 弹窗详情族①②:城名下补真实格缩略图(TileThumb,与名下清单/CityLedgerModal
 //     同源同件,纯展示不抢焦点)。#1417:选都先读建城费、余额与补给,再翻等级表。
-import { memo } from "react";
+import { memo, useId } from "react";
 import { formatMoney } from "@core/money";
 import { fullDefenseOf } from "@core/defense";
 import type { TileDef } from "@core/board";
 import type { PropertyDef } from "@core/economy";
+import type { CityDamageEntry } from "@core/city-damage";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { AffordRow } from "./AffordRow";
@@ -41,6 +42,8 @@ interface TileDetailScrollProps {
   ownerLevel: number;
   /** 持有者当前防御值(#1391 T5);null=无主,不渲染防御值行(免疫,无防御语义)。 */
   ownerDefense: number | null;
+  /** 当前持有期的公开伤害排行榜；无主城为 null。 */
+  damageRanking: readonly CityDamageEntry[] | null;
   /** 是否某家都城(都城展示 Lv 徽记)。 */
   isCapital: boolean;
   onClose: () => void;
@@ -66,7 +69,55 @@ function tileDetailScrollEqual(a: TileDetailScrollProps, b: TileDetailScrollProp
     a.ownerGuohao === b.ownerGuohao &&
     a.ownerLevel === b.ownerLevel &&
     a.ownerDefense === b.ownerDefense &&
+    a.damageRanking === b.damageRanking &&
     a.isCapital === b.isCapital
+  );
+}
+
+function CityDamageRanking({
+  entries,
+  players,
+}: {
+  entries: readonly CityDamageEntry[];
+  players: SnapshotPlayer[];
+}) {
+  const titleId = useId();
+  return (
+    <section
+      aria-labelledby={titleId}
+      className="mx-auto mb-3 max-w-[560px] overflow-hidden rounded-[3px] border border-gold/25"
+    >
+      <h3 id={titleId} className="m-0 bg-panel-hi/60 px-2 py-1 text-sm text-paper">
+        伤害排行榜
+      </h3>
+      {entries.length === 0 ? (
+        <p className="m-0 border-t border-gold/15 px-2 py-1 text-sm text-paper-dim">暂无伤害</p>
+      ) : (
+        <ol className="m-0 list-decimal border-t border-gold/15 ps-7 marker:text-paper-dim">
+          {entries.map(({ seat, damage }) => {
+            const player = players[seat];
+            if (player === undefined) throw new Error(`伤害排行榜:不存在座位 ${seat}`);
+            return (
+              <li key={seat} className="border-t border-gold/15 pe-2 py-1 text-sm first:border-t-0">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span
+                    className={
+                      player.isBankrupt
+                        ? "min-w-0 truncate text-paper-dim line-through"
+                        : "min-w-0 truncate text-paper"
+                    }
+                  >
+                    <span className="font-brush">{player.guohao}</span> {player.name}
+                  </span>
+                  {player.isBankrupt && <span className="sr-only">已破产</span>}
+                  <span className="shrink-0 text-gold-deep tabular-nums">{damage} 点</span>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
   );
 }
 
@@ -82,6 +133,7 @@ export const TileDetailScroll = memo(function TileDetailScroll({
   ownerGuohao,
   ownerLevel,
   ownerDefense,
+  damageRanking,
   isCapital,
   onClose,
 }: TileDetailScrollProps) {
@@ -146,6 +198,7 @@ export const TileDetailScroll = memo(function TileDetailScroll({
             购入价 {formatMoney(property.purchasePrice)}
           </p>
         )}
+        {damageRanking !== null && <CityDamageRanking entries={damageRanking} players={players} />}
         {/* 等级表:抽成共用 ValueTable(购地/扩军卷轴复用同一张表,避免三处漂移)。
             #671:主列=交易加成;第二列按城型——都城与选都候选显示补给(变卖价对都城
             是死信息:都城永不可变卖),普通城显示变卖价。

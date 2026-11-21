@@ -208,6 +208,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "insufficient-cash" },
   { kind: "propertyGranted", propertyId: "xuchang" }, // #719 机遇赐城
+  { kind: "propertyDamaged", propertyId: "xuchang", level: 0, defense: 4, damageRanking: [] },
   { kind: "cashChanged", delta: -200, reason: "stock", counterpartSeat: 1 },
   { kind: "treasureGained", treasureId: "golden-seal-1" },
   { kind: "treasureSold", treasureId: "golden-seal-1", amount: 800 },
@@ -221,6 +222,21 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "heroDismissed", heroId: "guanyu", skillIds: ["wusheng"] }, // #1147 遣散
   { kind: "skillLearned", heroId: "guanyu", skillId: "wusheng", treasureId: "skillbook-wusheng" }, // #1146 用书学技
   { kind: "skillFired", heroId: "guanyu", skillId: "wusheng", moment: "TurnStart" },
+  { kind: "skillMarksChanged", heroId: "caopi", skillId: "fangzhu", marks: 39 },
+  {
+    kind: "skillChoiceOpened",
+    choice: { heroId: "caopi", skillId: "fangzhu", ownerSeat: 0, subjectSeat: 0 },
+    marks: 65,
+  },
+  {
+    kind: "skillChoiceAnswered",
+    heroId: "caopi",
+    skillId: "fangzhu",
+    targetSeat: 1,
+    skipTurns: 1,
+    remainingMarks: 0,
+    resumePhase: "Land",
+  },
   {
     kind: "heroSkillActivated",
     heroId: "guanyu",
@@ -239,7 +255,14 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1, 2] },
   { kind: "reactionAnswered", use: false },
   { kind: "reactionFailed", windowKind: "march", tileIndex: 3, aRoll: 2, bRoll: 5 },
-  { kind: "duelResolved", aSeat: 0, bSeat: 1, aRoll: 6, bRoll: 2, winnerSeat: 0 },
+  {
+    kind: "duelResolved",
+    sides: [
+      { seat: 0, roll: 6 },
+      { seat: 1, roll: 2 },
+    ],
+    winnerSeat: 0,
+  },
   { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
   { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, cardId: "军情密探", hand: ["连环计"] },

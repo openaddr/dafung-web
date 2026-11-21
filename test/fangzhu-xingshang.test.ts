@@ -1,8 +1,4 @@
-// 曹丕放逐/行殇引擎结算单测(#1377):「伤害=主公损失体力」的放逐攒怒(StaminaLoss
-// 时机挂体力唯一写口)、「你可」可选发动闸(endTurn 入口挂问 + respondSkillChoice
-// 命令面)、行殇耗竭过滤(+1 追笔)、韬光养晦按笔计酬联动、快照序列化往返、bot 两策略。
-// 布景走种植件(armHero 直授——名将池本票不动,新技不可达,#1375 拍板);耗竭域按
-// #1374 落地后形态(休整基值 2,EXHAUSTION_REST_TURNS)施工。
+// 曹丕放逐/行殇引擎结算单测：伤害标记、时机内应答、休整叠加、快照恢复和 bot 应答。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
@@ -26,8 +22,6 @@ function makeEngine(seed = 7): GameEngine {
   });
 }
 
-/** 三席引擎(罚跳观察用):放逐发动的目标取非下家座位,skipTurns 落账不被跳回合环
- *  即时消费(两席局目标=下家,+1 在收口重入的消费环里当场跳掉,观察不到落账)。 */
 function makeEngine3(seed = 7): GameEngine {
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), {
     seats: [
@@ -88,6 +82,7 @@ describe("放逐攒怒(#1377 AC1):损失攒等值标记,增益不攒", () => {
     finishSetupLite(e);
     armHero(e, 0, "caopi", ["fangzhu"]);
     setStamina(e, 0, 30); // 100→30:损失 70
+    e.respondSkillChoice(0, false);
     setStamina(e, 0, -20); // 请求绝对值 −20(差 −50):夹紧实际 −30(打空最后一笔)
     expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(100); // 70+30(按实际差)
     expect(e.pendingSkillChoices).toHaveLength(1); // 攒满照常挂问,不影响口径
@@ -95,7 +90,7 @@ describe("放逐攒怒(#1377 AC1):损失攒等值标记,增益不攒", () => {
 });
 
 describe("「你可」选择闸(#1377 AC2):达 60 挂待决,发动/放弃", () => {
-  it("达阈值挂待决;endTurn 入口开窗;发动=目标 skipTurns+1+标记归零(超出舍弃)", () => {
+  it("扣体力当场问放逐，发动后标记归零并继续当前回合", () => {
     const e = makeEngine3();
     finishSetupLite(e);
     armPhase(e, { activeIndex: 0 }); // 布景:座位 0 为活跃(三席局目标取非下家,落账可观察)
@@ -104,29 +99,27 @@ describe("「你可」选择闸(#1377 AC2):达 60 挂待决,发动/放弃", () =
     expect(e.pendingSkillChoices).toEqual([
       { skillId: "fangzhu", heroId: "caopi", ownerSeat: 0, subjectSeat: 0 },
     ]);
-    e.endTurn(); // 回合收口:先挂问再收口
     expect(e.turnPhase).toBe("AwaitingSkillChoice");
     expect(e.decisionOwner).toBe(0);
     e.respondSkillChoice(0, true, 2); // 发动:罚座位 2(非下家,+1 落账不被即时消费)
     expect(e.players[2].skipTurns).toBe(1);
     expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(0); // 归零,超出部分舍弃
-    expect(e.turnPhase).toBe("Roll"); // 应答后重入收口(手牌已清,无出牌阶段)
-    expect(e.activeIndex).toBe(1); // 回合已推进到下家
+    expect(e.turnPhase).toBe("Roll");
+    expect(e.activeIndex).toBe(0);
   });
 
-  it("放弃=标记保留(不归零),收口续跑;下笔损失再达线再问", () => {
+  it("放弃保留标记，下笔损失再次询问", () => {
     const e = makeEngine();
     finishSetupLite(e);
     armHero(e, 0, "caopi", ["fangzhu"]);
     setStamina(e, 0, 30); // 70 损失:挂待决
-    e.endTurn();
     e.respondSkillChoice(0, false); // 放弃
     expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(70); // 保留
     expect(e.turnPhase).toBe("Roll");
     expect(e.pendingSkillChoices).toHaveLength(0);
-    // 被跳者回合照常:跳 1(发动过)+1(本回合推进)……此处只钉「再攒再问」:
-    setStamina(e, 0, 0); // 再损 30 → 100 ≥60:新问(归零后的旧账不复触发)
+    setStamina(e, 0, 0); // 再损 30 → 100 ≥60:新问
     expect(e.pendingSkillChoices).toHaveLength(1);
+    expect(e.turnPhase).toBe("AwaitingSkillChoice");
   });
 });
 
@@ -136,7 +129,6 @@ describe("放逐约束(#1377 AC3):不放自己 / 已跳者叠加 / 跨耗竭不�
     finishSetupLite(e);
     armHero(e, 0, "caopi", ["fangzhu"]);
     setStamina(e, 0, 30);
-    e.endTurn();
     e.respondSkillChoice(0, true, 0); // 指自己:拒绝
     expect(e.turnPhase).toBe("AwaitingSkillChoice"); // 窗未走
     expect(e.players[0].skipTurns).toBe(0);
@@ -150,20 +142,18 @@ describe("放逐约束(#1377 AC3):不放自己 / 已跳者叠加 / 跨耗竭不�
     finishSetupLite(e);
     armHero(e, 0, "caopi", ["fangzhu"]);
     setStamina(e, 0, 50); // 50 标记,不挂问
-    // 目标先入被跳态(耗竭休整,#1374):skipTurns=2,首段随即被跳回合环消费(两席局
-    // 目标=下家,advance 即跳 1)——在场被跳账=1
+    armPhase(e, { activeIndex: 1 });
     setStamina(e, 1, 0);
     expect(e.exhaustIfDepleted(1)).toBe("resolved");
-    expect(e.players[1].skipTurns).toBe(1);
+    expect(e.players[1].skipTurns).toBe(2);
     expect(e.players[1].resting).toBe(true);
-    // 攒满发动:叠加 +1(1→2);目标=下家,+1 随收口重入的跳回合环即时消费(2→1)
     setStamina(e, 0, 0); // 再损 50 → 100:挂待决
-    e.endTurn();
     e.respondSkillChoice(0, true, 1);
-    expect(e.players[1].skipTurns).toBe(1);
-    expect(e.players[1].resting).toBe(true);
-    expect(e.players[1].stamina).toBe(0); // 休整未满:+1 把回满点顺延了一拍
-    e.endTurn(); // 最后一段跳过消费:期满回满在 +1 后的这一拍(未叠加会提前一拍)
+    expect(e.players[1].skipTurns).toBe(3);
+    e.endTurn();
+    e.endTurn();
+    expect(e.players[1].stamina).toBe(0);
+    e.endTurn();
     expect(e.players[1].skipTurns).toBe(0);
     expect(e.players[1].resting).toBe(false);
     expect(e.players[1].stamina).toBe(100);
@@ -172,12 +162,11 @@ describe("放逐约束(#1377 AC3):不放自己 / 已跳者叠加 / 跨耗竭不�
   it("耗竭重置体力不清零:标记跨休整周期保留并继续积累", () => {
     const e = makeEngine();
     finishSetupLite(e);
+    armPhase(e, { activeIndex: 0 });
     armHero(e, 0, "caopi", ["fangzhu"]);
-    setStamina(e, 0, 40); // 60 标记:挂待决
-    setStamina(e, 0, 0); // 打空(再损 40 → 100,同问幂等不重挂)
-    e.exhaustIfDepleted(0); // 卧床休整 2 回合(#1374)
-    e.endTurn(); // 收口挂问(耗竭与攒满同回合)
+    setStamina(e, 0, 0);
     e.respondSkillChoice(0, false); // 放弃:保留
+    e.exhaustIfDepleted(0);
     expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(100);
     expect(e.players[0].resting).toBe(true);
     e.endTurn(); // 座位 1 回合毕:座位 0 跳 1(2→1),休整中不回满
@@ -203,22 +192,20 @@ describe("放逐约束(#1377 AC3):不放自己 / 已跳者叠加 / 跨耗竭不�
     expect(e.pendingSkillChoices).toHaveLength(0);
   });
 
-  it("挂问后遣散:残问随槽清,收口不开窗(不修必挂:残问开窗发动 heroSlotOf 当场炸)", () => {
-    // #1375 用户故事 9「遣散后待决状态随技能槽清零,不残留」的窗口闸回归例:
-    // 攒怒过阈挂问 → 同回合遣散曹丕 → 收口若仍开窗,应答发动落账 heroSlotOf 查无槽
-    // 当场炸(#1378 池换血后曹丕可达此路,sim-bench 整局实锤;#1378 收口闸补残问过滤)
-    const e = makeEngine3();
+  it("放逐待决时保留曹丕的麾下槽位直到应答", () => {
+    const e = makeEngine();
     finishSetupLite(e);
     armPhase(e, { activeIndex: 0 });
     armHero(e, 0, "caopi", ["fangzhu"]);
-    setStamina(e, 0, 30); // 损失 70 过阈:挂待决
-    expect(e.pendingSkillChoices).toHaveLength(1);
-    e.dismissHero("caopi"); // 槽走(标记随槽弃),待决此刻仍在队
-    e.endTurn(); // 回合收口:残问随槽清,不开窗照常收尾
-    expect(e.pendingSkillChoices).toHaveLength(0);
-    expect<string>(e.turnPhase).not.toBe("AwaitingSkillChoice");
-    expect(e.turnPhase).toBe("Roll"); // 正常收尾推进下家
-    expect(e.players[2].skipTurns).toBe(0); // 无从发动
+    setStamina(e, 0, 30);
+
+    e.submitCommand({ type: "dismissHero", heroId: "caopi" });
+    e.submitCommand({ type: "respondSkillChoice", seat: 0, use: true, targetSeat: 1 });
+    expect(e.players[1].skipTurns).toBe(1);
+    expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(0);
+
+    e.submitCommand({ type: "dismissHero", heroId: "caopi" });
+    expect(e.players[0].heroes).toHaveLength(0);
   });
 });
 
@@ -226,6 +213,7 @@ describe("行殇(#1377 AC4):耗竭可选 +1,缓兵之计不触发", () => {
   it("耗竭(基值 2)挂问;发动后休整 2→3,期满回满顺延", () => {
     const e = makeEngine();
     finishSetupLite(e);
+    armPhase(e, { activeIndex: 0 });
     armHero(e, 1, "caopi", ["xingshang"]);
     setStamina(e, 0, 0);
     expect(e.exhaustIfDepleted(0)).toBe("resolved");
@@ -233,7 +221,6 @@ describe("行殇(#1377 AC4):耗竭可选 +1,缓兵之计不触发", () => {
     expect(e.pendingSkillChoices).toEqual([
       { skillId: "xingshang", heroId: "caopi", ownerSeat: 1, subjectSeat: 0, targetSeat: 0 },
     ]);
-    e.endTurn(); // 收口挂问:决策者=座位 1(回合外属主)
     expect(e.turnPhase).toBe("AwaitingSkillChoice");
     expect(e.decisionOwner).toBe(1);
     e.respondSkillChoice(1, true); // 发动:目标=被跳者(载荷既定,免选人)
@@ -252,10 +239,10 @@ describe("行殇(#1377 AC4):耗竭可选 +1,缓兵之计不触发", () => {
   it("放弃=休整保持基值 2", () => {
     const e = makeEngine();
     finishSetupLite(e);
+    armPhase(e, { activeIndex: 0 });
     armHero(e, 1, "caopi", ["xingshang"]);
     setStamina(e, 0, 0);
     e.exhaustIfDepleted(0);
-    e.endTurn();
     e.respondSkillChoice(1, false);
     expect(e.players[0].skipTurns).toBe(2);
   });
@@ -268,8 +255,6 @@ describe("行殇(#1377 AC4):耗竭可选 +1,缓兵之计不触发", () => {
     expect(e.pendingSkillChoices).toHaveLength(0);
     e.dispatchMoment("TurnSkipImposed", { subject: 0, reason: "xingshang" }); // 行殇本笔(防递归)
     expect(e.pendingSkillChoices).toHaveLength(0);
-    e.dispatchMoment("TurnSkipImposed", { subject: 0, reason: "exhaustion" }); // 耗竭:唯一触发因
-    expect(e.pendingSkillChoices).toHaveLength(1);
   });
 });
 
@@ -277,13 +262,13 @@ describe("韬光养晦按笔计酬(#1377 AC5):耗竭一笔+行殇一笔=两笔 +
   it("被跳者持韬光养晦,行殇追笔同享 +100(设计联动非 bug)", () => {
     const e = makeEngine();
     finishSetupLite(e);
+    armPhase(e, { activeIndex: 0 });
     armHero(e, 0, "simayi", ["taoguangyanghui"]);
     armHero(e, 1, "caopi", ["xingshang"]);
     const base = e.players[0].cash;
     setStamina(e, 0, 0);
     e.exhaustIfDepleted(0); // 耗竭笔:TurnSkipImposed(exhaustion)→ +100
     expect(e.players[0].cash).toBe(base + 100);
-    e.endTurn(); // 挂行殇问
     e.respondSkillChoice(1, true); // 行殇笔:TurnSkipImposed(xingshang)→ 再 +100
     expect(e.players[0].cash).toBe(base + 200);
     expect(e.players[0].skipTurns).toBe(3);
@@ -297,13 +282,11 @@ describe("快照序列化(#1377 AC6):标记与待决态往返,空态零扰动", 
     armPhase(e, { activeIndex: 0 }); // 布景:座位 0 活跃(同 AC2,罚座位 2 落账可观察)
     armHero(e, 0, "caopi", ["fangzhu"]);
     setStamina(e, 0, 30); // 70 标记:挂待决
-    e.endTurn();
     const mirror = makeEngine3(1); // 种子无关:恢复覆盖 rngState
     mirror.restoreFromSnapshot(JSON.parse(JSON.stringify(e.snapshot())));
     expect(mirror.turnPhase).toBe("AwaitingSkillChoice");
     expect(mirror.pendingSkillChoices).toEqual(e.pendingSkillChoices);
     expect(skillMarksOf(heroSlotOf(mirror.players[0], "caopi"), "fangzhu")).toBe(70);
-    // 镜像端续应答:发动落账+收口重入,与直跑同语义
     mirror.respondSkillChoice(0, true, 2);
     expect(mirror.players[2].skipTurns).toBe(1);
     expect(skillMarksOf(heroSlotOf(mirror.players[0], "caopi"), "fangzhu")).toBe(0);
@@ -337,11 +320,11 @@ describe("bot 两策略(#1377 AC7):行殇恒发,放逐满发目标=身价领跑�
   it("bot 行殇恒发动:开窗下一泵 botAct 即应答,休整 2→3", () => {
     const e = makeEngine();
     finishSetupLite(e);
+    armPhase(e, { activeIndex: 0 });
     setBot(e, 1, true);
     armHero(e, 1, "caopi", ["xingshang"]);
     setStamina(e, 0, 0);
     e.exhaustIfDepleted(0);
-    e.endTurn(); // 挂问:决策者=bot 座位 1
     expect(e.turnPhase).toBe("AwaitingSkillChoice");
     botAct(e); // 驱动器泵(bot/托管同口)
     expect(e.players[0].skipTurns).toBe(3); // 恒发动
@@ -356,7 +339,6 @@ describe("bot 两策略(#1377 AC7):行殇恒发,放逐满发目标=身价领跑�
     setCash(e, 0, 20000); // 座位 0 为身价领跑者
     setCash(e, 1, 100);
     setStamina(e, 1, 30); // bot 损失 70:攒满挂问
-    e.endTurn();
     expect(e.turnPhase).toBe("AwaitingSkillChoice");
     // 决策单源直测:目标=领跑者座位 0
     expect(botSkillChoiceDecision(e, 1)).toEqual({ use: true, targetSeat: 0 });
@@ -365,20 +347,17 @@ describe("bot 两策略(#1377 AC7):行殇恒发,放逐满发目标=身价领跑�
     expect(skillMarksOf(heroSlotOf(e.players[1], "caopi"), "fangzhu")).toBe(0);
   });
 
-  it("bot 放逐无合法目标(其余席位全出局):放弃保留标记,收口照常重入(不空转)", () => {
+  it("bot 放逐无合法目标时放弃，保留标记", () => {
     const e = makeEngine();
     finishSetupLite(e);
     setBot(e, 1, true);
     armHero(e, 1, "caopi", ["fangzhu"]);
     e.players[0].isBankrupt = true; // 唯一他座出局(种植件语义:纯布景印)
     setStamina(e, 1, 30);
-    e.endTurn();
     expect(e.turnPhase).toBe("AwaitingSkillChoice");
     expect(botSkillChoiceDecision(e, 1)).toEqual({ use: false });
     botAct(e);
-    // 放弃续收口:唯一存活者终局(LastStanding),窗未卡死
-    expect(e.isOver).toBe(true);
-    expect(e.winReason).toBe("LastStanding");
+    expect(e.turnPhase).toBe("Roll");
     expect(skillMarksOf(heroSlotOf(e.players[1], "caopi"), "fangzhu")).toBe(70);
   });
 });

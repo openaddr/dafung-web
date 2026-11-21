@@ -34,7 +34,7 @@ export const BOT_ATTENDED_PHASES: ReadonlySet<TurnPhase> = new Set([
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
   "AwaitingReaction", // 见头注:开窗即席代答,驱动器停等人类,不走 botAct
-  "AwaitingSkillChoice", // 「你可」待决(#1377):endTurn 入口停相位,驱动器下一泵 botAct 按策略代答
+  "AwaitingSkillChoice", // 「你可」时机内待决，驱动器调用 botAct 按策略应答
 ]);
 
 /** 座位散列(抉择声望折算系数的性格源,#124):纯座位派生,确定性、与对局状态无关,
@@ -577,7 +577,7 @@ export function botAct(engine: GameEngine): void {
 
     case "AwaitingSkillChoice": {
       // 「你可」待决(#1377):bot/托管/接管同走 botSkillChoiceDecision(决策单源),
-      // 应答命令落引擎后续问或重入回合收口(endTurn)。
+      // 应答命令结清后继续当前时机。
       const seat = engine.decisionOwner;
       const d = botSkillChoiceDecision(engine, seat);
       engine.respondSkillChoice(seat, d.use, d.targetSeat);

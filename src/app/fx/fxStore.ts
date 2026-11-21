@@ -237,6 +237,8 @@ interface FxState {
    *  区间置位/复位。消费见 orchestrator:批内同步件遇 overlay 活动延后到收场补发
    *  (同步件画在 z-45 幕下不可见);store 只装状态,互斥判据(批内前视)在编排侧。 */
   overlayActive: boolean;
+  /** 终局拼点等待播放或在场时，延后挂载对应对局的胜利页。 */
+  victoryDuelGameId: string | null;
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   spawnTextFloater(x: number, y: number, text: string, skill?: SkillFloatTone): void;
@@ -268,6 +270,7 @@ interface FxState {
   /** 全屏签面 overlay 活动标志(#849 棒2):present 在两张签面 overlay 的挂→摘区间
    *  调用(挂 true / 摘 false),resetFx 一并复位。 */
   setOverlayActive(on: boolean): void;
+  setVictoryDuelGameId(gameId: string | null): void;
   addMarching(id: string): void;
   removeMarching(id: string): void;
   /** 城池宣告(ADR-0015):由 FxSink.announceTileChange 调用(触发源是播放器/sink,
@@ -304,6 +307,7 @@ export const useFxStore = create<FxState>()(
     cashFlies: [],
     spotlight: false,
     overlayActive: false,
+    victoryDuelGameId: null,
 
     spawnFloater(x, y, amount, coins) {
       const id = nextId++;
@@ -423,6 +427,10 @@ export const useFxStore = create<FxState>()(
       set({ overlayActive: on });
     },
 
+    setVictoryDuelGameId(gameId) {
+      set({ victoryDuelGameId: gameId });
+    },
+
     spawnJinnangLine(x1, y1, x2, y2) {
       const id = nextId++;
       set((s) => ({ jinnangLines: [...s.jinnangLines, { id, x1, y1, x2, y2 }] }));
@@ -500,6 +508,7 @@ export const useFxStore = create<FxState>()(
         cashFlies: [],
         spotlight: false,
         overlayActive: false,
+        victoryDuelGameId: null,
       });
     },
   })),

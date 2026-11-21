@@ -8,7 +8,7 @@ import type { SeatEndpoint } from "../../scripts/room";
 import type { RoomPersistence } from "../../scripts/room-persistence";
 import type { RoomRecord } from "../../scripts/room-record";
 import { MAP } from "../../scripts/engine-helpers";
-import { armHero, setStamina } from "../../src/core/planter";
+import { armHero, armPhase, setStamina } from "../../src/core/planter";
 
 class InMemoryPersistence implements RoomPersistence {
   private readonly m = new Map<string, RoomRecord>();
@@ -92,10 +92,9 @@ describe("「你可」待决联机对跑(#1377 AC8):房间编排 + 双真人端�
     const { reg, roomId, ep0, ep1, bc } = await makeStartedRoom(42);
     const e = reg.get(roomId)!.engine!;
 
-    // ── 布景(被测环前拍,armReaction 同口径):曹丕放逐直授 → 损失过阈 → endTurn 停窗 ──
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
     armHero(e, 0, "caopi", ["fangzhu"]);
     setStamina(e, 0, 30); // 70 损失 ≥60:挂待决
-    e.endTurn(); // 回合收口入口挂窗(AwaitingSkillChoice)
     expect(e.turnPhase).toBe("AwaitingSkillChoice");
     ep0.clear();
     ep1.clear();
@@ -116,10 +115,10 @@ describe("「你可」待决联机对跑(#1377 AC8):房间编排 + 双真人端�
       { type: "respondSkillChoice", seat: 0, use: true, targetSeat: 1 },
       bc,
     );
-    // 引擎侧:发动落账 + 收口重入(目标=下家,skipTurns 即被跳回合环消费 1→0)
+    // 发动落账后回到出牌阶段，下一回合才会消费这笔跳过。
     expect(e.pendingSkillChoices).toHaveLength(0);
-    expect(e.players[1].skipTurns).toBe(0);
-    expect(e.turnPhase).not.toBe("AwaitingSkillChoice");
+    expect(e.players[1].skipTurns).toBe(1);
+    expect(e.turnPhase).toBe("AwaitingJinnang");
 
     // ── 下行收敛面:对端在校准拍收到的摘要携带决议后状态 ──
     await flushTick();
@@ -136,8 +135,9 @@ describe("「你可」待决联机对跑(#1377 AC8):房间编排 + 双真人端�
     expect(caopiRow!.marks).toBeUndefined(); // 发动归零后空容器不产键(空态=规范缺省)
     expect(last.pendingSkillChoices).toBeUndefined(); // 待决已清:键缺席
     expect(last.turnPhase).not.toBe("AwaitingSkillChoice"); // 窗已收,相位续走
-    // turnSkipped 已在对端事件批(目标被跳的折算可见证据)
     const events = ep1.byType("events").flatMap((m) => m.events as { kind: string }[]);
-    expect(events.some((ev) => ev.kind === "turnSkipped")).toBe(true);
+    expect(events).toContainEqual(
+      expect.objectContaining({ kind: "skillChoiceAnswered", targetSeat: 1, skipTurns: 1 }),
+    );
   });
 });

@@ -99,6 +99,7 @@ describe("选项集注册表(choices.ts)", () => {
     const p = e.activePlayer;
     const { def } = freeProperty(e);
     p.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -195,6 +196,7 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: def.maxLevel,
@@ -235,6 +237,7 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -276,6 +279,7 @@ describe("bot 对齐:决策经选项集过滤后行为不回归", () => {
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     p.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,

@@ -46,6 +46,7 @@ describe("身价计算", () => {
     });
     p.cash -= changan.buildCost;
     p.properties.push({
+      damageRanking: [],
       propertyId: changan.id,
       group: changan.group,
       level: 1,

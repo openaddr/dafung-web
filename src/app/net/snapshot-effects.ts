@@ -19,11 +19,12 @@
 import type { GameEngine } from "@core/authority";
 import type { GameEvent } from "@core/game-events";
 import type { PresentationEvent } from "@app/fx/presentation";
+import { useFxStore } from "@app/fx/fxStore";
 import { createEngineSink } from "@app/fx/sinks";
 import { anchorMarches, extractBatchEvents } from "@app/fx/event-extract";
 import { abandonAllMarches } from "@app/fx/useMarch";
-import { present } from "@app/fx/orchestrator";
-import { setCatchupScale } from "@app/fx/timings";
+import { finishPresentation, present } from "@app/fx/orchestrator";
+import { delay, FX, setCatchupScale } from "@app/fx/timings";
 import { isSnapPinned, LagCalibrator } from "@app/fx/catchup";
 import { useNetStore } from "@app/store/netStore";
 
@@ -133,11 +134,28 @@ export class SnapshotEffects {
     this.enqueuedBatchSeq = net.eventBatchSeq;
     const engine = this.getEngine();
     const events: GameEvent[] = net.lastEvents;
+    const victory = events.find((event) => event.kind === "gameOver" && event.reason !== "aborted");
+    // 合并批可能含过期回合。只留下实际判胜回合的演出，胜利号角由胜利卷轴播放。
+    const liveEvents = victory
+      ? events.filter(
+          (event) =>
+            event.turn === victory.turn &&
+            event.round === victory.round &&
+            event.kind !== "gameOver",
+        )
+      : events;
     // 提取与行军锚定同步完成(anchorMarches 须先于 React 渲染终态,否则棋子闪现终点
     // 再被拽回);行军 keyframes 随表现事件直传 sink(不变量①提取即定格,播放零引擎
     // 读取)——队列期间引擎被后续快照整体 hydrate 也不影响在途序列,合并批多段行军各播各段。
-    const presentation = extractBatchEvents(engine, events, prePositions);
+    const presentation = extractBatchEvents(engine, liveEvents, prePositions);
+    const gameId = engine.gameId;
+    if (victory) {
+      finishPresentation();
+      this.voidAllQueued();
+      abandonAllMarches();
+    }
     if (presentation.length === 0) return; // 无表现(纯状态批):不占用表现锁,不计落后
+    if (victory) useFxStore.getState().setVictoryDuelGameId(gameId);
     anchorMarches(presentation, this.fxSink);
     const chunk: QueuedChunk = {
       batchSeq: net.eventBatchSeq,
@@ -150,11 +168,36 @@ export class SnapshotEffects {
     const settle = () => {
       this.queued.delete(chunk);
       this.pendingChunks--;
+      const fx = useFxStore.getState();
+      if (victory && fx.victoryDuelGameId === gameId) {
+        fx.setVictoryDuelGameId(null);
+      }
       if (this.pendingChunks === 0) this.onIdle?.(); // 忙→闲:放出被锁的 interactive
     };
     this.fxQueue = this.fxQueue
       .then(async () => {
-        await this.dequeueChunk(chunk);
+        if (!victory) {
+          await this.dequeueChunk(chunk);
+        } else if (!chunk.voided) {
+          // 终局批保留完整演出节奏，入账飞行结束才亮签或胜利卷轴。
+          setCatchupScale(1);
+          const isCurrent = () =>
+            !chunk.voided && useFxStore.getState().victoryDuelGameId === gameId;
+          const duelStart = presentation.findIndex(
+            (event) => event.kind === "duelSigns" && event.forVictory === true,
+          );
+          const cutoff = duelStart < 0 ? presentation.length : duelStart;
+          await present(presentation.slice(0, cutoff), this.fxSink, isCurrent);
+          if (
+            isCurrent() &&
+            liveEvents.some(
+              (event) => event.kind === "cashChanged" && event.reason === "city-income",
+            )
+          ) {
+            await delay(FX.cashFlyMs);
+          }
+          await present(presentation.slice(cutoff), this.fxSink, isCurrent);
+        }
       })
       .then(settle)
       .catch((err) => {

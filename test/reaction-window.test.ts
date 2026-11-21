@@ -91,6 +91,7 @@ function scriptDice(e: GameEngine, opts: { die?: number; rollDies?: number[] }) 
 /** 给 seat 一座非都城房产(拦检/火烧布场),capitalIndex 挪出路径格。 */
 function grantCity(e: GameEngine, seat: number, propertyId: string) {
   e.players[seat].properties.push({
+    damageRanking: [],
     propertyId,
     group: "a",
     level: 2,
@@ -149,7 +150,9 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     const victimSeat = userSeat === 0 ? 1 : 0;
     const victim = e.players[victimSeat];
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
+    victim.properties = [
+      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+    ];
     for (const off of [1, 2]) {
       const t = e.board.at((victim.capitalIndex + off) % e.board.count);
       for (const p of e.players)
@@ -209,7 +212,9 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     const [victimSeat, holderSeat] = others;
     const victim = e.players[victimSeat];
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
+    victim.properties = [
+      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+    ];
     // 中心=受害者都城;前方 1 格=holder 的城(第二份受击城);前方 2 格清成无主
     const at = (off: number) => e.board.at((victim.capitalIndex + off) % e.board.count);
     const sideTile = at(1);
@@ -327,7 +332,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     setHand(e, y, ["识破诡计"]);
     const capId = e.board.at(e.players[x].capitalIndex)?.propertyId;
     e.players[x].properties = [
-      { propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
     ];
     const capTile = e.players[x].capitalIndex;
     e.resolveJinnang("火烧连营");
@@ -428,10 +433,10 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     expect(duel.length).toBe(1);
     expect(duel[0]).toMatchObject({
       seat: ownerSeat, // a 方=城主(resolveDuel 首参)
-      aSeat: ownerSeat,
-      bSeat: moverSeat,
-      aRoll: 5,
-      bRoll: 3,
+      sides: [
+        { seat: ownerSeat, roll: 5 },
+        { seat: moverSeat, roll: 3 },
+      ],
       winnerSeat: ownerSeat,
     });
   });
@@ -450,10 +455,10 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     const duel = duelEventsOf(e); // 平局支:winnerSeat=null(#636)
     expect(duel.length).toBe(1);
     expect(duel[0]).toMatchObject({
-      aSeat: ownerSeat,
-      bSeat: moverSeat,
-      aRoll: 4,
-      bRoll: 4,
+      sides: [
+        { seat: ownerSeat, roll: 4 },
+        { seat: moverSeat, roll: 4 },
+      ],
       winnerSeat: null,
     });
   });
@@ -472,10 +477,10 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     const duel = duelEventsOf(e); // 落败支:胜者=行人(#636)
     expect(duel.length).toBe(1);
     expect(duel[0]).toMatchObject({
-      aSeat: ownerSeat,
-      bSeat: moverSeat,
-      aRoll: 2,
-      bRoll: 6,
+      sides: [
+        { seat: ownerSeat, roll: 2 },
+        { seat: moverSeat, roll: 6 },
+      ],
       winnerSeat: moverSeat,
     });
   });
@@ -565,7 +570,9 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
     setHand(e, botSeat, ["识破诡计"]);
     const victim = e.players[victimSeat];
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
+    victim.properties = [
+      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+    ];
     for (const off of [1, 2]) {
       const t = e.board.at((victim.capitalIndex + off) % e.board.count);
       for (const p of e.players)
@@ -609,7 +616,9 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     setHand(e, userSeat, []); // 使用者清手:技后收卷不被 dealt 牌拽回出牌阶段
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
+    victim.properties = [
+      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+    ];
     const zhouyu = HEROES.find((h) => h.id === "zhouyu");
     if (!zhouyu) throw new Error("HEROES 表缺 zhouyu(数据 bug)");
     // 火攻单技布场:共享池的擂鼓会在结算后留住出牌窗(收卷相位断言被互扰)
@@ -761,7 +770,9 @@ describe("反识破链(#571/ADR-0060)", () => {
     armUser(e, userSeat, ["火烧连营", "识破诡计"]); // 使用者持第二张识破(救计)
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 }];
+    victim.properties = [
+      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+    ];
     for (const off of [1, 2]) {
       const t = e.board.at((victim.capitalIndex + off) % e.board.count);
       for (const p of e.players)

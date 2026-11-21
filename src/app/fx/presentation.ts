@@ -95,20 +95,7 @@ export type PresentationEvent =
    *  原「行军落事件/机遇格定音」生产者(按落点格型直译)已随功能格五型退役(#826)
    *  整体删除,本事件现仅技能施展单一生产者,提取期烤坐标同步下发 CSS 自走。 */
   | { kind: "landPulse"; tileIndex: number; x: number; y: number }
-  /** 拼点签面(#637,ADR-0030):duelResolved 直译的全屏多签演出——每名参与者一枚
-   *  骨牌大字签面(签头=玩家色底+国号),并行起摇、依座位序错拍落定;判词=胜者金光圈
-   *  败者沉暗(零「胜/负」文字章,DESIGN §4.6)、平局中缝钤变金「平」;点差悬殊震屏
-   *  (isBlowout 判定)。场景无关:拦检(半路杀出)与连环计(二虎竞食)同式,
-   *  签面即是信息、点数不落第二处。 */
-  | {
-      kind: "duelSigns";
-      /** 参与拼点的双方签面(数组序=座位号升序,落定序与左右排布随之=座位升序;
-       *  aSeat=resolveDuel 首参不保证座位号小,提取期已排序);座位元数据提取期解析进
-       *  事件(签头国号/玩家色、签身点数),组件零查询。 */
-      sides: DuelSide[];
-      /** 胜者座位(null=平局,双方无圈、中缝印钤金「平」)。 */
-      winnerSeat: number | null;
-    }
+  | DuelSignsEvent
   /** 都城路过必停全屏宣告(S7 #513):capitalHalt 事件的漆金横幅级宣告(与回合横幅
    *  同语感、更高强度),haltGong 号角+震屏由 sink 同拍发起。 */
   | {
@@ -162,20 +149,6 @@ export type PresentationEvent =
       /** 被窥者锦囊手牌内容(非 viewer 座位恒空——redactEvents 逐座位裁,ADR-0016)。 */
       hand: string[];
     }
-  /** 拼点签面(#637,ADR-0030):duelResolved 直译的全屏多签演出——每名参与者一枚
-   *  骨牌大字签面(签头=玩家色底+国号),并行起摇、依座位序错拍落定;判词=胜者金光圈
-   *  败者沉暗(零「胜/负」文字章,DESIGN §4.6)、平局中缝钤变金「平」;点差悬殊震屏
-   *  (isBlowout 判定)。场景无关:拦检(半路杀出)与连环计(二虎竞食)同式,
-   *  签面即是信息、点数不落第二处。 */
-  | {
-      kind: "duelSigns";
-      /** 参与拼点的双方签面(数组序=座位号升序,落定序与左右排布随之=座位升序;
-       *  aSeat=resolveDuel 首参不保证座位号小,提取期已排序);座位元数据提取期解析进
-       *  事件(签头国号/玩家色、签身点数),组件零查询。 */
-      sides: DuelSide[];
-      /** 胜者座位(null=平局,双方无圈、中缝印钤金「平」)。 */
-      winnerSeat: number | null;
-    }
   /** 语义音效(得宝/破产/扩军/买入等):不绑定视觉的纯声音事件。 */
   | { kind: "sound"; event: SoundEvent }
   /** 城池宣告(ADR-0015):扩军/易主的可播放信号,字段 = 引擎结算留痕
@@ -199,8 +172,14 @@ export interface CashFlyEvent {
   y: number;
 }
 
-/** 拼点签面事件的独立类型(FxSink.showDuelSigns 的窄签名用)。 */
-export type DuelSignsEvent = Extract<PresentationEvent, { kind: "duelSigns" }>;
+/** 拼点签面（ADR-0030）。座位升序决定签位和同轮错拍落定顺序。 */
+export interface DuelSignsEvent {
+  kind: "duelSigns";
+  sides: DuelSide[];
+  winnerSeat: number | null;
+  /** 终局拼点的每轮签面都在胜利页前展示。 */
+  forVictory?: true;
+}
 
 /** 单枚签面(拼点一方):座位身份元数据 + 掷点,提取期按引擎态解析齐。 */
 export interface DuelSide {
@@ -212,7 +191,7 @@ export interface DuelSide {
   guohao: string;
   /** 玩家色下标(签头色底,组件经 core/theme 换算)。 */
   colorIndex: number;
-  /** 拼点掷点(签身骨牌大字一~六)。 */
+  /** 拼点掷点（签身骨牌大字一至七）。 */
   roll: number;
 }
 

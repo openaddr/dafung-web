@@ -74,6 +74,7 @@ function armBrokenTurnEndSkill(e: GameEngine): void {
     name: "收口爆",
     desc: "TurnEnd 派发即炸(未知效果 id,测试注入)",
     when: "TurnEnd",
+    stage: "during",
     effect: "no-such-effect",
     scope: "any",
   };

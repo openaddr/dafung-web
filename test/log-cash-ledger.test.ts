@@ -2,8 +2,7 @@
 // 现金变动当且仅当恰有带 amount 的日志行对应;非现金事件(得宝估价/escrow 资产交割)
 // 与零实收行 amount 必须缺省。脚本化一段三人对局,覆盖得宝、直付成交(fair+premium)、
 // 清算成交、破产成交、清算失败破产扫账五条路径,断言逐玩家 Σamount == 引擎观测的现金
-// 净变动——场景内除五路径外无其他现金流(机遇缺省关闭;不落自己都城故无补给;锦囊全部
-// 放行不出);另以独立用例构造现金 0 破产成交,锁定实收=0 不挂。
+// 净变动，包含途经轮末时发放的持城收益。另以独立用例构造现金 0 破产成交，锁定实收=0 不挂。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
@@ -74,6 +73,7 @@ function forceVisit(e: GameEngine, defId: string, ownerIdx: number) {
   if (!owner.properties.some((h) => h.propertyId === defId)) {
     const def = e.catalog.get(defId)!;
     owner.properties.push({
+      damageRanking: [],
       propertyId: defId,
       group: def.group,
       level: 0,
@@ -134,7 +134,7 @@ describe("对局日志现金对账(#617)", () => {
     expect(rowOf(e, "treasurePremium", "treasure=t2").player).toBe("蜀");
     expect(rowOf(e, `treasureBuy buyer=${wu.id}`, "treasure=t2").amount).toBe(-200);
 
-    // S4(魏回):魏公道买卖购蜀 t5(Lv5,价 600 > 现金 400)→ 变卖旧藏(200)自救清偿——清算成交
+    // S4(魏回):魏公道买卖购蜀 t5(Lv5,价 600 超过手头现金)→ 变卖旧藏(200)自救清偿——清算成交
     wei.treasures.push(tr("spare-t", 2));
     shu.treasures.push(tr("t5", 5));
     forceVisit(e, "prop-chengdu", 1);
@@ -160,52 +160,57 @@ describe("对局日志现金对账(#617)", () => {
     expect(rowOf(e, "treasureFair", "treasure=t5", mark5).amount).toBe(600);
     expect(rowOf(e, `treasureBuy buyer=${shu.id}`, "treasure=t5", mark5).amount).toBe(-600);
 
-    // S6(吴回):不交易跳过(无现金流)
+    // S6(吴回):不交易，结束当轮
     forceVisit(e, "prop-luoyang", 0);
     e.resolveTreasureOwner({ type: "skip" });
     passJinnang(e); // → 魏
     expect(rowOf(e, "treasureSkip", `owner=${wei.id}`).amount).toBeUndefined();
 
-    // S7(魏回):魏(现金 600,无珍宝/名将/非都城地产=无可变卖资产)公道买卖购蜀 t8
-    // (Lv8,价 1600)→ 清算后认破产,余现金 600 扫账给卖家,托管 t8 退回蜀——破产成交
+    // S7(魏回):魏无可变卖资产，公道买卖购蜀 t8(Lv8,价 1600)后认破产。
+    // 余现金（含持城收益）全部扫给卖家，托管 t8 退回蜀。
     // (无可变卖资产在 #619 前由「holding 恒空」隐含成立;现白盒种植过 洛阳/成都,显式摘除)
     wei.properties = [];
     shu.treasures.push(tr("t8", 8));
     forceVisit(e, "prop-chengdu", 1);
     e.resolveTreasureOwner({ type: "fair", treasureId: "t8" });
+    const s7Cash = wei.cash;
+    expect(s7Cash).toBeGreaterThan(0);
+    expect(s7Cash).toBeLessThan(1600);
     e.declareBankruptcy();
     expect(wei.isBankrupt).toBe(true);
     const s7Seller = rowOf(e, "treasureFair", "treasure=t8");
-    expect(s7Seller.amount).toBe(600); // 破产扫账:实收=买家余现金,非成交价 1600
+    expect(s7Seller.amount).toBe(s7Cash);
     expect(s7Seller.player).toBe("蜀");
     expect(s7Seller.detail).toContain("price=1600");
     expect(s7Seller.detail).toContain("bankrupt=true");
     const s7Buyer = rowOf(e, "bkBankrupt", `player=${wei.id}`);
-    expect(s7Buyer.amount).toBe(-600);
+    expect(s7Buyer.amount).toBe(-s7Cash);
     expect(rowOf(e, "escrowReturn", "treasure=t8").amount).toBeUndefined(); // 退回=资产转移
     expect(wei.cash).toBe(0);
 
-    // S8(吴回):清算失败→破产扫账(#617 补账支路)——吴(现金 100,持 t2)公道买卖购
-    // 蜀 t8(Lv8,价 1600)→ 不足自救直接认破产,余现金 100 整扫给蜀
-    forceVisit(e, "prop-luoyang", 2); // 蜀回按兵不动让过(洛阳归吴为业主),零现金流
+    // S8(吴回):持 t2 的吴向蜀公道买卖购 t8，无法自救而认破产，余现金整扫给蜀。
+    forceVisit(e, "prop-luoyang", 2); // 蜀回按兵不动让过，洛阳归吴
     e.resolveTreasureOwner({ type: "skip" });
     passJinnang(e); // → 吴
     const mark8 = e.log.length;
     forceVisit(e, "prop-chengdu", 1);
     e.resolveTreasureOwner({ type: "fair", treasureId: "t8" });
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    const s8Cash = wu.cash;
+    expect(s8Cash).toBeGreaterThan(0);
+    expect(s8Cash).toBeLessThan(1600);
     e.declareBankruptcy(); // 明确认破产,扫账=当时全部现金给蜀
     expect(wu.isBankrupt).toBe(true);
     expect(wu.cash).toBe(0);
-    expect(rowOf(e, "bkBankrupt", `player=${wu.id}`, mark8).amount).toBe(-100); // 买家侧:余现金 100 整扫离手
+    expect(rowOf(e, "bkBankrupt", `player=${wu.id}`, mark8).amount).toBe(-s8Cash);
     const s8Seller = rowOf(e, "treasureFair", "treasure=t8", mark8); // 卖家侧:扫账实收行(与直付卖家行同形)
-    expect(s8Seller.amount).toBe(100); // 实收=买家余现金,非成交价 1600
+    expect(s8Seller.amount).toBe(s8Cash);
     expect(s8Seller.player).toBe("蜀");
     expect(s8Seller.detail).toContain("price=1600"); // detail 成交价仍是谈定价
     expect(s8Seller.detail).toContain("bankrupt=true");
     expect(rowOf(e, "escrowReturn", "treasure=t8", mark8).amount).toBeUndefined(); // 退回=资产转移
 
-    // 总不变量:逐玩家 Σamount == 引擎观测现金净变动(窗口内除四路径外无其他现金流)
+    // 总不变量:逐玩家 Σamount == 引擎观测现金净变动(含轮末收益)
     const cashEnd = e.players.map((p) => p.cash);
     for (let i = 0; i < e.players.length; i++) {
       const sum = e.log
