@@ -56,7 +56,11 @@ export function finishPresentation(): void {
  *  cashFly 冲账——同席位合并成「一枚总差额」防粒子雨,来源锚点取最后一笔现场;
  *  被任何演出隔开(骰子/行军/签面等占时长的,或印章等同步件)即分帧各飞。出账
  *  (amount<0)不飞(反向可后置,#764 票面只硬性要求进账方向)。 */
-export async function present(events: PresentationEvent[], sink: FxSink): Promise<void> {
+export async function present(
+  events: PresentationEvent[],
+  sink: FxSink,
+  isCurrent: () => boolean = () => !sealed,
+): Promise<void> {
   const flyPend = new Map<string, { amount: number; x: number; y: number }>();
   // ③ overlay 互斥补发账本(#849 棒2):同步件(jline/cashFly/floater)是即发即忘的
   // 短命演出,同批内随后开场全屏签面 overlay(掷骰/拼点)时,其残余寿命整个画在
@@ -102,7 +106,7 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
     }
   };
   for (const [i, ev] of events.entries()) {
-    if (sealed) {
+    if (!isCurrent()) {
       for (const rest of events.slice(i)) {
         if (rest.kind === "tokenMoved") abandonMarch(rest.playerId);
       }
@@ -117,9 +121,12 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         // ③ overlay 挂摘置位:roll() 的 Promise 在 overlay 移除后才 resolve,
         // 置位窗恰 = 掷骰签在场的挂→摘全程(fxStore.overlayActive)。
         useFxStore.getState().setOverlayActive(true);
-        await sink.rollDice(ev.die);
-        useFxStore.getState().setOverlayActive(false);
-        if (!overlayAheadFrom(i)) flushDeferred(); // 批内还有下一场 overlay 则续延
+        try {
+          await sink.rollDice(ev.die);
+        } finally {
+          useFxStore.getState().setOverlayActive(false);
+        }
+        if (isCurrent() && !overlayAheadFrom(i)) flushDeferred();
         break;
       case "tokenMoved":
         // 不变量①哑渲染:逐帧坐标提取拍已烤进事件,present 只透传(零引擎读取)。
@@ -155,9 +162,12 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         // 保证签面收场后棋盘后效(止步/续走/银两浮字)才登场。
         // ③ 挂摘置位同 diceRolled(play() 在 overlay 移除后才 resolve)+ 收场补发。
         useFxStore.getState().setOverlayActive(true);
-        await sink.showDuelSigns(ev);
-        useFxStore.getState().setOverlayActive(false);
-        if (!overlayAheadFrom(i)) flushDeferred();
+        try {
+          await sink.showDuelSigns(ev);
+        } finally {
+          useFxStore.getState().setOverlayActive(false);
+        }
+        if (isCurrent() && !overlayAheadFrom(i)) flushDeferred();
         break;
       case "haltBanner":
         // 都城停条带(#732 降格,原 S7 全屏宣告):号角同拍,等条带读过峰值段再接驻章
@@ -197,7 +207,7 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         ) {
           const t = setTimeout(() => {
             delayedLineTimers.delete(t);
-            if (sealed) return; // D2 封场:错位窗内胜利屏挂载,线随表现层收队
+            if (!isCurrent()) return;
             dispatchLines();
           }, scStage(250));
           delayedLineTimers.add(t);
@@ -225,7 +235,7 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         break;
     }
   }
-  flushFlies(false); // 批尾冲账:纯进账批(无后继演出可隔)的合并枚在此起飞(批内已无 overlay,不延)
+  if (isCurrent()) flushFlies(false); // 批尾冲账:纯进账批的合并枚在此起飞
 }
 
 // ─────────────────────── 掷骰签 ───────────────────────

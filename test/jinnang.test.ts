@@ -623,7 +623,7 @@ describe("锦囊目标段(T3)", () => {
     expect(e.log.filter((l) => l.brief.includes(`「${at(2).name}」防御值降至 2`)).length).toBe(1);
   });
 
-  it("溅射果分(#1389):0 级非都城烧毁回无主(lost,PropertyLost 逐城派);都城打空即停(absorbed 不派);溅射面恒为城(前方 1、2 格全入)", () => {
+  it("火烧连营攻陷 0 级非都城，原城主仍持有防御打空的都城", () => {
     const e = makeEngine(42);
     finishSetup(e);
     e.resolveJinnang(null);
@@ -653,14 +653,19 @@ describe("锦囊目标段(T3)", () => {
     };
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [victim.capitalIndex]);
-    // 0 级非都城:失城回无主(留痕+持仓移除)
-    expect(e.findOwner(loseTile.propertyId!)).toBeNull();
+    const attacker = e.activePlayer;
+    expect(e.findOwner(loseTile.propertyId!)).toBe(attacker);
+    expect(attacker.properties.find((h) => h.propertyId === loseTile.propertyId)).toMatchObject({
+      level: 0,
+      defense: 5,
+      damageRanking: [],
+    });
     expect(victim.properties.some((h) => h.propertyId === loseTile.propertyId)).toBe(false);
     const trace = e.propertyChanges[e.propertyChanges.length - 1];
     expect(trace).toEqual({
       tileIndex: loseTile.index,
       level: 0,
-      ownerColorIndex: null,
+      ownerColorIndex: attacker.colorIndex,
       levelChanged: false,
       ownerChanged: true,
     });
@@ -675,8 +680,9 @@ describe("锦囊目标段(T3)", () => {
       { subject: victimSeat, propertyId: loseTile.propertyId, tileIndex: loseTile.index },
     ]);
     expect(entries.some((x) => x.moment === "PropertyDemolished")).toBe(false);
-    // 果分文案:失「城名」回无主 / 城防打空吸收;无主格免于火焰行
-    expect(e.log.some((l) => l.brief.includes(`失「${loseTile.name}」,城回无主`))).toBe(true);
+    expect(
+      e.log.some((l) => l.brief.includes(`失「${loseTile.name}」,城归${attacker.guohao}`)),
+    ).toBe(true);
     expect(e.log.some((l) => l.brief.includes("城防打空,火焰伤害被吸收"))).toBe(true);
   });
 
@@ -886,10 +892,10 @@ describe("连环计 duelResolved(#636,ADR-0030)", () => {
     expect(duel.length).toBe(1);
     expect(duel[0]).toMatchObject({
       seat: a, // emit seat=a 方(resolveDuel 首参)
-      aSeat: a,
-      bSeat: b,
-      aRoll: 6,
-      bRoll: 2,
+      sides: [
+        { seat: a, roll: 6 },
+        { seat: b, roll: 2 },
+      ],
       winnerSeat: a,
     });
   });
@@ -897,13 +903,25 @@ describe("连环计 duelResolved(#636,ADR-0030)", () => {
   it("b 方胜:aRoll<bRoll,胜者=bSeat", () => {
     const { duel, a, b } = duelDriven([2, 6]);
     expect(duel.length).toBe(1);
-    expect(duel[0]).toMatchObject({ aSeat: a, bSeat: b, aRoll: 2, bRoll: 6, winnerSeat: b });
+    expect(duel[0]).toMatchObject({
+      sides: [
+        { seat: a, roll: 2 },
+        { seat: b, roll: 6 },
+      ],
+      winnerSeat: b,
+    });
   });
 
   it("平局:winnerSeat=null(此计作废,双方无事)", () => {
     const { duel, a, b } = duelDriven([3, 3]);
     expect(duel.length).toBe(1);
-    expect(duel[0]).toMatchObject({ aSeat: a, bSeat: b, aRoll: 3, bRoll: 3, winnerSeat: null });
+    expect(duel[0]).toMatchObject({
+      sides: [
+        { seat: a, roll: 3 },
+        { seat: b, roll: 3 },
+      ],
+      winnerSeat: null,
+    });
   });
 });
 

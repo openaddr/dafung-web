@@ -17,7 +17,7 @@
 import { HEROES, type HeroDef } from "./heroes";
 import { SKILLS, isTriggerSkill, type SkillDef } from "./skills";
 import { EFFECTS } from "./effects";
-import { MOMENTS } from "./timing";
+import { MOMENTS, MOMENT_STAGES } from "./timing";
 import type { ExtensionAuthorityModule, ExtensionManifest } from "./extension-contract";
 
 /** 已装包台账:包 id → 其贡献(精确卸载/冲突检测用)。 */
@@ -92,9 +92,16 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
         throw new Error(
           `扩展注册:${manifest.id} 技能「${s.id}」挂了未登记时机「${s.when}」(查 core/timing.ts MOMENTS)`,
         );
+      if (!MOMENT_STAGES.includes(s.stage))
+        throw new Error(`扩展注册:${manifest.id} 技能「${s.id}」挂了未登记时机阶段「${s.stage}」`);
       if (!(s.effect in EFFECTS) && !(s.effect in effects))
         throw new Error(
           `扩展注册:${manifest.id} 技能「${s.id}」引用了不可解析效果「${s.effect}」(内置表与本包均无)`,
+        );
+      const effect = EFFECTS[s.effect];
+      if (effect != null && "choiceMoment" in effect && effect.choiceMoment !== s.when)
+        throw new Error(
+          `扩展注册:${manifest.id} 技能「${s.id}」的待决效果 ${s.effect} 只允许时机 ${effect.choiceMoment}`,
         );
     }
     if (s.desc == null || s.desc.length === 0)

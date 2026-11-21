@@ -1,7 +1,7 @@
 // 扩展注册面单测(#378,ADR-0022):注册进既有注册面(HEROES/EFFECTS)的提交/冲突/
 // 引用校验/精确卸载。零兜底口径的镜像:任一冲突当场炸。每个用例自清理(卸载),
 // 不向同进程其他测试文件泄漏全局注册态。
-import { describe, it, expect, afterEach } from "bun:test";
+import { describe, it, expect, expectTypeOf, afterEach } from "bun:test";
 import { HEROES } from "@core/heroes";
 import { SKILLS, type SkillDef } from "@core/skills";
 import { EFFECTS } from "@core/effects";
@@ -28,6 +28,7 @@ function makeModule(overrides?: Partial<ExtensionAuthorityModule>): ExtensionAut
         name: "测试技",
         desc: "单测用技效",
         when: "DieRolled",
+        stage: "during",
         effect: "gainCash", // 复用内置效果(引用合法:内置表命中即可,不必包自带)
       },
     ],
@@ -121,6 +122,7 @@ describe("扩展注册面(#378)", () => {
       name: "技",
       desc: "技效",
       when: "NoSuchMoment" as never,
+      stage: "during",
       effect: "gainCash",
     };
     expect(() =>
@@ -131,6 +133,7 @@ describe("扩展注册面(#378)", () => {
       name: "技",
       desc: "技效",
       when: "DieRolled",
+      stage: "during",
       effect: "no-such-effect",
     };
     expect(() =>
@@ -138,11 +141,38 @@ describe("扩展注册面(#378)", () => {
     ).toThrow(/不可解析效果/);
   });
 
+  it("扩展效果同步返回布尔，引用原生待决效果须沿用其时机", () => {
+    type ExtensionEffect = NonNullable<ExtensionAuthorityModule["effects"]>[string];
+    expectTypeOf<ReturnType<ExtensionEffect>>().toEqualTypeOf<boolean>();
+    const skill: SkillDef = {
+      id: "test-choice-moment",
+      name: "测试技",
+      desc: "测试引用行殇效果",
+      when: "CashGained",
+      stage: "during",
+      effect: "xingshangOffer",
+    };
+    expect(() => track(makeModule({ skills: [skill], heroes: [] }))).toThrow(
+      /xingshangOffer.*TurnSkipImposed/,
+    );
+
+    track(makeModule({ skills: [{ ...skill, when: "TurnSkipImposed" }], heroes: [] }));
+  });
+
   it("技缺描述 / 主动技缺描述 → 炸(#604:浮字/卡面数据依赖,装载点提前暴露)", () => {
     expect(() =>
       registerExtensionAuthorityModule(
         makeModule({
-          skills: [{ id: "s3", name: "技", desc: "", when: "DieRolled", effect: "gainCash" }],
+          skills: [
+            {
+              id: "s3",
+              name: "技",
+              desc: "",
+              when: "DieRolled",
+              stage: "during",
+              effect: "gainCash",
+            },
+          ],
           heroes: [],
         }),
       ),
@@ -240,7 +270,14 @@ describe("扩展注册面(#378)", () => {
       registerExtensionAuthorityModule(
         makeModule({
           skills: [
-            { id: "jixing", name: "撞疾行", desc: "技效", when: "DieRolled", effect: "gainCash" },
+            {
+              id: "jixing",
+              name: "撞疾行",
+              desc: "技效",
+              when: "DieRolled",
+              stage: "during",
+              effect: "gainCash",
+            },
           ],
           heroes: [],
         }),
@@ -253,7 +290,14 @@ describe("扩展注册面(#378)", () => {
       registerExtensionAuthorityModule(
         makeModule({
           skills: [
-            { id: skillId, name: "撞技", desc: "技效", when: "DieRolled", effect: "gainCash" },
+            {
+              id: skillId,
+              name: "撞技",
+              desc: "技效",
+              when: "DieRolled",
+              stage: "during",
+              effect: "gainCash",
+            },
           ],
           heroes: [],
         }),

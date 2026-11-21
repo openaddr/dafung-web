@@ -19,14 +19,14 @@ import {
 } from "../../scripts/seat-projection";
 import { resolveGuohaoClash } from "../../src/core/guohao";
 import { JINNANG_CARDS } from "../../src/core/jinnang";
-import { GameEngine, type TurnPhase } from "../../src/core/authority";
+import { GameEngine } from "../../src/core/authority";
 import { armHero, setStamina } from "../../src/core/planter";
 import { heroSlotOf, skillMarksOf } from "../../src/core/roster";
-import type { EventKind } from "../../src/core/event-tiers";
 import { createDice } from "../../src/core/dice";
 import { foldEventBatch } from "../../src/app/net/event-fold";
 import type { RoomPersistence } from "../../scripts/room-persistence";
 import type { RoomRecord } from "../../scripts/room-record";
+import type { ServerMsg } from "../../scripts/wire";
 import { MAP } from "../../scripts/engine-helpers";
 import type { LoadedMap } from "../../src/core/board-loader";
 
@@ -929,7 +929,7 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     if (e.turnPhase !== "AwaitingJinnang") e.turnPhase = "AwaitingJinnang";
     const capId = e.board.at(e.players[victimSeat].capitalIndex!)?.propertyId;
     e.players[victimSeat].properties = [
-      { propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
+      { damageRanking: [], propertyId: capId!, group: "a", level: 2, maxLevel: 3, defense: 3 },
     ];
     e.resolveJinnang("火烧连营"); // 入目标段
     e.resolveJinnang("火烧连营", [e.players[victimSeat].capitalIndex!]); // 宣布 → 反应窗挂起
@@ -1178,7 +1178,7 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
   it("「你可」选择闸窗停摆(#1378 真修):超时代发「暂不发」(标记保留),不代开托管", async () => {
     // 回归例(不修必挂:旧行为=停摆代开托管→驱动链按 bot 策略代答=发动,本例断言
     // 零 autopilot 事件 + 发动未发生,双锚都红)。布景同 caopi-skill-choice-online
-    // (armHero 直授+setStamina 过阈+endTurn 停窗),停摆武装经 applyCommand 触发的
+    // (armHero 直授+setStamina 过阈开窗),停摆武装经 applyCommand 触发的
     // 驱动链出口(链停真人座位→#118 stall 上表),超时到点泵送。
     const clock = new ManualClock();
     const events: Record<string, unknown>[] = [];
@@ -1204,11 +1204,10 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
     // 注:decisionTimeoutMs>0 时链尾常驻武装 #118,不做事后时钟排干(排干即代开托管,
     // 旧行为的既有例);残留挂表由下一次链首 clear(bot-driver 链首撤 stall/autoRoll)
     // 收口,链跑一轮后按 size 精确断言。
-    // 布景(被测环前拍):seat0 直授放逐 → 损失 70 过阈 → endTurn 停窗
+    // 布景(被测环前拍):seat0 直授放逐 → 损失 70 过阈停窗
     e.activeIndex = 0;
     armHero(e, 0, "caopi", ["fangzhu"]);
     setStamina(e, 0, 30);
-    e.endTurn();
     expect<string>(e.turnPhase).toBe("AwaitingSkillChoice");
     // 链跑一轮触发 #118 武装(命令本体被相位守卫警告拒绝:座位 1 非决策者,窗不动)
     await reg.applyCommand(roomId, { type: "respondSkillChoice", seat: 1, use: false });
@@ -1420,12 +1419,7 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
     expect(cmdRow?.detail).toContain('"cardId":"识破诡计"');
   });
 
-  // ── 终局覆盖下沉(#580 托管 cutover e2e 终局覆盖下沉)──
-  // cutover e2e 的全程骑局在单节拍 2s/步下超预算不可救,终局折叠收敛与双端胜者一致
-  // 下沉本用例:registry 传输面双端点收全下行,ManualClock 手泵骑到 GameOver(零墙钟)。
-  // 面差注记:registry 面 flush 恒发快照(room.ts「单机显式退化口」,ADR-0020 决策 3),
-  // WS 面「逐步快照为零」判据在本面不可满足;同一不变量(状态下行不只靠快照、事件批
-  // 自足)在本面以「流文法恒定 + 事件批折叠收敛到终局」承载,见断言①③。
+  // 手泵两座托管到终局，核对事件批收敛和重连摘要的终局结果（#580、ADR-0020）。
 
   itSlow(
     "托管全程骑局到终局:事件批自足收敛,双端 gameOver、胜者一致(#580 托管 cutover e2e 终局覆盖下沉)",
@@ -1436,18 +1430,18 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
       const reg = new RoomRegistry(new InMemoryPersistence(), undefined, undefined, { clock });
       const { roomId, token, guestToken } = await playingRoom(reg);
 
-      // 双端收集端点(connectSeat 即发首连整房摘要;此后每 flush 拍 events 先行、快照随后)
+      // 首连下发摘要，之后在校准节点随事件批下发快照。
       const feeds = [
-        { seat: 0, msgs: [] as Record<string, unknown>[] },
-        { seat: 1, msgs: [] as Record<string, unknown>[] },
+        { seat: 0, token, msgs: [] as ServerMsg[] },
+        { seat: 1, token: guestToken, msgs: [] as ServerMsg[] },
       ];
       for (const f of feeds) {
         const ep: SeatEndpoint = {
           seat: f.seat,
           open: true,
-          send: (data) => f.msgs.push(JSON.parse(data) as Record<string, unknown>),
+          send: (data) => f.msgs.push(JSON.parse(data) as ServerMsg),
         };
-        reg.connectSeat(roomId, f.seat, f.seat === 0 ? token : guestToken, ep);
+        reg.connectSeat(roomId, f.seat, f.token, ep);
       }
       // 首连整房摘要恰一份(每端点 connectSeat 同步首发,未开局广播不掺行)
       expect(
@@ -1470,73 +1464,65 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
       expect(e.phase).toBe("GameOver");
       for (let i = 0; i < 5; i++) await macroTick();
 
-      // ③ 的折叠收敛副本:首连摘要水合,seat0 端全量事件批逐折(#387 折叠面)
-      const firstSnap = feeds[0]!.msgs[0] as unknown as Record<string, unknown>;
-      const replica = new GameEngine(MAP.board, MAP.catalog, createDice(42), {
-        seats: [
-          { name: "座 1", isBot: false },
-          { name: "座 2", isBot: false },
-        ],
-        targetNetWorth: MAP.targetNetWorth,
-        startingCash: MAP.startingCash,
-        startingTreasures: 0,
-      });
-      replica.restoreFromSnapshot(firstSnap as never);
-
-      const winners: (string | null)[] = [];
+      const winner = e.winner;
+      if (winner == null) throw new Error("托管终局缺少胜者");
       for (const f of feeds) {
         const snaps = f.msgs.filter((m) => m.type === "snapshot");
-        const batches = f.msgs.filter((m) => m.type === "events") as {
-          events: { kind: EventKind }[];
-        }[];
-        // ① 下行形状(本面不变量):消息只有 snapshot|events 两族;flush 单体恒
-        // events 先行、快照随后——events 相邻出现 = 快照半边丢失;校准面(决策窗
-        // 相位快照 / 校准节点批 playerBankrupt 等)随全程骑局在场。
+        const batches = f.msgs.filter((m) => m.type === "events");
         expect(
-          f.msgs.every((m) => m.type === "snapshot" || m.type === "events"),
-          "下行只含 snapshot|events 两族",
+          f.msgs.every((m) => m.type === "snapshot" || m.type === "events" || m.type === "lobby"),
         ).toBe(true);
-        let grammarBreak = false;
-        for (let i = 1; i < f.msgs.length; i++) {
-          if (f.msgs[i]!.type === "events" && f.msgs[i - 1]!.type === "events") grammarBreak = true;
+        for (const [index, msg] of f.msgs.entries()) {
+          if (
+            msg.type === "events" &&
+            msg.events.some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind))
+          )
+            expect(f.msgs[index + 1]?.type, "校准节点的事件批随发快照").toBe("snapshot");
         }
-        expect(grammarBreak, "events 必须逐拍伴随快照下行(flush 单体形状)").toBe(false);
         expect(
-          snaps.some((m) => CALIBRATION_WINDOWS.has((m as { turnPhase: TurnPhase }).turnPhase)),
+          f.msgs.some(
+            (msg, index) => msg.type === "events" && f.msgs[index + 1]?.type === "events",
+          ),
+          "局中存在无需快照的事件批",
+        ).toBe(true);
+        expect(
+          snaps.some((msg) => CALIBRATION_WINDOWS.has(msg.turnPhase)),
           "决策窗校准相位快照在场",
         ).toBe(true);
-        expect(
-          batches.some((b) => b.events.some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind))),
-          "校准节点批(playerBankrupt 等)在场",
-        ).toBe(true);
-        // ② 事件批流含 gameOver(终局事件经批通路到达本座位)
-        expect(
-          batches.some((b) => b.events.some((ev) => ev.kind === "gameOver")),
-          "终局事件到达",
-        ).toBe(true);
-        // ③ 终局快照收敛:末拍 phase=GameOver 且 winner 已定;胜者经座位投影取
-        // (传输面下行的快照消息逐座位 redact,不读引擎 god-view 直取)
-        const last = snaps[snaps.length - 1] as { phase: string; winner: string | null };
-        expect(last.phase, "终局快照收敛到 GameOver").toBe("GameOver");
-        expect(last.winner, "终局快照已定胜者").not.toBeNull();
-        const { type: _t, ...snap } = last as unknown as Record<string, unknown>;
-        winners.push(redactSnapshotForSeat(snap as never, f.seat).winner);
-      }
-      // 双端胜者一致(各端各自投影,不经引擎直取对齐)
-      expect(winners[0], "两端座位投影的胜者一致").toBe(winners[1]);
+        const terminal = batches.flatMap((batch) =>
+          batch.events.filter((ev) => ev.kind === "gameOver"),
+        );
+        expect(terminal, "两端各收到一次终局事件").toHaveLength(1);
 
-      // ③ 终局折叠收敛(胜负族,声明性精确折):自首连摘要水合的副本只吃事件批——
-      // 不经任何后续快照水合——即收敛到同一终局(isOver/phase/winner)。折叠精确族之外的
-      // 现金/资产细目不在断言面:fold+calibration 档(#430 档位表)的漂移窗本就由校准
-      // 快照兜,全 run 纯折叠对账超出架构承诺(实测破产清算拍 +200 漂移)。
-      for (const b of feeds[0]!.msgs.filter((m) => m.type === "events") as unknown as {
-        events: Parameters<typeof foldEventBatch>[1];
-      }[]) {
-        foldEventBatch(replica, b.events);
+        const first = f.msgs[0];
+        if (first?.type !== "snapshot") throw new Error("端点缺少首连快照");
+        const replica = new GameEngine(MAP.board, MAP.catalog, createDice(42), {
+          seats: [
+            { name: "座 1", isBot: false },
+            { name: "座 2", isBot: false },
+          ],
+          targetNetWorth: MAP.targetNetWorth,
+          startingCash: MAP.startingCash,
+          startingTreasures: 0,
+        });
+        replica.restoreFromSnapshot(redactSnapshotForSeat(first, f.seat));
+        for (const batch of batches) foldEventBatch(replica, redactEvents(batch.events, f.seat));
+        expect(replica.isOver).toBe(true);
+        expect(replica.phase).toBe("GameOver");
+        expect(replica.winner?.id, "事件批副本与权威胜者一致").toBe(winner.id);
+
+        const reconnect: ServerMsg[] = [];
+        reg.disconnectSeat(roomId, f.seat);
+        reg.connectSeat(roomId, f.seat, f.token, {
+          seat: f.seat,
+          open: true,
+          send: (data) => reconnect.push(JSON.parse(data) as ServerMsg),
+        });
+        const summary = reconnect[0];
+        if (summary?.type !== "snapshot") throw new Error("端点缺少重连快照");
+        expect(summary.phase).toBe("GameOver");
+        expect(redactSnapshotForSeat(summary, f.seat).winner).toBe(winner.id);
       }
-      expect(replica.isOver, "事件批折叠收敛:副本终局").toBe(true);
-      expect(replica.phase).toBe("GameOver");
-      expect(replica.winner?.id ?? null, "折叠胜者与投影胜者一致").toBe(winners[0]);
     },
     120_000,
   );

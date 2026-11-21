@@ -170,7 +170,9 @@ function VictoryCapital({
 }
 
 function VictoryStandings({ players, winner }: Pick<VictoryResult, "players" | "winner">) {
-  const standings = [...players].sort((a, b) => b.netWorth - a.netWorth);
+  const standings = [...players].sort(
+    (a, b) => b.netWorth - a.netWorth || Number(b.id === winner.id) - Number(a.id === winner.id),
+  );
   return (
     <section className="victory-standings" aria-label="终榜" data-testid={T.victoryStandings}>
       <header className="victory-standings-head">

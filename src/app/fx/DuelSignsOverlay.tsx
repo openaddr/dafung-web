@@ -32,11 +32,7 @@ import { DUEL, delay } from "./timings";
 // 在场 overlay 引用(D2 终局提前收场用;present() 串行 await,同时至多一场)。
 let activeOverlay: HTMLElement | null = null;
 
-/** D2:签面演出提前收场(生产调用口 = orchestrator.finishPresentation,胜利屏
- *  挂载封场整个表现层时连带调用)。生命周期规则而非兜底:对局结束 = 表现层使命
- *  终结——立即移除在场 overlay,防 z-45 残留压住胜利屏。节拍定时器不取消:闭包只
- *  触碰自己的 overlay 节点,节点移除后均为无害操作(delay 链照常走完),play() 的
- *  Promise 照常 resolve,不会吊死 present() 编排链。overlay 类名由本模块创建且唯一。 */
+/** 封场或卸载时撤下在场签面。播放链在当前节拍结束后清理摇签定时器并返回。 */
 export function finishDuelSigns(): void {
   activeOverlay?.remove();
   activeOverlay = null;
@@ -181,24 +177,24 @@ function applyVerdict(
   seal: HTMLDivElement,
   overlay: HTMLDivElement,
 ): void {
-  // 大胜判据同一处供收锋、洗幕和震屏消费。平局点差恒 0。
-  const blowout = isBlowout(ev.sides[0].roll, ev.sides[1].roll);
+  // 大胜看最高点与次高点的差值。同点重掷时低于最高点的签面沉暗。
+  const [highest, second] = ev.sides.map(({ roll }) => roll).sort((a, b) => b - a);
+  const blowout = ev.winnerSeat !== null && isBlowout(highest, second);
   if (blowout) overlay.classList.add("duel-blowout");
   if (ev.winnerSeat == null) {
     seal.dataset.verdict = "tie";
     seal.textContent = "平";
-  } else {
-    seal.dataset.verdict = "win";
-    for (const s of signs) {
-      if (s.side.seat === ev.winnerSeat) {
-        s.root.classList.add("duel-sign-win");
-        if (blowout) {
-          addBlowoutStroke(s.root);
-          overlay.style.setProperty("--duel-wash-color", rgba(playerColor(s.side.colorIndex)));
-        }
-      } else {
-        s.root.classList.add("duel-sign-dim");
+  } else seal.dataset.verdict = "win";
+
+  for (const sign of signs) {
+    if (sign.side.seat === ev.winnerSeat) {
+      sign.root.classList.add("duel-sign-win");
+      if (blowout) {
+        addBlowoutStroke(sign.root);
+        overlay.style.setProperty("--duel-wash-color", rgba(playerColor(sign.side.colorIndex)));
       }
+    } else if (sign.side.roll < highest) {
+      sign.root.classList.add("duel-sign-dim");
     }
   }
   // 本机 seat 投影与 GameScreen 同式(联机=netStore.mySeat,单机=本屏真人恒座 0);
@@ -229,6 +225,12 @@ function applyVerdict(
 async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
   const overlay = document.createElement("div");
   overlay.className = "duel-overlay";
+  const multi = ev.sides.length > 2;
+  if (multi) {
+    overlay.classList.add("duel-multi");
+    const columns = ev.sides.length > 4 ? Math.ceil(ev.sides.length / 2) : ev.sides.length;
+    overlay.style.setProperty("--duel-columns", String(columns));
+  }
   overlay.setAttribute("data-testid", TESTIDS.duelOverlay);
   overlay.style.animationDuration = `${DUEL.curtainMs}ms`; // 幕启渐入与编排同拍(含 e2e 倍率)
   // 收锋与二次波共用延迟和时长，洗幕单用短拍。各值随演出倍率同步。
@@ -247,25 +249,25 @@ async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
     row.appendChild(sign.root);
     return sign;
   });
-  overlay.appendChild(row);
-  overlay.appendChild(seal);
+  overlay.append(seal, row);
   document.body.appendChild(overlay);
-  // 中缝印随首行定位(#769 折行避让):构建拍量首行签卡中点注入 top——单行时行即
-  // 首行,与旧 CSS top:50% 恒等;折行(N 签窄视口成两行)时印锚在首行中点,不再
-  // absolute 居中压两行之间。横向恒 left:50%:首行 justify-content:center 居中
-  // 排布,双签(拼点恒二签,resolveDuel 二元)与四签 2+2 折行的中缝 gap 都恰落
-  // 视口中线;3+1 折行形态 50% 落首行中签上——预留通路(ADR-0030 N>2)今天的
-  // 引擎不可达,注释钉死不改口。构建拍量一次,演出期布局不动(幕启动画只走 opacity)。
-  const overlayBox = overlay.getBoundingClientRect();
-  const firstBox = signs[0].root.getBoundingClientRect();
-  seal.style.top = `${firstBox.top - overlayBox.top + firstBox.height / 2}px`;
+  if (!multi) {
+    // 双签印章落在既有中缝，多席则置于签面上方。
+    const overlayBox = overlay.getBoundingClientRect();
+    const firstBox = signs[0].root.getBoundingClientRect();
+    seal.style.top = `${firstBox.top - overlayBox.top + firstBox.height / 2}px`;
+  }
   activeOverlay = overlay;
+  const stillShowingAfter = async (ms: number): Promise<boolean> => {
+    await delay(ms);
+    return activeOverlay === overlay;
+  };
   let stopShakers: (() => void)[] = [];
   try {
     // ── 幕启:玄墨幕渐入(CSS,时长=curtainMs)、两签虚位+「拼」印钤立 ──
     // 摇签不在此段起跑(#639 评审必修,ADR-0030 节拍「幕启→并行起摇」):幕启期间
     // 两签保持虚位(字面缺席),起摇等幕启落定。
-    await delay(DUEL.curtainMs);
+    if (!(await stillShowingAfter(DUEL.curtainMs))) return;
     // ── 蓄势预动作(#746 条目 2):幕启落定→起摇之间的一拍——两签向中缝轻推 8px
     // 并朝内倾 1.5°(--ease-out,80ms),「蓄势-接触-定格」链条补第一节。位移/内倾
     // 走独立 translate/rotate 属性(不碰落定拍 transform 钤落弧);排布序=座位升序,
@@ -276,29 +278,28 @@ async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
       sign.root.style.setProperty("--windup-rot", `${inward * 1.5}deg`);
       sign.root.classList.add("duel-sign-windup");
     }
-    await delay(DUEL.windupMs);
+    if (!(await stillShowingAfter(DUEL.windupMs))) return;
     // ── 并行起摇:骨牌合击音起手(duelClash,#746 条目 5:替换合成沙锤,拼点自此
     // 有自己的声音),虚影轮换逐签错相(全速恒定)──
     stopShakers = signs.map((s) => startShaking(s));
     getAudio().play("duelClash");
-    await delay(DUEL.shakeMs);
+    if (!(await stillShowingAfter(DUEL.shakeMs))) return;
     // ── 依座位序错拍落定(数组序=座位升序,提取期已排;间隙=clackGap):每拍 diceLand 音 ──
     for (const [i, sign] of signs.entries()) {
       stopShakers[i]();
-      if (i > 0) await delay(DUEL.clackGapMs);
+      if (i > 0 && !(await stillShowingAfter(DUEL.clackGapMs))) return;
       landSign(sign);
     }
     // ── 判词拍:金圈/金「平」/震屏判点差(+己方加权,#760)──
-    await delay(DUEL.verdictMs);
+    if (!(await stillShowingAfter(DUEL.verdictMs))) return;
     applyVerdict(ev, signs, seal, overlay);
     // ── 停留 → 整幕渐出 ──
-    await delay(DUEL.holdMs);
+    if (!(await stillShowingAfter(DUEL.holdMs))) return;
     overlay.classList.add("duel-overlay-out");
     overlay.style.animationDuration = `${DUEL.fadeOutMs}ms`;
     await delay(DUEL.fadeOutMs);
   } finally {
-    // 摇签句柄兜底清:正常路径各落定拍已停,封场(finishDuelSigns 摘除 overlay)时
-    // delay 链照常走完也会停——此为资源清理,非错误兜底。
+    // 封场发生在摇签或错拍期间时，一并清理尚未落定的签面。
     for (const stop of stopShakers) stop();
     overlay.remove();
     if (activeOverlay === overlay) activeOverlay = null;
@@ -318,6 +319,7 @@ export function DuelSignsOverlay() {
   useEffect(() => {
     duelSignsApi.play = playDuelSigns;
     return () => {
+      finishDuelSigns();
       duelSignsApi.play = () => Promise.resolve();
     };
   }, []);

@@ -156,6 +156,7 @@ function benignTile(e: GameEngine): number {
   if (t == null || t.propertyId == null) throw new Error("无中性床位(地图缺无主普城)");
   const def = e.catalog.get(t.propertyId)!;
   other.properties.push({
+    damageRanking: [],
     propertyId: def.id,
     group: def.group,
     level: 0,
@@ -1156,6 +1157,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     )!;
     const d = MAP.catalog.get(tile.propertyId)!;
     e.players[seat].properties.push({
+      damageRanking: [],
       propertyId: d.id,
       group: d.group,
       level,
@@ -1351,6 +1353,7 @@ describe("耗竭自动收口 × 出牌阶段(#452):唯一选项自动路径不�
     )!;
     const d = MAP.catalog.get(tile.propertyId)!;
     e.players[seat].properties.push({
+      damageRanking: [],
       propertyId: d.id,
       group: d.group,
       level,

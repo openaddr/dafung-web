@@ -1,6 +1,6 @@
 // 机遇主流程+体力耗竭域(#123/#124/#130/#132,ADR-0019 委托式拆分 #320):机遇必出
 // 触发(ADR-0035)与加权抽取、抉择机遇入相(AwaitingEncounter)与选项结算、即时效果结算
-// (八种效果落账)、机遇体力接线与体力耗竭(全自动:外敌乘虚+休整)善后。域逻辑=自由函数,
+// (八种效果落账)、体力损耗及耗竭后的外敌乘虚与休整。域逻辑=自由函数,
 // 首参接 GameEngine 直接读写引擎状态;与数据表 encounters.ts 分层(流程≠配置,零依赖纯数据)。
 // GameEngine 侧保留同名方法薄委托(authority.ts):公共入口 maybeApplyEncounter/
 // resolveEncounterChoice/exhaustIfDepleted,入相与即时结算
@@ -22,6 +22,7 @@ import {
   type EncounterDef,
   type EncounterEffect,
   type EncounterFlagId,
+  type EncounterTier,
 } from "./encounters";
 import { HEROES, heroById } from "./heroes";
 import { grantedNamesLine, rollGrantedSkills } from "./roster";
@@ -30,47 +31,110 @@ import { EXHAUSTION_REST_TURNS, HERO_CAPACITY } from "./constants";
 import { drawJinnangTraced } from "./jinnang-execution";
 import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
-import { fullDefenseOf } from "./defense";
+import { applyCityDamage, createPropertyHolding } from "./defense";
 import type { PropertyDef } from "./economy";
+import type { MomentCtx } from "./timing";
 
-/** 耗竭入口(#130):体力归 0 的 Seat 调用(机遇结算后)。全自动结算、无抉择相位
- *  (人/bot 同一套,统一原则):外敌乘虚而入——所有等级 >0 的城池(含都城)各降
- *  1 级(0 级封底,永不失去城池)→ 立 resting 标记休整 EXHAUSTION_REST_TURNS 个回合
- *  (skipTurns 累加)→ endTurn。体力回满发生在休整期满(authority.ts 跳回合环消费点,
- *  staminaChanged(reason=rest)),归 0 当刻不回血、卧床状态可见。 */
+export type EncounterSettlement = "settled" | "deciding" | "liquidating" | "bankrupt" | "exhausted";
+
+/** 体力损耗时机完成后，续跑当前体力变化及同一机遇的剩余结算。 */
+export interface EncounterStaminaContinuation {
+  kind: "encounterStamina";
+  id: string;
+  tier: EncounterTier;
+  narr: string;
+  remainingDeltas: number[];
+  finishLanding: boolean;
+  depletes: boolean;
+}
+
+export interface StaminaDamageContinuation {
+  kind: "staminaDamage";
+  sourceSeat: number | null;
+  depletes: boolean;
+}
+
+export interface ExhaustionContinuation {
+  kind: "exhaustion";
+  downgradedCount: number;
+}
+
+/** 扣减体力并保存这次损耗的来源，供应答后结算归零。 */
+export function damageStamina(
+  g: GameEngine,
+  seat: number,
+  amount: number,
+  sourceSeat: number | null,
+): number {
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error(`体力伤害须为正数（${amount}）`);
+  if (sourceSeat !== null && g.players[sourceSeat] === undefined)
+    throw new Error(`体力伤害来源座位 ${sourceSeat} 不存在`);
+  const before = g.players[seat].stamina;
+  if (before === 0) return before;
+  const continuation: StaminaDamageContinuation = {
+    kind: "staminaDamage",
+    sourceSeat,
+    depletes: amount >= before,
+  };
+  const stamina = g.addStamina(seat, -amount, continuation);
+  if (g.pendingMoment == null && continuation.depletes) resolveExhaustion(g, seat, sourceSeat);
+  return stamina;
+}
+
+export function resumeStaminaDamage(
+  g: GameEngine,
+  ctx: MomentCtx,
+  state: StaminaDamageContinuation,
+): void {
+  if (ctx.delta == null || ctx.delta >= 0) throw new Error("体力伤害续接缺少实际体力损耗");
+  if (state.depletes) resolveExhaustion(g, ctx.subject, state.sourceSeat);
+}
+
+/** 无来源耗竭入口。体力已归零时，结算城损与休整。 */
 export function exhaustIfDepleted(g: GameEngine, seat: number): "none" | "resolved" {
+  if (g.players[seat].stamina > 0 || g.players[seat].resting) return "none";
+  resolveExhaustion(g, seat, null);
+  return "resolved";
+}
+
+/** 外敌乘虚扣掉每座城的当前防御，随后进入休整。 */
+function resolveExhaustion(g: GameEngine, seat: number, sourceSeat: number | null): void {
   const p = g.players[seat];
-  if (p.stamina > 0) return "none";
+  const source = sourceSeat === null ? null : g.players[sourceSeat];
+  if (seat === g.activeIndex) g.pendingEncounterHalt = false;
   const downgraded: string[] = [];
-  for (const holding of p.properties) {
-    if (holding.level <= 0) continue; // 0 级封底:不降不失去
-    holding.level -= 1;
-    downgraded.push(holding.propertyId);
-    g.dispatchMoment("PropertyDemolished", {
+  const holdings = p.properties.slice(); // 攻陷会从原持有表移除城池。
+  for (const { propertyId, level, defense } of holdings) {
+    if (defense === 0 && level === 0 && g.tileIndexOfProperty(propertyId) === p.capitalIndex)
+      continue;
+    const outcome = applyCityDamage(g, p, propertyId, defense, source);
+    if (outcome.kind === "absorbed") continue;
+    if (outcome.kind === "demolished") downgraded.push(propertyId);
+    g.dispatchMoment(outcome.kind === "demolished" ? "PropertyDemolished" : "PropertyLost", {
       subject: seat,
-      propertyId: holding.propertyId,
-      tileIndex: g.tileIndexOfProperty(holding.propertyId),
-    }); // 时机·PropertyDemolished:耗竭「外敌乘虚而入」逐城降级(#457)
+      propertyId,
+      tileIndex: outcome.tileIndex,
+    });
   }
+  p.resting = true;
+  p.skipTurns += EXHAUSTION_REST_TURNS;
   emitGameEvent(g, seat, {
     kind: "exhaustionResolved",
     downgradedPropertyIds: downgraded,
     restTurns: EXHAUSTION_REST_TURNS,
-  }); // 事件流:耗竭落定(降级清单+休整回合数随事件显式走,折叠不做相邻推断)
-  p.resting = true;
-  applyExhaustionAftermath(g, p, downgraded.length);
-  g.endTurn();
-  return "resolved";
+  });
+  const continuation: ExhaustionContinuation = {
+    kind: "exhaustion",
+    downgradedCount: downgraded.length,
+  };
+  g.dispatchMoment("TurnSkipImposed", { subject: seat, reason: "exhaustion" }, continuation);
+  if (g.pendingMoment == null) resumeExhaustion(g, seat, continuation);
 }
 
-/** 耗竭善后(#130):休整 EXHAUSTION_REST_TURNS 个回合(skipTurns 共用机制,与缓兵之计
- *  叠加计数)。体力回满由跳回合环在 skipTurns 消费完时经 addStamina 唯一口落账,以
- *  staminaChanged(reason=rest) 产事件(#384);StaminaChanged 时机不派(同 #456:
- *  系统复位非机遇路)。 */
-function applyExhaustionAftermath(g: GameEngine, p: Player, downgradedCount: number): void {
-  const seat = g.players.indexOf(p);
-  p.skipTurns += EXHAUSTION_REST_TURNS;
-  g.dispatchMoment("TurnSkipImposed", { subject: seat, reason: "exhaustion" }); // 时机·TurnSkipImposed:耗竭善后强加跳回合(#456,写点累加语义保留)
+/** 休整时机的阶段和应答结清后，完成耗竭善后。 */
+export function resumeExhaustion(g: GameEngine, seat: number, state: ExhaustionContinuation): void {
+  const p = g.players[seat];
+  const { downgradedCount } = state;
   const detail =
     downgradedCount > 0 ? `外敌乘虚而入,${downgradedCount} 座城池降级` : "外敌乘虚而入";
   g.logEvent(
@@ -79,6 +143,7 @@ function applyExhaustionAftermath(g: GameEngine, p: Player, downgradedCount: num
     `${p.guohao} 体力耗竭:${detail},卧床休整${EXHAUSTION_REST_TURNS}回合,期满体力回满`,
     `exhaustionSettle player=${p.id} downgraded=${downgradedCount} skipTurns=${p.skipTurns} resting=1`,
   );
+  if (seat === g.activeIndex) g.endTurn();
 }
 
 /** 机遇触发与抽取(#123;ADR-0035 机遇必出,#776)。enabled=false 为系统总开关(引擎
@@ -110,7 +175,7 @@ export function maybeApplyEncounter(
     tier: def.tier,
   }); // 事件流(#375):机遇触发(已抽中具体机遇)
   if (def.choices) return g.enterEncounterPhase(mover, def); // 抉择机遇(#124):不即时结算
-  return g.settleEncounter(mover, def);
+  return g.settleEncounter(mover, def, true);
 }
 
 /** 抉择机遇入相(#124):抽中 choices 型机遇后调用。选项集经注册表(choices.ts)计算,
@@ -202,7 +267,7 @@ function settleEncounterChoice(
   def: EncounterDef,
   option: EncounterChoiceOption,
   index: number,
-): "settled" | "liquidating" | "bankrupt" | "exhausted" {
+): EncounterSettlement {
   const seat = g.players.indexOf(mover);
   emitGameEvent(g, seat, {
     kind: "encounterChoice",
@@ -249,30 +314,33 @@ function settleEncounterChoice(
     `encounterChoice player=${mover.id} id=${def.id} index=${index} repDelta=${option.repDelta} reputation=${mover.reputation} effect=${option.effect?.kind ?? "none"}${costDetail}`,
   );
   g.pendingEncounter = null;
-  const r = option.effect
-    ? applyEncounterEffect(g, mover, def, option.effect, option.text)
-    : "settled";
-  if (r !== "settled") {
-    // liquidating=留清算 confirm;bankrupt=效果内已 endTurn(优先级高于体力,#132):
-    // 落格由接管方收尾,驻跸续跑标记一并作废
-    g.pendingEncounterHalt = false;
-    return r;
+  g.turnPhase = "Land";
+  if (option.effect != null) {
+    const result = applyEncounterEffect(g, mover, def, option.effect, option.text);
+    if (result !== "settled") {
+      g.pendingEncounterHalt = false;
+      return result;
+    }
   }
-  // 选项级体力(#132):repDelta/effect 落账后 staminaDelta 落账;exhausted=耗竭接管本落格
-  const s = applyEncounterStamina(g, mover, def, option.staminaDelta ?? 0, option.text);
-  if (s === "exhausted") {
-    g.pendingEncounterHalt = false; // 耗竭接管本落格:驻跸尾不再续跑(人倒下了不领补给)
-    return "exhausted";
-  }
-  // 机遇解完续跑(#120 决策 2;ADR-0035):普通落格继续城池结算;驻跸截断续跑驻跸尾
+  const result = applyEncounterStamina(
+    g,
+    mover,
+    def,
+    option.text,
+    [option.effect?.staminaDelta ?? 0, option.staminaDelta ?? 0],
+    true,
+  );
+  if (result === "settled") finishEncounterLanding(g, mover);
+  return result;
+}
+
+function finishEncounterLanding(g: GameEngine, mover: Player): void {
   if (g.pendingEncounterHalt) {
     g.pendingEncounterHalt = false;
     g.finishCapitalHalt(mover);
-    return r;
+    return;
   }
-  g.turnPhase = "Land";
   g.resolveLanding();
-  return r;
 }
 
 /** 即时机遇结算(#123):效果落账 + 事件宣告(浮字由 fx 面派生)+ 对局日志。cash 负值
@@ -284,29 +352,36 @@ export function settleEncounter(
   g: GameEngine,
   mover: Player,
   def: EncounterDef,
-): "settled" | "liquidating" | "bankrupt" | "exhausted" {
+  finishLandingOnResume: boolean,
+): EncounterSettlement {
   // 即时路章写点(#1153):def.setsFlags 去重落章,先于效果结算——中断路(liquidating/
   // bankrupt/exhausted)flag 照写(#1126 拍板③),破产不清章(拍板⑥)
   // 盖章战报句(#1155):实际新落章才报一句「获『X』」,已持章/重复结算静默
   const stamps = grantEncounterFlags(mover, def.setsFlags);
   if (stamps.length > 0) logStampSentence(g, mover, def.id, stamps);
   if (!def.effect) return "settled";
-  return applyEncounterEffect(g, mover, def, def.effect, def.text);
+  const result = applyEncounterEffect(g, mover, def, def.effect, def.text);
+  if (result !== "settled") return result;
+  return applyEncounterStamina(
+    g,
+    mover,
+    def,
+    def.text,
+    [def.effect.staminaDelta ?? 0],
+    finishLandingOnResume,
+  );
 }
 
 /** 机遇效果结算(即时/抉择两路共用,#123/#124)。narr=战报叙事段:即时机遇=def.text,
  *  抉择机遇=所选选项文本——机遇 id 保持出自 def,叙事随所选选项走。
- *  尾部接线体力(#132):效果落账后 effect.staminaDelta 经 applyEncounterStamina 结算,
- *  耗竭返回 exhausted(liquidating/bankrupt 优先,不再结算体力)。
- *  #320 拆分:八种效果各归 apply*Effect 单一职责小函数,case 体逐字搬运(票面授权,
- *  行为零变化由同种子对拍兜底)。 */
+ *  效果落账完成后由调用方结算体力。 */
 function applyEncounterEffect(
   g: GameEngine,
   mover: Player,
   def: EncounterDef,
   effect: EncounterEffect,
   narr: string,
-): "settled" | "liquidating" | "bankrupt" | "exhausted" {
+): "settled" | "liquidating" | "bankrupt" {
   const seat = g.players.indexOf(mover);
   // 效果级 repDelta(#1153):即时条目落声望,先于效果落账(与选项级「声望→效果→体力」
   // 同序);走 addReputation 唯一写口,emit reputationChanged(before/after 差值模式,
@@ -320,28 +395,24 @@ function applyEncounterEffect(
       reason: "encounter",
     }); // 事件流(#384):声望变更(实际增减,浮字由 fx 面派生)
   }
-  const r = ((): "settled" | "liquidating" | "bankrupt" => {
-    switch (effect.kind) {
-      case "cash":
-        return applyCashEffect(g, mover, def, effect, narr);
-      case "grantTreasure":
-        return applyGrantTreasureEffect(g, mover, def, narr);
-      case "grantHero":
-        return applyGrantHeroEffect(g, mover, def, effect, narr);
-      case "grantCard":
-        return applyGrantCardEffect(g, mover, def, narr);
-      case "grantCity":
-        return applyGrantCityEffect(g, mover, def, effect, narr);
-      case "siphon":
-        return applySiphonEffect(g, mover, def, effect, narr);
-      case "levy":
-        return applyLevyEffect(g, mover, def, effect, narr);
-      case "trade":
-        return applyTradeEffect(g, mover, def, effect, narr);
-    }
-  })();
-  if (r !== "settled") return r; // liquidating/bankrupt 优先(#132):清算/破产中断,不再结算体力
-  return applyEncounterStamina(g, mover, def, effect.staminaDelta ?? 0, narr);
+  switch (effect.kind) {
+    case "cash":
+      return applyCashEffect(g, mover, def, effect, narr);
+    case "grantTreasure":
+      return applyGrantTreasureEffect(g, mover, def, narr);
+    case "grantHero":
+      return applyGrantHeroEffect(g, mover, def, effect, narr);
+    case "grantCard":
+      return applyGrantCardEffect(g, mover, def, narr);
+    case "grantCity":
+      return applyGrantCityEffect(g, mover, def, effect, narr);
+    case "siphon":
+      return applySiphonEffect(g, mover, def, effect, narr);
+    case "levy":
+      return applyLevyEffect(g, mover, def, effect, narr);
+    case "trade":
+      return applyTradeEffect(g, mover, def, effect, narr);
+  }
 }
 
 /** 效果·现金增减(#123):正=入账派 CashGained;负=#1153 新红线「机遇不送清算」——
@@ -530,13 +601,7 @@ function applyGrantCityEffect(
   }
   const picked = unownedCities[Math.floor(g.dice.nextFloat() * unownedCities.length)];
   const defCity = picked.def;
-  mover.properties.push({
-    propertyId: defCity.id,
-    group: defCity.group,
-    level: 0,
-    maxLevel: defCity.maxLevel,
-    defense: fullDefenseOf(0), // 赐城=易主入册,防御满值(#1386)
-  });
+  mover.properties.push(createPropertyHolding(defCity, 0));
   // 城池变更留痕(ADR-0015,本写点补齐 #457):赐城即易主(无主 → 得城者),形状对齐购地
   g.propertyChanges.push({
     tileIndex: picked.tileIndex,
@@ -678,44 +743,74 @@ function applyTradeEffect(
   return "settled";
 }
 
-/** 机遇体力接线(#132):staminaDelta 经 addStamina 落账(clamp 0~100;浮字/战报增量记
- *  夹紧后实际差,非入参请求数,#568 病 B;detail 的 delta=请求数、stamina=落账值)
- *  → 归 0 触发 exhaustIfDepleted。
- *  返回 "exhausted"=耗竭接管本落格:全自动结算已 endTurn 收尾回合,调用方不得续跑
- *  城池结算(人倒下了不买地),与 liquidating/bankrupt 同占落格。 */
+/** 机遇体力先落账，损耗阶段应答结束才继续体力变更和耗竭。 */
 function applyEncounterStamina(
   g: GameEngine,
   mover: Player,
-  def: EncounterDef,
-  delta: number,
+  def: Pick<EncounterDef, "id" | "tier">,
   narr: string,
-): "settled" | "exhausted" {
-  if (delta === 0) return "settled";
+  deltas: number[],
+  finishLanding: boolean,
+): "settled" | "deciding" | "exhausted" {
   const seat = g.players.indexOf(mover);
-  const staminaBefore = mover.stamina;
-  const stamina = g.addStamina(seat, delta);
-  emitGameEvent(g, seat, {
-    kind: "staminaChanged",
-    delta: stamina - staminaBefore,
-    reason: "encounter",
-  }); // 事件流(#384):体力变更(机遇,夹紧后实际增减)
-  g.dispatchMoment("StaminaChanged", {
-    subject: seat,
-    delta: stamina - staminaBefore,
-  }); // 时机·StaminaChanged:机遇路体力变更(#456 拍定仅机遇路挂——耗竭重置是系统复位、华佗赈济属主动技结算内,两处均不派)
-  const gained = stamina - staminaBefore; // 夹紧后实际差(#568 病 B):浮字/战报增量记实际差,非机遇请求数
-  const signed = `${gained >= 0 ? "+" : "−"}${Math.abs(gained)}`;
-  // 体力浮字由 staminaChanged(reason=encounter) 事件在 fx 面派生(#719 死写删除)
-  g.logEvent(
-    "system",
-    mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」:${narr},体力 ${signed}`,
-    `encounterStamina player=${mover.id} id=${def.id} tier=${def.tier} delta=${delta} stamina=${stamina}`,
+  for (const [i, delta] of deltas.entries()) {
+    if (delta === 0) continue;
+    const before = mover.stamina;
+    const depletes = before > 0 && delta <= -before;
+    const stamina = g.addStamina(seat, delta, {
+      kind: "encounterStamina",
+      id: def.id,
+      tier: def.tier,
+      narr,
+      remainingDeltas: deltas.slice(i + 1),
+      finishLanding,
+      depletes,
+    });
+    const change = stamina - before;
+    const signed = `${change >= 0 ? "+" : "−"}${Math.abs(change)}`;
+    g.logEvent(
+      "system",
+      mover.guohao,
+      `${mover.guohao} 机遇「${def.id}」:${narr},体力 ${signed}`,
+      `encounterStamina player=${mover.id} id=${def.id} tier=${def.tier} delta=${delta} stamina=${stamina}`,
+    );
+    if (g.pendingMoment != null) return "deciding";
+    if (finishEncounterStaminaChange(g, seat, change, depletes) === "exhausted") return "exhausted";
+  }
+  return "settled";
+}
+
+export function resumeEncounterStamina(
+  g: GameEngine,
+  ctx: MomentCtx,
+  state: EncounterStaminaContinuation,
+): void {
+  if (ctx.delta == null || ctx.delta >= 0) throw new Error("机遇时机续接缺少实际体力损耗");
+  const seat = ctx.subject;
+  if (finishEncounterStaminaChange(g, seat, ctx.delta, state.depletes) === "exhausted") return;
+  const mover = g.players[seat];
+  const result = applyEncounterStamina(
+    g,
+    mover,
+    state,
+    state.narr,
+    state.remainingDeltas,
+    state.finishLanding,
   );
-  if (stamina !== 0) return "settled";
-  const ex = exhaustIfDepleted(g, seat);
-  if (ex === "none") throw new Error("机遇体力结算后 stamina>0:耗竭判定状态不一致"); // 零兜底:状态不一致炸出来
-  return "exhausted"; // 全自动耗竭已 endTurn 收尾回合,占用本落格:调用方不得续跑城池结算
+  if (result === "settled" && state.finishLanding) finishEncounterLanding(g, mover);
+}
+
+/** 机遇的体力损耗时机结束后，结算本次体力变化和归零后果。 */
+function finishEncounterStaminaChange(
+  g: GameEngine,
+  seat: number,
+  delta: number,
+  depletes: boolean,
+): "settled" | "exhausted" {
+  g.dispatchMoment("StaminaChanged", { subject: seat, delta });
+  if (!depletes) return "settled";
+  resolveExhaustion(g, seat, null);
+  return "exhausted";
 }
 
 /** 随机存活对手(#123):无可用对手(全部破产/单人)返回 null,调用方静默跳过转移。 */

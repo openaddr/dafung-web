@@ -24,7 +24,7 @@
 // 不复活(#1303 收口退役)。
 import type { EnginePhase, GameEngine, TurnPhase, VictoryReason } from "./authority";
 import { DEFAULT_DIE_FACES } from "./dice";
-import { fullDefenseOf, resetToFull } from "./defense";
+import { createPropertyHolding, resetToFull } from "./defense";
 import { heroById } from "./heroes";
 import { jinnangCardOf } from "./jinnang";
 import type { LogEvent } from "./model";
@@ -346,18 +346,12 @@ export function grantProperty(
     resetToFull(held); // 等级一变防御即重置满值(与生产升级/降级同口径,#1386)
     return;
   }
-  p.properties.push({
-    propertyId,
-    group: def.group,
-    level,
-    maxLevel: def.maxLevel,
-    defense: fullDefenseOf(level), // 入册即满值(满值表单源;越界等级响亮抛错,#1386)
-  });
+  p.properties.push(createPropertyHolding(def, level));
 }
 
 /** 【判词(setDefense 一处,#1387)】种防御值=裸写形:生产防御值只经等级变动重置满值
  *  (resetToFull 挂点:购入/建都/赐城/扩军/公道买卖升级/破产转移/火焰伤害降级)
- *  与火焰伤害结算(applyFireDamage)变动,平时不回复——「直接摆到指定受损/满溢态」
+ *  与城池伤害结算(applyCityDamage)变动,平时不回复——「直接摆到指定受损/满溢态」
  *  无生产流程,走真通路需耗点数伤害且过目标门,断言面前置不可控,直写是唯一通路。
  *  未持有城当场炸(无主城不存在防御值);数值不校验(负值/超满值是测试作者的场景
  *  决定,同 setCash 口径,响在被测面)。 */

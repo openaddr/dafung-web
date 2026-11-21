@@ -547,15 +547,7 @@
   animation: fx-fade-out var(--dur-med) var(--ease-in) forwards;
 }
 
-/* 签面横排(N=2 并排,中缝让位「拼」印;N>2 横排列开不炸)。width:max-content
-   (#709):旧收缩适配只看得见 left:50% 右侧的半幅可用宽,视口 <844 即误触发
-   flex-wrap 折成纵叠——魏签顶/滇签底双出屏;max-content 保双签并排居中,真比
-   视口宽才折行(max-width:100% 兜住折行边界;portrait 本就不在形态档内)。
-   gap clamp(#769 四人折行):110→clamp(48px,4vw,110px)——4 签最坏情形
-   4×150+3×48=744 收进 844(旧 110 gap 最坏 930 出屏);大屏(≥2750)回到 110。
-   48px 窄缝下「拼」印(72px)压两签框缘各 ~12px:印章钤盖语义本就钤在物上,
-   不另设档;折行时印的避让归 DuelSignsOverlay 构建拍量锚(随首行定位,见
-   .duel-seal 注)。 */
+/* 双签并排，留出中缝印位。多人拼点使用下方的紧凑布局。 */
 .duel-signs {
   position: absolute;
   left: 50%;
@@ -900,11 +892,7 @@
     opacity var(--dur-fast) var(--ease-out) calc(var(--dur-fast) * 2 / 3);
 }
 
-/* 中缝朱砂「拼」印:随幕启钤立锚对抗关系;平局判词拍钤变金「平」(data-verdict=tie,
-   重播钤落弧),胜局保持朱砂「拼」不动。落章弧复用共享 fx-seal-slam(钤定驻留 -8°)。
-   垂直位(#769 折行避让)不在此定:top 由 DuelSignsOverlay 构建拍量首行签卡中点
-   注入(随首行定位——单行与旧 top:50% 恒等,折行时印不再压两行之间);横向仍
-   left:50% 落中缝 gap(首行居中排布,双签与 2+2 折行的缝都恰在视口中线)。 */
+/* 朱砂「拼」印随幕启钤立，同点时钤为金「平」。双签印位由首签中点确定。 */
 .duel-seal {
   --duel-seal-rim: var(--color-paper);
   position: absolute;
@@ -937,6 +925,47 @@
   opacity: 0.76;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-35 -35 70 70'%3E%3Cg fill='none' stroke='white' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M-31 -29l5 -2h9l5 1 8 -1h17l5 1 10 -1 3 3v17l-1 4 1 9v22l-1 4 -4 3H8l-5 -1h-12l-5 1h-12l-5 -3V13l1 -6 -1 -8v-12l1 -6Z' stroke-width='2.2'/%3E%3Cpath d='M-27 -26l6 1 4 -1 5 1m20 -1h8l5 1 5 -1M-27 26h6l3 -1 4 1m25 0 8 -1 6 1M-27 -11v5m55 15v6m-48 5 2 -.3m36 -39 2 .5m3 31 1 -.3' stroke-width='.8' opacity='.48'/%3E%3C/g%3E%3C/svg%3E")
     center / 100% 100% no-repeat;
+}
+
+/* 多席签面一至两排，印章在上方，点数留在签内。 */
+.duel-overlay.duel-multi {
+  --duel-sign-gap: clamp(8px, 3vmin, 16px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--duel-sign-gap);
+  padding: calc(var(--safe-top) + 8px) calc(var(--safe-right) + 12px) calc(var(--safe-bottom) + 8px)
+    calc(var(--safe-left) + 12px);
+}
+.duel-multi .duel-signs {
+  position: static;
+  transform: none;
+  gap: var(--duel-sign-gap);
+  width: calc(var(--duel-columns) * 132px + (var(--duel-columns) - 1) * var(--duel-sign-gap));
+}
+.duel-multi .duel-sign {
+  flex: 0 0 calc((100% - (var(--duel-columns) - 1) * var(--duel-sign-gap)) / var(--duel-columns));
+  min-width: 0;
+}
+.duel-multi .duel-sign-head {
+  font-size: clamp(16px, 5vh, 22px);
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  overflow-wrap: anywhere;
+}
+.duel-multi .duel-sign-face {
+  font-size: clamp(36px, 15vh, 64px);
+  line-height: 1;
+  padding: 4px 6px 10px;
+}
+.duel-multi .duel-seal {
+  position: relative;
+  left: auto;
+  transform: rotate(-8deg);
+  width: 54px;
+  height: 54px;
+  font-size: 32px;
 }
 .duel-seal.duel-seal-slam {
   animation: fx-seal-slam 0.16s var(--ease-out) both;

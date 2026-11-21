@@ -254,6 +254,7 @@ export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapsh
         ? { ...s.pendingReaction, view: redactReactionView(s.pendingReaction.view, seat) }
         : s.pendingReaction,
     reaction: s.reaction != null ? redactReactionView(s.reaction, seat) : s.reaction,
+    pendingMoment: undefined, // 续作只由权威驱动，客户端消费公开的技能选择事件。
     events: redactEvents(s.events, seat),
     log: s.log.map(projectGameLogLine),
   };
@@ -345,6 +346,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "capitalSelected":
       case "propertyBought":
       case "propertyUpgraded":
+      case "propertyDamaged":
       case "propertyRejected":
       case "propertyGranted": // #719:机遇赐城易主宣告(赐城本就公开——城池归属棋盘可见)
       case "cashChanged":
@@ -359,6 +361,9 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "playerBankrupt":
       case "heroDismissed": // #1147 遣散:遣散者/名将/折书明细皆公开面(麾下与招贤池是公开信息,ADR-0016)
       case "skillFired":
+      case "skillChoiceOpened": // 名将、已授技能、标记和触发/目标席均为公开状态。
+      case "skillChoiceAnswered":
+      case "skillMarksChanged":
       case "skillLearned": // #1146 用书学技:习得者/技/消耗书皆公开面(麾下与珍宝列表不裁,ADR-0016)
       case "heroSkillActivated":
       case "jinnangDrawn":
@@ -373,7 +378,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "jinnangAnnounced":
       case "reactionAnswered":
       case "reactionFailed":
-      case "duelResolved": // #636/ADR-0030:拼点结算(两方座位/两枚点数/胜者,平局 null)全桌公开信息,与 reactionFailed 同列透传
+      case "duelResolved": // 参与座位、点数与胜者均公开
       case "jinnangVoided":
       case "jinnangInflicted":
         return ev;
@@ -463,7 +468,6 @@ export const CALIBRATION_WINDOWS: ReadonlySet<TurnPhase> = new Set([
   "AwaitingHeroPick",
   "AwaitingEncounter",
   "AwaitingBankruptcySettle",
-  "AwaitingSkillChoice", // 待决队列仅随校准摘要水合,开窗/续问/闭沿共用本登记。
 ]);
 /** 节点事件校准(#388):批内出现即全量。牌库洗牌两处:开局 finishSetup(buildJinnangDeck)
  *  随 gameStarted 批覆盖;中途弃牌堆洗回(jinnangReshuffled)随批触发全量——洗后牌序

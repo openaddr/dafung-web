@@ -24,7 +24,6 @@ import {
   placePlayer,
   setCash,
   setJinnangUsedTags,
-  setStamina,
 } from "@core/planter";
 import { skillOptionId } from "@core/choices";
 import { makeSkillBook } from "@core/treasures";
@@ -681,13 +680,12 @@ describe("手牌架内容与临时显隐", () => {
       giveJinnang(e, 0, []);
       armPhase(e, { activeIndex: 0, turnPhase: "Roll" });
       armHero(e, 0, "caopi", ["fangzhu"]);
-      setStamina(e, 0, 30);
-      e.endTurn();
+      e.damageStamina(0, 70, 1);
     });
     expect(q(el, TESTIDS.jinnangHand) === null).toBe(true);
     expect(q(document, TESTIDS.skillChoiceBanner) !== null).toBe(true);
     click(q(document, TESTIDS.skillChoiceDecline)!);
-    expect(engine.turnPhase).not.toBe("AwaitingSkillChoice");
+    expect(engine.turnPhase).toBe("Roll");
   });
 });
 

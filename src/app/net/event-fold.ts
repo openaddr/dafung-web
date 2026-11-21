@@ -24,9 +24,9 @@
 //                 持有则按事件补册,历史赐城缺口级联已随 propertyGranted 闭合,见下);
 //                 propertyRejected → 无状态转移
 //                 (声明性;自动按兵不动由同批 turnStarted 收场);propertyGranted →
-//                 机遇赐城得城者 Lv.0 入册(#719,原级联缺口闭合);exhaustionResolved →
-//                 降级清单逐城 -1 级(0 级封底)+ skipTurns 按显式 restTurns 累加;
-//                 assetTransferred → 破产逐城易主(承让方入册/无债主回无主)
+//                 机遇赐城得城者 Lv.0 入册(#719,原级联缺口闭合);
+//                 propertyDamaged → 城池等级、防御值与伤害排行榜
+//                 assetTransferred → 逐城易主(接手者入册/回无主)
 //   金钱族        cashChanged → 现金逐条累加(delta 带符号)+ 落格表现态相邻回填
 //                 (reason=supply 回填补给金额;商市行情只动账,决策等待 landingResolved)
 //   珍宝族        treasureGained → 得宝入册(流水号实例 id 按静态表回溯定义);
@@ -38,7 +38,7 @@
 //                 skillFired/heroSkillActivated → 冷却记账(heroId 定槽,槽内 lastFired,
 //                 键=skillId,#785 实例化);主动技按技表(skills.ts)参数落账:
 //                 warDrum → heroDiceBonus、relief → 现金-费(目标体力随 staminaChanged 折)、
-//                 fireBlast → 不折(火攻城损等级/防御值不在事件面 = 校准兜底,#1388)
+//                 fireBlast → 城损随 propertyDamaged 折叠
 //   锦囊族        jinnangDrawn → 手牌数+count/牌库数-count(内容=暗牌与牌序不折,
 //                 ADR-0016);jinnangReshuffled → 牌库数+count/弃堆清零(洗后牌序不折);
 //                 jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额);
@@ -51,13 +51,13 @@
 //                 duelResolved → 无状态转移(声明性 #636/ADR-0030:拼点结算宣告,胜负
 //                 后果由调用点既有事件折——拦停=marchArrived、银两=cashChanged·duel)
 //   声望/体力族   reputationChanged → 声望 += 实际增减(无界直加,#1090);
-//                 staminaChanged → 体力 += 夹紧后实际增减;reason=exhaustion 相邻 →
-//                 skipTurns+1(耗竭善后标记侧)
+//                 staminaChanged → 体力 += 夹紧后实际增减;
+//                 exhaustionResolved → 开始休整，按 restTurns 累加 skipTurns
 //   破产族        playerBankrupt → isBankrupt/capitalIndex=-1/名将释放回池/锦囊清手入弃堆
 //                 (现金清零/债主收款/珍宝转债主 = 破产清算强制全量节点,不折);
 //                 assetLiquidated → 现金+amount + 变卖城池出册(珍宝由 treasureSold 出册)
 //                 bankruptcySettled → 清债/交涉 + 双方现金置为技能结算后的最终余额
-//   跳过族        turnSkipped → skipTurns-1(消费侧);jinnangInflicted → 目标 skipTurns+1
+//   跳过族        turnSkipped → skipTurns-1，归零结束休整;jinnangInflicted → 目标 skipTurns+1
 //                 (缓兵之计标记侧)
 //   机遇族        encounterTriggered → lastLandOutcome=Noop + 抉择型置 AwaitingEncounter +
 //                 即时路 def.setsFlags 折章(#1153 静态目录派生);encounterChoice →
@@ -69,10 +69,9 @@
 //                 reaction(=pendingReaction.view)不折自得
 //
 // ── 校准兜底项(#384 判定表对账:折叠器不碰,由快照水合纠正,ADR-0020 决策 3)──
-//   ①城池降级精确等级:火烧连营随机降级与火攻城损等级/防御值不在任何事件(结算无专属事件,#1388)
-//   ②窃玉偷香珍宝转移:treasureStolen 只宣告不转移(双方珍宝列表校准)
-//   ③出牌阶段目标段草稿无专属事件，随摘要水合；公开宣布时清除 pendingJinnang。
-//   ⑤Setup 期字段:draftOrder/draftRolls/currentDraftIndex/offeredCapitals/usedGuohao/
+//   ①窃玉偷香珍宝转移:treasureStolen 只宣告不转移(双方珍宝列表校准)
+//   ②出牌阶段目标段草稿无专属事件，随摘要水合；公开宣布时清除 pendingJinnang。
+//   ③Setup 期字段:draftOrder/draftRolls/currentDraftIndex/offeredCapitals/usedGuohao/
 //     setupPhase,开局校准点覆盖
 //   对账机器(#431):本校准清单的发射侧触发登记单源 scripts/seat-projection——
 //   CALIBRATION_WINDOWS/CALIBRATION_EVENT_KINDS(类型化 ReadonlySet,phase/kind 改名=
@@ -97,9 +96,9 @@
 //   查无 = 数据 bug,当场炸出;事件序违反(应答无窗)当场炸出;delta/数量
 //   等字段缺失由类型系统在编译期兜住(线上形状以 core GameEvent 为准)。
 import type { GameEngine } from "@core/authority";
-import type { Player, PropertyHolding } from "@core/model";
+import type { Player } from "@core/model";
 import type { GameEvent, GameEventBody } from "@core/game-events";
-import { fullDefenseOf, resetToFull } from "@core/defense";
+import { createPropertyHolding, resetToFull, resetTransferredHolding } from "@core/defense";
 import type { PropertyDef } from "@core/economy";
 import type { ReactionPayload, ReactionView } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/skills";
@@ -310,13 +309,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         engine.takenCapitalIndices.add(ev.tileIndex);
         p.capitalIndex = ev.tileIndex;
         p.position = ev.tileIndex;
-        p.properties.push({
-          propertyId: def.id,
-          group: def.group,
-          level: 0,
-          maxLevel: def.maxLevel,
-          defense: fullDefenseOf(0), // 建都=持有起点,防御满值(#1386;与引擎 setup-flow 同口径)
-        });
+        p.properties.push(createPropertyHolding(def, 0));
         // 建城扣费只有 cost 无 cashChanged:Setup 期现金不入折叠(#386 注记保持),开局校准覆盖
         break;
       }
@@ -324,13 +317,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const buyer = foldTarget(engine, ev);
         const def = propertyDefOf(engine, ev.propertyId);
         buyer.cash -= ev.price; // 主动支出随领域事件(判定表 cash 行)
-        buyer.properties.push({
-          propertyId: def.id,
-          group: def.group,
-          level: 0,
-          maxLevel: def.maxLevel,
-          defense: fullDefenseOf(0), // 购入即易主,防御满值(#1386;与引擎 economy.buy 同口径)
-        });
+        buyer.properties.push(createPropertyHolding(def, 0));
         break;
       }
       case "propertyGranted": {
@@ -338,13 +325,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         // 口径」之一,本事件闭合(赐城后的移除类折叠不再查无目标)
         const grantee = foldTarget(engine, ev);
         const def = propertyDefOf(engine, ev.propertyId);
-        grantee.properties.push({
-          propertyId: def.id,
-          group: def.group,
-          level: 0,
-          maxLevel: def.maxLevel,
-          defense: fullDefenseOf(0), // 赐城=易主入册,防御满值(#1386;与引擎 encounter-flow 同口径)
-        });
+        grantee.properties.push(createPropertyHolding(def, 0));
         break;
       }
       case "propertyUpgraded": {
@@ -357,47 +338,38 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         } else {
           // 副本无持有仍入册(机遇「天赐城池」无事件获城的缺口级联,见文件头):按事件面
           // 补册(等级=事件声明的变更后等级),其余漂移由水合纠正
-          owner.properties.push({
-            propertyId: def.id,
-            group: def.group,
-            level: ev.newLevel,
-            maxLevel: def.maxLevel,
-            defense: fullDefenseOf(ev.newLevel), // 补册按满值(#1386),漂移由水合纠正
-          });
+          owner.properties.push(createPropertyHolding(def, ev.newLevel));
         }
+        break;
+      }
+      case "propertyDamaged": {
+        const owner = foldTarget(engine, ev);
+        const holding = owner.properties.find((h) => h.propertyId === ev.propertyId);
+        if (holding === undefined)
+          throw new Error(`折叠投影:城 ${ev.propertyId} 不在受击城主 ${owner.guohao} 名下`);
+        holding.level = ev.level;
+        holding.defense = ev.defense;
+        holding.damageRanking = ev.damageRanking;
         break;
       }
       case "exhaustionResolved": {
         const p = foldTarget(engine, ev);
-        for (const propertyId of ev.downgradedPropertyIds) {
-          const holding = p.properties.find((h) => h.propertyId === propertyId);
-          // 降级不重置防御(#1386):外敌乘虚直接降级不走防御值,与引擎 exhaustIfDepleted 同口径
-          if (holding != null) holding.level -= 1; // 查无 = 赐城缺口级联,略过待水合(文件头)
-        }
-        p.skipTurns += ev.restTurns; // 休整回合数随事件显式走(不做相邻推断)
+        p.resting = true;
+        p.skipTurns += ev.restTurns;
         break;
       }
       case "assetTransferred": {
-        const bankrupt = foldTarget(engine, ev); // 破产者
-        const idx = bankrupt.properties.findIndex((h) => h.propertyId === ev.propertyId);
-        let moved: PropertyHolding | null = null;
-        if (idx >= 0) moved = bankrupt.properties.splice(idx, 1)[0]!; // 查无 = 赐城缺口级联
-        if (ev.toSeat != null) {
-          const creditor = eventSeatPlayer(engine, ev.toSeat, "assetTransferred.toSeat");
-          if (moved != null) {
-            resetToFull(moved); // 转移=易主,防御重置满值(#1386;与引擎 settleDebt 同口径)
-            creditor.properties.push(moved); // 等级/组别随册转移(降级漂移由校准节点纠正)
-          } else {
-            const def = propertyDefOf(engine, ev.propertyId);
-            creditor.properties.push({
-              propertyId: def.id,
-              group: def.group,
-              level: 0, // 副本无持有时的等级漂移,水合纠正
-              maxLevel: def.maxLevel,
-              defense: fullDefenseOf(0),
-            });
-          }
-        } // toSeat=null:回无主/销毁,出册即完成
+        const owner = foldTarget(engine, ev);
+        const idx = owner.properties.findIndex((h) => h.propertyId === ev.propertyId);
+        if (idx < 0)
+          throw new Error(`折叠投影:城 ${ev.propertyId} 不在原城主 ${owner.guohao} 名下`);
+        const receiver =
+          ev.toSeat === null ? null : eventSeatPlayer(engine, ev.toSeat, "assetTransferred.toSeat");
+        const [moved] = owner.properties.splice(idx, 1);
+        if (receiver != null) {
+          resetTransferredHolding(moved);
+          receiver.properties.push(moved);
+        }
         break;
       }
       // ── 珍宝族 ──
@@ -453,6 +425,38 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         // 冷却记账入槽(heroId 定槽;键=skillId,各槽各账,#785 实例化)
         heroSlotOf(foldTarget(engine, ev), ev.heroId).lastFired[ev.skillId] = ev.round;
         break;
+      case "skillChoiceOpened": {
+        const owner = foldTarget(engine, ev);
+        if (ev.choice.ownerSeat !== ev.seat)
+          throw new Error("折叠投影:待决技能的属主与事件座位不一致");
+        engine.pendingSkillChoices = [ev.choice];
+        engine.turnPhase = "AwaitingSkillChoice";
+        if (ev.marks !== null) {
+          const slot = heroSlotOf(owner, ev.choice.heroId);
+          slot.marks = { ...slot.marks, [ev.choice.skillId]: ev.marks };
+        }
+        break;
+      }
+      case "skillMarksChanged": {
+        const slot = heroSlotOf(foldTarget(engine, ev), ev.heroId);
+        slot.marks = { ...slot.marks, [ev.skillId]: ev.marks };
+        break;
+      }
+      case "skillChoiceAnswered": {
+        const owner = foldTarget(engine, ev);
+        engine.pendingSkillChoices = [];
+        engine.turnPhase = ev.resumePhase;
+        if (ev.remainingMarks !== null) {
+          const slot = heroSlotOf(owner, ev.heroId);
+          slot.marks = { ...slot.marks, [ev.skillId]: ev.remainingMarks };
+        }
+        if (ev.targetSeat !== null) {
+          if (ev.skipTurns === null) throw new Error("折叠投影:发动技能缺少目标回合数");
+          eventSeatPlayer(engine, ev.targetSeat, "skillChoiceAnswered.targetSeat").skipTurns =
+            ev.skipTurns;
+        }
+        break;
+      }
       case "heroDismissed": {
         // 遣散(#1147):整槽出麾下(冷却随槽俱弃)+招贤池划名(再招=重掷);查无=
         // 事件序契约违反,炸出(零兜底)。已学技折书随同批 treasureGained 逐册折,
@@ -497,7 +501,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
             user.cash -= requireSkillParam(skill, "cost"); // 目标体力随 staminaChanged(heroRelief)折
             break;
           case "fireBlast":
-            break; // 火攻城损等级/防御值不在事件面(#1388)= 校准兜底,随快照对齐
+            break; // 城损随 propertyDamaged 折叠
         }
         break;
       }
@@ -581,9 +585,12 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         break;
       }
       // ── 跳过族 ──
-      case "turnSkipped":
-        foldTarget(engine, ev).skipTurns -= 1; // 消费侧(endTurn 跳过环扣 1)
+      case "turnSkipped": {
+        const p = foldTarget(engine, ev);
+        p.skipTurns -= 1;
+        if (p.skipTurns === 0) p.resting = false;
         break;
+      }
       case "jinnangInflicted":
         eventSeatPlayer(engine, ev.targetSeat, "jinnangInflicted.targetSeat").skipTurns += 1; // 缓兵之计标记侧
         break;

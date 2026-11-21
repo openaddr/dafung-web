@@ -113,9 +113,9 @@ function click(el: Element): void {
   });
 }
 
-/** 挂窗一条龙(放逐例共用):布景后 engine.endTurn 开窗 + resync 灌屏。 */
+/** 放逐在体力损耗时打开选择窗。 */
 function openSkillWindow(scene: ReturnType<typeof startGame>): ReturnType<typeof startGame> {
-  scene.engine.endTurn(); // 回合收口:先挂问再收口(AwaitingSkillChoice)
+  scene.engine.damageStamina(0, 70, 1);
   scene.resync();
   expect(scene.engine.turnPhase).toBe("AwaitingSkillChoice");
   return scene;
@@ -193,10 +193,7 @@ afterAll(async () => {
 describe("放逐标记进度上屏(#1378 AC3,层④)", () => {
   it("暂不发:窗收标记保留(轨随保留的标记在场);发动归零:轨随 marks 清空卸下", () => {
     const { el, engine, resync } = openSkillWindow(
-      startGame([
-        { kind: "armHero", seat: 0, heroId: "caopi", skillIds: ["fangzhu"] },
-        { kind: "setStamina", seat: 0, stamina: 30 }, // 损失 70 过阈
-      ]),
+      startGame([{ kind: "armHero", seat: 0, heroId: "caopi", skillIds: ["fangzhu"] }]),
     );
     const mark = () => q(el, TESTIDS.seatSkillMark(0));
     expect(hasClass(mark()!, "ready")).toBe(true); // 挂问拍:满档呼吸档
@@ -205,13 +202,8 @@ describe("放逐标记进度上屏(#1378 AC3,层④)", () => {
     expect(skillMarksOf(heroSlotOf(engine.players[0], "caopi"), "fangzhu")).toBe(70);
     expect(mark()).not.toBeNull(); // 轨随保留的标记在场
     expect(engine.log.some((l) => l.detail.includes("skillChoiceDecline"))).toBe(true);
-    // 再攒再问→发动:归零=规范缺省,轨卸下(超出部分舍弃语义的呈现面)。
-    // 目标取座位 3(非本环推进的下家):+1 落账不被收口跳回合环即时消费,可观察。
-    // 引擎直呼段(次级腿,命令面交互链已由上例覆盖)后必 resync:store 不同步则
-    // 断言吃到挂着的旧轨节点(expect(node).toBeNull() 的 happy-dom 序列化爆炸,
-    // wire3 实锤口径——red 前先保证断言面干净)。
-    applyPlant(engine, { kind: "setStamina", seat: 0, stamina: 0 }); // 再损 30 → 100:新问
-    engine.endTurn();
+    // 归零一击再次触发放逐。选座位 3，使罚跳留到之后的回合，便于观察。
+    engine.damageStamina(0, 30, 1);
     engine.respondSkillChoice(0, true, 3);
     resync();
     expect(skillMarksOf(heroSlotOf(engine.players[0], "caopi"), "fangzhu")).toBe(0);
@@ -223,10 +215,7 @@ describe("放逐标记进度上屏(#1378 AC3,层④)", () => {
 describe("触发卡交互链(#1378 AC1 呈现段,层④)", () => {
   it("挂问升起→候选笺点选(选中可逆)→发动→窗收+目标被跳+标记归零+留痕", () => {
     const { el, engine } = openSkillWindow(
-      startGame([
-        { kind: "armHero", seat: 0, heroId: "caopi", skillIds: ["fangzhu"] },
-        { kind: "setStamina", seat: 0, stamina: 30 }, // 损失 70 过阈
-      ]),
+      startGame([{ kind: "armHero", seat: 0, heroId: "caopi", skillIds: ["fangzhu"] }]),
     );
     const banner = () => q(document, TESTIDS.skillChoiceBanner);
     expect(banner()).not.toBeNull(); // 触发卡升起(自机=决策属主,interactive 门)
@@ -246,7 +235,7 @@ describe("触发卡交互链(#1378 AC1 呈现段,层④)", () => {
     click(chip(2));
     expect(hasClass(chip(2), "picked")).toBe(false);
     expect(confirm().hasAttribute("disabled")).toBe(true);
-    // 选定发动:窗收 + 目标(座位 2,bot 非下家,+1 落账不被即时消费)+ 标记归零
+    // 选定发动后，选择窗收起，目标增加一次罚跳，标记归零。
     click(chip(2));
     click(confirm());
     expect(banner()).toBeNull();
@@ -254,6 +243,6 @@ describe("触发卡交互链(#1378 AC1 呈现段,层④)", () => {
     expect(skillMarksOf(heroSlotOf(engine.players[0], "caopi"), "fangzhu")).toBe(0);
     expect(q(el, TESTIDS.seatSkillMark(0))).toBeNull(); // 归零=规范缺省,轨卸下
     expect(engine.log.some((l) => l.detail.includes("skillChoiceFire"))).toBe(true);
-    expect(engine.turnPhase).not.toBe("AwaitingSkillChoice"); // 应答后重入收口
+    expect(engine.turnPhase).toBe("Roll"); // 应答后续回原行动
   });
 });

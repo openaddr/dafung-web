@@ -79,6 +79,7 @@ function reseatCapital(e: GameEngine, seat: number, tileIndex: number): void {
   p.properties = p.properties.filter((h) => h.propertyId !== oldId);
   const def = e.catalog.get(e.board.at(tileIndex).propertyId!)!;
   p.properties.push({
+    damageRanking: [],
     propertyId: def.id,
     group: def.group,
     level: 0,
@@ -195,7 +196,14 @@ describe("事件城落格链(#824)", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     const owner = e.players[e.players.findIndex((p) => p !== mover)]; // 城主=非活跃座位
-    owner.properties.push({ propertyId: "tile-1", group: "a", level: 0, maxLevel: 3, defense: 5 });
+    owner.properties.push({
+      damageRanking: [],
+      propertyId: "tile-1",
+      group: "a",
+      level: 0,
+      maxLevel: 3,
+      defense: 5,
+    });
     owner.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" });
     landActiveOn(e, 1);
     expect(e.turnPhase).toBe("AwaitingHeroPick"); // 固定事件对一切落地者无差别
@@ -208,7 +216,14 @@ describe("事件城落格链(#824)", () => {
     const e = makeEngine(19);
     finishSetup(e);
     const p = e.activePlayer;
-    p.properties.push({ propertyId: "tile-1", group: "a", level: 0, maxLevel: 3, defense: 5 });
+    p.properties.push({
+      damageRanking: [],
+      propertyId: "tile-1",
+      group: "a",
+      level: 0,
+      maxLevel: 3,
+      defense: 5,
+    });
     const cash0 = p.cash;
     landActiveOn(e, 1);
     expect(e.turnPhase).toBe("AwaitingHeroPick"); // 城主落地有事件

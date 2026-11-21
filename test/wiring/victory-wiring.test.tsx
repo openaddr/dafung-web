@@ -1,6 +1,11 @@
 import { afterAll, afterEach, beforeAll, expect, it, spyOn } from "bun:test";
+import { setAudio, type SoundEvent } from "@app/fx/audio";
+import { setSnapPin } from "@app/fx/catchup";
+import { useFxStore } from "@app/fx/fxStore";
 import { resetFxOrchestration } from "@app/fx/orchestrator";
+import { DUEL, FX } from "@app/fx/timings";
 import { waitForGameArchive } from "@app/gameLogArchive";
+import { stashEventBatch } from "@app/net/event-feed";
 import { SCROLL_TESTIDS as T } from "@app/screens/game/scroll/testids";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore } from "@app/store/gameStore";
@@ -8,8 +13,9 @@ import { useNetStore } from "@app/store/netStore";
 import { GameEngine } from "@core/authority";
 import { loadMap, type MapData } from "@core/board-loader";
 import { createDice } from "@core/dice";
+import { beginGameEventBatch } from "@core/game-events";
 import { heroById } from "@core/heroes";
-import { armHero, armPhase, setCash } from "@core/planter";
+import { armHero, armPhase, grantProperty, pinDice, setCash } from "@core/planter";
 import { IDBFactory } from "fake-indexeddb";
 import type { Window as HappyDomWindow } from "happy-dom";
 import { act } from "react";
@@ -23,7 +29,10 @@ const mapData = rawMap as MapData;
 const map = loadMap(mapData);
 const indexedDb = new IDBFactory();
 
-type WiringController = import("@app/controllers/controller").GameController & { resync(): void };
+type WiringController = import("@app/controllers/controller").GameController & {
+  resync(): void;
+  playCurrentBatch(): void;
+};
 let createController: (engine: GameEngine) => WiringController;
 let setController: typeof import("@app/controllers/registry").setController;
 let GameScreen: typeof import("@app/screens/game/GameScreen").GameScreen;
@@ -72,11 +81,19 @@ beforeAll(async () => {
     resync(): void {
       this.sync();
     }
+
+    playCurrentBatch(): void {
+      stashEventBatch(this.engine.snapshot().events);
+      this.fx.play(this.engine.players.map((player) => player.position));
+      this.sync();
+    }
   }
   createController = (engine) => new TerminalController(engine);
 });
 
 afterEach(async () => {
+  setAudio(null);
+  setSnapPin(false);
   dom.settings.device.prefersReducedMotion = "no-preference";
   if (root === undefined) return;
   await clock.settle();
@@ -153,8 +170,8 @@ it("正常胜局在终榜一拍开放入口，并走原再战路由", async () =
   armPhase(engine, { activeIndex: 0, phase: "Playing", turnPhase: "EndTurn" });
   setCash(engine, 0, 30480);
   setCash(engine, 1, 32000);
-  for (const id of ["simayi", "caoren", "dengai"]) armHero(engine, 0, id);
-  armHero(engine, 1, "zhouyu");
+  armHero(engine, 0, "zhouyu");
+  for (const id of ["simayi", "caoren", "dengai"]) armHero(engine, 1, id);
   const controller = mount(engine);
   expect(find(T.victoryScreen) === null).toBe(true);
   act(() => {
@@ -170,16 +187,15 @@ it("正常胜局在终榜一拍开放入口，并走原再战路由", async () =
   await clock.advance(1);
   const rows = Array.from(find(T.victoryStandings)!.querySelectorAll("li"));
   expect(rows).toHaveLength(8);
+  expect(rows[0].textContent).toContain("胜者");
   expect(rows[0].textContent).toContain("蜀");
   expect(rows[0].textContent).toContain("32000 两");
-  expect(rows[0].textContent).not.toContain("胜者");
-  expect(rows[1].textContent).toContain("胜者");
   expect(rows[1].textContent).toContain("东魏");
-  expect(find(T.victorySub)?.textContent).toContain("东魏称帝");
+  expect(find(T.victorySub)?.textContent).toContain("蜀称帝");
   expect(find(T.victoryInfo)?.textContent).toContain("富甲天下");
-  expect(find(T.victoryInfo)?.textContent).toContain("30480 两");
+  expect(find(T.victoryInfo)?.textContent).toContain("32000 两");
   expect(find(T.victoryInfo)?.textContent).toContain("第 1 轮");
-  const capital = engine.board.at(engine.players[0].capitalIndex);
+  const capital = engine.board.at(engine.players[1].capitalIndex);
   const victory = find(T.victoryScreen)!;
   expect(victory.textContent).toContain(`都城 ${capital.name}`);
   expect(find(TESTIDS.cityLedgerThumb(capital.propertyId!), victory) !== null).toBe(true);
@@ -201,6 +217,59 @@ it("正常胜局在终榜一拍开放入口，并走原再战路由", async () =
   } finally {
     reload.mockRestore();
   }
+});
+
+it("终局保留轮末收入，依序播放重掷并揭晓胜者", async () => {
+  const engine = seedEngine(["魏", "蜀", "吴"]);
+  dom.settings.device.prefersReducedMotion = "reduce";
+  const lastSeat = (engine.roundAnchor + 2) % engine.players.length;
+  armPhase(engine, { activeIndex: lastSeat, phase: "Playing", turnPhase: "EndTurn" });
+  for (const seat of [0, 1, 2]) setCash(engine, seat, engine.targetNetWorth);
+  grantProperty(engine, 0, "prop-youzhou", 0); // 幽州收入 54 两，到账后方三家并列。
+  setCash(engine, 0, engine.targetNetWorth - 54);
+  pinDice(engine, "duel", [4, 5, 5, 2, 6]);
+  const controller = mount(engine);
+  const sounds: SoundEvent[] = [];
+  setAudio({ play: (event) => sounds.push(event), setMuted: () => {}, dispose: () => {} });
+  setSnapPin(true);
+
+  await act(async () => {
+    beginGameEventBatch(engine);
+    engine.endTurn();
+    controller.playCurrentBatch();
+  });
+  const sign = (seat: number) => find(TESTIDS.duelSign(seat), document.body);
+  const signTexts = (...seats: number[]) => seats.map((seat) => sign(seat)?.textContent?.trim());
+  expect(find(T.victoryScreen)).toBeNull();
+  expect(useFxStore.getState().floaters).toContainEqual(expect.objectContaining({ amount: 54 }));
+  expect(sign(0)).toBeNull();
+  await clock.advance(FX.cashFlyMs);
+  expect(signTexts(0, 1, 2)).toEqual(["魏", "蜀", "吴"]);
+
+  async function reachVerdict(sides: number) {
+    await clock.advance(DUEL.curtainMs);
+    await clock.advance(DUEL.windupMs);
+    await clock.advance(DUEL.shakeMs);
+    for (let side = 1; side < sides; side++) await clock.advance(DUEL.clackGapMs);
+    await clock.advance(DUEL.verdictMs);
+  }
+  await reachVerdict(3);
+  expect(signTexts(0, 1, 2)).toEqual(["魏四", "蜀五", "吴五"]);
+  expect(find(TESTIDS.duelVerdict, document.body)?.textContent).toBe("平");
+  await clock.advance(DUEL.holdMs);
+  await clock.advance(DUEL.fadeOutMs);
+  expect(find(T.victoryScreen)).toBeNull();
+  expect(sign(0)).toBeNull();
+
+  await reachVerdict(2);
+  expect(signTexts(1, 2)).toEqual(["蜀二", "吴六"]);
+  await clock.advance(DUEL.holdMs);
+  await clock.advance(DUEL.fadeOutMs);
+  const rows = Array.from(find(T.victoryStandings)!.querySelectorAll("li"));
+  expect(rows[0].textContent).toContain("胜者 吴");
+  expect(sounds.filter((sound) => sound === "victory")).toHaveLength(0);
+  await clock.advance(700);
+  expect(sounds.filter((sound) => sound === "victory")).toHaveLength(1);
 });
 
 it("减少动态效果时，双席无将胜局立即显示真实都城、终榜及可点入口", () => {

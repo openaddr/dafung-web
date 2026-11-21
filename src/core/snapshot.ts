@@ -16,6 +16,7 @@ import type { LogEvent } from "./model";
 import type { MovePath } from "./board";
 import type { LandOutcomeKind, LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import type { GameEvent } from "./game-events";
+import type { CityDamageEntry } from "./city-damage";
 import { HEROES } from "./heroes";
 import { netWorth } from "./networth";
 
@@ -77,7 +78,13 @@ export interface SnapshotPlayer {
   capitalIndex: number;
   skipTurns: number;
   resting: boolean; // 体力耗竭休整中(#130):skipTurns 消费完即回满体力
-  properties: { propertyId: string; level: number; group: string; defense: number }[];
+  properties: {
+    propertyId: string;
+    level: number;
+    group: string;
+    defense: number;
+    damageRanking: readonly CityDamageEntry[];
+  }[];
   heroes: HeroSlotRow[];
   treasures: TreasureRow[];
   reputation: number; // 声望无界,开局 0(#121;#1090 去夹紧)
@@ -178,9 +185,10 @@ export interface GameSnapshot {
   pendingJinnang: import("./jinnang-execution").PendingJinnang | null;
   /** 技能目标段载荷(#188 档 3):出牌阶段选技后的选人子状态;null=无。 */
   pendingSkill: import("./jinnang-execution").PendingHeroSkill | null;
-  /** 「你可」待决队列(#1377,被动技可选发动):时机命中的挂问,回合收口逐条开窗;
-   *  空队不产键(undefined=规范缺省,无此技对局的快照与摘要指纹零扰动)。 */
+  /** 当前时机打开的「你可」选择，至多一条。没有选择时省略。 */
   pendingSkillChoices?: import("./choices").PendingSkillChoice[];
+  /** 时机内选择暂停期间保存的权威续接数据。 */
+  pendingMoment?: import("./moment-stages").PendingMoment;
   /** 擂鼓步数加成(#188 档 3):本回合 rollAndMove 消费;发动与掷骰之间可被快照广播,须保真。 */
   heroDiceBonus: number;
   /** 最近分配的反应窗编号，闭窗后也随快照保留。 */
@@ -478,13 +486,19 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // 「你可」待决队列(#1377):非空必产键、空队不产键(undefined 序列化即缺,
-    // canonicalize 同口径跳过)——无此技对局的摘要指纹零扰动;恢复全量回灌(纯数据深拷贝)
+    // 当前「你可」选择打开时写入，恢复时克隆。
     key: "pendingSkillChoices",
     read: (e) =>
       e.pendingSkillChoices.length > 0 ? e.pendingSkillChoices.map((c) => ({ ...c })) : undefined,
     write: (e, s) => {
       e.pendingSkillChoices = (s.pendingSkillChoices ?? []).map((c) => ({ ...c }));
+    },
+  },
+  {
+    key: "pendingMoment",
+    read: (e) => (e.pendingMoment == null ? undefined : structuredClone(e.pendingMoment)),
+    write: (e, s) => {
+      e.pendingMoment = s.pendingMoment == null ? null : structuredClone(s.pendingMoment);
     },
   },
   {
@@ -663,6 +677,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           level: h.level,
           group: h.group,
           defense: h.defense, // 防御值随快照走(#1386:联机/恢复一致)
+          damageRanking: h.damageRanking,
         })),
         // 麾下槽位全量(#785):已授技与冷却账是游戏状态,原样深拷贝(展示字段客户端回查表补);
         // 技能标记(#1377)规范化后非空才产键——空容器/全零=规范缺省,无此技对局的快照与
@@ -742,6 +757,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
             // 防御值(#1386):旧落盘记录缺此键不兜底——undefined 直灌让问题暴露
             // (项目零兼容口径,同上方 encounterFlags 的直灌口径)
             defense: h.defense,
+            damageRanking: h.damageRanking,
           };
         });
       });

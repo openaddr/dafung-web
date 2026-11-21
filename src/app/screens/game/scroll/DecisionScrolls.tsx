@@ -11,6 +11,8 @@
 import { useState } from "react";
 import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
+import { cityIncomeOf } from "@core/city-income";
+import type { PropertyDef } from "@core/economy";
 import { isOncePerGameEncounter, type EncounterTier } from "@core/encounters";
 import { formatMoney } from "@core/money";
 import { encounterArt } from "@app/components/card/encounter-art";
@@ -128,7 +130,7 @@ export function BuyDecisionScroll({
   /** 城池档位两字名(Theme.cityTierNames 单源经 DecisionScrollLayer,ADR-0042 决策 6)。 */
   tierLabel: string;
   /** 城池定义直传(catalog PropertyDef 结构超集,手工收窄已收口)。 */
-  property: ValueTableProperty & { purchasePrice: number };
+  property: PropertyDef;
   cash: number;
   /** 当前相位选项集(快照透出):buy 项的 available/reason 单源引擎注册表。 */
   choices: ChoiceOption[];
@@ -167,7 +169,8 @@ export function BuyDecisionScroll({
     >
       <p className="m-1 mb-2 text-center text-xs text-paper-dim">
         「{tileName}」{tierLabel}
-        {groupLabel ? ` · ${groupLabel}` : ""} · 无主 · 购入 {formatMoney(property.purchasePrice)}
+        {groupLabel ? ` · ${groupLabel}` : ""} · 无主 · 每轮收益{" "}
+        {formatMoney(cityIncomeOf(property))}
       </p>
       {/* 主数值行(#767 弹窗详情族①):持有/需/余差从摘要行升格的独立主行,
           买不买得起 0.5 秒可读(余绿/差红);#566 符号语义照旧(付得起记「余」) */}

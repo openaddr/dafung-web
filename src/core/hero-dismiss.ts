@@ -21,7 +21,7 @@ import { emitGameEvent } from "./game-events";
  *  ② 决策窗归行动者本人(自己回合随时可点;珍宝交涉 AwaitingTreasureOwner 等
  *     decisionOwner≠activeIndex 的他座决策窗拒绝——遣散是行动者本人的免费权);
  *  ③ 非清算期(禁止遣散折书筹款);
- *  ④ 目标在麾下(空册/查无同径拒绝)。
+ *  ④ 目标在麾下，且该槽位的技能没有在等待应答。
  * 结算序:槽移除+回池划名 → heroDismissed 事件 → 逐册折书(每册 push 珍宝+战报一行+
  * TreasureGained 派发)。执行者恒为 activePlayer:命令语义即「遣散我自己的将」,
  * 联机侧座位归属校验在房间编排层(applyCommandFromSeat,与一切命令同闸)。 */
@@ -36,6 +36,10 @@ export function dismissHero(g: GameEngine, heroId: string): void {
   }
   if (g.turnPhase === "AwaitingBankruptcySettle") {
     g.warn("遣散:清算期间不可主动遣散名将");
+    return;
+  }
+  if (g.turnPhase === "AwaitingSkillChoice" && g.pendingSkillChoices[0]?.heroId === heroId) {
+    g.warn("遣散:请先应答此名将的待决技能");
     return;
   }
   const p = g.activePlayer;

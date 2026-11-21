@@ -417,27 +417,30 @@ it("非校准拍房间托管元数据按变化下行,不依赖全量快照", asy
   }
 });
 
-it("放逐选择经下行开窗、续问和闭窗,水合副本可继续提交命令", async () => {
+it("同一次行军的放逐、行殇先后下行，副本继续下一回合", async () => {
   const { registry, room, token, engine, replica, messages, broadcast } = await playingRoom(
     (authority) => {
-      for (let seat = 0; seat < 2; seat++) {
-        armHero(authority, seat, "caopi", ["fangzhu"]);
-        setStamina(authority, seat, 30);
-      }
+      armPhase(authority, { turnPhase: "Roll", activeIndex: 0 });
+      placePlayer(authority, 0, 1);
+      giveJinnang(authority, 0, []);
+      giveJinnang(authority, 1, []);
+      setReputation(authority, 0, -300);
+      setStamina(authority, 0, 60);
+      armHero(authority, 0, "caopi", ["fangzhu"]);
+      armHero(authority, 1, "caopi", ["xingshang"]);
+      setStamina(authority, 0, 5);
+      authority.dice.setRngState(1); // 粮道被劫使体力归零
     },
+    { encounter: true },
   );
   try {
     pinDice(engine, "march", [1]);
     await registry.applyCommand(room.roomId, { type: "rollAndMove" }, broadcast);
     await downlinkTurn();
-    expect(replica.turnPhase).toBe("AwaitingDecision");
-    messages.length = 0;
-    await registry.applyCommand(room.roomId, { type: "endDecision" }, broadcast);
-    await downlinkTurn();
     expect(replica.turnPhase).toBe("AwaitingSkillChoice");
     expect(replica.pendingSkillChoices).toEqual(engine.pendingSkillChoices);
-    expect(replica.pendingSkillChoices).toHaveLength(2);
-    expect(messages.some((message) => message.type === "snapshot")).toBe(true);
+    expect(replica.pendingSkillChoices.map((choice) => choice.skillId)).toEqual(["fangzhu"]);
+    expect(messages.map((message) => message.type)).toEqual(["events"]);
 
     const firstOwner = replica.decisionOwner;
     await registry.applyCommand(
@@ -448,7 +451,7 @@ it("放逐选择经下行开窗、续问和闭窗,水合副本可继续提交命
     await downlinkTurn();
     expect(replica.turnPhase).toBe("AwaitingSkillChoice");
     expect(replica.pendingSkillChoices).toEqual(engine.pendingSkillChoices);
-    expect(replica.pendingSkillChoices).toHaveLength(1);
+    expect(replica.pendingSkillChoices.map((choice) => choice.skillId)).toEqual(["xingshang"]);
     expect(replica.decisionOwner).not.toBe(firstOwner);
 
     await registry.applyCommand(

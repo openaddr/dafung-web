@@ -1,10 +1,9 @@
-// 体力系统单测(#131):初值/夹紧 + 耗竭全自动结算(外敌乘虚:诸城各降 1 级、0 级封底、
-// 都城同规不失去 / 休整两回合:skipTurns=2 + resting 标记 / 休整期满回满)。
+// 体力系统单测(#131):初值/夹紧 + 耗竭的城损、休整和期满回满。
 // 落格与随机无关:耗竭入口 exhaustIfDepleted 直调,种子只影响无关路径。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
-import { fullDefenseOf } from "@core/defense";
+import { grantProperty, setStamina } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
@@ -28,15 +27,8 @@ function giveProperty(e: GameEngine, seat: number, level: number): string {
   const tile = MAP.board.tiles.find(
     (t) => t.event == null && t.propertyId && !taken.has(t.propertyId),
   )!;
-  const def = MAP.catalog.get(tile.propertyId)!;
-  e.players[seat].properties.push({
-    propertyId: def.id,
-    group: def.group,
-    level,
-    maxLevel: def.maxLevel,
-    defense: fullDefenseOf(level),
-  });
-  return def.id;
+  grantProperty(e, seat, tile.propertyId!, level);
+  return tile.propertyId!;
 }
 
 /** 把 seat 的都城房产取出(测试都城规则用)。 */
@@ -70,8 +62,8 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
     const p1 = giveProperty(e, 0, 2);
     const p2 = giveProperty(e, 0, 1);
     const cap = capitalHolding(e, 0);
-    cap.level = 3; // 都城同规:可降
-    e.players[0].stamina = 0;
+    grantProperty(e, 0, cap.propertyId, 3); // 都城同规:可降
+    setStamina(e, 0, 0);
     const r = e.exhaustIfDepleted(0);
     expect(r).toBe("resolved"); // 全自动,无相位
     expect(e.turnPhase).toBe("Roll"); // endTurn 已收尾(空手牌 → 无出牌阶段)
@@ -90,16 +82,16 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
     expect(ev && ev.kind === "exhaustionResolved" ? ev.restTurns : null).toBe(2);
   });
 
-  it("0 级封底:全 0 级 → 纯休整,城池一件不失去、无降级记录", () => {
+  it("零级城池打空：都城归原主，普通城在没有累计敌伤时回无主", () => {
     const e = makeEngine();
     finishSetupLite(e);
-    giveProperty(e, 0, 0);
+    const city = giveProperty(e, 0, 0);
     const cap = capitalHolding(e, 0);
-    cap.level = 0;
-    e.players[0].stamina = 0;
+    setStamina(e, 0, 0);
     expect(e.exhaustIfDepleted(0)).toBe("resolved");
-    expect(e.players[0].properties.length).toBe(2); // 一件不失去
-    expect(capitalHolding(e, 0).level).toBe(0);
+    expect(e.findOwner(city)).toBeNull();
+    expect(e.findOwner(cap.propertyId)).toBe(e.players[0]);
+    expect(cap).toMatchObject({ level: 0, defense: 0 });
     const ev = e.gameEvents.find((x) => x.kind === "exhaustionResolved");
     expect(ev && ev.kind === "exhaustionResolved" ? ev.downgradedPropertyIds : null).toEqual([]); // 清单空
     expect(e.players[0].skipTurns).toBe(2);

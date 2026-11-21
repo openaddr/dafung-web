@@ -11,7 +11,7 @@ import { createDice } from "@core/dice";
 import { loadMap } from "@core/board-loader";
 import { testEngine, armHero } from "@core/testing";
 import { fullDefenseOf } from "@core/defense";
-import { grantProperty } from "@core/planter";
+import { grantProperty, setDefense, setStamina } from "@core/planter";
 import { HEROES } from "@core/heroes";
 import { ENCOUNTERS } from "@core/encounters";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
@@ -123,7 +123,7 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     expect(e.heroDiceBonus).toBe(2);
   });
 
-  it("火攻(城目标域,#1388):targetSeat 缺席(目标为城);结算内不派发时机(#457 口径)", () => {
+  it("火攻发动后下发目标城伤害和即时奖励", () => {
     const e = makeEngine(3);
     finishSetup(e);
     const user = e.activePlayer;
@@ -146,7 +146,7 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     e.resolveHeroSkill("zhouyu", "huogong"); // 城目标域:先入目标段
     e.resolveHeroSkill("zhouyu", "huogong", [spare.index]); // 选定目标城(tileIndex 提交),发动
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["heroSkillActivated"]);
+    expect(kinds(events)).toEqual(["heroSkillActivated", "propertyDamaged", "cashChanged"]);
     expect(events[0]).toMatchObject({
       kind: "heroSkillActivated",
       seat: userSeat,
@@ -198,14 +198,16 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     expect(text).not.toContain("体力 +30");
   });
 
-  it("耗竭落定:exhaustIfDepleted 无房产路径产出 exhaustionResolved(清单空+restTurns=2)", () => {
+  it("只持有已打空都城时，耗竭产出休整事件，无城损事件", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
-    e.addStamina(seat, -100); // 归 0(耗竭线上)
+    const capital = e.board.at(mover.capitalIndex).propertyId!;
+    setDefense(e, seat, capital, 0);
+    setStamina(e, seat, 0);
     beginGameEventBatch(e);
-    expect(e.exhaustIfDepleted(seat)).toBe("resolved"); // 无房产 → 纯休整(结算内已 endTurn)
+    expect(e.exhaustIfDepleted(seat)).toBe("resolved");
     const events = e.snapshot().events;
     expect(kinds(events)).toEqual(["exhaustionResolved", "turnEnded", "turnStarted"]);
     expect(events[0]).toMatchObject({
@@ -289,8 +291,14 @@ describe("事件流(#384):跳过回合 turnSkipped 与破产债主 creditorSeat"
     beginGameEventBatch(e);
     e.endDecision(); // 回合收尾 → 推进到被跳过者 → 跳过
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["turnEnded", "turnSkipped", "turnStarted"]);
-    expect(events[1]).toMatchObject({ kind: "turnSkipped", seat });
+    expect(kinds(events)).toEqual([
+      "turnEnded",
+      "roundEnded",
+      "roundStarted",
+      "turnSkipped",
+      "turnStarted",
+    ]);
+    expect(events.find((event) => event.kind === "turnSkipped")).toMatchObject({ seat });
     expect(skipped.skipTurns).toBe(0);
   });
 
@@ -361,6 +369,7 @@ describe("事件流(#385 缺口 1):购地被拒/按兵不动 propertyRejected", 
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     p.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: "g",
       level: def.maxLevel, // 已满级 → 扩军不可用,仅剩按兵不动假选择
@@ -466,6 +475,7 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
     });
     expect(tile).toBeDefined();
     owner.properties.push({
+      damageRanking: [],
       propertyId: tile!.propertyId!,
       group: "g",
       level: 0,
@@ -599,7 +609,7 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
     expect("text" in events[0]).toBe(false); // 静态目录案:文案由 fx 查 ENCOUNTERS 派生
   });
 
-  it("耗竭落定:有产城全自动齐降,产出 exhaustionResolved(降级清单+restTurns 显式)", () => {
+  it("耗竭先同步城损，再宣告实际的降级清单和休整回合数", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -608,18 +618,17 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
       (x) =>
         x.propertyId != null && x.index !== mover.capitalIndex && e.findOwner(x.propertyId) == null,
     )!;
-    mover.properties.push({
-      propertyId: tile.propertyId!,
-      group: "g",
-      level: 1, // 实降城:1 → 0 封底,入降级清单
-      maxLevel: 3,
-      defense: 4,
-    });
-    e.addStamina(seat, -100); // 体力归 0(耗竭线上)
+    grantProperty(e, seat, tile.propertyId!, 1);
+    setStamina(e, seat, 0);
     beginGameEventBatch(e);
     expect(e.exhaustIfDepleted(seat)).toBe("resolved");
     const events = e.snapshot().events;
-    expect(events[0]).toMatchObject({
+    expect(kinds(events).slice(0, 3)).toEqual([
+      "propertyDamaged", // 都城打空
+      "propertyDamaged", // 普通城降级
+      "exhaustionResolved",
+    ]);
+    expect(events[2]).toMatchObject({
       kind: "exhaustionResolved",
       seat,
       downgradedPropertyIds: [tile.propertyId],
