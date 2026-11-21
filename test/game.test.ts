@@ -368,6 +368,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
     owner.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -390,6 +391,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
     owner.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -432,6 +434,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,

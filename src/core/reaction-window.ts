@@ -737,27 +737,26 @@ function resumeMarch(g: GameEngine, payload: Extract<ReactionPayload, { kind: "m
   g.settleMarchLanding(mover, payload.landIndex);
 }
 
-/** 拼点公共结算(#281 自连环计提出):双方各掷单骰(面数各随各人,#1390——持英姿者
- *  七面,heroDieFaces 查询口单源),点数高者胜,平局 winnerSeat=null。
- *  连环计(二虎竞食)与半路杀出拦检共用;掷点战报与银两/拦停等后效由调用方落账。
- *  duelResolved 在此单点 emit(#636,ADR-0030):两调用点天然全覆盖,产出时点=结算
- *  完成紧邻、先于调用方的全部后效(拦停 marchArrived/银两 cashChanged);拼点骰不派
- *  diceRolled、不走掷骰时机(张星彩掷金边界不变)。 */
+/** 每轮拼点结算。各席按自身骰面掷一次，公开全部点数；终局拼点由系统发起。 */
+export function resolveDuelRound(
+  g: GameEngine,
+  seats: readonly number[],
+  initiator: number | null,
+) {
+  const sides = seats.map((seat) => ({ seat, roll: g.dice.rollDie(heroDieFaces(g, seat)) }));
+  const highestRoll = Math.max(...sides.map(({ roll }) => roll));
+  const leadingSeats = sides.filter(({ roll }) => roll === highestRoll).map(({ seat }) => seat);
+  const winnerSeat = leadingSeats.length === 1 ? leadingSeats[0] : null;
+  emitGameEvent(g, initiator, { kind: "duelResolved", sides, winnerSeat });
+  return { sides, leadingSeats, winnerSeat };
+}
+
+/** 连环计与拦检各拼一轮，按各自规则消费点数和平局；拼点不派行军掷骰时机。 */
 export function resolveDuel(
   g: GameEngine,
   aSeat: number,
   bSeat: number,
 ): { aRoll: number; bRoll: number; winnerSeat: number | null } {
-  const aRoll = g.dice.rollDie(heroDieFaces(g, aSeat));
-  const bRoll = g.dice.rollDie(heroDieFaces(g, bSeat));
-  const winnerSeat = aRoll === bRoll ? null : aRoll > bRoll ? aSeat : bSeat;
-  emitGameEvent(g, aSeat, {
-    kind: "duelResolved",
-    aSeat,
-    bSeat,
-    aRoll,
-    bRoll,
-    winnerSeat,
-  }); // 事件流(#636,ADR-0030):拼点点数入事件流(seat=a 方)
-  return { aRoll, bRoll, winnerSeat };
+  const { sides, winnerSeat } = resolveDuelRound(g, [aSeat, bSeat], aSeat);
+  return { aRoll: sides[0].roll, bRoll: sides[1].roll, winnerSeat };
 }

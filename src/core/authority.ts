@@ -1,28 +1,24 @@
 // 引擎权威壳(#325 定形,原 game.ts):ADR-0019 委托式拆分收口后,壳 = 状态字段区 +
 // 构造器 + 公共薄委托 + submitCommand + 快照通道 + presentation getter;引擎自留职责
-// 仅回合状态机收尾与胜负判定(endTurn/checkVictory)、时机派发器(dispatchMoment)与
+// 仅回合状态机入口、时机派发器(dispatchMoment)与
 // 战报/落账底座(logEvent/pushFloater 级)。机制域流程在各域模块(reaction-window/
 // jinnang-execution/encounter-flow/bankruptcy/treasure-flow/movement-flow/setup-flow/recruitment(见下各 import 区段注释),壳内同名公共方法薄委托。#326 types.ts 解散(ADR-0019 类型随域走):回合状态机类型归本壳,其余各归域模块。
 import { tileIndexOfProperty, type Board, type MovePath } from "./board";
 import type { Dice, DiceRoll } from "./dice";
 import type { Player, LogEvent } from "./model";
 import type { PropertyDef, TransactionResult } from "./economy";
-import { heroById } from "./heroes";
-import { isTriggerSkill, skillById, type TriggerSkill } from "./skills";
 import type { TreasureDef } from "./treasures";
 import type { LandOutcome, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
+import { startMoment, type MomentContinuation, type PendingMoment } from "./moment-stages";
 import {
   computeChoices,
-  enterSkillChoiceWindowIfOwed,
   respondSkillChoice,
   type ChoiceOption,
   type PendingSkillChoice,
 } from "./choices";
-import { EFFECTS, type EffectCtx } from "./effects";
-import { netWorth } from "./networth";
+import { endTurn } from "./turn-end";
 import { findHolding } from "./player";
-import type { HeroSlot } from "./roster";
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { ENCOUNTERS, type EncounterDef, type EncounterSwitch } from "./encounters";
@@ -37,7 +33,6 @@ import { respondReaction, type PendingReaction } from "./reaction-window";
 // 载荷类型(PendingJinnang/PendingHeroSkill)随域走(#326,ADR-0019)。
 import {
   drawJinnang,
-  enterJinnangPhase,
   executeJinnang,
   resolveBookSkill,
   resolveHeroSkill,
@@ -50,11 +45,13 @@ import {
 // 结算/体力接线与耗竭善后在 encounter-flow.ts,壳内同名方法薄委托;与数据表 encounters.ts
 // 分层(流程≠配置)。
 import {
+  damageStamina,
   enterEncounterPhase,
   exhaustIfDepleted,
   maybeApplyEncounter,
   resolveEncounterChoice,
   settleEncounter,
+  type EncounterSettlement,
 } from "./encounter-flow";
 // 破产清算+交割托管域(#321,ADR-0019):escrow 交割/退回、付款或清算、债务留痕结算、
 // 破产善后、整批出售并清偿与认破产在 bankruptcy.ts,壳内同名方法薄委托转发;
@@ -108,7 +105,6 @@ import { addReputation } from "./reputation";
 import {
   beginGameEventBatch,
   emitGameEvent,
-  noteMomentEvent,
   abortGame,
   CMD_BRIEF,
   type GameEvent,
@@ -160,7 +156,7 @@ export type TurnPhase =
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
   | "AwaitingReaction" // 反应窗(#281):锦囊宣布/行军途经城池的识破、拦检询问
-  | "AwaitingSkillChoice" // 「你可」选择闸(#1377):被动技可选发动待决(放逐/行殇),endTurn 入口挂问、respondSkillChoice 应答后重入收口
+  | "AwaitingSkillChoice" // 「你可」选择待决，应答后继续所在时机
   | "Land"
   | "EndTurn"
   | "GameOver";
@@ -281,10 +277,11 @@ export class GameEngine {
   /** 技能目标段载荷(#188 档 3):出牌阶段内选技后的选人子状态;null=无。与 pendingJinnang
    *  互斥(同一时刻至多一个子状态)。随快照走(目标段中途断线可恢复)。 */
   pendingSkill: PendingHeroSkill | null = null;
-  /** 「你可」待决队列(#1377,被动技可选发动):时机命中的效果入队,回合收口 endTurn
-   *  入口逐条开窗(AwaitingSkillChoice 相位),respondSkillChoice 应答后续问或续收口;
-   *  决策者=首问属主。随快照走(空队不产键,空态=规范缺省)。 */
+  /** 当前打开的「你可」选择，至多一条。 */
   pendingSkillChoices: PendingSkillChoice[] = [];
+  pendingMoment: PendingMoment | null = null;
+  /** 时机同步嵌套守卫，恢复命令从新调用栈继续。 */
+  momentDispatchDepth = 0;
   /** 擂鼓步数加成(#188 档 3):出牌阶段发动 warDrum 技写入,本回合 rollAndMove 掷骰后
    *  取走清零。可序列化——发动与掷骰之间可被快照广播/落盘,与瞬态 marchBonus(同一次
    *  rollAndMove 内写读平衡)不同,必须跨进程保真。 */
@@ -315,7 +312,7 @@ export class GameEngine {
     price: number;
   } | null = null;
 
-  activeIndex = 0; // public:供 snapshot/联机序列化(内部由 advanceToNextActive 维护,外部只读)
+  activeIndex = 0; // public:供 snapshot/联机序列化(由开局和回合推进维护,外部只读)
   draftOrder: number[] = []; // public:同上
   draftRolls: number[] = []; // public:同上
   // public:供 snapshot/联机序列化(选都进度需跨进程恢复,否则恢复后无法继续选都)。
@@ -678,113 +675,7 @@ export class GameEngine {
   // ──────────────────────────── 回合结束 / 胜负 ────────────────────────────
   // #320 去私有化(ADR-0019 条款 3):机遇/耗竭域 encounter-flow.ts 结算路径直调 g.endTurn 收尾回合
   endTurn(): void {
-    // 「你可」选择闸(#1377):有待决先挂窗应答后重入本口收尾(队列见空即落空,零扰动);
-    // 先于 TurnEnd 派发——罚跳落账早于下回合推进,skipTurns 消费环按既定口径消费。
-    if (enterSkillChoiceWindowIfOwed(this)) return;
-    // 收口边界事务性(#649):先拨离 Awaiting* 相位,再进 TurnEnd 派发同步抛错点。
-    // 域收口范式是「清载荷 → endTurn」(treasure-flow/recruitment/encounter-flow 三处同构),
-    // 若先跑可能抛错的收口段后拨相位,异常炸出的同时引擎滞留「已清载荷未拨相位」失配态
-    // (#640 病灶态的结构性残余,驱动链下一拍连环崩=无声软锁)。先拨 EndTurn:此后任一点
-    // 抛错,相位均不在任何 Awaiting*,现场保持合法(零兜底)。
-    this.turnPhase = "EndTurn";
-    this.dispatchMoment("TurnEnd", { subject: this.activeIndex }); // 时机·TurnEnd:回合收尾(胜负判定/结算移除前)
-    const result = this.checkVictory();
-    if (result.winner) {
-      this.isOver = true;
-      this.winner = result.winner;
-      this.winReason = result.reason;
-      this.phase = "GameOver";
-      this.turnPhase = "GameOver";
-      this.logEvent(
-        "victory",
-        result.winner.guohao,
-        `「天下归一」${result.winner.guohao} 称帝!身价 ${formatMoney(netWorth(result.winner))}`,
-        `victory winner=${result.winner.id} reason=${result.reason} netWorth=${netWorth(result.winner)}`,
-      );
-      this.dispatchMoment("GameOver", { subject: this.players.indexOf(result.winner) }); // 时机·GameOver:胜负判定确定(净资产达标/群雄尽灭两路同挂,主体=胜者)
-      this.logFinalState(); // 终局行(ADR-0014):机读终态面板,重放校验的断言锚点
-      return;
-    }
-    this.advanceToNextActive();
-    // 跳过回合:若新活跃玩家 skipTurns>0,扣 1 并继续推进到下一位(直到找到可行动者)
-    let safety = 0;
-    while (this.activePlayer.skipTurns > 0 && !this.isOver && safety++ < this.players.length + 2) {
-      const skipped = this.activePlayer;
-      skipped.skipTurns -= 1;
-      emitGameEvent(this, this.players.indexOf(skipped), { kind: "turnSkipped" }); // 事件流(#384):跳过回合(耗竭休整/缓兵之计共用消费点)
-      this.logEvent(
-        "system",
-        skipped.guohao,
-        `${skipped.guohao} 按兵不动`,
-        `skipTurn player=${skipped.id} remaining=${skipped.skipTurns}`,
-      );
-      if (skipped.skipTurns === 0 && skipped.resting) {
-        // 休整期满(#130):耗竭休整的最后一段跳回合消费完,体力回满(走 addStamina 唯一口,
-        // staminaChanged(reason=rest) 产事件;零实际差不产事件,#568 同款——满血中转休整
-        // 的极端叠赈济场合静默收标记)
-        skipped.resting = false;
-        const restSeat = this.players.indexOf(skipped);
-        const before = skipped.stamina;
-        const after = this.addStamina(restSeat, STAMINA_MAX - before);
-        if (after !== before) {
-          emitGameEvent(this, restSeat, {
-            kind: "staminaChanged",
-            delta: after - before,
-            reason: "rest",
-          }); // 事件流(#384):休整期满回满
-        }
-      }
-      this.advanceToNextActive();
-    }
-    // 回合计数:当回合循环回到本轮起始玩家(固定锚点)→ 轮次 +1。
-    // 锚点不随破产漂移:若锚点玩家破产,用 draftOrder 中首个存活者作为新锚点。
-    if (this.players[this.roundAnchor].isBankrupt) {
-      const next = this.draftOrder.find((i) => !this.players[i].isBankrupt);
-      if (next !== undefined) this.roundAnchor = next;
-    }
-    if (this.activeIndex === this.roundAnchor) {
-      // 时机·RoundEnd → 轮次 +1 → 时机·RoundStart:最后一位玩家 endTurn 且回到轮次锚点时,
-      // 先收尾旧轮再开启新轮(均以锚点座位为主体)。
-      this.dispatchMoment("RoundEnd", { subject: this.roundAnchor });
-      this.round += 1;
-      this.dispatchMoment("RoundStart", { subject: this.roundAnchor });
-    }
-    this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:新 activeIndex 确定后
-    this.turnPhase = "Roll";
-    this.turnNumber += 1;
-    // 锦囊回合开账(#122/T2):标签名额清零,随后若有可用牌则进出牌阶段(掷骰前)。
-    // (#281:免战盾随免战金牌退役,到期清理一并删除;#575:窥探即时一次性,无到期账。)
-    this.jinnangUsedTags = [];
-    this.enterJinnangPhase();
-    // 不重置 lastRoll / lastMove:doRoll 的骰子翻滚与行军动画在 rollAndMove 之后执行,
-    // 而落点有主(珍宝交涉/自己城补给)时 rollAndMove 会内部 endTurn,重置会让 doRoll 读到 null 而崩。
-    // 下次 rollAndMove 会覆盖这两个值,故无需手动清空。
-    this.lastLandOutcome = null;
-    // 决策完成(购/扩/跳过)即清除待决策落格载荷;抉择机遇同理(#124,正常流已在
-    // settleEncounterChoice 清除,此处是回合收口的兜底扫除)
-    this.pendingLand = null;
-    this.pendingEncounter = null;
-    this.pendingJinnang = null; // 目标段中途回合被收口(异常/终局):不留悬载荷
-    this.pendingReaction = null; // 反应窗同理(#281):回合收口不留悬窗
-    this.lastTransaction = null;
-  }
-
-  private checkVictory(): { winner: Player | null; reason: VictoryReason } {
-    const alive = this.alivePlayers();
-    if (alive.length <= 1) {
-      return alive.length === 1
-        ? { winner: alive[0], reason: "LastStanding" }
-        : { winner: null, reason: "None" };
-    }
-    // 目标身价:主动玩家优先
-    if (netWorth(this.activePlayer) >= this.targetNetWorth)
-      return { winner: this.activePlayer, reason: "TargetNetWorth" };
-    // 其他人达标:身价最高者
-    const reached = alive
-      .filter((p) => netWorth(p) >= this.targetNetWorth)
-      .sort((a, b) => netWorth(b) - netWorth(a));
-    if (reached.length > 0) return { winner: reached[0], reason: "TargetNetWorth" };
-    return { winner: null, reason: "None" };
+    endTurn(this);
   }
 
   // ──────────────────────────── 异常终局(#642 响亮终局)────────────────────────────
@@ -793,17 +684,6 @@ export class GameEngine {
    *  薄委托 → game-events.abortGame(壳行数锁,域本体与语义详注在该处)。 */
   abortGame(reason: string): void {
     abortGame(this, reason);
-  }
-
-  private advanceToNextActive(): void {
-    const n = this.players.length;
-    for (let step = 1; step <= n; step++) {
-      const idx = (this.activeIndex + step) % n;
-      if (!this.players[idx].isBankrupt) {
-        this.activeIndex = idx;
-        return;
-      }
-    }
   }
 
   // ──────────────────────────── 珍宝交涉(公道买卖/坐地起价) ────────────────────────────
@@ -938,15 +818,6 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 时机框架(时机总线) ────────────────────────────
-  // dispatchMoment(moment, ctx):在时机点派发全场技能(名将技能/将来的珍宝/地块/全局规则同轨)。
-  // 确定性:座位序(0..n-1,未破产)× 麾下槽位序 × 槽内已授技序;冷却内嵌槽位(键=skill.id),
-  // 槽位=roster.ts 授技单点产出。设计与扩展指南见 docs/explanation/时机框架.md。
-
-  /** 派发深度计数(#1065 复归私有,#615 曾为问询延期判「派发中」而公开——消费面已随
-   *  问询线退役):每次进入 dispatchMoment +1,出栈 -1。>2 层直接抛错——
-   *  不变量校验而非兜底:递归链是框架 bug,必须崩出来。纯运行时态不序列化(恢复后天然 0)。 */
-  private momentDispatchDepth = 0;
-
   /** 行军加成累计(瞬态,不序列化):BeforeMarch·moveBonus 效果写入,rollAndMove 掷骰后
    *  takeMarchBonus 取走并清零——同一次 rollAndMove 内写读平衡,快照永远看不到残值。 */
   private marchBonus = 0;
@@ -973,86 +844,9 @@ export class GameEngine {
     emitGameEvent(this, seat, { kind: "cashChanged", delta: amount, reason: "skill" }); // 事件流(#385):技能得银(被动技击发口;不派发 CashGained 的防连锁口径不变)
   }
 
-  /** 时机派发:座位序 × 麾下槽位序 × 槽内已授技序(roster.ts 授技单点保证池序)遍历,
-   *  scope 过滤 + 冷却检查(槽内账)后执行效果。ctx(MomentCtx):subject=时机主体座位,
-   *  其余字段(die/amount/…/tileIndex)按各时机语义携带,原样透传给 EffectCtx。 */
-  dispatchMoment(moment: GameMoment, ctx: MomentCtx): void {
-    this.momentDispatchDepth += 1;
-    if (this.momentDispatchDepth > 2)
-      throw new Error(`时机派发嵌套超过 2 层(${moment}):禁止效果内同步再派发时机(防递归)`);
-    noteMomentEvent(this, moment, ctx); // 事件流产出(#375 口 1):时机=转移宣告,映射表见 game-events.ts
-    try {
-      for (let ownerSeat = 0; ownerSeat < this.players.length; ownerSeat++) {
-        const owner = this.players[ownerSeat];
-        if (owner.isBankrupt) continue; // 破产玩家技能不触发
-        for (const slot of owner.heroes) {
-          const hero = heroById(slot.heroId); // 战报留痕用名将名;查无=麾下引用数据 bug
-          for (const skillId of slot.skillIds) {
-            const skill = skillById(skillId);
-            if (!isTriggerSkill(skill)) continue; // 主动技不经时机派发(出牌阶段手动)
-            if (skill.when !== moment) continue;
-            if (!this.scopePasses(skill.scope, ctx.subject, ownerSeat)) continue;
-            if (!this.skillReady(slot, skill)) continue;
-            const effectFn = EFFECTS[skill.effect];
-            if (effectFn == null)
-              throw new Error(
-                `未知效果 EffectId "${skill.effect}"(技能 ${skill.id}):注册表查不到=数据 bug`,
-              );
-            const ectx: EffectCtx = {
-              ...ctx,
-              moment,
-              owner: ownerSeat,
-              skillId: skill.id, // 击发技与其槽位(#1377):效果按实例落账(技能标记记槽)
-              slotHeroId: slot.heroId,
-            };
-            if (!effectFn(this, ectx, skill.params ?? {})) continue; // 条件不满足:静默跳过(不记战报/冷却)
-            slot.lastFired[skill.id] = this.round; // 记冷却轮次入槽(无 cooldown 的技能记录无害)
-            emitGameEvent(this, ownerSeat, {
-              kind: "skillFired",
-              heroId: slot.heroId,
-              skillId: skill.id,
-              moment,
-            }); // 事件流(#384):名将被动技击发(seat=技属主;heroId=槽定位,折叠按槽记账)
-            this.logEvent(
-              "skill",
-              owner.guohao,
-              `${owner.guohao} 名将「${hero.name}」触发时机 ${moment}`,
-              `skillFire owner=${owner.id} hero=${slot.heroId} skill=${skill.id} moment=${moment} subject=${this.players[ctx.subject].id} die=${ctx.die ?? "-"} amount=${ctx.amount ?? "-"} params=${JSON.stringify(skill.params ?? {})}`,
-            );
-          }
-        }
-      }
-    } finally {
-      this.momentDispatchDepth -= 1;
-    }
-  }
-
-  /** scope 过滤(语义定案,详见 TriggerSkill.scope 注释):
-   *  - "self":属主是时机主体(owner === subject)
-   *  - "others":时机主体不是属主(owner !== subject)
-   *  - "any":主体不限
-   *  - "actor":时机主体恰为当前行动玩家(subject === activeIndex,属主不限)——与 "any"
-   *    的分化点在主体是否行动者:交涉成交(卖家)/破产收款(债主)等回合外主体时机
-   *    满足 "any" 而不满足 "actor"。
-   *  缺省 = "self"。 */
-  private scopePasses(scope: TriggerSkill["scope"], subject: number, ownerSeat: number): boolean {
-    switch (scope ?? "self") {
-      case "self":
-        return ownerSeat === subject;
-      case "others":
-        return ownerSeat !== subject;
-      case "actor":
-        return subject === this.activeIndex;
-      case "any":
-        return true;
-    }
-  }
-
-  /** 冷却判定(槽内账,#785:同名技各槽各账);未设 cooldown → 恒可用。 */
-  private skillReady(slot: HeroSlot, skill: TriggerSkill): boolean {
-    if (!skill.cooldown) return true;
-    const last = slot.lastFired[skill.id] ?? -Infinity;
-    return this.round - last >= skill.cooldown;
+  /** 在所在规则节点派发前、时、后三阶段。可暂停的规则点须声明续接操作。 */
+  dispatchMoment(moment: GameMoment, ctx: MomentCtx, continuation?: MomentContinuation): void {
+    startMoment(this, moment, ctx, continuation);
   }
 
   // ──────────────────────────── 招贤纳士(#326,ADR-0019)────────────────────────────
@@ -1070,34 +864,6 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 战报 / 浮动反馈 ────────────────────────────
-  /** 终局行(ADR-0014):胜利判定与 GameOver 时机之后,记一行机读终态面板
-   *  (round/turnNumber/winner/玩家 cash/netWorth/position)。联机落盘、单机 IndexedDB、
-   *  导出 jsonl 的最后一根引擎行(原重放校验比对锚,校验器退役后归纯归档,ADR-0014/0021)。 */
-  private logFinalState(): void {
-    const winner = this.winner!;
-    this.logEvent(
-      "final",
-      winner.guohao,
-      `终局:${winner.guohao} 称帝(${this.winReason === "LastStanding" ? "群雄尽灭" : "富甲天下"}),历 ${this.round} 轮 ${this.turnNumber} 回合`,
-      JSON.stringify({
-        type: "final",
-        round: this.round,
-        turnNumber: this.turnNumber,
-        winner: winner.id,
-        winReason: this.winReason,
-        players: this.players.map((p) => ({
-          id: p.id,
-          guohao: p.guohao,
-          isBot: p.isBot,
-          isBankrupt: p.isBankrupt,
-          cash: p.cash,
-          netWorth: netWorth(p),
-          position: p.position,
-        })),
-      }),
-    );
-  }
-
   /** 房间层日志行(ADR-0014):把房间/控制器层的生命周期事件(托管开关/离线/解散/
    *  开局)写进对局日志(category "room")。brief 中文;detail 为机读 JSON——
    *  重放脚本据此动态调整「bot 驱动座位集」(autopilot 行与 room.seatControlled 同源)。 */
@@ -1152,19 +918,12 @@ export class GameEngine {
   // ──────────────── 锦囊+主动技+效果执行(#122/#188 档 3,ADR-0019)────────────────
   // 域逻辑在 jinnang-execution.ts(ADR-0019 委托式拆分,#319):抽牌/出牌阶段用牌与出技
   // 决策/出牌宣布与反应窗挂点/效果执行/主动技结算/招贤共享单点均为自由函数,
-  // 首参接引擎实例。壳内仅留同名公共方法薄委托(外部 importer 无感)与 enterJinnangPhase
-  // 私有薄委托(回合壳 endTurn 调用;开局入局 finishSetup 随 #324 迁 setup-flow.ts 后
-  // 改直调自由函数);reaction-window 续结算经壳上
+  // 首参接引擎实例。壳内仅留同名公共方法薄委托(外部 importer 无感);reaction-window 续结算经壳上
   // executeJinnang/settleJinnangExit 公共方法回调,维持 reaction ⇄ 执行跨模块往返。
 
   /** 抽锦囊(#122/T1):薄委托 → jinnang-execution.drawJinnang;返回实际入手张数(#384)。 */
   drawJinnang(seat: number, count = 1): number {
     return drawJinnang(this, seat, count);
-  }
-
-  /** 出牌阶段入场(#122/T2):薄委托 → jinnang-execution.enterJinnangPhase。 */
-  private enterJinnangPhase(): void {
-    enterJinnangPhase(this);
   }
 
   /** 用锦囊(#122/T2):薄委托 → jinnang-execution.resolveJinnang。 */
@@ -1212,13 +971,32 @@ export class GameEngine {
   /** 体力增减(#130):clamp 0~100,返回落账后的体力值。损失方向派发 StaminaLoss 时机
    *  (#1377,放逐攒怒挂点:任何来路的损失一律广播,含打空最后一笔;delta=夹紧后实际
    *  损失额,恒负值;增益不派——温泉/赈济不攒)。 */
-  addStamina(seat: number, delta: number): number {
+  addStamina(
+    seat: number,
+    delta: number,
+    continuation?: Extract<MomentContinuation, { kind: "encounterStamina" | "staminaDamage" }>,
+  ): number {
     const p = this.players[seat];
     const before = p.stamina;
     p.stamina = Math.max(0, Math.min(STAMINA_MAX, before + delta));
-    if (p.stamina < before)
-      this.dispatchMoment("StaminaLoss", { subject: seat, delta: p.stamina - before });
+    const change = p.stamina - before;
+    if (continuation != null)
+      emitGameEvent(this, seat, {
+        kind: "staminaChanged",
+        delta: change,
+        reason: continuation.kind === "staminaDamage" ? "damage" : "encounter",
+      });
+    if (change < 0)
+      this.dispatchMoment(
+        "StaminaLoss",
+        { subject: seat, delta: change },
+        continuation ?? { kind: "staminaUpdated" },
+      );
     return p.stamina;
+  }
+
+  damageStamina(seat: number, amount: number, sourceSeat: number | null): number {
+    return damageStamina(this, seat, amount, sourceSeat);
   }
 
   // ──────────────── 机遇主流程 + 体力耗竭(#123/#124/#130/#132,ADR-0019)────────────────
@@ -1265,8 +1043,9 @@ export class GameEngine {
   settleEncounter(
     mover: Player,
     def: EncounterDef,
-  ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
-    return settleEncounter(this, mover, def);
+    finishLandingOnResume = false,
+  ): EncounterSettlement {
+    return settleEncounter(this, mover, def, finishLandingOnResume);
   }
 
   /** 文案浮字入队(ADR-0013 唯一选项自动执行的轻提示,无金额):渲染为棋盘一行小字。 */

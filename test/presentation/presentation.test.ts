@@ -213,6 +213,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     const propId = tile.propertyId;
     if (propId == null) return;
     e.activePlayer.properties.push({
+      damageRanking: [],
       propertyId: propId,
       group: "g",
       level: 1,
@@ -426,6 +427,7 @@ describe("事件→动效映射表(合成批)", () => {
     const capProp = e.board.at(cap).propertyId!;
     // 直译按提取时刻引擎态解析归属:先落持有(建城后玩家 0 持有都城)
     e.players[0].properties.push({
+      damageRanking: [],
       propertyId: capProp,
       group: "g",
       level: 0,
@@ -579,6 +581,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     )!;
     // 得城者已入册(提取时刻态):宣告归属色=得城者
     e.players[0].properties.push({
+      damageRanking: [],
       propertyId: tile.propertyId!,
       group: "g",
       level: 0,
@@ -607,6 +610,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     const propId = tile.propertyId!;
     // 承让方已持有(提取时刻态):宣告归属色=承让方
     e.players[1].properties.push({
+      damageRanking: [],
       propertyId: propId,
       group: "g",
       level: 1,
@@ -895,10 +899,10 @@ describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
         seat: 0,
         round: 1,
         turn: 1,
-        aSeat: 0,
-        bSeat: 1,
-        aRoll: 6,
-        bRoll: 1,
+        sides: [
+          { seat: 0, roll: 6 },
+          { seat: 1, roll: 1 },
+        ],
         winnerSeat: 0,
       },
     ]);
@@ -922,10 +926,10 @@ describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
         seat: 1,
         round: 1,
         turn: 1,
-        aSeat: 1,
-        bSeat: 0,
-        aRoll: 3,
-        bRoll: 3,
+        sides: [
+          { seat: 1, roll: 3 },
+          { seat: 0, roll: 3 },
+        ],
         winnerSeat: null,
       },
     ]);
@@ -949,10 +953,10 @@ describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
         seat: 2,
         round: 1,
         turn: 1,
-        aSeat: 2,
-        bSeat: 1,
-        aRoll: 6,
-        bRoll: 1,
+        sides: [
+          { seat: 2, roll: 6 },
+          { seat: 1, roll: 1 },
+        ],
         winnerSeat: 2,
       },
     ]);
@@ -973,10 +977,10 @@ describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
           seat: 0,
           round: 1,
           turn: 1,
-          aSeat: 0,
-          bSeat: 1,
-          aRoll: 6,
-          bRoll: 2,
+          sides: [
+            { seat: 0, roll: 6 },
+            { seat: 1, roll: 2 },
+          ],
           winnerSeat: 2,
         },
       ]),
@@ -988,10 +992,10 @@ describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
           seat: 0,
           round: 1,
           turn: 1,
-          aSeat: 0,
-          bSeat: 9,
-          aRoll: 6,
-          bRoll: 2,
+          sides: [
+            { seat: 0, roll: 6 },
+            { seat: 9, roll: 2 },
+          ],
           winnerSeat: 0,
         },
       ]),

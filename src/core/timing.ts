@@ -56,13 +56,12 @@ export type GameMoment =
   /** 城池升级后:扩军 upgradeProperty 成功 + 公道买卖成交升级,两处(满级不触发)。
    *  ctx.propertyId = 升级城。subject = 城主。 */
   | "PropertyUpgraded"
-  /** 城池受损·降 1 级(#457):火烧连营(锦囊路调用侧,#1389 起按果逐城派)与耗竭「降 1 级」
-   *  处置,两写点。火攻主动技路不派(主动技结算内不派发既有口径)。
+  /** 城池降级:火烧连营和外敌乘虚按城池伤害结算结果派发。
+   *  火攻主动技沿用主动技结算的时机规则。
    *  ctx.propertyId/ctx.tileIndex = 涉事城。subject = 城主。 */
   | "PropertyDemolished"
-  /** 失城(#457):火烧连营烧毁失城(锦囊路调用侧,与降级同点按果择一逐城派,#1389)与耗竭
-   *  「失去整座」处置,两写点(都城不可失,失的恒为非都城)。
-   *  ctx.propertyId/ctx.tileIndex = 失去的城。subject = 失城者。 */
+  /** 失城:火烧连营和外敌乘虚攻陷 0 级非都城后派发。
+   *  ctx.propertyId/ctx.tileIndex = 被攻陷的城。subject = 原城主。 */
   | "PropertyLost"
   /** 招贤后:resolveHeroPick 选定名将(tryRecruitHero 只出三选一候选)。ctx.heroId。subject = 招贤者。 */
   | "HeroRecruited"
@@ -88,15 +87,14 @@ export type GameMoment =
    *  ctx.targetSeat = 被窥者。subject = 使用者(窥方)。被识破不派(窥探从未发生)。 */
   | "PeekApplied"
   // ── 玩家状态 ──
-  /** 被动得银:applyResupply 补给(驻跸/落都城)/机遇得款与折现/玩家间收款(#455 下沉后
-   *  两通道:payOrLiquidate 直付到账、confirmBankruptcySettle 清偿,均债主视角)。
+  /** 被动得银:都城补给、机遇得款与折现、玩家间收款、城池奖励与持城收益。
    *  ctx.amount = 得银额。subject = 得银者。
    *  **防连锁**:仅经济结算点派发——效果层收益(grantSkillCash)不触发 CashGained,技能链不递归放大。 */
   | "CashGained"
   /** 玩家被动失去银两(细粒度):税/交涉付款等非自愿支出(主动买城不算)。subject = 失银者。 */
   | "CashLost"
-  /** 被强加跳回合(#456):skipTurns 两写点各自派发、写点语义差保留(缓兵 +=1 / 耗竭休整 +=EXHAUSTION_REST_TURNS)。
-   *  ctx.reason = 缘由(jinnang=缓兵之计 / exhaustion=体力耗竭善后)。subject = 被跳者。 */
+  /** 被强加跳回合:缓兵之计、耗竭休整和曹丕技能按各自规则增加跳过回合数后派发。
+   *  ctx.reason = 缘由。subject = 被跳者。 */
   | "TurnSkipImposed"
   /** 体力变更(#456):**仅机遇路**派发(encounter-flow applyEncounterStamina 的 addStamina
    *  结算处)。休整期满回满(系统复位非收益)与华佗赈济(主动技「结算内不派时机」既有口径)不派。
@@ -105,7 +103,7 @@ export type GameMoment =
   /** 体力损耗(#1377,放逐攒怒挂点):挂体力唯一写口 addStamina(authority.ts)内部,
    *  损失方向(delta<0)一律派发,含打空体力的最后一笔;增益方向不派(温泉/赈济不攒)。
    *  与 StaminaChanged 的分工:彼处记「机遇路体力变更」事件面,此处是任何来路损失的
-   *  机制挂点(现役损失只产机遇路,写点在写口内故天然全覆盖)。ctx.delta = 夹紧后实际
+   *  机制挂点。ctx.delta = 夹紧后实际
    *  损失额(恒负值)。subject = 体力受损者。 */
   | "StaminaLoss"
   /** 声望变更(#456):挂 addReputation 唯一写口(reputation.ts)单点广播,天命城与机遇
@@ -131,6 +129,10 @@ export type GameMoment =
    *  拦停成功即止、后续城不再问;行人本就停留的落点格不问)。ctx.ownerSeat = 城主,
    *  ctx.tileIndex = 涉事格。subject = 行人。 */
   | "MarchPassedCity";
+
+/** 每个时机依次完成前、时、后三个阶段。 */
+export const MOMENT_STAGES = ["before", "during", "after"] as const;
+export type MomentStage = (typeof MOMENT_STAGES)[number];
 
 /** 时机派发上下文(dispatchMoment 入参 → EffectCtx):subject 必填,其余字段按各时机语义携带。 */
 export interface MomentCtx {

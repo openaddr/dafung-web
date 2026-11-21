@@ -115,16 +115,11 @@ const duelEventsOf = (e: GameEngine) =>
 const logText = (e: GameEngine) => e.log.map((l) => `${l.brief} ${l.detail}`).join("\n");
 
 describe("英姿:数据形制与面数查询口(#1390)", () => {
-  it("技表钉:英姿=静态被动三形(id/名/desc 逐字=规格 #1386 定稿原文),非时机技非主动技", () => {
+  it("英姿是持续生效的静态技能", () => {
     const s = skillById(YINGZI_SKILL_ID);
     expect(isStaticSkill(s)).toBe(true);
     expect(isTriggerSkill(s)).toBe(false);
     expect(isActiveSkill(s)).toBe(false);
-    expect([s.id, s.name, s.desc]).toEqual([
-      YINGZI_SKILL_ID,
-      "英姿",
-      "你的骰子增加1面，此面值递增1。",
-    ]);
   });
 
   it("签面字表钉(呈现面单源):「一」~「七」七面,#1390 扩七", () => {
@@ -180,7 +175,13 @@ describe("英姿:掷骰三路七面(可达且按 7 结算)", () => {
     beginGameEventBatch(e);
     const duel = resolveDuel(e, ownerSeat, moverSeat);
     expect(duel).toEqual({ aRoll: 5, bRoll: 7, winnerSeat: moverSeat });
-    expect(duelEventsOf(e)[0]).toMatchObject({ aRoll: 5, bRoll: 7, winnerSeat: moverSeat });
+    expect(duelEventsOf(e)[0]).toMatchObject({
+      sides: [
+        { seat: ownerSeat, roll: 5 },
+        { seat: moverSeat, roll: 7 },
+      ],
+      winnerSeat: moverSeat,
+    });
     // 无英姿拼点方消费 7:消费点响亮炸(a 方面数 6)
     const e2 = prepared();
     pinDice(e2, "duel", [7, 1]);

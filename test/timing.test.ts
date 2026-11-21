@@ -127,6 +127,7 @@ const gain = (
   name: "测试技",
   desc: "技效",
   when,
+  stage: "during",
   effect: "gainCash",
   params: { amount },
   ...extra,
@@ -319,6 +320,7 @@ describe("时机框架:派发点位", () => {
             name: "测试技",
             desc: "技效",
             when: "BeforeMarch",
+            stage: "during",
             effect: "test-capture",
             scope: "any",
           },
@@ -327,6 +329,7 @@ describe("时机框架:派发点位", () => {
             name: "测试技",
             desc: "技效",
             when: "AfterMarch",
+            stage: "during",
             effect: "test-capture",
             scope: "any",
           },
@@ -555,6 +558,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
             name: "测试技",
             desc: "技效",
             when: "CashLost",
+            stage: "during",
             effect: "test-recursive",
             scope: "any",
           },
@@ -583,6 +587,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
             name: "测试技",
             desc: "技效",
             when: "CashLost",
+            stage: "during",
             effect: "test-nested-once",
             scope: "any",
           },
@@ -602,7 +607,14 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
       e,
       e.players[0],
       heroWith([
-        { id: "bad", name: "测试技", desc: "技效", when: "CashLost", effect: "no-such-effect" },
+        {
+          id: "bad",
+          name: "测试技",
+          desc: "技效",
+          when: "CashLost",
+          stage: "during",
+          effect: "no-such-effect",
+        },
       ]),
     );
     expect(() => e.dispatchMoment("CashLost", { subject: 0 })).toThrow(/未知效果/);
@@ -620,6 +632,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
           name: "测试技",
           desc: "技效",
           when: "CashLost",
+          stage: "during",
           effect: "gainCash",
           params: {},
         },
@@ -639,6 +652,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
           name: "测试技",
           desc: "技效",
           when: "BeforeMarch",
+          stage: "during",
           effect: "moveBonus",
           params: { steps: 1 },
           scope: "self",
@@ -648,6 +662,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
           name: "测试技",
           desc: "技效",
           when: "BeforeMarch",
+          stage: "during",
           effect: "moveBonus",
           params: { steps: 2 },
           scope: "self",
@@ -676,6 +691,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
           name: "测试技",
           desc: "技效",
           when: "DieRolled",
+          stage: "during",
           effect: "gainIfFace",
           params: { face: 6, amount: 20 },
           scope: "any",
@@ -754,6 +770,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll)", () => {
             name: "测试技",
             desc: "技效",
             when: "BeforeMarch",
+            stage: "during",
             effect: "test-capture",
             scope: "any",
           },
@@ -762,6 +779,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll)", () => {
             name: "测试技",
             desc: "技效",
             when: "BeforeRoll",
+            stage: "during",
             effect: "test-capture",
             scope: "any",
           },
@@ -770,6 +788,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll)", () => {
             name: "测试技",
             desc: "技效",
             when: "DieRolled",
+            stage: "during",
             effect: "test-capture",
             scope: "any",
           },
@@ -812,6 +831,7 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
           name: "测试技",
           desc: "技效",
           when: "BeforeMarch",
+          stage: "during",
           effect: "moveBonus",
           params: { steps: 1 },
           scope: "self",
@@ -844,6 +864,7 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -912,6 +933,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     mover.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -970,6 +992,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -1013,6 +1036,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -1046,6 +1070,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -1090,6 +1115,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -1154,6 +1180,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     mover.cash = 50; // 欠 200 → 差 150,进清算
     mover.treasures.push({ id: "bk-t", name: "自救宝", level: 1 }); // 变卖得 100,仍差 50
     mover.properties.push({
+      damageRanking: [],
       propertyId: extraDef.id,
       group: extraDef.group,
       level: 0,
@@ -1508,6 +1535,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[owner].properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level,
@@ -1678,7 +1706,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
       { subject: seat4, propertyId: city4.propertyId, tileIndex: city4.tileIndex },
     ]);
 
-    // ⑤ 耗竭·0 级封底永不失城:0 级城不动、不派 PropertyLost、无变易留痕
+    // ⑤ 无来源耗竭攻陷未受过敌方伤害的 0 级城，失城时机记原城主。
     const e5 = makeEngine(1);
     finishSetup(e5);
     const mover5 = e5.activePlayer;
@@ -1687,11 +1715,18 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const entries5 = recordMomentCtx(e5);
     const r5 = e5.settleEncounter(mover5, enc({ kind: "cash", delta: 0, staminaDelta: -100 }));
     expect(r5).toBe("exhausted");
-    expect(mover5.properties.some((h) => h.propertyId === city5.propertyId)).toBe(true); // 一件不失去
-    expect(mover5.properties.find((h) => h.propertyId === city5.propertyId)!.level).toBe(0);
-    expect(entries5.filter((x) => x.moment === "PropertyLost")).toHaveLength(0);
+    expect(e5.findOwner(city5.propertyId)).toBeNull();
+    expect(entries5.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
+      { subject: seat5, propertyId: city5.propertyId, tileIndex: city5.tileIndex },
+    ]);
     expect(entries5.filter((x) => x.moment === "PropertyDemolished")).toHaveLength(0);
-    expect(e5.propertyChanges).toHaveLength(0); // 无城池变易留痕(失城路已随永不失城退役)
+    expect(e5.propertyChanges).toContainEqual({
+      tileIndex: city5.tileIndex,
+      level: 0,
+      ownerColorIndex: null,
+      levelChanged: false,
+      ownerChanged: true,
+    });
   });
 
   it("AssetsSeized:破产终局恰一派(subject=债主,cities/treasureCount=被收资产);无债主不派、不逐件派", () => {

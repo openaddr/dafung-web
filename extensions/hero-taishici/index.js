@@ -7,6 +7,7 @@ const contribution = {
       // desc 必填(#604 每技自带,typecheck 纳入 extensions 面后暴露的包漂移,随修)
       desc: "被招揽时义从归心:立得 +100 两来投之礼",
       when: "HeroRecruited",
+      stage: "during",
       // 招贤得将时机(subject=招揽者;scope self=属主即招揽者本人招到)
       effect: "joinGift",
       params: { amount: 100 },

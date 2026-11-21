@@ -371,7 +371,7 @@ describe("火攻定向化(#1388 T2 城目标域)", () => {
     expect(e.findOwner(foeCap)).not.toBe(null); // 都城不可失
   });
 
-  it("0 级非都城:连续火攻逐点扣防,最后一点归零后失城回无主并记冷却", () => {
+  it("连续火攻打空 0 级非都城后，出手者满防接手并记冷却", () => {
     const e = prepared();
     const user = armSkill(e, "zhouyu", "huogong");
     const me = e.activeIndex;
@@ -398,18 +398,23 @@ describe("火攻定向化(#1388 T2 城目标域)", () => {
         while (e.round < readyRound || e.activeIndex !== me) e.endTurn();
       }
     }
-    expect(e.findOwner(propertyId)).toBe(null);
+    expect(e.findOwner(propertyId)).toBe(user);
+    expect(user.properties.find((h) => h.propertyId === propertyId)).toMatchObject({
+      level: 0,
+      defense: fullDefenseOf(0),
+      damageRanking: [],
+    });
     expect(e.propertyChanges).toContainEqual({
       tileIndex,
       level: 0,
-      ownerColorIndex: null,
+      ownerColorIndex: user.colorIndex,
       levelChanged: false,
       ownerChanged: true,
     });
     const line = e.log.find(
       (l) => l.detail.includes(`prop=${propertyId}`) && l.detail.includes("outcome=lost"),
     );
-    expect(line?.brief).toContain("城回无主");
+    expect(line?.brief).toContain(`城归${user.guohao}`);
     expect(dispatched.filter((m) => m === "PropertyDemolished" || m === "PropertyLost")).toEqual(
       [],
     );
@@ -567,7 +572,7 @@ describe("火攻定向化(#1388 T2 城目标域)", () => {
     expect(e2.activePlayer.heroes[0].lastFired["huogong"]).toBeUndefined();
   });
 
-  it("bot 与人类同规则:火攻可指定并摧毁 0 级敌城", () => {
+  it("bot 与人类同规则:火攻可指定并攻陷 0 级敌城", () => {
     const e = prepared(42, [
       { name: "A", isBot: true },
       { name: "B", isBot: true },
@@ -580,7 +585,7 @@ describe("火攻定向化(#1388 T2 城目标域)", () => {
     setDefense(e, foeSeat, propertyId, 1);
     expect(heroSkillIntent(e, "zhouyu", "huogong")).toEqual({ use: true, targets: [tileIndex] });
     botAct(e);
-    expect(e.findOwner(propertyId)).toBe(null);
+    expect(e.findOwner(propertyId)).toBe(user);
     expect(user.heroes[0].lastFired.huogong).toBe(e.round);
   });
 });

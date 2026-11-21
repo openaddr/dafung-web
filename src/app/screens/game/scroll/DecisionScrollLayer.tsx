@@ -14,6 +14,7 @@ import { tileIndexOfProperty } from "@core/board";
 import { Theme } from "@core/theme";
 import { useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
+import { useFxStore } from "@app/fx/fxStore";
 import { checkpointGameDiagnostics } from "@app/game-diagnostics";
 import { gameArchiveFailureText } from "@app/game-diagnostic-record";
 import { DialogPeekDecision } from "@app/hooks/dialog-stack";
@@ -130,6 +131,7 @@ export function TileDetail({
       ownerGuohao={owner?.guohao ?? null}
       ownerLevel={holding?.level ?? 0}
       ownerDefense={holding != null ? holding.defense : null}
+      damageRanking={holding != null ? holding.damageRanking : null}
       isCapital={owner?.capitalIndex === tileIndex}
       onClose={request.onClose}
     />
@@ -152,6 +154,7 @@ export function DecisionScrollLayer({
   // 胜利屏(终榜)的 memo 前提;players 稳定后,弹层各自的值等比较才有着落。
   const players = useStablePlayers(snapshot.players);
   const restarting = useRef(false);
+  const victoryDuelPending = useFxStore((state) => state.victoryDuelGameId === snapshot.gameId);
   const [restartError, setRestartError] = useState<string | null>(null);
   const restartGame = useCallback(() => {
     if (restarting.current) return;
@@ -188,6 +191,7 @@ export function DecisionScrollLayer({
       if (snapshot.winReason === "aborted") {
         return <VictoryScreen key={snapshot.gameId} winReason="aborted" onRestart={restartGame} />;
       }
+      if (victoryDuelPending) return null;
       const winner = players.find((p) => p.id === snapshot.winner);
       if (winner === undefined || snapshot.winReason === "None") {
         throw new Error("终局快照缺胜者或胜因");

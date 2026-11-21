@@ -54,6 +54,7 @@ function setupOwnerChoice(e: GameEngine, defId: string) {
   const ownerIdx = e.players.indexOf(owner);
   const def = e.catalog.get(defId)!;
   owner.properties.push({
+    damageRanking: [],
     propertyId: defId,
     group: def.group,
     level: 0,
@@ -327,6 +328,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     mover.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -351,6 +353,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     owner.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -374,6 +377,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile2 = treasureTile(e2);
     const def2 = e2.catalog.get(tile2.propertyId!)!;
     owner2.properties.push({
+      damageRanking: [],
       propertyId: def2.id,
       group: def2.group,
       level: 0,
@@ -412,6 +416,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     owner.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,
@@ -450,6 +455,7 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     owner.properties.push({
+      damageRanking: [],
       propertyId: def.id,
       group: def.group,
       level: 0,

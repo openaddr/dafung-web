@@ -118,6 +118,11 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "持有等级对齐 newLevel;副本无持有按事件面补册(机遇「天赐城池」缺口级联),等级漂移水合纠正",
   },
+  propertyDamaged: {
+    fold: "must-fold",
+    fx: "silent",
+    why: "以权威结算后的城池等级、防御值和伤害排行榜更新持有记录",
+  },
   propertyRejected: {
     fold: "declarative",
     fx: "presented",
@@ -129,14 +134,14 @@ export const EVENT_TIERS = {
     why: "机遇赐城入册(#719,传檄而定):得城者 Lv.0 持有入册——此前是折叠器已知无事件转移的级联缺口,本事件闭合;表现=城池易主宣告(与购地/破产易主同通路)",
   },
   exhaustionResolved: {
-    fold: "fold+calibration",
+    fold: "must-fold",
     fx: "presented",
-    why: "耗竭全自动落定(外敌乘虚+休整,无抉择相位):降级清单逐城 level-1(0 级封底不列入)+ skipTurns 按显式 restTurns 累加(不做相邻推断);赐城缺口级联查无略过,水合纠正;表现=耗竭宣告浮字",
+    why: "进入休整并按 restTurns 累加跳过回合；先前的城损和易主由各自的事件折叠",
   },
   assetTransferred: {
-    fold: "fold+calibration",
+    fold: "must-fold",
     fx: "presented",
-    why: "破产逐城易主(承让方入册保等级/无债主回无主);副本无持有时按事件面补册零级,等级漂移水合纠正",
+    why: "原城主逐城出册。接手者保等级、满防、清空伤害排行榜；无接手者时回无主",
   },
   // ── 金钱族 ──
   cashChanged: {
@@ -186,15 +191,30 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "被动技冷却记账(heroId 定槽,槽内 lastFired 键=skillId,#785 实例化);技参数不随事件,由技表现查;表现=token 侧技名小签浮现(#850,同 floater 通道,渲染档 skill=tag)",
   },
+  skillChoiceOpened: {
+    fold: "must-fold",
+    fx: "silent",
+    why: "当前技属主的待决选择、标记与选择相位",
+  },
+  skillMarksChanged: {
+    fold: "must-fold",
+    fx: "silent",
+    why: "命中技能发动条件前累计的公开标记",
+  },
+  skillChoiceAnswered: {
+    fold: "must-fold",
+    fx: "silent",
+    why: "清待决选择，折叠实际标记、跳过回合数和继续结算的相位",
+  },
   skillLearned: {
     fold: "must-fold",
     fx: "presented",
     why: "用书学技(#1146):槽内池序入技(heroId 定槽)+消耗的技能书珍宝位出册(treasureId 随事件,书=习得器用后即耗);习得无冷却负债(lastFired 不落键,照新授技同款);表现=习得文案浮字(与来投/施展同通路)",
   },
   heroSkillActivated: {
-    fold: "fold+calibration",
+    fold: "must-fold",
     fx: "presented",
-    why: "主动技冷却(heroId 定槽,槽内 lastFired 键=skillId)+两面落账(warDrum 加成/relief 付费);fireBlast(#1388 定向火攻)的城损等级/防御值不在事件面=校准兜底,随校准快照对齐;表现=施法者 token 金圈一拍(fx-svg-pulse,landPulse 通道)+施展浮字升档(1.0× brush 字/玩家色细描边,#850)",
+    why: "主动技冷却(heroId 定槽,槽内 lastFired 键=skillId)与擂鼓加成、赈济付费在此落账；火攻城损随 propertyDamaged 折叠。表现=施法者金圈、施展浮字",
   },
   // ── 锦囊族 ──
   jinnangDrawn: {
@@ -236,7 +256,7 @@ export const EVENT_TIERS = {
   duelResolved: {
     fold: "declarative",
     fx: "presented",
-    why: "拼点结算宣告(#636,ADR-0030):resolveDuel 单点产出,两方座位/两枚点数/胜者随事件走;零状态转移(胜负后果由调用点既有事件折:拦停=marchArrived、银两=cashChanged·duel);表现=拼点签面(#637,全屏多签直译,场景无关)",
+    why: "公开拼点结算与签面，列参与座位、各点数及胜者。拦停、银两和终局随既有状态事件折叠",
   },
   jinnangVoided: {
     fold: "declarative",

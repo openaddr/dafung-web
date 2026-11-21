@@ -1,9 +1,10 @@
-// 防御值机制域(#1386/#1387):城池等级附带的受损额度,火焰伤害的吸收实体。
-// 本域三件:满值表(fullDefenseOf)/等级变动重置(resetToFull)/火焰伤害完整结算
-// 单点(applyFireDamage)。语义定稿见 GLOSSARY「防御值」「火焰伤害」词条与规格 #1386;
-// ADR 归 #1387 棒2。距离谓词(双向最短/前方距离)不属本域,棒2 另立。
+// 城池防御值、持有期初态及统一伤害结算。见 ADR-0064、ADR-0067。
 import type { GameEngine } from "./authority";
 import { tileIndexOfProperty } from "./board";
+import { awardCityConquest, planCityConquest } from "./city-conquest";
+import { awardCityDamage, recordCityDamage } from "./city-damage";
+import type { PropertyDef } from "./economy";
+import { emitGameEvent } from "./game-events";
 import { findHolding } from "./player";
 import type { Player, PropertyHolding } from "./model";
 
@@ -22,60 +23,59 @@ export function fullDefenseOf(level: number): number {
   return full;
 }
 
-/** 等级变动(升级/降级/易主)后的防御重置单口:回当前等级满值(升级回满=奖励,
- *  #1386);平时不回复。等级写点(购入/建都/赐城/扩军/公道买卖升级/破产转移易主/
- *  火焰伤害降级)一律经此口取值;唯一例外=外敌乘虚直接降级不走防御值
- *  (encounter-flow.exhaustIfDepleted,#1386 显式两分)。 */
+/** 升降级后回当前等级满防，沿用本次持有期。 */
 export function resetToFull(h: PropertyHolding): void {
   h.defense = fullDefenseOf(h.level);
 }
 
-/** 火焰伤害结算结果(供调用侧按果
- *  择一派城损时机;本单点只结算不派发,#457 口径):
- *  demolished=本次结算发生过「归零降级回满」(等级>0);lost=0 级非都城归零失城
- *  (回无主);absorbed=伤害被防御吸收未致城损(纯扣防未归零,或打空都城的免疫
- *  吸收——剩余点数作废)。0 级都城打空不是降级也不是失城,归 absorbed:调用侧不派
- *  PropertyDemolished/Lost,盾排空态由防御值本体呈现。 */
-export type FireDamageOutcome =
+/** 易主后开启新的持有期。 */
+export function resetTransferredHolding(h: PropertyHolding): void {
+  resetToFull(h);
+  h.damageRanking = [];
+}
+
+export function createPropertyHolding(def: PropertyDef, level: number): PropertyHolding {
+  return {
+    propertyId: def.id,
+    group: def.group,
+    level,
+    maxLevel: def.maxLevel,
+    defense: fullDefenseOf(level),
+    damageRanking: [],
+  };
+}
+
+/** 调用侧根据结果派发城损时机。打空都城仍为 absorbed。 */
+export type CityDamageOutcome =
   | { kind: "demolished"; propertyId: string; tileIndex: number }
   | { kind: "lost"; propertyId: string; tileIndex: number }
   | { kind: "absorbed"; propertyId: string; tileIndex: number };
 
-/** 火焰伤害完整结算单点(全局唯一,#1386):victim 名下 propertyId 这座城挨 damage
- *  点火焰伤害,逐点扣防;防御归 0 时——等级>0 降 1 级并回满新等级满值(剩余点数
- *  继续扣新防)、0 级都城打空即停(此后对一切火焰伤害免疫:再次传入走 absorbed)、
- *  0 级非都城失城(回无主,无补偿)。
- *  无主城(城不在 victim 名下)传入即响亮抛错(零兜底:调用侧必须先解析城主,
- *  「无主城不受火焰伤害」由调用侧目标门把守)。
- *  留痕:降级/失城照 ADR-0015 既有维度写 propertyChanges;
- *  战报与城损时机归调用侧(火攻主动技路不派、火烧连营按果择一逐城派,T2/T3 接线)。 */
-export function applyFireDamage(
+/** 按实际扣除的防御记伤害，攻陷后先定归属与份额，再发银。 */
+export function applyCityDamage(
   g: GameEngine,
   victim: Player,
   propertyId: string,
   damage: number,
-): FireDamageOutcome {
+  source: Player | null,
+): CityDamageOutcome {
   if (!Number.isInteger(damage) || damage <= 0)
-    throw new Error(`applyFireDamage:火焰伤害须为正整数(收到 ${damage})`);
+    throw new Error(`applyCityDamage:城池伤害须为正整数(收到 ${damage})`);
   const h = findHolding(victim, propertyId);
-  if (h == null)
-    throw new Error(
-      `applyFireDamage:城 ${propertyId} 不在 ${victim.guohao} 名下(无主城不受火焰伤害,传入即状态 bug)`,
-    );
+  if (h == null) throw new Error(`applyCityDamage:城 ${propertyId} 不在 ${victim.guohao} 名下`);
+  const ownerSeat = g.players.indexOf(victim);
   const tileIndex = tileIndexOfProperty(g.board, propertyId);
-  const isCapital = propertyId === g.board.at(victim.capitalIndex)?.propertyId;
-  // 打空都城=免疫既成态(打空即停),火焰伤害原样吸收。防御为 0 的其余形态均不可达
-  // (高等级归 0 必降级回满、0 级非都城归 0 必失城),到得了这里就是状态 bug,当场炸。
+  const isCapital = tileIndex === victim.capitalIndex;
   if (h.defense === 0) {
     if (h.level !== 0 || !isCapital)
       throw new Error(
-        `applyFireDamage:城 ${propertyId} 防御为 0 但非打空都城(等级=${h.level},都城=${isCapital})——不可达状态`,
+        `applyCityDamage:城 ${propertyId} 防御为 0 但非打空都城(等级=${h.level},都城=${isCapital})`,
       );
     return { kind: "absorbed", propertyId, tileIndex };
   }
   let demolished = false;
   let remaining = damage;
-  while (remaining > 0) {
+  while (remaining > 0 && h.defense > 0) {
     h.defense -= 1;
     remaining -= 1;
     if (h.defense > 0) continue; // 纯扣防,未归零
@@ -90,22 +90,42 @@ export function applyFireDamage(
         levelChanged: true,
         ownerChanged: false,
       }); // 降级留痕(ADR-0015)
-      continue;
     }
-    if (isCapital) return { kind: "absorbed", propertyId, tileIndex }; // 打空即停,剩余点数作废(免疫)
-    // 0 级非都城:失城回无主(无补偿;properties 移除+ownerChanged 留痕,ADR-0015)
+  }
+
+  const actualDamage = damage - remaining;
+  const attackerSeat =
+    source !== null && source !== victim && !source.isBankrupt ? g.players.indexOf(source) : null;
+  if (attackerSeat !== null) recordCityDamage(h, attackerSeat, actualDamage);
+  emitGameEvent(g, ownerSeat, {
+    kind: "propertyDamaged",
+    propertyId,
+    level: h.level,
+    defense: h.defense,
+    damageRanking: h.damageRanking,
+  });
+
+  const lost = h.defense === 0 && !isCapital;
+  const conquest = lost ? planCityConquest(g, ownerSeat, h, attackerSeat) : null;
+  if (conquest !== null) {
+    const newOwner = conquest.toSeat === null ? null : g.players[conquest.toSeat];
     victim.properties.splice(victim.properties.indexOf(h), 1);
+    if (newOwner !== null) {
+      resetTransferredHolding(h);
+      newOwner.properties.push(h);
+    }
     g.propertyChanges.push({
       tileIndex,
       level: 0,
-      ownerColorIndex: null,
+      ownerColorIndex: newOwner === null ? null : newOwner.colorIndex,
       levelChanged: false,
       ownerChanged: true,
     });
-    return { kind: "lost", propertyId, tileIndex };
+    emitGameEvent(g, ownerSeat, { kind: "assetTransferred", propertyId, toSeat: conquest.toSeat });
   }
-  // 点数耗尽:发生过降级按 demolished 报果,否则纯吸收
-  return demolished
-    ? { kind: "demolished", propertyId, tileIndex }
-    : { kind: "absorbed", propertyId, tileIndex };
+
+  if (attackerSeat !== null) awardCityDamage(g, attackerSeat, propertyId, tileIndex, actualDamage);
+  if (conquest !== null) awardCityConquest(g, propertyId, tileIndex, conquest.rewards);
+  const kind = lost ? "lost" : demolished && h.defense > 0 ? "demolished" : "absorbed";
+  return { kind, propertyId, tileIndex };
 }

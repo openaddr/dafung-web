@@ -2,6 +2,7 @@
 // 判定标准:谁拥有概念,类型住谁的文件;唯有多域共用、不属于任何单一机制域的
 // 基础记录(Player/PropertyHolding/LogEvent)集中于此。纯数据,无 DOM 依赖。
 import type { EncounterFlagId } from "./encounters";
+import type { CityDamageEntry } from "./city-damage";
 import type { HeroSlot } from "./roster";
 import type { TreasureDef } from "./treasures";
 
@@ -14,8 +15,10 @@ export interface PropertyHolding {
   maxLevel: number;
   /** 防御值(#1386/#1387):城池等级附带的受损额度,持有态恒有。等级一变(升级/降级/
    *  易主)即重置满值(单口 resetToFull,满值表单源 defense.ts;升级回满=奖励),
-   *  平时不回复;唯一下行口=applyFireDamage 火焰伤害结算(外敌乘虚直接降级不走此字段)。 */
+   *  平时不回复;扣减经 applyCityDamage。 */
   defense: number;
+  /** 当前持有期的伤害排行榜，累计伤害降序，同分按到达顺序。 */
+  damageRanking: readonly CityDamageEntry[];
 }
 
 /** 玩家。CapitalIndex=-1 表示尚未选都。 */

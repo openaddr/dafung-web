@@ -134,7 +134,14 @@ function marchCorridor(e: GameEngine, moverSeat: number, die: number) {
 
 /** 给 seat 一座非都城房产(城主布场;等级不参与本包任一判定)。 */
 function grantCity(e: GameEngine, seat: number, propertyId: string) {
-  e.players[seat].properties.push({ propertyId, group: "a", level: 2, maxLevel: 3, defense: 3 });
+  e.players[seat].properties.push({
+    damageRanking: [],
+    propertyId,
+    group: "a",
+    level: 2,
+    maxLevel: 3,
+    defense: 3,
+  });
 }
 
 describe("技能扩展内容包:数据形制(#1145)", () => {
@@ -264,7 +271,14 @@ describe("技能扩展内容包:引擎行为(命中/不命中/数值/受益人)"
         e.findOwner(t.propertyId!) == null,
     )!;
     const propId = tile.propertyId!; // find 谓词已保证非空,窄化给断言用
-    me.properties.push({ propertyId: propId, group: "a", level: 2, maxLevel: 3, defense: 3 });
+    me.properties.push({
+      damageRanking: [],
+      propertyId: propId,
+      group: "a",
+      level: 2,
+      maxLevel: 3,
+      defense: 3,
+    });
     testEngine(e).placeActive(tile.index);
     testEngine(e).land();
     expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: propId });
@@ -291,6 +305,7 @@ describe("技能扩展内容包:引擎行为(命中/不命中/数值/受益人)"
         e2.findOwner(t.propertyId!) == null,
     )!;
     me2.properties.push({
+      damageRanking: [],
       propertyId: tile2.propertyId!,
       group: "a",
       level: 1,

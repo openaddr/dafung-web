@@ -383,6 +383,7 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
       (x) => x.event == null && x.propertyId != null && x.index !== visitor.capitalIndex,
     )!;
     owner.properties.push({
+      damageRanking: [],
       propertyId: tile.propertyId!,
       group: "a",
       level: 0,

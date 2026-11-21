@@ -1,12 +1,12 @@
 // 防御值系统单测(#1387 T1 棒1):满值表与越界抛错 / 等级变动重置挂点(购入/扩军/公道
 // 买卖成交/破产易主/火焰伤害降级)/ 火焰伤害结算单点(扣减→降级回满→失城、都城打空
-// 即停+免疫、无主城抛错)/ 快照往返 / 种植件 setDefense / 外敌乘虚回归钉(不走防御值)。
+// 即停+免疫、无主城抛错)/ 快照往返 / 种植件 setDefense / 外敌乘虚共用城池伤害结算。
 // 只测外部行为(返回值+引擎状态),不镜像实现;布景一律走种植件(#1295)。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import { applyFireDamage, fullDefenseOf, resetToFull } from "@core/defense";
+import { applyCityDamage, fullDefenseOf, resetToFull } from "@core/defense";
 import { buy, upgrade, settleDebt } from "@core/economy";
 import { createPlayer } from "@core/player";
 import { serializeGame, restoreGameSnapshot } from "@core/snapshot";
@@ -67,7 +67,14 @@ describe("满值表(0级5/1级4/2级3/3级2,按等级索引,#1386)", () => {
 
   it("resetToFull 对越界等级持有行响亮抛错(重置单口不回退)", () => {
     expect(() =>
-      resetToFull({ propertyId: "x", group: "a", level: 4, maxLevel: 3, defense: 0 }),
+      resetToFull({
+        propertyId: "x",
+        group: "a",
+        level: 4,
+        maxLevel: 3,
+        defense: 0,
+        damageRanking: [],
+      }),
     ).toThrow();
   });
 });
@@ -136,24 +143,25 @@ describe("等级变动重置挂点(等级一变一律回满,升级回满=奖励)
     finishSetup(e);
     const pid = freeCity(e);
     grantProperty(e, 0, pid, 2);
-    setDefense(e, 0, pid, 1); // 受损态(否则重置不可观察)
     const debtor = e.players[0];
     const creditor = e.players[1];
+    applyCityDamage(e, debtor, pid, 2, creditor);
     expect(settleDebt(debtor, creditor, debtor.cash + 1)).toBe(true);
     expect(creditor.properties.find((h) => h.propertyId === pid)).toMatchObject({
       level: 2,
-      defense: 3, // 易主回满,跨主不带暗账
+      defense: 3,
+      damageRanking: [],
     });
   });
 });
 
-describe("火焰伤害结算单点 applyFireDamage(#1386 全局唯一)", () => {
+describe("城池伤害结算 applyCityDamage", () => {
   it("纯扣防:伤害被吸收返回 absorbed,防御逐点递减、未归零不降级", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const pid = freeCity(e);
     grantProperty(e, 0, pid, 2); // Lv2 满防 3
-    const r = applyFireDamage(e, e.players[0], pid, 1);
+    const r = applyCityDamage(e, e.players[0], pid, 1, null);
     expect(r).toEqual({
       kind: "absorbed",
       propertyId: pid,
@@ -170,11 +178,11 @@ describe("火焰伤害结算单点 applyFireDamage(#1386 全局唯一)", () => {
     finishSetup(e);
     const pid = freeCity(e);
     grantProperty(e, 0, pid, 1); // Lv1 满防 4
-    const r = applyFireDamage(e, e.players[0], pid, 6);
+    const r = applyCityDamage(e, e.players[0], pid, 6, null);
     expect(r.kind).toBe("demolished");
     const held = e.players[0].properties.find((h) => h.propertyId === pid)!;
     expect(held).toMatchObject({ level: 0, defense: 3 }); // 4 点破防→降 0 级回满 5→余 2 点扣到 3
-    const r2 = applyFireDamage(e, e.players[0], pid, 3);
+    const r2 = applyCityDamage(e, e.players[0], pid, 3, null);
     expect(r2.kind).toBe("lost");
     expect(e.findOwner(pid)).toBeNull(); // 失城回无主
     expect(e.players[0].properties.some((h) => h.propertyId === pid)).toBe(false);
@@ -193,11 +201,16 @@ describe("火焰伤害结算单点 applyFireDamage(#1386 全局唯一)", () => {
     finishSetup(e);
     const pid = capitalId(e, 0);
     const p = e.players[0];
-    expect(applyFireDamage(e, p, pid, 4)).toMatchObject({ kind: "absorbed" }); // 5→1
-    expect(applyFireDamage(e, p, pid, 1)).toMatchObject({ kind: "absorbed" }); // 打空(打空不是降级也不是失城)
-    expect(p.properties.find((h) => h.propertyId === pid)).toMatchObject({ level: 0, defense: 0 });
-    expect(applyFireDamage(e, p, pid, 5)).toMatchObject({ kind: "absorbed" }); // 免疫:剩余点数作废
-    expect(p.properties.find((h) => h.propertyId === pid)).toMatchObject({ level: 0, defense: 0 });
+    const attacker = e.players[1];
+    setDefense(e, 0, pid, 1);
+    expect(applyCityDamage(e, p, pid, 4, attacker)).toMatchObject({ kind: "absorbed" });
+    expect(applyCityDamage(e, p, pid, 5, attacker)).toMatchObject({ kind: "absorbed" });
+    expect(p.properties.find((h) => h.propertyId === pid)).toMatchObject({
+      level: 0,
+      defense: 0,
+      damageRanking: [{ seat: 1, damage: 1 }],
+    });
+    expect(e.gameEvents.filter((event) => event.kind === "cashChanged")).toHaveLength(1);
     expect(e.findOwner(pid)).toBe(p); // 都城不可失
   });
 
@@ -205,24 +218,28 @@ describe("火焰伤害结算单点 applyFireDamage(#1386 全局唯一)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const pid = freeCity(e);
-    expect(() => applyFireDamage(e, e.players[0], pid, 1)).toThrow();
+    expect(() => applyCityDamage(e, e.players[0], pid, 1, null)).toThrow();
   });
 });
 
-describe("外敌乘虚回归钉(直接降级,不走防御值,#1386 显式两分)", () => {
-  it("耗竭降级后防御原样保留(不重置),0 级封底", () => {
+describe("外敌乘虚城损", () => {
+  it("扣掉城池当前防御，正等级城降一级回满，零级都城打空后仍归原主", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const pid = freeCity(e);
     grantProperty(e, 0, pid, 1); // 满防 4
-    setDefense(e, 0, pid, 2); // 受损态:若误接 resetToFull 此处必挂
+    setDefense(e, 0, pid, 2); // 满防 4，已扣 2 点
     setStamina(e, 0, 0);
     expect(e.exhaustIfDepleted(0)).toBe("resolved");
     expect(e.players[0].properties.find((h) => h.propertyId === pid)).toMatchObject({
-      level: 0, // 直接降级照旧
-      defense: 2, // 防御值原样:外敌乘虚不 touch 防御
+      level: 0,
+      defense: 5,
     });
-    expect(e.players[0].properties.find((h) => h.propertyId === capitalId(e, 0))!.level).toBe(0); // 0 级封底
+    const capital = capitalId(e, 0);
+    expect(e.players[0].properties.find((h) => h.propertyId === capital)).toMatchObject({
+      level: 0,
+      defense: 0,
+    });
   });
 });
 

@@ -50,8 +50,9 @@ export interface ExtensionManifest {
 
 /** 权威侧贡献(包入口模块的默认导出):技能/名将/效果,经 extension-registry
  *  注册进引擎既有注册面(SKILLS 技表 / HEROES 名将池 / EFFECTS 效果注册表)。
- *  效果函数与内置效果同签名(EffectFn:纯逻辑、禁 DOM/React、经引擎公共方法改状态),信任
- *  作者、无沙箱(ADR-0022 信任模型);无随机数/时钟纪律(ADR-0021)。 */
+ *  扩展效果同步返回是否生效(EffectFn)，经引擎公共方法改状态。新待决效果由核心逻辑
+ *  提供对应时机和可序列化续接。纯逻辑禁 DOM/React，信任作者(ADR-0022)，遵守随机数
+ *  与时钟纪律(ADR-0021)。 */
 export interface ExtensionAuthorityContribution {
   /** 追加进技能表的技能(被动+主动同表,ADR-0036;扩展名将的池可引用核心技)。 */
   skills?: SkillDef[];

@@ -9,7 +9,7 @@
 import type { GameEngine } from "./authority";
 import type { GameMoment, MomentCtx } from "./timing";
 import { emitGameEvent } from "./game-events";
-import { queueSkillChoice } from "./choices";
+import type { PendingSkillChoice } from "./choices";
 import { addSkillMarks, heroSlotOf } from "./roster";
 
 /** 效果执行上下文:moment=当前时机;owner=技能属主座位;skillId/slotHeroId=击发技与
@@ -25,12 +25,22 @@ export interface EffectCtx extends MomentCtx {
   slotHeroId: string;
 }
 
-/** 效果函数:纯逻辑(禁止 DOM/React),经引擎公共方法改状态。返回是否生效。 */
+/** 同步效果函数返回本次是否生效。 */
 export type EffectFn = (
   engine: GameEngine,
   ctx: EffectCtx,
   params: Record<string, number>,
 ) => boolean;
+
+type ChoiceEffect = (...args: Parameters<EffectFn>) => false | PendingSkillChoice;
+type ChoiceEffectFn = ChoiceEffect & { readonly choiceMoment: GameMoment };
+
+/** 原生待决效果只挂在提供对应续接的时机。 */
+export function defineChoiceEffect(moment: GameMoment, resolve: ChoiceEffect): ChoiceEffectFn {
+  return Object.assign((...args: Parameters<EffectFn>) => resolve(...args), {
+    choiceMoment: moment,
+  });
+}
 
 /** 必填参数读取:缺项=数据 bug,直接抛错(零兜底)。 */
 function req(params: Record<string, number>, key: string): number {
@@ -53,7 +63,7 @@ function grantReputation(engine: GameEngine, seat: number, amount: number): void
   });
 }
 
-export const EFFECTS: Record<string, EffectFn> = {
+export const EFFECTS: Record<string, EffectFn | ChoiceEffectFn> = {
   /** 行军加成:BeforeMarch 时机累计步数,rollAndMove 掷骰后并入移动步数。params: { steps } */
   moveBonus: (engine, _ctx, params) => {
     engine.addMarchBonus(req(params, "steps"));
@@ -151,14 +161,13 @@ export const EFFECTS: Record<string, EffectFn> = {
     return true;
   },
 
-  // ── 「你可」可选发动形制(#1377,曹丕放逐/行殇):命中不自动结算,挂待决队列,
-  //    回合收口 endTurn 入口开窗(choices.ts enterSkillChoiceWindowIfOwed)。──
+  // 「你可」可选发动命中时返回待决，由当前时机开窗。
 
   /** 放逐攒怒(#1377):StaminaLoss 时机(scope=self,伤害=主公损失体力),损失额
-   *  (delta 取绝对值)累入本槽技能标记;达 params.threshold 挂「你可」待决(入队,
-   *  发动归零与选人罚跳归回合收口后的应答命令)。未达阈值返回 false 静默跳过
+   *  (delta 取绝对值)累入本槽技能标记;达 params.threshold 挂「你可」待决。
+   *  发动归零与选人罚跳归应答命令。未达阈值返回 false 静默跳过
    *  (不记战报/冷却)。params: { threshold }。ctx.delta 缺失或非负=派发契约违反,炸出。 */
-  fangzhuMark: (engine, ctx, params) => {
+  fangzhuMark: defineChoiceEffect("StaminaLoss", (engine, ctx, params) => {
     if (ctx.delta == null || ctx.delta >= 0)
       throw new Error("放逐:StaminaLoss 派发缺 delta 或非损失方向(时机载荷契约违反)");
     const total = addSkillMarks(
@@ -166,29 +175,33 @@ export const EFFECTS: Record<string, EffectFn> = {
       ctx.skillId,
       -ctx.delta,
     );
+    emitGameEvent(engine, ctx.owner, {
+      kind: "skillMarksChanged",
+      heroId: ctx.slotHeroId,
+      skillId: ctx.skillId,
+      marks: total,
+    });
     if (total < req(params, "threshold")) return false;
-    queueSkillChoice(engine, {
+    return {
       skillId: ctx.skillId,
       heroId: ctx.slotHeroId,
       ownerSeat: ctx.owner,
       subjectSeat: ctx.subject,
-    });
-    return true;
-  },
+    };
+  }),
   /** 行殇询问(#1377):TurnSkipImposed 时机(scope=others,一名其他诸侯进入休整),
    *  原因=耗竭(卧床入休)才挂「你可」待决,目标=被跳者(既定,应答免选人);
    *  缓兵之计(jinnang)与行殇本笔(xingshang)均不触发——后者兼防递归
    *  (发动落账追加的同时机笔不再问)。ctx.reason 缺失=派发契约违反,炸出。 */
-  xingshangOffer: (engine, ctx) => {
+  xingshangOffer: defineChoiceEffect("TurnSkipImposed", (_engine, ctx) => {
     if (ctx.reason == null) throw new Error("行殇:TurnSkipImposed 派发缺 reason(时机载荷契约违反)");
     if (ctx.reason !== "exhaustion") return false;
-    queueSkillChoice(engine, {
+    return {
       skillId: ctx.skillId,
       heroId: ctx.slotHeroId,
       ownerSeat: ctx.owner,
       subjectSeat: ctx.subject,
       targetSeat: ctx.subject,
-    });
-    return true;
-  },
+    };
+  }),
 };

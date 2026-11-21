@@ -8,7 +8,7 @@
 // 本文件永远只是纯数据 + 按 id 的读口(池序契约在麾下槽位 skillIds,见 src/core/roster.ts)。
 import type { GameEngine } from "./authority";
 import { DEFAULT_DIE_FACES } from "./dice";
-import type { GameMoment } from "./timing";
+import type { GameMoment, MomentStage } from "./timing";
 
 // ── 技能系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查
 // src/core/effects.ts 注册表)+ 纯数据参数(params)」;派发器统一在 authority.ts dispatchMoment。
@@ -16,6 +16,7 @@ export interface TriggerSkill {
   id: string; // 唯一 id(如 "jixing";同时是麾下槽位 lastFired 的冷却键)
   name: string; // 技名(如 "疾行";UI 技名 chips 与规则页用,#358;纯展示,不参与判定)
   desc: string; // 技效说明(玩家可见;招贤浮字/卡面技能区/技能全览弹框消费;#604 每技自带)
+  stage: MomentStage;
   when: GameMoment; // 触发时机(查 src/core/timing.ts)
   effect: string; // EffectId,查 src/core/effects.ts 注册表;未知 id 派发时直接抛错(数据 bug)
   params?: Record<string, number>; // 效果参数(纯数据,可序列化)
@@ -27,10 +28,7 @@ export interface TriggerSkill {
    *  - "actor":时机主体恰为当前行动玩家(activeIndex,属主不限)——当前所有派发点主体即行动者,
    *    与 "any" 等价;未来出现「非行动玩家」主体的时机(如回合外失银)时二者分化。 */
   scope?: "self" | "actor" | "others" | "any";
-  /** 「你可」可选发动形制(#1377,被动技首个可选发动):效果命中时不自动结算而是挂
-   *  待决(choices.ts PendingSkillChoice 队列,回合收口 endTurn 入口开窗),发动成立时
-   *  本技在本槽的技能标记归零(超出部分随覆写舍弃)。缺省 false=命中即自动结算
-   *  (现役其余被动技全是自动形制)。 */
+  /** 「你可」应答确认发动时，将本槽里该技能的标记归零。 */
   fireResetsMarks?: boolean;
 }
 
@@ -90,6 +88,7 @@ export const SKILLS: SkillDef[] = [
     name: "疾行",
     desc: "你的移动步数始终 +1",
     when: "BeforeMarch",
+    stage: "during",
     effect: "moveBonus",
     params: { steps: 1 },
     scope: "self",
@@ -99,6 +98,7 @@ export const SKILLS: SkillDef[] = [
     name: "渔利", // 提案名(#358 施工资未拍板,报告供审)
     desc: "其他玩家被动失去银两时,你 +50 两",
     when: "CashLost",
+    stage: "during",
     effect: "gainCash",
     params: { amount: 50 },
     scope: "others",
@@ -108,6 +108,7 @@ export const SKILLS: SkillDef[] = [
     name: "掷金",
     desc: "场上任意人掷出 6,你 +20 两",
     when: "DieRolled",
+    stage: "during",
     effect: "gainIfFace",
     params: { face: 6, amount: 20 },
     scope: "any",
@@ -117,6 +118,7 @@ export const SKILLS: SkillDef[] = [
     name: "青囊",
     desc: "每 3 轮为自身恢复 15 体力(不与世界为敌,只与病痛为敌)",
     when: "RoundStart",
+    stage: "during",
     effect: "regenStamina",
     params: { amount: 15 },
     cooldown: 3,
@@ -133,6 +135,7 @@ export const SKILLS: SkillDef[] = [
     name: "屯田",
     desc: "你购入城池时,声望 +5",
     when: "PropertyBought",
+    stage: "during",
     effect: "gainReputation",
     params: { amount: 5 },
     scope: "self",
@@ -142,6 +145,7 @@ export const SKILLS: SkillDef[] = [
     name: "声势",
     desc: "你的城池升至满级时,声望 +10",
     when: "PropertyUpgraded",
+    stage: "during",
     effect: "reputationOnMaxLevelUpgrade",
     params: { amount: 10 },
     scope: "self",
@@ -151,6 +155,7 @@ export const SKILLS: SkillDef[] = [
     name: "互市",
     desc: "你的城池交涉成交时,声望 +4",
     when: "TradeSettled",
+    stage: "during",
     effect: "gainReputation",
     // #1148 校准定稿(初值 8 → 4):+8 按「成交 1~2 次/局」设计,实测卖单 15.09 次/授·局
     // (书入流通后珍宝成交 90→135/局),超设计一个量级;+8 = 每持技者每局 +121 声望,
@@ -164,6 +169,7 @@ export const SKILLS: SkillDef[] = [
     name: "得陇望蜀",
     desc: "你获得珍宝时,+100 两",
     when: "TreasureGained",
+    stage: "during",
     effect: "gainCash",
     params: { amount: 100 },
     scope: "self",
@@ -173,6 +179,7 @@ export const SKILLS: SkillDef[] = [
     name: "玉碎",
     desc: "你失去珍宝时,+80 两",
     when: "TreasureLost",
+    stage: "during",
     effect: "gainCash",
     params: { amount: 80 },
     scope: "self",
@@ -182,6 +189,7 @@ export const SKILLS: SkillDef[] = [
     name: "瓮中捉鳖",
     desc: "他人落在你城中时,你声望 +2",
     when: "LandedOnProperty",
+    stage: "during",
     effect: "reputationOnOwnCityHit",
     params: { amount: 2 },
     // scope="any":主体=访客,受益人=城主(ctx.ownerSeat)——属主匹配在效果内判,主体不限。
@@ -192,6 +200,7 @@ export const SKILLS: SkillDef[] = [
     name: "深沟高垒",
     desc: "他人途经你城而不入时,你 +20 两",
     when: "MarchPassedCity",
+    stage: "during",
     effect: "cashOnOwnCityPassed",
     params: { amount: 20 },
     // scope="any":主体=行人,受益人=城主(ctx.ownerSeat);落点格不派、拦停即止皆框架语义。
@@ -202,6 +211,7 @@ export const SKILLS: SkillDef[] = [
     name: "韬光养晦",
     desc: "你被强加跳回合时,+100 两",
     when: "TurnSkipImposed",
+    stage: "during",
     effect: "gainCash",
     params: { amount: 100 },
     scope: "self",
@@ -211,6 +221,7 @@ export const SKILLS: SkillDef[] = [
     name: "塞翁失马",
     desc: "你被动失去银两达 300 两时,声望 +5",
     when: "CashLost",
+    stage: "during",
     effect: "reputationOnPassiveCashLoss",
     params: { threshold: 300, amount: 5 },
     scope: "self",
@@ -220,6 +231,7 @@ export const SKILLS: SkillDef[] = [
     name: "处变不惊",
     desc: "他人的锦囊指向你时,你 +10 两",
     when: "JinnangAnnounced",
+    stage: "during",
     effect: "cashIfTargetedByJinnang",
     params: { amount: 10 },
     // scope="others":主体=用计者,自己用计不触发;「属主 ∈ targetSeats」在效果内判。
@@ -230,6 +242,7 @@ export const SKILLS: SkillDef[] = [
     name: "岁俸",
     desc: "每个回合开始时,你 +1 两",
     when: "TurnStart",
+    stage: "during",
     effect: "gainCash",
     params: { amount: 1 },
     // scope="any":TurnStart 的 subject 是新活跃玩家,缺省 self 会让非活跃持有者永不触发——
@@ -237,14 +250,13 @@ export const SKILLS: SkillDef[] = [
     // 双池共享(司马懿↔邓艾)=首批共享三技之后的新共享先例。
     scope: "any",
   },
-  // ── 被动技·「你可」可选发动(#1377,曹丕放逐/行殇):效果命中挂待决不自动结算,
-  // 回合收口 endTurn 入口开窗(choices.ts);名将池随 #1378 换血入曹丕池(招贤/授技
-  // 可达)。文案=规格 #1375 Solution 节定稿原文。──
+  // ── 被动技·「你可」可选发动：在触发的时机内完成选择。──
   {
     id: "fangzhu",
     name: "放逐",
-    desc: "受到伤害时,获得等同于伤害值的「放逐」标记;受到伤害后,若「放逐」值达到 60,你可指定一名其他诸侯,使其跳过下一个回合,并重置「放逐」标记数。",
+    desc: "每次损失体力时，获得等量的「放逐」标记。此时若累计至少有 60 枚标记，你可指定一名其他诸侯，使其跳过下一个回合，并清空你的「放逐」标记。",
     when: "StaminaLoss",
+    stage: "during",
     effect: "fangzhuMark",
     params: { threshold: 60 },
     scope: "self", // 伤害=主公损失体力:主体恒属主本人(体力唯一写口内派发)
@@ -253,8 +265,9 @@ export const SKILLS: SkillDef[] = [
   {
     id: "xingshang",
     name: "行殇",
-    desc: "一名其他诸侯进入休整状态时,你可使其休整回合数+1。",
+    desc: "一名其他诸侯因体力耗竭进入休整时，你可令该诸侯多休整 1 个回合。",
     when: "TurnSkipImposed",
+    stage: "during",
     effect: "xingshangOffer",
     // scope="others":主体=被跳者,自己休整不触发;原因过滤(只认耗竭)在效果内判——
     // 缓兵之计的跳过(jinnang)与行殇本笔(xingshang)均不触发。
@@ -263,11 +276,11 @@ export const SKILLS: SkillDef[] = [
   // ── 静态被动(#1390,spec #1386 周瑜重做):持有即恒常,无时机/无结算/无冷却——
   // 骰面数由持有状态经 heroDieFaces 推导(下方查询口单源),不入快照(免双源);
   // 不经 dispatchMoment(两形守卫皆 false,派发/出牌卷轴/技能卡三面天然跳过)。
-  // 文案 = 规格 #1386 定稿原文(#1385 评论区,「筛子」正名「骰子」)。──
+  // ──
   {
     id: "yingzi",
     name: "英姿",
-    desc: "你的骰子增加1面，此面值递增1。",
+    desc: "你的骰子始终多 1 面，新增面的点数比原最高点数多 1。",
   },
   // ── 主动技(出牌阶段手动,#188 档 3)──
   {
@@ -277,7 +290,7 @@ export const SKILLS: SkillDef[] = [
     // #1388 T2 定向化(规格 #1386 定稿文案):城目标域,目标域谓词单源
     // choices.heroSkillCityTargets(距离 ≤ range 且城主为他人,含 0 级城,#1493);
     // 结算单点 defense.applyFireDamage(1 点火焰伤害,#1386/#1387 防御值系统)。
-    desc: "指定一座距离你5格以内、其他诸侯的城池(含0级),对其造成1点火焰伤害。0级非都城防御值归零后失城。",
+    desc: "出牌阶段，你可指定距离你 5 格以内的一座其他诸侯的城池，对其造成 1 点火焰伤害。",
     target: "city",
     kind: "fireBlast",
     params: { range: 5, damage: 1 },
