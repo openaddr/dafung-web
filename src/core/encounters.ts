@@ -48,7 +48,7 @@ export type EncounterEffect =
       kind: "grantHero";
       fallbackCash: number;
       /** 指定招揽(#1153):点名某将来投(如三顾茅庐→诸葛亮);指定将已被招揽/
-       *  麾下满/名将尽 → fallbackCash 折现(闸门见 choices.ts encounterOptionGate)。 */
+       *  名将尽 → fallbackCash 折现；麾下满则改发技能书。 */
       heroId?: string;
       staminaDelta?: number;
       repDelta?: number;
@@ -73,11 +73,10 @@ export interface EncounterChoiceOption {
   treasureCost?: number;
   /** 选项现金代价(#1154):付费与得物分离的代价随条目声明(首例=太平要术「以百金请书」
    *  ——费银 100 两+得锦囊一张,单 effect 容不下两事)。语义与负 cash 效果同款:闸门
-   *  (choices.ts optionCashCost)现金不足灰显「银两不足」,结算(encounter-flow)封顶
-   *  以其现有银两为限(#1153 红线「机遇不送清算」,保底放行路可带不足现金进场)。 */
+   *  (choices.ts optionCashCost)现金不足灰显「银两不足」。 */
   cashCost?: number;
   /** 选项闸(#1153 P2):要求持有的机遇章——未持满则选项灰显(reason 写持章要求);
-   *  模块初始化守卫保证带章闸条目仍保有一个无章闸选项,选项集永不被章锁死。 */
+   *  若所有选项均被拦下，引擎追加「无事发生」。 */
   requiresFlags?: EncounterFlagId[];
   /** 抉择路章写点(#1153):本选项结算时写进抉择者章册(去重落章,grantEncounterFlags 单源);
    *  联机消费端按 encounterId+choiceIndex 回查目录派生,事件本体零改动(#1126 拍板②)。 */
@@ -97,6 +96,25 @@ export interface EncounterDef {
   requiresFlags?: EncounterFlagId[];
   /** 即时路章写点(#1153):本条即时结算时写进行动者章册(去重落章,grantEncounterFlags 单源)。 */
   setsFlags?: EncounterFlagId[];
+}
+
+/** 目录选项全不可用时追加的选项，排在所有目录选项之后。 */
+export const ENCOUNTER_NO_EFFECT: EncounterChoiceOption = { text: "无事发生", repDelta: 0 };
+
+/** 联机与表现层按同一编号解释目录选项和「无事发生」。引擎另查选项集校验可用性。 */
+export function encounterChoiceAt(def: EncounterDef, index: number): EncounterChoiceOption {
+  const choices = def.choices;
+  if (choices != null && choices.length > 0 && index === choices.length) return ENCOUNTER_NO_EFFECT;
+  const option = choices?.[index];
+  if (option == null) throw new Error(`机遇 ${def.id} 选项 #${index} 不在目录`);
+  return option;
+}
+
+export function encounterChoiceLabel(
+  option: EncounterChoiceOption,
+  grantsSkillBooks: boolean,
+): string {
+  return grantsSkillBooks ? `以 ${option.treasureCost!} 件珍宝换技能书` : option.text;
 }
 
 /** 目录 v4(#1154 机遇扩展):60 条,好运 21/中性 16/霉运 23;抉择 29/即时 31;玩家侧 13。
@@ -336,7 +354,7 @@ export const ENCOUNTERS: EncounterDef[] = [
     tier: "中性",
     tags: ["珍宝", "名将"],
     weight: 0.8,
-    text: "名将遣使密告:愿以两件随身珍宝相赠,只求帐下效力。收下珍宝,名将即刻来投。",
+    text: "名将遣使传信，请你送上两件珍宝为聘。答应后名将来投。麾下已满时，可换得技能书。",
     choices: [
       {
         text: "以两件珍宝换 1 名将",
@@ -846,23 +864,6 @@ export function assertGrantHeroCostDeclared(defs: readonly EncounterDef[]): void
   }
 }
 assertGrantHeroCostDeclared(ENCOUNTERS); // 模块初始化即验:坏数据活不到任何消费点
-
-/** 章闸不死锁守卫(#1153):凡 choices 非空且带 requiresFlags(def 级或任一 option 级)的
- *  条目,必须保有一个无 requiresFlags 的选项——「整条选项集被 flag 锁死」的条目会让
- *  AwaitingEncounter 零可用(enterEncounterPhase 的零兜底 throw 会从测试炸到生产)。
- *  导出供单测复验(生产侧由下方模块初始化调用,同一函数单源,仿 assertGrantHeroCostDeclared)。 */
-export function assertChoicesNotFlagLocked(defs: readonly EncounterDef[]): void {
-  for (const def of defs) {
-    const choices = def.choices ?? [];
-    if (choices.length === 0) continue;
-    const gated = def.requiresFlags != null || choices.some((c) => c.requiresFlags != null);
-    if (gated && !choices.some((c) => c.requiresFlags == null))
-      throw new Error(
-        `机遇「${def.id}」选项集被章闸锁死:须保有一个无 requiresFlags 的选项(数据 bug)`,
-      );
-  }
-}
-assertChoicesNotFlagLocked(ENCOUNTERS); // 模块初始化即验:坏数据活不到任何消费点
 
 /** 抽取过滤(#1153 P2 触发闸 + #1154 奇遇一局一遇):①带 def 级 requiresFlags 的条目只在
  *  持章者的抽取池里(链式典故后编高权重 weight 2.5 只对持章者生效的设计前提,#1133:非持章者

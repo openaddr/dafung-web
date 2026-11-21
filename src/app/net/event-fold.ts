@@ -103,7 +103,12 @@ import type { PropertyDef } from "@core/economy";
 import type { ReactionPayload, ReactionView } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/skills";
 import { jinnangCardOf } from "@core/jinnang";
-import { grantEncounterFlags, isOncePerGameEncounter, markOnceEncounter } from "@core/encounters";
+import {
+  encounterChoiceAt,
+  grantEncounterFlags,
+  isOncePerGameEncounter,
+  markOnceEncounter,
+} from "@core/encounters";
 import {
   TREASURES,
   isSkillBook,
@@ -620,15 +625,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         // 相位先回 Land,最终落格结果归同批后续 landingResolved(选项效果 liquidating/exhausted
         // 路的挂起相位无专属事件 = 校准档)
         engine.turnPhase = "Land";
-        // 抉择路折章(#1153):按 id+choiceIndex 回查目录取 option.setsFlags——章与文案
-        // 同为静态目录数据,事件不带成品(#385 同源纪律,#1126 拍板②);下标越界/选项
-        // 缺失 = 产出侧契约违反,当场炸出
-        const def = encounterDefOfId(ev.encounterId);
-        const option = def.choices?.[ev.choiceIndex];
-        if (option == null)
-          throw new Error(
-            `折叠投影:机遇 ${ev.encounterId} 选项 ${ev.choiceIndex} 不在目录(契约违反)`,
-          );
+        const option = encounterChoiceAt(encounterDefOfId(ev.encounterId), ev.choiceIndex);
         grantEncounterFlags(foldTarget(engine, ev), option.setsFlags);
         break;
       }

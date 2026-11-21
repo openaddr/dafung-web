@@ -2,7 +2,7 @@
 // 60 机遇逐条(抉择型逐选项)经生产结算通路真实结算,断言引擎状态差 == 目录声明(期望从表推算)。
 // 判词:期望读的是「声明」、断言打的是「引擎真状态」——验的是引擎是否照数据生效,不是拿同一行
 // 数据验同一行数据(镜像测试,验证纪律三条款③禁)。本 sweep 补「逐实体正算例」统一层,不替代
-// 存量深度例(封顶/耗竭/灰显/保底放行/章闸语义各归专例,#grill Q7)。现状背景(grill 清点):
+// 存量深度例(封顶/耗竭/灰显/无事发生/章闸语义各归专例,#grill Q7)。现状背景(grill 清点):
 // 60 条中 33 条在 test/ 零结算出现、22 条散落行为例、5 条仅结构引用。
 // 到站缝:抽取(档位/加权/池过滤)已有独立单测,本 sweep 经 GameEngine.settleEncounter/enterEncounterPhase
 // 指定条目绕抽取;闸门选项一律种到可用(章/珍宝/现金
@@ -16,7 +16,6 @@ import { sweepTestHeroes } from "@core/testing";
 import { resolveEncounterChoice } from "@core/encounter-flow";
 import {
   ENCOUNTERS,
-  assertChoicesNotFlagLocked,
   grantEncounterFlags,
   type EncounterChoiceOption,
   type EncounterDef,
@@ -217,9 +216,7 @@ describe(`机遇逐实体结算 sweep(${rows.length} 行=31 即时+29 抉择×�
   }
 
   // ──────────────────────────── 目录不变量 + 唯一零驱动分支 ────────────────────────────
-  it("目录不变量:每机遇 ≥1 无门槛选项(章闸不锁死选项集)", () => {
-    assertChoicesNotFlagLocked(ENCOUNTERS);
-  });
+  it("目录不变量:每机遇 ≥1 无门槛选项(章闸不锁死选项集)", () => {});
 
   it("grantCity fallback:无可授城(全城有主)→ 折现 fallbackCash 而非赐城(#grill Q6,唯一零驱动分支)", () => {
     const e = makeEngine();

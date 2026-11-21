@@ -357,12 +357,12 @@ export interface EncounterTriggeredBody {
   tier: EncounterTier;
 }
 /** 机遇抉择落定(#385 缺口 6):auto 执行与 resolve 两路共用的结算点产出——
- *  choiceIndex=def.choices 下标,文案属静态目录(fx 按 encounterId+choiceIndex
- *  查 ENCOUNTERS 表派生,事件不带成品文案)。 */
+ *  choiceIndex 对应目录下标，末项之后是「无事发生」。位满换技能书携实际收益标记。 */
 export interface EncounterChosenBody {
   kind: "encounterChoice";
   encounterId: string;
   choiceIndex: number;
+  grantsSkillBooks?: true;
 }
 /** 体力耗竭开始休整。downgradedPropertyIds 供演出宣告；城损及易主分别由
  *  propertyDamaged、assetTransferred 同步，休整按 restTurns 累加。 */

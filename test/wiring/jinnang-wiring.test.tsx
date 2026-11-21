@@ -211,11 +211,16 @@ it("连环计上一步经在途锁保留首选，改选后第二步需重新选�
   expect(q(el, TESTIDS.actionbarPlay)!.textContent).toBe("选目标");
   click(q(el, TESTIDS.actionbarPlay)!);
   completeCommand();
+  click(seat(0));
+  expect(q(el, TESTIDS.actionbar)?.textContent).toContain("不能指定自己");
   click(seat(1));
+  expect(q(el, TESTIDS.actionbar)?.textContent).not.toContain("不能指定自己");
   expect(seat(1).getAttribute("aria-pressed")).toBe("true");
   click(confirm());
   completeCommand();
   expect(q(el, TESTIDS.actionbar)!.textContent).toContain(`已选 ${snap().players[1].guohao}`);
+  expect(seat(1).getAttribute("aria-pressed")).toBe("true");
+  expect(seat(1).getAttribute("aria-label")).toContain("已选为第一位");
   click(seat(3));
   click(q(el, TESTIDS.actionbarPrevious)!);
   expect(useGameStore.getState().interactive).toBe(false);
@@ -226,8 +231,8 @@ it("连环计上一步经在途锁保留首选，改选后第二步需重新选�
   click(seat(2));
   click(confirm());
   completeCommand();
-  expect(seat(1).getAttribute("aria-disabled")).toBeNull();
-  expect(seat(2).getAttribute("aria-disabled")).toBe("true");
+  expect(seat(1).getAttribute("aria-pressed")).toBe("false");
+  expect(seat(2).getAttribute("aria-label")).toContain("已选为第一位");
   expect(seat(3).getAttribute("aria-pressed")).toBe("false");
   expect(confirm().hasAttribute("disabled")).toBe(true);
   expect(snap().players[0].jinnangHand).toEqual(["连环计"]);

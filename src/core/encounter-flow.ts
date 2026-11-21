@@ -12,6 +12,8 @@ import { computeChoices } from "./choices";
 import {
   ENCOUNTERS,
   drawableEncounters,
+  encounterChoiceAt,
+  encounterChoiceLabel,
   grantEncounterFlags,
   isOncePerGameEncounter,
   markOnceEncounter,
@@ -178,12 +180,7 @@ export function maybeApplyEncounter(
   return g.settleEncounter(mover, def, true);
 }
 
-/** 抉择机遇入相(#124):抽中 choices 型机遇后调用。选项集经注册表(choices.ts)计算,
- *  ADR-0013:可用选项 ≤1 → 自动执行唯一可用项(战报+encounterChoice 事件文案浮字;结盟互市单选项即「自动发生」;
- *  以宝换贤珍宝不足时只剩「婉言相拒」同理),返回 deciding(回合已在收尾中);
- *  ≥2 → 进 AwaitingEncounter 等待 resolveEncounterChoice,返回 deciding。
- *  两种场合机遇都先于城池结算:自动执行已在内部续跑落格结算(返回 deciding),
- *  ≥2 选项由 resolveEncounterChoice 解完后续跑(同在 settleEncounterChoice 内)。 */
+/** 目录只有一个且可用时自动执行。其余情况进卷轴，保留灰置项。 */
 export function enterEncounterPhase(
   g: GameEngine,
   mover: Player,
@@ -198,32 +195,20 @@ export function enterEncounterPhase(
     `encounterAwait player=${mover.id} id=${def.id} tier=${def.tier}`,
   );
   const options = computeChoices(g, "AwaitingEncounter");
-  const availableIdx = options.map((o, i) => (o.available ? i : -1)).filter((i) => i >= 0);
-  if (availableIdx.length > 1) {
-    g.turnPhase = "AwaitingEncounter";
-    return "deciding";
+  if (options.length === 0) throw new Error(`抉择机遇「${def.id}」缺少选项`);
+  if (options.length === 1) {
+    const r = settleEncounterChoice(g, mover, def, encounterChoiceAt(def, 0), 0);
+    return r === "settled" ? "deciding" : r;
   }
-  // ≤1 可用选项:自动执行唯一可用项(目录约定必有无门槛选项,availableIdx[0] 恒存在;
-  // 空目录=数据 bug,按无事发生收尾并留痕,不卡流程)
-  const idx = availableIdx[0];
-  if (idx === undefined)
-    throw new Error(`机遇「${def.id}」无可执行选项:choices 与选项注册表不一致(数据 bug)`); // 零兜底:目录数据 bug 应炸出来
-  const choice = def.choices![idx];
-  // 选项文案由 settleEncounterChoice 内的 encounterChoice 事件在 fx 面查目录派生(#719 死写删除)
-  const r = settleEncounterChoice(g, mover, def, choice, idx ?? 0);
-  return r === "settled" ? "deciding" : r; // settled=回合已收尾;机遇仍占用本落格
+  g.turnPhase = "AwaitingEncounter";
+  return "deciding";
 }
 
-/** 玩家从抉择机遇选项中择一(公开,供 UI/bot/联机)。index=def.choices 下标(与
- *  snapshot.choices 顺序一致)。不可用选项引擎硬拒绝(可用性唯一口径在注册表,零兜底)。 */
+/** index 对应选项集下标，其中目录末项之后只可能是「无事发生」。 */
 export function resolveEncounterChoice(g: GameEngine, index: number): void {
   if (!g.assertPhase("AwaitingEncounter", "ResolveEncounterChoice")) return;
   const def = g.pendingEncounter;
-  const option = def?.choices?.[index];
-  if (!def || !option) {
-    g.warn(`ResolveEncounterChoice:机遇上下文缺失或选项越界(index=${index})`);
-    return;
-  }
+  if (def == null) throw new Error("抉择机遇相位缺少机遇");
   const opt = computeChoices(g, "AwaitingEncounter")[index];
   if (!opt?.available) {
     g.warn(
@@ -231,7 +216,7 @@ export function resolveEncounterChoice(g: GameEngine, index: number): void {
     );
     return;
   }
-  settleEncounterChoice(g, g.activePlayer, def, option, index);
+  settleEncounterChoice(g, g.activePlayer, def, encounterChoiceAt(def, index), index);
 }
 
 /** 盖章战报句(#1155 链式盖章反馈):结算写章时按「实际新落章」产一句「获『X』」。
@@ -269,10 +254,14 @@ function settleEncounterChoice(
   index: number,
 ): EncounterSettlement {
   const seat = g.players.indexOf(mover);
+  const grantsSkillBooks =
+    option.effect?.kind === "grantHero" && mover.heroes.length >= HERO_CAPACITY;
+  const label = encounterChoiceLabel(option, grantsSkillBooks);
   emitGameEvent(g, seat, {
     kind: "encounterChoice",
     encounterId: def.id,
     choiceIndex: index,
+    ...(grantsSkillBooks ? { grantsSkillBooks } : {}),
   }); // 事件流(#385):机遇抉择落定(auto/resolve 两路共用此口;文案 fx 按 id+下标查目录派生)
   // 选项路章写点(#1153):option.setsFlags 去重落章,与 encounterChoice 事件同位——
   // 中断路(liquidating/bankrupt/exhausted)flag 照写(#1126 拍板③),破产不清章(拍板⑥)
@@ -288,9 +277,7 @@ function settleEncounterChoice(
     for (const t of cost) g.dispatchMoment("TreasureLost", { subject: seat, treasureId: t.id }); // 时机·TreasureLost:以宝换贤交出珍宝(非售出流失,#457,每件一派)
     costDetail = ` costTreasures=${cost.map((t) => t.id).join("+")}`;
   }
-  // 选项现金代价(#1154):付费与得物分离的代价随条目声明——闸门已保证现金充足,唯保底
-  // 放行路可带不足现金进场,实付封顶以其现有银两为限(#1153 红线同款;实付 0=分文未动
-  // 不产事件,与负 cash 封顶同款)
+  // 选项集已校验付费能力。失宝时机可以改变余额，实付仍以现有银两为限。
   if (option.cashCost != null && option.cashCost > 0) {
     const paid = Math.min(option.cashCost, mover.cash);
     mover.cash -= paid;
@@ -310,13 +297,13 @@ function settleEncounterChoice(
   g.logEvent(
     "system",
     mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」抉择:${option.text}`,
+    `${mover.guohao} 机遇「${def.id}」抉择:${label}`,
     `encounterChoice player=${mover.id} id=${def.id} index=${index} repDelta=${option.repDelta} reputation=${mover.reputation} effect=${option.effect?.kind ?? "none"}${costDetail}`,
   );
   g.pendingEncounter = null;
   g.turnPhase = "Land";
   if (option.effect != null) {
-    const result = applyEncounterEffect(g, mover, def, option.effect, option.text);
+    const result = applyEncounterEffect(g, mover, def, option.effect, label);
     if (result !== "settled") {
       g.pendingEncounterHalt = false;
       return result;
@@ -326,7 +313,7 @@ function settleEncounterChoice(
     g,
     mover,
     def,
-    option.text,
+    label,
     [option.effect?.staminaDelta ?? 0, option.staminaDelta ?? 0],
     true,
   );
@@ -556,15 +543,14 @@ function applyGrantCardEffect(
   narr: string,
 ): "settled" | "liquidating" | "bankrupt" {
   const seat = g.players.indexOf(mover);
-  // 圯上授书(#147):机遇→锦囊流通;手牌无上限(#250)恒入手,牌库空落空由 jinnangExhausted
-  // 事件宣告(抽牌宣告=jinnangDrawn 事件 fx 面派生,#719 死写删除)
+  const drawn = drawJinnangTraced(g, seat, 1, "encounter");
+  const outcome = drawn > 0 ? `${narr},得锦囊一封` : "锦囊已空";
   g.logEvent(
     "system",
     mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」:${narr},得锦囊一封`,
-    `encounter player=${mover.id} id=${def.id} tier=${def.tier} grantCard=1`,
+    `${mover.guohao} 机遇「${def.id}」:${outcome}`,
+    `encounter player=${mover.id} id=${def.id} tier=${def.tier} grantCard=${drawn}`,
   );
-  drawJinnangTraced(g, seat, 1, "encounter"); // 事件流(#384):抽锦囊进手(落空不产)
   return "settled";
 }
 
