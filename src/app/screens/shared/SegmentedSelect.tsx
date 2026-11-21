@@ -36,7 +36,7 @@ export function SegmentedSelect<T extends string | number>({
             aria-pressed={selected}
             onClick={() => onChange(o.value)}
             className={
-              "min-h-[40px] rounded border px-3 font-brush text-sm transition-colors " +
+              "min-h-(--touch-target) min-w-(--touch-target) rounded border px-3 font-brush text-sm transition-colors " +
               (selected
                 ? "border-gold bg-gold/25 text-paper"
                 : "border-paper/25 bg-bg/60 text-paper-dim ")

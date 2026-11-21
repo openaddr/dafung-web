@@ -86,9 +86,7 @@
   background: var(--color-paper-hi);
   border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 5px;
-  /* 触达制式(#745 高2):footer 钮 min-height ≥40 恒适用——#751 触屏下限口径收口后
-     矮横屏档不再收 36(#833),基座值即下限。 */
-  min-height: 40px;
+  min-height: var(--touch-target);
   padding: 6px 22px;
   transition:
     background var(--dur-fast) var(--ease-out),
@@ -98,6 +96,7 @@
 /* 成交主行动:墨钮制式(DESIGN §4.2 主行动=漆底金字金内环,#510 玄墨鎏金换装;
    旧「墨底纸色字」注释所锚的深浅 token 语义已随 #509 值换血反转,制式归一墨钮) */
 .treasure-pick .treasure-pick-ok {
+  min-height: var(--touch-primary);
   font-size: 16px;
   padding: 7px 30px;
   background: var(--color-lacquer);

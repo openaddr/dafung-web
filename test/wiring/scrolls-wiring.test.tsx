@@ -469,6 +469,76 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
 });
 
 describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
+  it("点空白让出棋盘，查城后恢复清算预选且全程无命令", async () => {
+    const { el, engine, snap } = startGame([
+      { kind: "armPhase", activeIndex: 0 },
+      { kind: "setCash", seat: 0, cash: 0 },
+      { kind: "giveTreasure", seat: 0, treasures: [makeSkillBook("jixing")] },
+      { kind: "armDebt", amount: 1000, creditor: null },
+    ]);
+    await settle();
+
+    const commands = engine.log.filter((line) => line.category === "cmd").length;
+    const asset = () => docQ(T.bankruptcyAsset("treasure", "skillbook-jixing"))!;
+    expect(docQ(TESTIDS.modalBackdrop)).not.toBeNull();
+    click(asset());
+    click(docQ(TESTIDS.modalBackdrop)!);
+    await settle();
+    expect(docQ(T.bankruptcyScroll)?.closest("[hidden]") != null).toBe(true);
+    expect(document.activeElement === docQ(TESTIDS.modalRestore)).toBe(true);
+
+    click(el.querySelector(TESTIDS.city(0))!);
+    await settle();
+    expect(docQ(T.tileDetailScroll)).not.toBeNull();
+    click(q(docQ(T.tileDetailScroll)!, TESTIDS.modalMinimize)!);
+    await settle();
+    expect(docQ(T.tileDetailScroll)).toBeNull();
+
+    click(docQ(TESTIDS.modalRestore)!);
+    await settle();
+    expect(docQ(T.bankruptcyScroll)?.closest("[hidden]") == null).toBe(true);
+    expect(asset().getAttribute("aria-pressed")).toBe("true");
+    expect(snap().pendingDebt?.amount).toBe(1000);
+    expect(engine.log.filter((line) => line.category === "cmd")).toHaveLength(commands);
+  });
+
+  it("从认破产确认框最小化整栈，恢复确认；新债务换掉已失效的抉择", async () => {
+    const { plant, snap, engine } = startGame([
+      { kind: "armPhase", activeIndex: 0 },
+      { kind: "setCash", seat: 0, cash: 0 },
+      { kind: "giveTreasure", seat: 0, treasures: [] },
+      { kind: "armDebt", amount: 100, creditor: null },
+    ]);
+    await settle();
+    const commands = engine.log.filter((line) => line.category === "cmd").length;
+    const minimizeConfirmation = () => {
+      const minimize = q(docQ(T.confirmDialog)!, TESTIDS.modalMinimize);
+      expect(minimize).not.toBeNull();
+      click(minimize!);
+    };
+
+    click(docQ(T.bankruptcyDeclare)!);
+    await settle();
+    minimizeConfirmation();
+    await settle();
+    expect(docQ(T.confirmDialog)?.closest("[hidden]") != null).toBe(true);
+    expect(docQ(T.bankruptcyScroll)?.closest("[hidden]") != null).toBe(true);
+
+    click(docQ(TESTIDS.modalRestore)!);
+    await settle();
+    expect(docQ(T.confirmDialog)?.closest("[hidden]") == null).toBe(true);
+    minimizeConfirmation();
+    await settle();
+
+    plant({ kind: "armDebt", amount: 300, creditor: 1 });
+    await settle();
+    expect(docQ(TESTIDS.modalRestore)).toBeNull();
+    expect(docQ(T.confirmDialog)).toBeNull();
+    expect(docQ(T.bankruptcyDebt)?.textContent).toContain(formatMoney(300));
+    expect(snap().players[0].isBankrupt).toBe(false);
+    expect(engine.log.filter((line) => line.category === "cmd")).toHaveLength(commands);
+  });
+
   it("零资产清算先展示说明,取消认破产保留对局,二次确认才提交出局", async () => {
     const { snap } = startGame([
       { kind: "armPhase", activeIndex: 0 },
@@ -554,4 +624,118 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(snap().players[0].treasures.map((t) => t.id)).toContain("qingnang-11");
     expect(snap().players[0].treasures.filter((t) => t.id === "skillbook-jixing")).toHaveLength(1);
   });
+});
+
+it("战报点空白后可查诸侯分项，关闭分项回棋盘并恢复战报滚动", async () => {
+  const { el } = startGame();
+  click(q(el, TESTIDS.settingsButton)!);
+  await settle();
+  click(docQ(TESTIDS.settingsWarReport)!);
+  await settle();
+
+  const report = () => docQ(TESTIDS.logDrawer)!;
+  const list = () => report().querySelector("ul")!;
+  list().scrollTop = 72;
+  expect(docQ(TESTIDS.modalBackdrop)).not.toBeNull();
+  click(docQ(TESTIDS.modalBackdrop)!);
+  await settle();
+  expect(report().closest("[hidden]") != null).toBe(true);
+
+  click(q(el, TESTIDS.topbarOverview)!);
+  await settle();
+  click(docQ(TESTIDS.warlordsCities(0))!);
+  await settle();
+  click(q(docQ(TESTIDS.cityLedger)!, TESTIDS.modalClose)!);
+  await finishExit(() => docQ(TESTIDS.cityLedger), "查阅分项关闭");
+  expect(docQ(TESTIDS.warlordsOverview)).toBeNull();
+
+  click(docQ(TESTIDS.modalRestore)!);
+  await settle();
+  expect(report().closest("[hidden]") == null).toBe(true);
+  expect(list().scrollTop).toBe(72);
+});
+
+it("从战报看局面时收到交涉抉择，恢复后才显示", async () => {
+  const game = startGame([{ kind: "armPhase", activeIndex: 1 }]);
+  click(q(game.el, TESTIDS.settingsButton)!);
+  await settle();
+  click(docQ(TESTIDS.settingsWarReport)!);
+  await settle();
+  click(docQ(TESTIDS.modalBackdrop)!);
+  await settle();
+
+  const commands = () => game.engine.log.filter((line) => line.category === "cmd").length;
+  const before = commands();
+  plantTrade(game);
+  await settle();
+  expect(game.snap().turnPhase).toBe("AwaitingTreasureOwner");
+  expect(docQ(TESTIDS.modalRestore)).not.toBeNull();
+  expect(docQ(T.treasureScroll) === null).toBe(true);
+  expect(commands()).toBe(before);
+
+  click(docQ(TESTIDS.modalRestore)!);
+  await settle();
+  expect(docQ(T.treasureScroll)).not.toBeNull();
+});
+
+it("看局面时换到下一座位，手牌架自动收起后仍能返回牌面详情", async () => {
+  const { el, plant } = startGame([
+    { kind: "armPhase", activeIndex: 1, turnPhase: "Roll" },
+    { kind: "giveJinnang", seat: 0, cards: ["军情密探"] },
+  ]);
+  click(q(el, TESTIDS.jinnangToggle)!);
+  click(q(el, TESTIDS.jinnangCard("军情密探"))!);
+  await settle();
+  const detail = docQ(TESTIDS.jinnangDetail)!;
+  click(q(detail, TESTIDS.modalMinimize)!);
+  await settle();
+
+  plant({ kind: "armPhase", activeIndex: 2 });
+  await settle();
+  expect(q(el, TESTIDS.jinnangRack) === null).toBe(true);
+  expect(docQ(TESTIDS.modalRestore) !== null).toBe(true);
+
+  click(docQ(TESTIDS.modalRestore)!);
+  await settle();
+  expect(docQ(TESTIDS.jinnangDetail) === detail).toBe(true);
+  expect(detail.closest("[hidden]") === null).toBe(true);
+});
+
+it("用书选将在临时锁定后可恢复，结束出牌阶段后只恢复珍宝", async () => {
+  const book = makeSkillBook("huogong");
+  const { el, engine, plant } = startGame([
+    { kind: "armHero", seat: 0, heroId: "zhouyu", skillIds: ["yingzi"] },
+    { kind: "armHero", seat: 0, heroId: "zhugeliang", skillIds: ["yuli"] },
+    { kind: "giveTreasure", seat: 0, treasures: [book] },
+    { kind: "armPhase", activeIndex: 0, turnPhase: "AwaitingJinnang" },
+  ]);
+  click(q(el, TESTIDS.pileTreasures)!);
+  await settle();
+  click(docQ(TESTIDS.bookUse(book.id))!);
+  await settle();
+  const learn = () => docQ(TESTIDS.bookLearnModal);
+  const sheet = learn()!;
+  const minimize = () => click(q(sheet, TESTIDS.modalMinimize)!);
+  minimize();
+  await settle();
+
+  act(() => useGameStore.getState().setInteractive(false));
+  click(docQ(TESTIDS.modalRestore)!);
+  await settle();
+  expect(learn() === sheet).toBe(true);
+  const pick = q(sheet, TESTIDS.bookLearnItem("zhouyu")) as HTMLButtonElement;
+  expect(pick.disabled).toBe(true);
+  click(pick);
+  expect(engine.players[0].heroes[0].skillIds).toEqual(["yingzi"]);
+
+  minimize();
+  await settle();
+
+  plant({ kind: "armPhase", activeIndex: 1, turnPhase: "Roll" });
+  await settle();
+  click(docQ(TESTIDS.modalRestore)!);
+  await settle();
+  expect(docQ(TESTIDS.treasureModal)?.closest("[hidden]") === null).toBe(true);
+  expect(learn() === null).toBe(true);
+  expect(engine.players[0].treasures.map((treasure) => treasure.id)).toContain(book.id);
 });

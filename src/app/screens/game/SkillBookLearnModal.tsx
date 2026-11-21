@@ -19,6 +19,7 @@ interface SkillBookLearnModalProps {
   skillId: string;
   /** 可学者(槽位序,core skillBookLearners 单源产出)。 */
   learners: HeroSlot[];
+  locked: boolean;
   /** 拍板:heroId 直落用书命令(命令通路在 GameScreen)。 */
   onPick: (heroId: string) => void;
   onClose: () => void;
@@ -29,6 +30,7 @@ export function SkillBookLearnModal({
   bookName,
   skillId,
   learners,
+  locked,
   onPick,
   onClose,
 }: SkillBookLearnModalProps) {
@@ -51,6 +53,7 @@ export function SkillBookLearnModal({
             key={slot.heroId}
             data-testid={TESTIDS.bookLearnItem(slot.heroId)}
             aria-label={`令 ${heroById(slot.heroId).name} 习得${skillById(skillId).name}`}
+            disabled={locked}
             onClick={() => onPick(slot.heroId)}
             className="pile-hero-cell"
           >

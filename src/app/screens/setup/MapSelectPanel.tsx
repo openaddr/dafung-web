@@ -246,7 +246,7 @@ export function MapSelectPanel({
           </div>
         )}
         {displayError && (
-          <div className="flex items-center gap-3 py-2">
+          <div className="flex flex-wrap items-center gap-3 py-2">
             <p className="text-danger text-sm">加载失败:{displayError}</p>
             {/* S-4:失败态提供重试(清预览错误 + 重新 listMaps) */}
             <button
@@ -254,7 +254,7 @@ export function MapSelectPanel({
                 setPreviewError(null);
                 reload();
               }}
-              className="note-btn rounded-[3px] px-4 min-h-[40px] font-wenkai text-paper "
+              className="note-btn rounded-[3px] px-4 min-h-(--touch-target) font-wenkai text-paper "
             >
               重试
             </button>
@@ -281,7 +281,7 @@ export function MapSelectPanel({
                     aria-pressed={selected}
                     // W2-包A:小控件圆角收敛 3px(DESIGN §4.2);选中=势(金)语义保留
                     className={
-                      "text-left rounded-[3px] border px-3 py-2.5 transition-colors " +
+                      "min-h-(--touch-target) shrink-0 text-left rounded-[3px] border px-3 py-2.5 transition-colors " +
                       (selected
                         ? // #497 ④:选中金色档与 SegmentedSelect 统一 gold/25(漂移收敛)
                           "border-gold bg-gold/25"
@@ -319,7 +319,7 @@ export function MapSelectPanel({
               <button
                 data-testid={TID.mapCancel}
                 onClick={onCancel}
-                className="note-btn rounded-[3px] px-4 py-2 font-wenkai text-paper "
+                className="note-btn min-h-(--touch-target) rounded-[3px] px-4 py-2 font-wenkai text-paper"
               >
                 取消
               </button>
@@ -331,8 +331,7 @@ export function MapSelectPanel({
                   onConfirm(picked, entry ? entry.name : picked);
                 }}
                 disabled={picked === null}
-                // 主行动触达口径 44(#761 ⑧;次级「取消/重试」维持 40 档不动)
-                className="ink-btn min-h-[44px] rounded-[5px] px-4 py-2 font-wenkai disabled:opacity-40"
+                className="ink-btn min-h-(--touch-primary) rounded-[5px] px-4 py-2 font-wenkai disabled:opacity-40"
               >
                 确认选择
               </button>

@@ -131,7 +131,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         <Button
           data-testid={LID.back}
           onClick={onExit}
-          className="ink-btn min-h-[44px] px-4 font-brush"
+          className="ink-btn min-h-(--touch-primary) px-4 font-brush"
         >
           返回首页
         </Button>
@@ -236,7 +236,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 onClick={copyRoomCode}
                 disabled={start.pending}
                 aria-label={`房间码 ${roomId}，点击复制`}
-                className="lobby-room-code note-btn min-h-[40px] disabled:opacity-40"
+                className="lobby-room-code note-btn min-h-(--touch-target) min-w-(--touch-target) disabled:opacity-40"
               >
                 {roomId}
               </Button>
@@ -253,7 +253,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             data-testid={LID.leave}
             disabled={roomActionsLocked}
             onClick={onExit}
-            className="note-btn min-h-[40px] shrink-0 whitespace-nowrap px-3 font-brush text-sm disabled:opacity-40 sm:px-4"
+            className="note-btn min-h-(--touch-target) min-w-(--touch-target) shrink-0 whitespace-nowrap px-3 font-brush text-sm disabled:opacity-40 sm:px-4"
           >
             离开房间
           </Button>

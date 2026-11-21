@@ -54,7 +54,7 @@ import { isSkillOption } from "@core/choices";
 import type { HeroSlotRow } from "@core/snapshot";
 import type { ChoiceOption } from "@core/choices";
 import type { SnapshotPlayer } from "@app/store/gameStore";
-import { SkillGlossaryDialog, type SkillGlossaryTarget } from "./SkillGlossaryDialog";
+import type { SkillGlossaryTarget } from "./SkillGlossaryDialog";
 import { TESTIDS } from "./testids";
 import "./hand-rack.css";
 
@@ -112,7 +112,7 @@ interface RackCardJunshi {
  *  与城池详情不一致)。
  *  矮屏规范(#708,弹层族一处口径):最大高 = 视口高 − 64px;壳自身不滚,体部走
  *  ui/scroll-area 内滚(首帧可见滚动提示),牌名行 sticky 钉住(机制在 hand-rack.css)。 */
-function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () => void }) {
+export function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () => void }) {
   const isNarrow = useIsNarrow();
   const def = jinnangCardOf(cardId);
   return (
@@ -456,6 +456,10 @@ interface RackReaction {
   onSelect: (selection: RackCardSelection) => void;
 }
 
+export type RackInspection =
+  | { kind: "jinnang"; key: string; cardId: string }
+  | { kind: "skill"; target: SkillGlossaryTarget };
+
 interface HandRackProps {
   /** 本地视角玩家(对局屏挂载期恒在座)。 */
   player: SnapshotPlayer;
@@ -471,6 +475,9 @@ interface HandRackProps {
   nudgePulse?: number;
   /** 收起手牌时只呈现待决触发技。 */
   bannerOnly?: boolean;
+  /** 正在查阅的牌键，区分同名牌的微光。 */
+  detailKey: string | null;
+  onInspect: (inspection: RackInspection) => void;
 }
 
 /** 牌面宽 = 15em(jinnang-card.css 基座,与 JINNANG_FACE_SIZE_EM 互为镜像的只读常量)。 */
@@ -504,12 +511,9 @@ export const HandRack = memo(function HandRack({
   skillBanner,
   nudgePulse = 0,
   bannerOnly = false,
+  detailKey,
+  onInspect,
 }: HandRackProps) {
-  // 详情开合态(#768 改形):按「卡键」(`${id}-${同名序}`)对位——同名双牌只点亮
-  // 被开的那张(长按微光的达成保持态按键判,不按 cardId 误伤同名兄弟);cardId 供详情面板。
-  const [detail, setDetail] = useState<{ key: string; cardId: string } | null>(null);
-  // 技能全览弹框开合态(#605):null=收;点技能卡主技名开,Esc/点外/X 关。
-  const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);
   // 全展检视由玩家主动结束；选中、取消与换选均保持，可持续逐张读牌。
   const [spreadAll, setSpreadAll] = useState(false);
   const handRowRef = useRef<HTMLDivElement | null>(null);
@@ -614,7 +618,7 @@ export const HandRack = memo(function HandRack({
   // 打开详情即结束本次全展检视。
   const openDetail = (key: string, cardId: string) => {
     collapseSpread();
-    setDetail({ key, cardId });
+    onInspect({ kind: "jinnang", key, cardId });
   };
 
   // 可用宽测量:测宿主行(.handzone,绝对定位、宽与内容无关)减签面与 gap,再去
@@ -689,7 +693,7 @@ export const HandRack = memo(function HandRack({
               played,
             }}
             openKey={openKey}
-            glowHeld={detail?.key === openKey}
+            glowHeld={detailKey === openKey}
             onOpen={openDetail}
           />
         );
@@ -713,11 +717,14 @@ export const HandRack = memo(function HandRack({
               onDeselect={() => select(null)}
               onInspect={(chipSkillId) => {
                 collapseSpread();
-                setGlossary({
-                  heroId: slot.heroId,
-                  poolSkillIds: heroDefOf(slot.heroId).skillPool,
-                  skillIds: slot.skillIds,
-                  skillId: chipSkillId,
+                onInspect({
+                  kind: "skill",
+                  target: {
+                    heroId: slot.heroId,
+                    poolSkillIds: heroDefOf(slot.heroId).skillPool,
+                    skillIds: slot.skillIds,
+                    skillId: chipSkillId,
+                  },
                 });
               }}
             />
@@ -736,7 +743,7 @@ export const HandRack = memo(function HandRack({
               onDeselect: () => select(null),
             }}
             openKey={key}
-            glowHeld={detail?.key === key}
+            glowHeld={detailKey === key}
             onOpen={openDetail}
           />
         );
@@ -754,7 +761,7 @@ export const HandRack = memo(function HandRack({
           index={i}
           junshi={null}
           openKey={openKey}
-          glowHeld={detail?.key === openKey}
+          glowHeld={detailKey === openKey}
           reaction={
             reactive
               ? {
@@ -861,11 +868,6 @@ export const HandRack = memo(function HandRack({
           {renderCount}
         </Button>
       )}
-      {detail !== null && (
-        <JinnangDetailSheet cardId={detail.cardId} onClose={() => setDetail(null)} />
-      )}
-      {/* 技能全览弹框(#605):点技能卡主技名开,只读,关闭即清 */}
-      <SkillGlossaryDialog target={glossary} onClose={() => setGlossary(null)} />
     </section>
   );
 });

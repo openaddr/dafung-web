@@ -20,9 +20,50 @@ import {
   OVERLAY_TINT_STACKED,
   useDialogDrag,
 } from "@app/hooks/use-dialog-drag";
-import { useDialogStackSlot } from "@app/hooks/dialog-stack";
+import { useDialogPeekSurface, useDialogStackSlot } from "@app/hooks/dialog-stack";
+import { TESTIDS } from "@app/screens/game/testids";
+import { DialogMinimize } from "./dialog-minimize";
 
-const Dialog = DialogPrimitive.Root;
+const DialogMinimizeContext = React.createContext<ReturnType<typeof useDialogPeekSurface> | null>(
+  null,
+);
+
+export function useDialogMinimize() {
+  return React.useContext(DialogMinimizeContext);
+}
+
+function Dialog<Payload>(props: DialogPrimitive.Root.Props<Payload>) {
+  const peek = useDialogPeekSurface(props.open === true);
+  const ownActions = React.useRef<DialogPrimitive.Root.Actions>(null);
+  const actions = props.actionsRef ?? ownActions;
+  React.useLayoutEffect(() => {
+    // 退出 Base UI 的模态与退场生命周期，Portal keepMounted 保留原内容树。
+    if (peek.hidden) actions.current!.unmount();
+  }, [actions, peek.hidden]);
+
+  return (
+    <DialogMinimizeContext.Provider value={peek}>
+      <DialogPrimitive.Root
+        {...props}
+        open={peek.hidden ? false : props.open}
+        actionsRef={actions}
+        disablePointerDismissal={
+          peek.minimize !== undefined && props.modal !== "trap-focus"
+            ? false
+            : props.disablePointerDismissal
+        }
+        onOpenChange={(open, details) => {
+          if (!open && details.reason === "outside-press" && peek.minimize !== undefined) {
+            details.cancel();
+            peek.minimize();
+            return;
+          }
+          props.onOpenChange?.(open, details);
+        }}
+      />
+    </DialogMinimizeContext.Provider>
+  );
+}
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;
@@ -76,25 +117,31 @@ function DialogContent({
    *  pointer-events:auto 恒压过 utilities 层的 pointer-events-none 类。 */
   overlayProps?: React.ComponentProps<typeof DialogPrimitive.Backdrop>;
 }) {
+  const peek = useDialogMinimize();
+  const hidden = peek?.hidden === true;
+  const minimize = peek?.minimize;
   // 题名拖动(#674):拖拽原语住本件,弹窗本体即变量宿主;消费方 ref(如
   // ConfirmDialog 的 popupRef)与本件内部 ref 组合,不覆盖。
   const popupRef = React.useRef<HTMLDivElement | null>(null);
   const drag = useDialogDrag({ popupRef });
   // 叠层开栈(#767):本件挂载即活弹层入栈(Portal 随 open 挂载,卸载=关闭出栈),
   // 栈深>1 且本层为上层 → 遮罩消费减淡档 --mask-dim-stacked。
-  const stacked = useDialogStackSlot(true);
+  const { stacked } = useDialogStackSlot(!hidden);
   return (
-    <DialogPrimitive.Portal>
+    <DialogPrimitive.Portal keepMounted={hidden || minimize !== undefined} hidden={hidden}>
       <DialogOverlay
         {...overlayProps}
+        data-testid={minimize !== undefined ? TESTIDS.modalBackdrop : undefined}
         animateOnOpen={animateOnOpen}
         dimmed={drag.dimmed}
         stacked={stacked}
       />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        data-peek-available={minimize !== undefined || undefined}
         ref={(node: HTMLDivElement | null) => {
           popupRef.current = node;
+          if (peek !== null) peek.element.current = node;
           if (typeof contentRef === "function") contentRef(node);
           else if (contentRef != null) contentRef.current = node;
         }}
@@ -112,8 +159,13 @@ function DialogContent({
           className,
         )}
         {...props}
+        inert={hidden || props.inert}
+        finalFocus={hidden ? false : props.finalFocus}
       >
-        <DialogDragProvider value={drag}>{children}</DialogDragProvider>
+        <DialogDragProvider value={drag}>
+          {children}
+          {minimize !== undefined && <DialogMinimize onClick={minimize} />}
+        </DialogDragProvider>
       </DialogPrimitive.Popup>
     </DialogPrimitive.Portal>
   );

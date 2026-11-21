@@ -2,11 +2,16 @@ import { useState } from "react";
 import { TargetActionBar, TargetActionButton } from "./TargetActionBar";
 import { TESTIDS } from "./testids";
 
+export interface PrimaryAction {
+  label: string;
+  variant: "commit" | "primary";
+}
+
 interface ActionBarProps {
   title: string;
   collapsed: boolean;
   detail?: string;
-  primaryLabel: string;
+  primaryAction: PrimaryAction;
   cancelLabel?: string;
   canConfirm: boolean;
   locked: boolean;
@@ -20,7 +25,7 @@ export function ActionBar({
   title,
   collapsed,
   detail,
-  primaryLabel,
+  primaryAction,
   cancelLabel,
   canConfirm,
   locked,
@@ -66,7 +71,7 @@ export function ActionBar({
             {cancelLabel ?? "不出"}
           </TargetActionButton>
           <TargetActionButton
-            primary
+            variant={primaryAction.variant}
             data-testid={targeting ? TESTIDS.actionbarTarget : TESTIDS.actionbarPlay}
             className={bump ? "bump" : undefined}
             disabled={locked || (targeting && !canConfirm)}
@@ -81,7 +86,7 @@ export function ActionBar({
               }
             }}
           >
-            {primaryLabel}
+            {primaryAction.label}
           </TargetActionButton>
         </>
       }

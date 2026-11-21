@@ -52,7 +52,7 @@
   align-items: center;
   gap: 2px;
   padding: 3px;
-  min-width: 40px;
+  min-width: var(--touch-target);
   min-height: 48px;
   border: 1px solid transparent;
   border-radius: 3px;
@@ -214,7 +214,7 @@
   color: var(--color-paper-dim);
 }
 .hero-inspection-dismiss {
-  height: 40px;
+  min-height: var(--touch-target);
   min-width: 86px;
   padding: 0 15px;
   font-size: 18px;

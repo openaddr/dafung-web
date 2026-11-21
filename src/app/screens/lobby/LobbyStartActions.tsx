@@ -57,7 +57,7 @@ export function LobbyStartActions({
           data-testid={LID.selectMap}
           disabled={lockActions}
           onClick={onSelectMap}
-          className="note-btn min-h-[40px] whitespace-nowrap px-3 font-brush text-sm disabled:opacity-40 sm:px-4"
+          className="note-btn min-h-(--touch-target) whitespace-nowrap px-3 font-brush text-sm disabled:opacity-40 sm:px-4"
         >
           选择地图
         </Button>
@@ -65,7 +65,7 @@ export function LobbyStartActions({
           data-testid={LID.start}
           disabled={lockActions || !mapSelected}
           onClick={onStart}
-          className="ink-btn min-h-[44px] whitespace-nowrap px-4 font-brush disabled:opacity-40 sm:min-w-[5.75rem]"
+          className="ink-btn min-h-(--touch-primary) whitespace-nowrap px-4 font-brush disabled:opacity-40 sm:min-w-[5.75rem]"
         >
           开局
         </Button>

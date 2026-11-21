@@ -8,23 +8,18 @@
 //   Setup 选都期点灰城 = 即时 hint 反馈(#27)。
 // tile 点击入口留在 GameScreen(棋盘 BoardView 在它手里),故走「hook 持有状态机 +
 // DecisionScrollLayer 收单个窄 props」方案,而非整流程搬进卷轴层。
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 
 /** 交给 DecisionScrollLayer 的单一下沉 props:详情卷轴定位数据 + 关闭/定都确认入口。
  *  流程状态机(detailTileIndex 等)不外泄,卷轴层只按请求渲染。 */
-export interface TileDetailRequest {
+export type TileDetailRequest = {
   /** 详情格索引。 */
   tileIndex: number;
-  /** #35 选都模式:详情卷轴内嵌「定都于此/再想想」(Setup PickCapital 期点可选城)。
-   *  不再独立存 state——详情只在点格时打开,该期打开的必是候选城确认、Playing 打开的
-   *  必是只读详情,由快照相位直接派生(旧 GameScreen 的 detailPickCapital 二态随之消去)。 */
-  pickCapital: boolean;
   onClose: () => void;
-  onConfirmCapital: (tileIndex: number) => void;
-}
+} & ({ pickCapital: false } | { pickCapital: true; onConfirmCapital: () => void });
 
 interface CapitalPickFlow {
   /** X4(#23) 选都候选集(引擎三选一,全座位可见;null = 非选都期)。BoardView candidateTiles。 */
@@ -35,6 +30,8 @@ interface CapitalPickFlow {
   onTileClick: (tileIndex: number) => void;
   /** DecisionScrollLayer 的详情流程请求;null = 不弹。 */
   tileDetail: TileDetailRequest | null;
+  inspection: TileDetailRequest | null;
+  closeInspection: () => void;
 }
 
 function offeredCapitalTiles(snapshot: GameSnapshot): number[] | null {
@@ -47,12 +44,18 @@ export function selectableCapitalTiles(snapshot: GameSnapshot, seat: number): nu
   return snapshot.currentSetupPlayerIndex === seat ? offeredCapitalTiles(snapshot) : null;
 }
 
-export function useCapitalPick(args: { snapshot: GameSnapshot }): CapitalPickFlow {
-  const { snapshot } = args;
+export function useCapitalPick(args: {
+  snapshot: GameSnapshot;
+  readOnly: boolean;
+}): CapitalPickFlow {
+  const { snapshot, readOnly } = args;
   const roomId = useNetStore((s) => s.roomId);
   const mySeat = useNetStore((s) => s.mySeat);
   // 城池详情(Playing 相位点城查看;Setup 选都期点可选城也走详情,内嵌「定都于此」)
-  const [detailTileIndex, setDetailTileIndex] = useState<number | null>(null);
+  const [detail, setDetail] = useState<{ tileIndex: number; capitalScope: string | null } | null>(
+    null,
+  );
+  const [inspectionTile, setInspectionTile] = useState<number | null>(null);
 
   // X4(#23) 选都候选:引擎三选一候选(snapshot.offeredCapitals,跨玩家不重复)全座位可见——
   // 非决策席位静态低透明金圈 + 壹贰叁序号印(不可点不脉冲),「轮到本地选」才升格为可点脉冲。
@@ -65,9 +68,13 @@ export function useCapitalPick(args: { snapshot: GameSnapshot }): CapitalPickFlo
     () => (myPickKey ? new Set(myPickKey.split(",").map(Number)) : undefined),
     [myPickKey],
   );
+  const capitalScope =
+    myPickKey === undefined
+      ? null
+      : JSON.stringify([snapshot.gameId, snapshot.currentSetupPlayerIndex, myPickKey]);
 
-  // 关详情卷轴
-  const closeDetail = () => setDetailTileIndex(null);
+  const closeDetail = () => setDetail(null);
+  const closeInspection = useCallback(() => setInspectionTile(null), []);
   // #35 详情内「定都于此」:确认才落子推进(先收卷轴再发命令,时序保持原样)
   const confirmCapital = (tileIndex: number) => {
     closeDetail();
@@ -75,11 +82,13 @@ export function useCapitalPick(args: { snapshot: GameSnapshot }): CapitalPickFlo
   };
   const onTileClick = (tileIndex: number) => {
     // 相位路由收口(Wave3 候选2,原 controller.tileClick 的职责上移)
-    if (snapshot.phase === "Playing") {
-      setDetailTileIndex(tileIndex);
+    if (readOnly) {
+      setInspectionTile(tileIndex);
+    } else if (snapshot.phase === "Playing") {
+      setDetail({ tileIndex, capitalScope: null });
     } else if (selectableTiles) {
       if (selectableTiles.has(tileIndex)) {
-        setDetailTileIndex(tileIndex);
+        setDetail({ tileIndex, capitalScope });
       } else {
         const taken = snapshot.takenCapitalIndices.includes(tileIndex);
         useGameStore
@@ -88,19 +97,31 @@ export function useCapitalPick(args: { snapshot: GameSnapshot }): CapitalPickFlo
       }
     }
   };
+  let tileDetail: TileDetailRequest | null = null;
+  if (detail !== null && detail.capitalScope === null && snapshot.phase === "Playing") {
+    tileDetail = { tileIndex: detail.tileIndex, pickCapital: false, onClose: closeDetail };
+  } else if (detail !== null && capitalScope !== null && detail.capitalScope === capitalScope) {
+    tileDetail = {
+      tileIndex: detail.tileIndex,
+      pickCapital: true,
+      onClose: closeDetail,
+      onConfirmCapital: () => confirmCapital(detail.tileIndex),
+    };
+  }
 
   return {
     offeredCapitals,
     selectableTiles,
     onTileClick,
-    tileDetail:
-      detailTileIndex === null
-        ? null
-        : {
-            tileIndex: detailTileIndex,
-            pickCapital: snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital",
-            onClose: closeDetail,
-            onConfirmCapital: confirmCapital,
-          },
+    tileDetail,
+    inspection:
+      readOnly && inspectionTile !== null
+        ? {
+            tileIndex: inspectionTile,
+            pickCapital: false,
+            onClose: closeInspection,
+          }
+        : null,
+    closeInspection,
   };
 }

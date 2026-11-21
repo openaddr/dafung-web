@@ -16,6 +16,7 @@ import { useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import { checkpointGameDiagnostics } from "@app/game-diagnostics";
 import { gameArchiveFailureText } from "@app/game-diagnostic-record";
+import { DialogPeekDecision } from "@app/hooks/dialog-stack";
 import { waitForGameArchive } from "@app/gameLogArchive";
 import { BankruptcyScroll } from "./BankruptcyScroll";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -32,6 +33,8 @@ interface DecisionScrollLayerProps {
   snapshot: GameSnapshot;
   viewSeat: number;
   interactive: boolean;
+  decisionKey: string | null;
+  parked: boolean;
   /** 城池详情/选都确认流程(spec #107 C5 下沉:状态机在 useCapitalPick,本层只按
    *  请求渲染,不再收 4 个流程 props)。null = 不弹。 */
   tileDetail: TileDetailRequest | null;
@@ -52,13 +55,97 @@ function tierLineLabel(tier: CityTier): string {
   return Theme.cityTierNames[tier];
 }
 
+export function decisionScrollIdentity(snapshot: GameSnapshot, viewSeat: number): string | null {
+  if (snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital") {
+    return JSON.stringify([
+      snapshot.gameId,
+      snapshot.phase,
+      snapshot.currentSetupPlayerIndex,
+      snapshot.offeredCapitals,
+    ]);
+  }
+  if (snapshot.phase !== "Playing") return null;
+  const identity = [
+    snapshot.gameId,
+    snapshot.turnNumber,
+    snapshot.activeIndex,
+    snapshot.decisionOwner,
+    viewSeat,
+    snapshot.turnPhase,
+  ];
+  switch (snapshot.turnPhase) {
+    case "AwaitingBankruptcySettle":
+      return JSON.stringify([...identity, snapshot.pendingDebt]);
+    case "AwaitingTreasureOwner":
+      return JSON.stringify([...identity, snapshot.treasureVisitor]);
+    case "AwaitingDecision":
+      return JSON.stringify([...identity, snapshot.pendingLand]);
+    case "AwaitingEncounter":
+      return JSON.stringify([
+        ...identity,
+        snapshot.choices.find((o) => o.encounterId != null)?.encounterId,
+      ]);
+    case "AwaitingHeroPick":
+      return JSON.stringify([...identity, snapshot.offeredHeroes]);
+    default:
+      return null;
+  }
+}
+
+export function TileDetail({
+  snapshot,
+  viewSeat,
+  request,
+}: {
+  snapshot: GameSnapshot;
+  viewSeat: number;
+  request: TileDetailRequest;
+}) {
+  const { board, catalog } = getControllerContext()!;
+  const players = useStablePlayers(snapshot.players);
+  const { tileIndex } = request;
+  const tile = board.at(tileIndex);
+  const def = catalog.get(tile.propertyId!);
+  if (def == null) throw new Error(`详情卷轴:城 ${tile.propertyId} 不在 catalog`);
+  const owner = players.find((p) => p.properties.some((h) => h.propertyId === tile.propertyId));
+  const holding = owner?.properties.find((h) => h.propertyId === tile.propertyId);
+  return (
+    <TileDetailScroll
+      tileIndex={tileIndex}
+      tile={tile}
+      tileName={tile.name}
+      groupLabel={groupLineLabel(def.group)}
+      tierLabel={tierLineLabel(def.tier)}
+      property={def}
+      players={players}
+      context={
+        request.pickCapital
+          ? {
+              kind: "capital",
+              cash: players[viewSeat].cash,
+              onConfirm: request.onConfirmCapital,
+            }
+          : { kind: "view" }
+      }
+      ownerGuohao={owner?.guohao ?? null}
+      ownerLevel={holding?.level ?? 0}
+      ownerDefense={holding != null ? holding.defense : null}
+      isCapital={owner?.capitalIndex === tileIndex}
+      onClose={request.onClose}
+    />
+  );
+}
+
 export function DecisionScrollLayer({
   snapshot,
   viewSeat,
   interactive,
+  decisionKey,
+  parked,
   tileDetail,
 }: DecisionScrollLayerProps) {
   const controller = getController();
+  const showDecision = interactive || parked;
   const map = getControllerMap();
   const ctx = getControllerContext();
   // 玩家行值等复用(#1140 渲染税):详情卷轴(players 直传 TileThumb/归属推导)与
@@ -91,7 +178,9 @@ export function DecisionScrollLayer({
   // hook 调用须每渲染都执行(顺序稳定),「什么都不弹」与「弹层清空」是同一份输入。
   const child = (() => {
     if (!map || !ctx) return null;
-    const dispatch = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
+    const dispatch = (cmd: GameCommand) => {
+      if (interactive && !parked) controller?.dispatchCommand(cmd);
+    };
     const board = ctx.board;
     const catalog = ctx.catalog;
 
@@ -116,53 +205,17 @@ export function DecisionScrollLayer({
       );
     }
 
-    // ── 城池详情(只读,任何时候可弹;#33 特殊地点同样展示类型说明)──
     if (tileDetail !== null) {
-      const tileIndex = tileDetail.tileIndex;
-      const tile = board.at(tileIndex);
-      // #826 全城池制:每格必有 propertyId 且必在 catalog(loader 同口径入册)
-      const def = catalog.get(tile.propertyId!);
-      if (def == null) throw new Error(`详情卷轴:城 ${tile.propertyId} 不在 catalog(数据 bug)`);
-      const ownerEntry = def
-        ? players.find((p) => p.properties.some((h) => h.propertyId === tile.propertyId))
-        : undefined;
-      const owned = ownerEntry?.properties.find((h) => h.propertyId === tile.propertyId);
-      return (
-        <TileDetailScroll
-          tileIndex={tileIndex}
-          tile={tile}
-          tileName={tile.name}
-          groupLabel={groupLineLabel(def.group)}
-          tierLabel={tierLineLabel(def.tier)}
-          // 城表定义直传(TileThumb 缩略图与 ValueTable 同源消费,不再手工收窄成子集)
-          property={def}
-          players={players}
-          context={
-            tileDetail.pickCapital
-              ? {
-                  kind: "capital",
-                  cash: players[viewSeat].cash,
-                  onConfirm: () => tileDetail.onConfirmCapital(tileIndex),
-                }
-              : { kind: "view" }
-          }
-          ownerGuohao={ownerEntry?.guohao ?? null}
-          ownerLevel={owned?.level ?? 0}
-          // 防御值行(#1391 T5):有主=持有账面当前值,无主=null 不渲染(免疫无防御语义)
-          ownerDefense={owned != null ? owned.defense : null}
-          isCapital={ownerEntry?.capitalIndex === tileIndex}
-          onClose={() => {
-            // 详情卷轴经 Shell 的 closing 出口就地演收起:让位,不再补幽灵帧(防二连播)。
-            // 协议在 useGhostChild——标记于下次身份变化时消费一次并自动复位。
-            ghostSlot.yield();
-            tileDetail.onClose();
-          }}
-        />
-      );
+      return <TileDetail snapshot={snapshot} viewSeat={viewSeat} request={tileDetail} />;
     }
 
     // ── 破产清算:债务人在凑钱(热座=本地视角玩家)──
-    if (snapshot.pendingDebt && interactive && players[viewSeat] && !players[viewSeat].isBankrupt) {
+    if (
+      snapshot.pendingDebt &&
+      showDecision &&
+      players[viewSeat] &&
+      !players[viewSeat].isBankrupt
+    ) {
       const me = players[viewSeat];
       // 都城不可变卖(旧版同样跳过 capitalIndex)
       const capitalPropId =
@@ -208,7 +261,7 @@ export function DecisionScrollLayer({
       const owner = players[tv.ownerIdx];
       const visitor = players[snapshot.activeIndex];
       if (owner && visitor) {
-        const showOwner = viewSeat === tv.ownerIdx && interactive;
+        const showOwner = viewSeat === tv.ownerIdx && showDecision;
         const isVisitorView = viewSeat === snapshot.activeIndex;
         if (showOwner || isVisitorView) {
           const propDef = catalog.get(tv.propertyId);
@@ -237,7 +290,7 @@ export function DecisionScrollLayer({
     // spec #107 C1(选项集消费缝):三个卷轴的可用性/原因经 snapshot.choices 消费引擎
     // 注册表口径(ADR-0013),本层只透传,不自行判定。
     // 联机 pending 期间 interactive=false,卷轴暂不弹——命令回包后相位离开,无需「…中」占位。
-    if (interactive && snapshot.phase === "Playing") {
+    if (showDecision && snapshot.phase === "Playing") {
       const tp = snapshot.turnPhase;
       if (tp === "AwaitingDecision") {
         const p = players[snapshot.activeIndex];
@@ -280,7 +333,11 @@ export function DecisionScrollLayer({
     // encounterId/encounterText,choices.ts 注册表产出)——选项缺失/无标识 = 相位与注册表
     // 不符(数据 bug),不弹(与旧版整层 return null 同口径)。
     // (体力耗竭卷轴已退役:耗竭全自动结算,无选项相位;演出走浮字。)
-    if (interactive && snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingEncounter") {
+    if (
+      showDecision &&
+      snapshot.phase === "Playing" &&
+      snapshot.turnPhase === "AwaitingEncounter"
+    ) {
       const head = snapshot.choices.find((o) => o.encounterId != null);
       if (head) {
         return (
@@ -303,7 +360,7 @@ export function DecisionScrollLayer({
     if (
       snapshot.turnPhase === "AwaitingHeroPick" &&
       snapshot.offeredHeroes.length > 0 &&
-      interactive
+      showDecision
     ) {
       return <HeroPickScroll offered={snapshot.offeredHeroes} onCommand={dispatch} />;
     }
@@ -314,12 +371,11 @@ export function DecisionScrollLayer({
   // ── 幽灵帧协议唯一入口(#107 C6 useGhostChild):只在「弹层区清空」(child 由非空转
   //    null)时为上一个卷轴播 210ms 退场帧;A→B 直接换页不播——快节奏相位回环下幽灵与
   //    新卷轴并存,死按钮会抢在真按钮前面被 `.first()` 类选择器/e2e 命中,吞掉真实点击
-  //    (e2e 速战档实测)。skip 的判定条件由本层按子节点类型算:胜利屏是全屏覆盖而非
-  //    卷轴,退场帧会让陈旧覆盖层多压 210ms,不配退场帧;详情卷轴的就地收场走事件侧
-  //    yield()(见上方 onClose)。机制细节(prev 快照/定时/让位出列)全在 hook。──
+  //    (e2e 速战档实测)。终局属于全屏覆盖，详情卷轴就地收场，最小化后的旧卷轴也无需重现。
   const ghostSlot = useGhostChild(child, {
-    skip: child !== null && child.type === VictoryScreen,
+    skip: parked || child?.type === TileDetail || child?.type === VictoryScreen,
   });
+  const scope = tileDetail !== null && !tileDetail.pickCapital ? null : decisionKey;
 
   if (!map || !ctx) return null;
 
@@ -332,7 +388,9 @@ export function DecisionScrollLayer({
             {child}
           </div>
         ) : (
-          child
+          <DialogPeekDecision.Provider key={scope} value={scope}>
+            {child}
+          </DialogPeekDecision.Provider>
         )}
       </Fragment>
       {/* 幽灵帧渲染在当前子节点之后(DOM 末位)+ 壳体幽灵态整体 inert,

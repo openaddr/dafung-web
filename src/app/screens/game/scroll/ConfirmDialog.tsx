@@ -82,18 +82,19 @@ export function ConfirmDialog({
       popupRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
     const onFocusOut = (e: FocusEvent) => {
       const popup = popupRef.current;
-      if (!popup || !(e.target instanceof Node) || !popup.contains(e.target)) return;
+      if (!popup || popup.inert || !(e.target instanceof Node) || !popup.contains(e.target)) return;
       const next = e.relatedTarget;
       if (next instanceof Node && popup.contains(next)) return;
       requestAnimationFrame(() => {
         const p = popupRef.current;
         // 弹层已卸载(确认/取消关框)则让位给关闭还焦兜底
-        if (p?.isConnected && !p.contains(document.activeElement)) focusFirst();
+        if (p?.isConnected && !p.inert && !p.contains(document.activeElement)) focusFirst();
       });
     };
     const onTab = (e: KeyboardEvent) => {
       const popup = popupRef.current;
-      if (e.key !== "Tab" || !popup || popup.contains(document.activeElement)) return;
+      if (e.key !== "Tab" || !popup || popup.inert || popup.contains(document.activeElement))
+        return;
       e.preventDefault();
       focusFirst();
     };

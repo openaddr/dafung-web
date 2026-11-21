@@ -18,6 +18,7 @@ import { TESTIDS } from "./testids";
 import "./layout.css";
 
 interface HandZoneProps {
+  inert: boolean;
   snapshot: GameSnapshot;
   /** 本地视角玩家(对局屏挂载期恒在座)。 */
   player: SnapshotPlayer;
@@ -29,7 +30,14 @@ interface HandZoneProps {
 }
 
 /** 底缘透明手牌区:签面(左端)+ 手牌架。 */
-export function HandZone({ snapshot, player, autopilotOn, showDiceFace, children }: HandZoneProps) {
+export function HandZone({
+  inert,
+  snapshot,
+  player,
+  autopilotOn,
+  showDiceFace,
+  children,
+}: HandZoneProps) {
   // 待起摇(#530):本端座位轮到且停在 Roll 等待态(自动起摇在途,~1.8s)——签面
   // 驻留的是上轮点数,静置即误导。托管中由 bot 代打(Roll 不经等待态),不提示。
   const awaitingMyRoll =
@@ -46,7 +54,7 @@ export function HandZone({ snapshot, player, autopilotOn, showDiceFace, children
   }, [snapshot.lastRoll]);
   useEffect(() => onDiceSignReveal((die) => setRevealedRoll({ die })), []);
   return (
-    <div className="handzone" data-testid={TESTIDS.handZone}>
+    <div className="handzone" data-testid={TESTIDS.handZone} inert={inert}>
       {showDiceFace && (
         <Tip
           tip={ATTR_TIPS.sign}

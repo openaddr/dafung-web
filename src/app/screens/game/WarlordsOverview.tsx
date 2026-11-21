@@ -1,5 +1,6 @@
 // 组件收口:已收口——诸侯详情与分项共用 ui/dialog，逐层切换，表体使用 ScrollArea。
-import { memo, useState } from "react";
+import { memo, useContext, useState } from "react";
+import { DialogPeekInspection } from "@app/hooks/dialog-stack";
 import { Button } from "@base-ui/react/button";
 import { heroById } from "@core/heroes";
 import { tileIndexOfProperty } from "@core/board";
@@ -156,7 +157,8 @@ export const WarlordsOverview = memo(function WarlordsOverview({
 }) {
   const [detail, setDetail] = useState<WarlordDetail | null>(null);
   const { closing, requestClose } = useDialogExit(onClose);
-  const closeDetail = () => setDetail(null);
+  const dismissInspection = useContext(DialogPeekInspection);
+  const closeDetail = dismissInspection ?? (() => setDetail(null));
 
   if (detail?.kind === "city") {
     return (

@@ -139,7 +139,7 @@ export const SettingsDialog = memo(function SettingsDialog({
           </span>
           <DialogTitle className="font-title text-[18px] tracking-[2px]">设置</DialogTitle>
         </div>
-        <div className="min-h-0 overflow-y-auto">
+        <div className="min-h-0 overflow-y-auto" data-peek-scroll>
           {audio && (
             <SettingsSwitchRow
               label="音效"

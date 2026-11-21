@@ -20,7 +20,7 @@ export function Stepper({
   onChange: (value: number) => void;
 }) {
   const btn =
-    "flex h-10 w-10 items-center justify-center rounded border border-paper/25 bg-bg/60 font-brush text-lg leading-none text-paper transition-colors disabled:opacity-40";
+    "flex size-(--touch-target) shrink-0 items-center justify-center rounded border border-paper/25 bg-bg/60 font-brush text-lg leading-none text-paper transition-colors disabled:opacity-40";
   return (
     <div className="flex items-center gap-1.5">
       <button
