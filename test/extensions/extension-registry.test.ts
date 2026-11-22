@@ -2,15 +2,15 @@
 // 引用校验/精确卸载。零兜底口径的镜像:任一冲突当场炸。每个用例自清理(卸载),
 // 不向同进程其他测试文件泄漏全局注册态。
 import { describe, it, expect, expectTypeOf, afterEach } from "bun:test";
-import { HEROES } from "@core/heroes";
-import { SKILLS, type SkillDef } from "@core/skills";
-import { EFFECTS } from "@core/effects";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { SKILLS, type SkillDef } from "@dafung/core/engine/skills";
+import { EFFECTS } from "@dafung/core/engine/effects";
 import {
   registerExtensionAuthorityModule,
   unregisterExtensionPackage,
   registeredExtensionPackages,
-} from "@core/extension-registry";
-import type { ExtensionAuthorityModule } from "@core/extension-contract";
+} from "@dafung/core/engine/extension-registry";
+import type { ExtensionAuthorityModule } from "@dafung/core/engine/extension-contract";
 
 /** 最小合法贡献工厂:唯一 id 的技能(挂内置 gainCash 效果)+ 池引用它的名将 + 唯一 id 的效果。 */
 function makeModule(overrides?: Partial<ExtensionAuthorityModule>): ExtensionAuthorityModule {

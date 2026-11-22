@@ -4,9 +4,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from "bun:test
 import { IDBFactory } from "fake-indexeddb";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { GameEngine } from "@core/authority";
-import { loadMap, type MapData } from "@core/board-loader";
-import { createDice } from "@core/dice";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
 import { waitForGameArchive } from "@app/gameLogArchive";
 import { useGameStore } from "@app/store/gameStore";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
@@ -16,11 +16,11 @@ import { TESTIDS } from "@app/screens/game/testids";
 import { LID } from "@app/screens/lobby/testids";
 import { TID } from "@app/screens/setup/testids";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import zhongyuanData from "../../public/maps/zhongyuan.json";
-import maps from "../../public/maps/index.json";
-import { redactSnapshotForSeat } from "../../scripts/seat-projection";
-import { encodeDownlink, type ServerMsg } from "../../scripts/wire";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import zhongyuanData from "../../packages/core/maps/zhongyuan.json";
+import maps from "../../packages/core/maps/index.json";
+import { redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
+import { encodeDownlink, type ServerMsg } from "@dafung/core/protocol/wire";
 
 // JSON 导入使 tier 字面量拓宽;沿接线模板在地图数据边界收窄。
 const DATA = guanzhongData as MapData;

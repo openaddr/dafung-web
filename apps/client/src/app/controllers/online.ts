@@ -1,0 +1,573 @@
+// 联机控制器——重构后只做「协议桥」(替代旧 src/render/network-client.ts 的连接/协议部分,零 DOM):
+// - 不跑引擎,只持「只读引擎」——折叠切换⑥(#388)后状态通路 = 事件批消息(到达即
+//   foldEventBatch 折进副本);snapshot 只剩整房摘要(首连/重连)与关键节点校准,在对应
+//   地图的引擎上 restoreFromSnapshot(水合无条件覆盖折叠字段,快照=校准锚)。
+// - 连接/重连归 net/reconnecting-socket.ts,REST 大厅归 net/lobby-api.ts,
+//   事件批表现消费归 net/snapshot-effects.ts(原「一类五职责」拆分,ADR-0007 的客户端对偶;
+//   #385 起演出因果 = 服务端事件批,快照 diff 提取已退役)。
+//   本类只剩:协议消息分发、事件批折叠(#386)+快照 hydrate(水合=校准锚)、表现消费
+//   调用、registry/store 灌数、换图重建、重连清批(#388:open 时事件面归零)。
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { GameCommand } from "@dafung/core/engine/authority";
+import { loadMapById } from "@dafung/core/engine/map-source";
+import type { GameArchiveIdentity } from "@app/game-diagnostic-record";
+import { finishGameDiagnostics, recordGameDiagnosticError } from "@app/game-diagnostics";
+import { archiveGameLog, archiveGameLogTail } from "@app/gameLogArchive";
+import { FetchMapSource } from "@app/map-sources";
+import { setEngine, useGameStore, type GameSnapshotCore } from "@app/store/gameStore";
+import {
+  myAutoPilotOn,
+  useNetStore,
+  type NetConnection,
+  type NetRoomFields,
+} from "@app/store/netStore";
+import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
+import { ReconnectingSocket, type ReconnectingSocketOptions } from "@app/net/reconnecting-socket";
+import { stashEventBatch } from "@app/net/event-feed";
+// wire 协议编解码单源(#429):下行消息类型(ServerMsg)与上行编码从这里 import——
+// 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
+import {
+  autoPilotMsg,
+  cmdMsg,
+  pickCapitalMsg,
+  type GameLogMsg,
+  type ServerMsg,
+  type SnapshotMsg,
+} from "@dafung/core/protocol/wire";
+import { foldEventBatch } from "@app/net/event-fold";
+import { abandonAllMarches } from "@app/fx/useMarch";
+import { setController } from "./registry";
+import { GameController } from "./controller";
+
+export type { RoomJoinReply };
+
+interface GameLogPrefix {
+  identity: GameArchiveIdentity;
+  length: number;
+  missing: boolean;
+}
+
+interface ReceivedMessage<T extends ServerMsg = ServerMsg> {
+  msg: T;
+  receivedAt: number;
+  receivedAtMonotonic: number;
+}
+
+interface MapLoad {
+  mapId: string;
+  snapshot: ReceivedMessage<SnapshotMsg> | null;
+  following: ReceivedMessage[];
+}
+
+export class OnlineController extends GameController {
+  private _engine: GameEngine; // 只读:每次 snapshot 用 restoreFromSnapshot 重 hydrate
+  private readonly api: LobbyApi;
+  private sock: ReconnectingSocket | null = null;
+  /** 实例权威状态,netStore.connection 只是供 UI 订阅的投影。 */
+  private connectionStatus: NetConnection = "idle";
+  /** destroy 是实例生命终点;异步回包不能把已离开的会话重新入座。 */
+  private ended = false;
+  private roomId: string | null = null;
+  private seatToken: string | null = null;
+  /** 归档使用独立的权威日志前缀，水合副本的日志仍由既有状态通路维护。 */
+  private gameLog: GameLogPrefix | null = null;
+  /** 当前占位引擎对应的地图 id(换图守卫:同图不重建)。 */
+  private mapId: string | null;
+  /** 当前地图(占位引擎重建用:快照座位数与占位引擎不一致时按数重建)。 */
+  private map: LoadedMap;
+  seat = -1;
+  /** 交互策略参数(#433 上收基类单源):热座=false——各端座位固定,他座决策时
+   *  不得解锁本端操作,必须显式判定决策方===自己(决策方是否轮到「我的座位」)。 */
+  protected override readonly hotSeat = false;
+  protected override get mySeat(): number {
+    return this.seat;
+  }
+  /** 当前连接最新的取图请求。快照先到时，后续下行跟随快照等待地图，保留到达次序。 */
+  private mapLoad: MapLoad | null = null;
+  /** 上一帧各座位棋子位置(#385 行军锚定基准,#386 折叠前捕获口径)。#388 起表现
+   *  直译改随事件帧走(锚点就地捕获传 play),快照帧的 play 由消费游标去重不再消费
+   *  新批——本字段保留给快照帧的既有兜路(空批校准帧等),不再承载跨帧交接。 */
+  private pendingMarchAnchors: (number | null)[] | null = null;
+  /** 托管能力:联机支持(服务器 bot 代打;单机不支持)。 */
+  override readonly autopilotSupported = true;
+
+  constructor(
+    map: LoadedMap,
+    mapId?: string | null,
+    private readonly socketOptions: Omit<ReconnectingSocketOptions, "url"> = {},
+  ) {
+    super();
+    // LobbyApi 自取 server-base 单源(#279):地址在调用时读取,大厅改址即时生效
+    this.api = new LobbyApi();
+    this.mapId = mapId ?? null;
+    this.map = map;
+    // 占位引擎:board/catalog 来自真实地图,仅为渲染就位;首帧 snapshot 覆盖全部可变状态。
+    this._engine = this.makePlaceholderEngine(map);
+    setEngine(this._engine);
+    this.sync();
+  }
+
+  get engine(): GameEngine {
+    return this._engine;
+  }
+  get viewSeat(): number {
+    return this.seat;
+  }
+
+  override redactDiagnosticCredentials(message: string): string {
+    return this.seatToken === null ? message : message.replaceAll(this.seatToken, "[凭证已隐去]");
+  }
+  /** 当前连接已用权威摘要(未开局时为 lobby)完成校准。 */
+  get sessionReady(): boolean {
+    return this.connectionStatus === "open";
+  }
+
+  protected override canAct(): boolean {
+    return this.sessionReady && super.canAct();
+  }
+
+  private setConnectionStatus(status: NetConnection): void {
+    this.connectionStatus = status;
+    useNetStore.getState().setConnection(status);
+  }
+  /** 我的座位托管中(netStore seats 广播回读,公式单源 myAutoPilotOn)。 */
+  get autoPilotOn(): boolean {
+    return myAutoPilotOn(useNetStore.getState());
+  }
+
+  /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意;座位数随房间,缺省 2 座)。
+   *  只读字段随地图就位(ADR-0041 起手/目标地图必配,引擎无缺省;起手珍宝同随地图,#1100)。 */
+  private makePlaceholderEngine(map: LoadedMap, seatCount = 2): GameEngine {
+    return new GameEngine(map.board, map.catalog, createDice(), {
+      seats: Array.from({ length: seatCount }, (_, i) => ({
+        name: `诸侯 ${i + 1}`,
+        isBot: i > 0,
+      })),
+      targetNetWorth: map.targetNetWorth,
+      startingCash: map.startingCash,
+      startingTreasures: map.startingTreasures,
+    });
+  }
+
+  // ─── 命令入口:发 WS,状态由服务器广播 snapshot 驱动 ───
+  dispatchCommand(cmd: GameCommand): void {
+    if (!this.interactive) return;
+    if (!this.sock?.isOpen) {
+      useGameStore.getState().pushHint("连接未就绪");
+      return;
+    }
+    this.pending = true;
+    // UI F3:pending 透传 netStore(HandPanel 读 netStore.pending 显示「行军中…」;
+    // 不给基类加 seam,联机/单机经同一 store 字段取态,单机恒 false)。
+    useNetStore.getState().setPending(true);
+    this.sock.send(cmdMsg(cmd));
+    this.sync(); // 刷新 interactive(pending 期间锁操作)
+  }
+
+  /** 自助托管(spec: autopilot):发 WS 消息,生效状态从 seats 广播回读(无乐观更新)。 */
+  override setAutoPilot(on: boolean): void {
+    if (!this.sessionReady || !this.sock?.isOpen) {
+      useGameStore.getState().pushHint("连接未就绪");
+      return;
+    }
+    this.sock.send(autoPilotMsg(on));
+  }
+
+  /** Setup(PickCapital)落子(L41 联机):发 WS {type:"pickCapital"}——轮次/候选校验
+   *  在服务器(room.pickCapital),生效靠广播快照(候选滚换/推进/进 Playing)。
+   *  与 dispatchCommand 同用 pending 防连点;托管中不发(服务器 bot 代选)。 */
+  override setupPickCapital(tileIndex: number): void {
+    if (!this.sessionReady) return;
+    const e = this._engine;
+    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") return;
+    if (e.currentSetupPlayerIndex !== this.seat) return;
+    if (this.pending || this.autoPilotOn) return;
+    if (!this.sock?.isOpen) {
+      useGameStore.getState().pushHint("连接未就绪");
+      return;
+    }
+    this.pending = true;
+    useNetStore.getState().setPending(true);
+    this.sock.send(pickCapitalMsg(tileIndex));
+    this.sync(); // pending 期间锁重复提交
+  }
+
+  // ─── REST(建房/加入/选图/开局;协议与旧 network-client 一致)──
+  /** 建房并连接。返回房间信息(供大厅屏渲染)。guohao=房主预设国号(R3-D1 #99,与 joinRoom 同语义)。 */
+  async createRoom(opts: {
+    seats: number;
+    target?: number;
+    guohao?: string;
+  }): Promise<RoomJoinReply> {
+    this.requireLiveSession();
+    const reply = await this.api.createRoom(opts);
+    this.requireLiveSession();
+    this.adoptRoom(reply);
+    return reply;
+  }
+
+  /** 按房间码加入并连接。guohao=预设国号(重名时开局由服务器加方位前缀)。 */
+  async joinRoom(roomId: string, guohao?: string): Promise<RoomJoinReply> {
+    this.requireLiveSession();
+    const reply = await this.api.joinRoom(roomId, guohao);
+    this.requireLiveSession();
+    this.adoptRoom(reply);
+    return reply;
+  }
+
+  /** 房主选图:只发请求;本地换图由 lobby 广播单路径驱动(房主/非房主同路)。 */
+  async pickMap(mapId: string): Promise<void> {
+    if (!this.roomId || !this.seatToken) throw new Error("未入座");
+    await this.api.pickMap({ roomId: this.roomId, seatToken: this.seatToken }, mapId);
+  }
+
+  /** 房主开局:引擎在服务器侧构造,本端只等首帧 snapshot 广播。 */
+  async startGame(): Promise<void> {
+    if (!this.roomId || !this.seatToken) throw new Error("未入座");
+    await this.api.startGame({ roomId: this.roomId, seatToken: this.seatToken });
+  }
+
+  /** 从已收窄的入座回包取凭证并建立 WS;房间字段灌 netStore(大厅屏初渲染)。 */
+  private adoptRoom(reply: RoomJoinReply): void {
+    this.roomId = reply.roomId;
+    this.seat = reply.seat;
+    this.seatToken = reply.seatToken;
+    this.applyRoomFields(reply);
+    useNetStore.getState().setMySeat(this.seat);
+    useGameStore.getState().setViewSeat(this.seat);
+    this.connect();
+  }
+
+  private requireLiveSession(): void {
+    if (this.ended) throw new Error("联机会话已结束");
+  }
+
+  /** REST 回包 / 广播里的房间字段 → netStore(lobby 与 snapshot 消息字段同构)。 */
+  private applyRoomFields(r: NetRoomFields): void {
+    useNetStore.getState().setRoom({
+      roomId: r.roomId,
+      host: r.host,
+      started: r.started,
+      mapId: r.mapId ?? null,
+      seats: r.seats ?? [],
+    });
+  }
+
+  // ─── WS 连接(建连与退避重连细节封装在 ReconnectingSocket,这里只接状态与消息)──
+  /** 建立带自动重连的 WS(重连沿用原 seatToken 重升级——ADR-0002:token 夺回座位,
+   *  重连成功后首帧 snapshot 照常 hydrate,与正常入座同路径)。 */
+  private connect(): void {
+    this.requireLiveSession();
+    if (!this.roomId || this.seat < 0 || !this.seatToken) return;
+    this.mapLoad = null;
+    // 先断开身份,再终止旧 socket/退避链:已捕获的旧订阅也无法再写当前状态。
+    const previous = this.sock;
+    this.sock = null;
+    previous?.close();
+    this.fx.dropStalledBatch();
+    this.setConnectionStatus("connecting");
+    this.sync();
+    const sock = new ReconnectingSocket({
+      ...this.socketOptions,
+      url: this.api.wsUrl({ roomId: this.roomId, seatToken: this.seatToken }, this.seat),
+    });
+    this.sock = sock;
+    sock.onStatus((s) => {
+      if (this.sock !== sock) return;
+      // 连接纪元变更后，旧地图请求与随车下行同时失效。
+      this.mapLoad = null;
+      // 底层状态映射为控制器恢复状态后投影到 netStore,connected 由 store 派生。
+      // 断线边界(s!=="open")废弃在途事件批(#385):断线前收到但未随快照
+      // 消费的暂存批不在重连后补播;重连成功(#388 重连语义=整房摘要+清批)则把事件面
+      // 整体归零(暂存批+到达计数+演出消费游标)——重连前的旧批不被当新批消费,状态
+      // 唯一来源 = 紧随其后的整房摘要(ADR-0020 决策 4;服务器重启旧批重发的归口在
+      // server.ts 恢复登记,见 seenBatches 恢复基线)。
+      if (s === "open") {
+        this.fx.resetEventFace();
+      } else this.fx.dropStalledBatch();
+      this.setConnectionStatus(s === "open" ? "calibrating" : s);
+      this.sync();
+    });
+    // #494:重连进度透传 netStore(ConnectionBanner 显示「第 n/N 次」;open 清零归
+    // setConnection 单点,见 netStore)。
+    sock.onProgress((p) => {
+      if (this.sock !== sock) return;
+      useNetStore.getState().setReconnect(p);
+    });
+    sock.onError(() => {
+      if (this.sock !== sock) return;
+      // 重连尝试期间的 error 不打扰(onclose 马上接管);仅正常在线时闪提示
+      if (useNetStore.getState().connected) useNetStore.getState().pushHint("连接异常");
+    });
+    sock.onMessage((data) => {
+      if (this.sock !== sock) return;
+      const receivedAt = Date.now();
+      this.onMessage(JSON.parse(data) as ServerMsg, receivedAt);
+    });
+    sock.connect();
+  }
+
+  /** 原座恢复:仅重启失败/断线链;忙碌中的重复操作不创建第二条链。 */
+  reconnect(): void {
+    if (
+      this.connectionStatus !== "closed" &&
+      this.connectionStatus !== "gaveUp" &&
+      this.connectionStatus !== "failed"
+    )
+      return;
+    this.connect();
+  }
+
+  private onMessage(
+    msg: ServerMsg,
+    receivedAt: number,
+    receivedAtMonotonic = performance.now(),
+  ): void {
+    const load = this.mapLoad;
+    if (load?.snapshot && msg.type !== "dismissed" && msg.type !== "error") {
+      load.following.push({ msg, receivedAt, receivedAtMonotonic });
+      return;
+    }
+    if (msg.type === "lobby") {
+      // lobby/snapshot 两种消息都带完整 NetRoomFields(ServerMsg 已声明),直接透传
+      this.applyRoomFields(msg);
+      // 房主换图可回到已加载的图，此时撤销在途请求即可。
+      if (msg.mapId && msg.mapId !== this.mapId) void this.rebuildForMap(msg.mapId);
+      else this.mapLoad = null;
+      // started 元数据不是对局摘要;未开局 lobby 本身就是完整房间校准。
+      if (!msg.started && this.connectionStatus === "calibrating") {
+        this.setConnectionStatus("open");
+        this.sync();
+      }
+      return;
+    }
+    if (msg.type === "snapshot") {
+      if (msg.mapId === null) throw new Error("联机对局摘要缺少地图");
+      if (msg.mapId !== this.mapId) {
+        const snapshot = { msg, receivedAt, receivedAtMonotonic };
+        if (load?.mapId === msg.mapId) load.snapshot = snapshot;
+        else void this.rebuildForMap(msg.mapId, snapshot);
+        this.setConnectionStatus("calibrating");
+        this.sync();
+        return;
+      }
+      this.mapLoad = null;
+      if (this._engine.gameId !== msg.gameId) finishGameDiagnostics(this);
+      const { type: _t, reactionTiming, ...snap } = msg;
+      // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
+      // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
+      // #386:同 tick 事件批已先行折叠推进 position,视觉停点改用折叠前捕获的锚点;
+      // 本帧无事件批(空批 flush)时引擎位置未被折叠,水合前捕获口径不变。
+      const prePositions = this.pendingMarchAnchors ?? this._engine.players.map((p) => p.position);
+      this.pendingMarchAnchors = null;
+      if (snap.players.length !== this._engine.players.length) {
+        // 座位数不一致 → 按快照座位数重建占位引擎(3+ 座联机局:restoreFromSnapshot
+        // 按 e.players[i] 原地覆盖,占位引擎恒 2 座会越界写 undefined;占位座位本就
+        // 是渲染壳,首帧快照整体覆盖,重建无信息丢失)。
+        this._engine = this.makePlaceholderEngine(this.map, snap.players.length);
+        setEngine(this._engine);
+      }
+      this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
+      this.applyRoomFields(msg);
+      this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
+      this.setConnectionStatus("open");
+      this.pending = false;
+      useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
+      // 演出(#385):netStore 暂存的事件批(events 消息先于同 tick 快照到达)经
+      // SnapshotEffects 直译播放;本帧无批(空批 flush)时游标不推进,自然跳过。
+      this.fx.play(prePositions);
+      this.checkRollSeal();
+      this.sync();
+      this.anchorGameLog(msg, receivedAt);
+      // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
+      if (!this.enteredGame) {
+        this.enteredGame = true;
+        useGameStore.getState().setScreen("game");
+      }
+      return;
+    }
+    if (msg.type === "gameLog") {
+      this.appendGameLog(msg, receivedAt);
+      return;
+    }
+    if (msg.type === "events") {
+      // 恢复边界不折叠/暂存摘要前的旧批,也不能由 events 清 pending 提前解锁。
+      if (!this.sessionReady) return;
+      // 折叠最小闭环(#386,ADR-0020 决策 1):事件批投影进本地引擎副本(现金/位置
+      // 两族,折叠器见 net/event-fold.ts),经既有 syncFromEngine 通路重渲(界面读口
+      // 不变,不另起平行 store 切片;一次事件批一次重渲)。#388 切换后本通路是唯一
+      // 对局状态下行,快照只在整房摘要/关键节点校准到达(水合无条件覆盖全部字段)。
+      // 折叠前先捕获棋子位置当行军锚点(「转移前视觉停点」口径同快照帧)。
+      const prePositions = this._engine.players.map((p) => p.position);
+      // 首帧时序门(#423 项2):水合前(enteredGame=false)的下行批不折叠、不即刻播
+      // 演出——大厅期 clientView 对未开局房间退化为 lobby(无 players),占位壳的座位
+      // 数/目录未经首帧快照校准;开局 flush 事件批先发、校准快照后到(server.ts「因果
+      // 在前、状态在后」),对壳折叠 = 座位越界写 undefined(3 座房首帧 capitalSelected
+      // TypeError,即观察到的 PAGEERROR)或他图目录查无当场炸。批照常暂存:状态由同
+      // flush 的校准快照水合承载(ADR-0020 决策 3),表现消费游标随紧随的快照帧推进,
+      // 直译基于水合后引擎(座位/坐标可用)。门只开在水合前:重连边界服务端先排空旧批
+      // 再发摘要,摘要后批不落此窗。跳过折叠不是吞错——壳本就不是折叠目标,快照才是
+      // 该窗口内唯一状态来源。
+      const hydrated = this.enteredGame;
+      if (hydrated) {
+        foldEventBatch(this._engine, msg.events);
+        this.observeReactionTiming(msg.reactionTiming, receivedAtMonotonic);
+      }
+      // 表现消费(#385):批经 SnapshotEffects 直译播放。#388 起直译随事件帧走——
+      // 正常对局快照不再随转移到达,表现锁(fxPlaying=本座位演出落定,#611 改绑,
+      // L42 决策卷轴的时序门)不能等快照帧;快照帧的 play 由消费游标去重,同批不会
+      // 播两次。
+      stashEventBatch(msg.events);
+      if (hydrated) this.fx.play(prePositions);
+      // #388:命令在途锁在此解锁(旧世界靠快照回包清零;空批转移无 events 消息,由
+      // 随后的决策窗校准快照解锁——见 server.ts 校准口径)。
+      this.pending = false;
+      useNetStore.getState().setPending(false);
+      this.checkRollSeal();
+      this.sync();
+      return;
+    }
+    if (msg.type === "dismissed") {
+      recordGameDiagnosticError(this, this._engine.gameId, "房主已解散房间");
+      this.destroy();
+      useNetStore.getState().setDismissed();
+      useGameStore.getState().pushHint("房主已解散房间");
+      // 回大厅屏展示解散面板(对照旧 dismissed → 800ms 后回连接屏)
+      useGameStore.getState().setScreen("lobby");
+      return;
+    }
+    // 恢复时收到明确拒绝即终止本次尝试;普通局内命令错误仍沿提示通路。
+    if (!this.sessionReady) {
+      this.failCalibration(msg.error);
+      return;
+    }
+    // 普通命令错误仍闪提示;pending 解锁等下一帧 events/校准快照校正。
+    useGameStore.getState().pushHint(msg.error);
+  }
+
+  private failCalibration(reason: string): void {
+    const sock = this.sock;
+    this.sock = null;
+    sock?.close();
+    this.mapLoad = null;
+    this.fx.dropStalledBatch();
+    this.pending = false;
+    useNetStore.getState().setPending(false);
+    this.connectionStatus = "failed";
+    useNetStore.getState().setConnectionFailure(reason);
+    this.sync();
+  }
+
+  private anchorGameLog(msg: SnapshotMsg, receivedAt: number): void {
+    const identity: GameArchiveIdentity = { gameId: msg.gameId, mode: "online", mapId: msg.mapId };
+    this.gameLog = {
+      identity,
+      length: msg.log.length,
+      missing: false,
+    };
+    void archiveGameLog(identity, msg.log, receivedAt).catch(this.reportArchiveFailure);
+  }
+
+  private appendGameLog(msg: GameLogMsg, receivedAt: number): void {
+    const prefix = this.gameLog;
+    if (!this.sessionReady || prefix === null || prefix.identity.gameId !== msg.gameId) {
+      this.reportLogError("收到未校准或非本局的日志增量");
+      return;
+    }
+    if (prefix.missing) return;
+    const expected = prefix.length;
+    if (!Number.isSafeInteger(msg.offset) || msg.offset < 0 || msg.offset > expected) {
+      prefix.missing = true;
+      this.reportLogError(`联机日志断档，预期偏移 ${expected}，收到 ${msg.offset}`);
+      return;
+    }
+    const firstNew = expected - msg.offset;
+    if (firstNew >= msg.lines.length) return;
+    prefix.length = msg.offset + msg.lines.length;
+    const lines = firstNew === 0 ? msg.lines : msg.lines.slice(firstNew);
+    void archiveGameLogTail(prefix.identity, expected, lines, receivedAt).catch(
+      this.reportArchiveFailure,
+    );
+  }
+
+  private reportLogError(message: string): void {
+    recordGameDiagnosticError(this, this._engine.gameId, message);
+    console.error(`[logArchive] ${message}`);
+  }
+
+  private reportArchiveFailure(error: unknown): void {
+    console.error("[logArchive] 联机日志归档失败:", error);
+  }
+
+  /** 对应地图的目录装入引擎后，才恢复快照并处理摘要之后的下行。 */
+  private async rebuildForMap(
+    mapId: string,
+    snapshot: ReceivedMessage<SnapshotMsg> | null = null,
+  ): Promise<void> {
+    const load: MapLoad = { mapId, snapshot, following: [] };
+    this.mapLoad = load;
+    let map: LoadedMap;
+    let data: import("@dafung/core/engine/board-loader").MapData;
+    try {
+      ({ map, data } = await this.loadMapBundle(mapId));
+    } catch (err) {
+      if (this.mapLoad !== load) return;
+      this.mapLoad = null;
+      const reason = `加载地图失败:${(err as Error).message}`;
+      if (load.snapshot) this.failCalibration(reason);
+      else useNetStore.getState().pushHint(reason);
+      return;
+    }
+    if (this.mapLoad !== load) return;
+    this.mapLoad = null;
+    // 换图边界清演出(ADR-0029 §2 边界作废同族,复审 F5):棋盘几何整体更换,在途
+    // 行军会话与待播块烤的都是旧板坐标(不变量①提取即定格),换板后续播/续飞 = 棋子
+    // 在新板上走旧板轨迹、浮字锚错格——旧演出无因果意义,统一作废,棋子由新引擎的
+    // 声明式终态落位。待播块连带作废(同族语义);入队游标与判据态不动——批到达序
+    // 连续性(去重)与积压治理都跟棋盘身份正交,新图批照常消费。
+    abandonAllMarches();
+    this.fx.voidQueuedForBoardSwap();
+    this.mapId = mapId;
+    this.map = map;
+    this._engine = this.makePlaceholderEngine(map, load.snapshot?.msg.players.length);
+    setEngine(this._engine);
+    // setController 对同一实例不 destroy(见 registry 守卫),只更新 MapData
+    setController(this, data);
+    if (load.snapshot === null) {
+      this.sync();
+      return;
+    }
+    for (const frame of [load.snapshot, ...load.following]) {
+      this.onMessage(frame.msg, frame.receivedAt, frame.receivedAtMonotonic);
+    }
+  }
+
+  /** 换图取材(清单回查 + 地图加载):rebuildForMap 的取图步,单独成方法 = 测试注入缝
+   *  (bun 单测覆写本方法即可驱动 rebuildForMap,不触网)。 */
+  private async loadMapBundle(
+    mapId: string,
+  ): Promise<{ map: LoadedMap; data: import("@dafung/core/engine/board-loader").MapData }> {
+    const source = new FetchMapSource();
+    const data = await source.loadMapData(mapId);
+    const map = await loadMapById(source, mapId);
+    return { map, data };
+  }
+
+  destroy(): void {
+    if (this.ended) return;
+    this.ended = true;
+    this.mapLoad = null;
+    super.destroy(); // 基类退订行军会话订阅(#611)
+    // socket.close 内部先置 closedByUs 再关:onclose 不触发重连,退避定时器一并清
+    const sock = this.sock;
+    this.sock = null;
+    sock?.close();
+    this.gameLog = null;
+    this.pending = false;
+    useNetStore.getState().setPending(false); // UI F3:销毁时清 pending,防残留
+    this.setConnectionStatus("idle");
+    this.sync();
+  }
+}

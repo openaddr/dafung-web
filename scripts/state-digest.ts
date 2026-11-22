@@ -6,9 +6,9 @@
 // 摘要定义冻结(任务总则):本文件即摘要口径单源;任何漂移走「确认 → 评审 →
 // update 台账」,不许静默改字段。消费者:whole-game.ts(驱动器)、check:goldens(票二)。
 // 本模块零 DOM 零时钟;Bun.CryptoHasher 仅在 bun 运行时可用(scripts/ 不进浏览器包)。
-import type { GameEngine } from "../src/core/authority";
-import type { GameEvent } from "../src/core/game-events";
-import { SNAPSHOT_FIELDS } from "../src/core/snapshot";
+import type { GameEngine } from "@dafung/core/engine/authority";
+import type { GameEvent } from "@dafung/core/engine/game-events";
+import { SNAPSHOT_FIELDS } from "@dafung/core/engine/snapshot";
 
 /** 摘要哈希排除字段(记名记理由,vera20k elevation 条款同构):
  *  - gameId:实例身份非引擎内容(时间戳+随机后缀,日志文件名/IndexedDB key 的唯一性

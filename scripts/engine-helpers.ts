@@ -1,43 +1,28 @@
-// 引擎 CLI/Server 共享层:地图加载 + 状态文件 I/O + 状态摘要。
-// scripts/cli.ts(每命令一进程,状态落 state.json)与 scripts/server.ts(常驻 HTTP,
-// 内存引擎 + 落盘)共同复用,保证两端同一地图、同一序列化格式、同一 bot 语义。
-// import 用相对路径(Node 不认 vite alias);core/ 零 DOM,Node 直接可跑。
+// 引擎 CLI：地图加载、状态文件 I/O 与棋盘摘要。
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
-import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
-import { loadMap, type LoadedMap } from "../src/core/board-loader";
-import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
-import { GameEngine } from "../src/core/authority";
-import type { SeatConfig, EngineConfig } from "../src/core/authority";
-import type { TurnPhase } from "../src/core/authority";
-import { createDice } from "../src/core/dice";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import guanzhongData from "@dafung/core/maps/guanzhong.json" with { type: "json" };
+import { loadMap, type LoadedMap } from "@dafung/core/engine/board-loader";
+import { GameEngine, type EngineConfig, type SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { createBuiltinMapLoader, readMapCatalog } from "../apps/server/src/map-files";
 
-/** 共享地图(主环 + catalog)。CLI 与 Server 用同一份,避免漂移。 */
+export { statusOf } from "@dafung/core/room/room-status";
+
+/** CLI 场景快捷入口，使用内置关中图。 */
 export const MAP: LoadedMap = loadMap(guanzhongData);
 
-// ──────────────────────────── 内置地图清单加载(CLI/Server 共享) ────────────────────────────
-const MAPS_DIR = resolve(process.env.MAPS_DIR ?? "./public/maps");
+const MAPS_DIR = resolve(
+  process.env.MAPS_DIR ??
+    dirname(fileURLToPath(import.meta.resolve("@dafung/core/maps/index.json"))),
+);
 
-/** 地图清单(entries)。损坏/缺失直接抛(零兜底:清单是唯一事实源)。 */
-export function builtinMapCatalog(): CatalogFileEntry[] {
-  const catalogPath = join(MAPS_DIR, "index.json");
-  if (!existsSync(catalogPath)) {
-    throw new Error(`地图清单不存在:${catalogPath}`);
-  }
-  return parseCatalog(JSON.parse(readFileSync(catalogPath, "utf-8")));
+export function builtinMapCatalog() {
+  return readMapCatalog(MAPS_DIR);
 }
 
-const builtinMapCache = new Map<string, LoadedMap>();
-/** 按 mapId 加载内置图为 LoadedMap(带缓存;地图只读可跨房间共用)。找不到抛错。 */
-export function loadBuiltinMapById(mapId: string): LoadedMap {
-  const cached = builtinMapCache.get(mapId);
-  if (cached) return cached;
-  const entry = builtinMapCatalog().find((e) => e.id === mapId);
-  if (!entry) throw new Error(`未知地图 id:${mapId}`);
-  const map = loadMap(JSON.parse(readFileSync(join(MAPS_DIR, entry.file), "utf-8")));
-  builtinMapCache.set(mapId, map);
-  return map;
-}
+export const loadBuiltinMapById = createBuiltinMapLoader(MAPS_DIR);
 
 // ──────────────────────────── 状态文件持久化(CLI 与 Server 共用格式) ────────────────────────────
 // state.json = { snapshot, config }。snapshot 完整可序列化;config 保存构造参数,
@@ -115,110 +100,6 @@ export function autoSetup(e: GameEngine): void {
   }
 }
 
-// ──────────────────────────── 状态摘要(供 /status 与 CLI 输出) ────────────────────────────
-export function statusOf(e: GameEngine) {
-  const s = e.snapshot();
-  const activePlayer = s.players[s.activeIndex];
-  return {
-    phase: s.phase,
-    setupPhase: s.setupPhase,
-    turnPhase: s.turnPhase,
-    activeIndex: s.activeIndex,
-    active: activePlayer?.guohao ?? null,
-    isOver: s.isOver,
-    winner: s.winner ? (s.players.find((p) => p.id === s.winner)?.guohao ?? null) : null,
-    winReason: s.winReason,
-    turnNumber: s.turnNumber,
-    round: s.round,
-    lastRoll: s.lastRoll?.die ?? null,
-    rngState: s.rngState,
-    offeredCapitals: s.offeredCapitals,
-    // 可用选项集(ADR-0013;快照 choices = engine.choicesFor() 全集,过滤 available;
-    // 非选项集相位 choicesFor 返回 [] → 此处亦 [])。
-    choices: s.choices.filter((o) => o.available),
-    // 反应窗公告(ReactionView | null,快照字段透传,零派生):
-    // jinnang 窗含 queriedBySeat/windowMs,march 窗含 ownerSeat。
-    reaction: s.reaction,
-    players: s.players.map((p) => ({
-      guohao: p.guohao,
-      isBot: p.isBot,
-      cash: p.cash,
-      netWorth: p.netWorth,
-      position: p.position,
-      capitalIndex: p.capitalIndex,
-      isBankrupt: p.isBankrupt,
-      skipTurns: p.skipTurns,
-      treasures: p.treasures.length,
-      properties: p.properties.length,
-      heroes: p.heroes.length,
-    })),
-    prompt: promptFor(
-      s.phase,
-      s.setupPhase,
-      s.turnPhase,
-      activePlayer?.guohao,
-      activePlayer?.isBot,
-      // 城主视角(AwaitingTreasureOwner):提示该谁抉择
-      s.turnPhase === "AwaitingTreasureOwner" ? decisionOwnerGuohao(e) : undefined,
-      // 出牌阶段(AwaitingJinnang):技能目标段残留时一并提示 useHeroSkill(实例定位对,#817)
-      e.pendingSkill,
-    ),
-  };
-}
-
-/** AwaitingTreasureOwner 阶段,真正做抉择的是城主(可能 ≠ active 玩家)。
- *  归属座位统一走 engine.decisionOwner;treasureVisitor 缺失 → 无城主提示(原语义)。 */
-function decisionOwnerGuohao(e: GameEngine): string | undefined {
-  if (e.turnPhase !== "AwaitingTreasureOwner" || e.treasureVisitor == null) return undefined;
-  return e.players[e.decisionOwner]?.guohao;
-}
-
-function promptFor(
-  phase: string,
-  setupPhase: string,
-  tp: TurnPhase,
-  guohao: string | undefined,
-  isBot: boolean | undefined,
-  decisionOwner?: string,
-  pendingSkill?: { heroId: string; skillId: string } | null,
-): string {
-  if (!guohao) return "";
-  const who = `${guohao}${isBot ? "(bot)" : ""}`;
-  if (phase === "GameOver") return "游戏结束";
-  if (phase === "Setup") {
-    if (setupPhase === "Guohao") return `${who} 选国号(cmd 不支持,用 new 时 seats 带入)`;
-    if (setupPhase === "PickCapital") {
-      return `${guohao} 选都(三选一,见 status.offeredCapitals):pick-capital <tileIndex>(auto-setup 自动跑完)`;
-    }
-    return `${who} 开局中…`;
-  }
-  switch (tp) {
-    case "Roll":
-      return `${who} 的回合:行军(roll)`;
-    case "AwaitingDecision":
-      return `${who} 落城:购地(buy)/扩军(upgrade)/跳过(skip)`;
-    case "AwaitingHeroPick":
-      return `${who} 招贤纳士:resolveHeroPick 可选名将(index)、求书(action=seekBook)或跳过(action=skip)`;
-    case "AwaitingJinnang": {
-      const skill = pendingSkill
-        ? `;待发动技:cmd {"type":"useHeroSkill","heroId":"${pendingSkill.heroId}","skillId":"${pendingSkill.skillId}"}(或其目标段/cancel 作罢)`
-        : "";
-      return `${who} 出牌阶段:用锦囊(cmd {"type":"useJinnang","cardId":"<id>"};今不用 {"type":"useJinnang","cardId":null},牌 id 见 status.choices)${skill}`;
-    }
-    case "AwaitingReaction":
-      return `反应窗(cmd {"type":"respondReaction","seat":<n>,"use":<bool>,"cardId":"<id>"},待应答座位与窗信息见 status.reaction)`;
-    case "AwaitingTreasureOwner":
-      return `${decisionOwner ?? who} 城主抉择:公道买卖(fair <id>)/坐地起价(premium <id>)/跳过(tskip)`;
-    case "AwaitingBankruptcySettle":
-      return `${who} 破产清算:批量出售并清偿(cmd {"type":"confirmBankruptcySettle","assets":[{"kind":"treasure","id":"<id>"}]})或认破产(cmd {"type":"declareBankruptcy"})`;
-    case "Land":
-    case "EndTurn":
-      return `${who} 结算中…(状态过渡,无需操作)`;
-    default:
-      return `${who} 状态:${tp}`;
-  }
-}
-
 export function boardOf(e: GameEngine) {
   const tiles = e.board.tiles.map((t) => {
     const def = e.catalog.get(t.propertyId);
@@ -239,7 +120,3 @@ export function boardOf(e: GameEngine) {
     tiles,
   };
 }
-
-// bot 自动驱动已迁出:CLI 侧在 scripts/cli.ts(auto/run-to-end),服务器侧在
-// scripts/bot-driver.ts(driveBots);可驱动相位正典 = src/core/bot.ts 的
-// BOT_ATTENDED_PHASES。此处不再有共享副本。

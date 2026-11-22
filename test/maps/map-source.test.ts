@@ -6,10 +6,10 @@ import {
   type MapSource,
   type MapEntry,
   type CatalogFileEntry,
-} from "@core/map-source";
-import type { MapData } from "@core/board-loader";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import zhongyuanData from "../../public/maps/zhongyuan.json";
+} from "@dafung/core/engine/map-source";
+import type { MapData } from "@dafung/core/engine/board-loader";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import zhongyuanData from "../../packages/core/maps/zhongyuan.json";
 
 /** 内存 MapSource(单测用):不依赖 fetch/localStorage。 */
 function makeMemorySource(entries: MapEntry[], data: Record<string, MapData>): MapSource {

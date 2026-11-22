@@ -1,8 +1,8 @@
 import { expect, it } from "bun:test";
-import { GameEngine, type GameCommand } from "@core/authority";
-import { loadMap } from "@core/board-loader";
-import { createDice } from "@core/dice";
-import type { GameEvent } from "@core/game-events";
+import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
+import type { GameEvent } from "@dafung/core/engine/game-events";
 import {
   armPhase,
   giveJinnang,
@@ -10,12 +10,12 @@ import {
   pinDice,
   placePlayer,
   setStamina,
-} from "@core/planter";
+} from "@dafung/core/engine/planter";
 import { extractBatchEvents } from "@app/fx/event-extract";
 import { foldEventBatch } from "@app/net/event-fold";
-import { redactEvents, redactSnapshotForSeat } from "../scripts/seat-projection";
-import { cmdMsg, type InboundMsg } from "../scripts/wire";
-import guanzhongData from "../public/maps/guanzhong.json";
+import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
+import { cmdMsg, type InboundMsg } from "@dafung/core/protocol/wire";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
 
 const MAP = loadMap(guanzhongData);
 

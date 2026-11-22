@@ -3,8 +3,8 @@
 // ②上行 dispatch 的错误回报是返回值的一部分(badJson/unknownShape/rejected 三类),
 // 任何失败都不抛出到传输层之外(非法命令→错误回报值,#428 口径的 codec 侧对偶)。
 import { describe, it, expect } from "bun:test";
-import type { GameCommand } from "@core/authority";
-import type { GameEvent } from "@core/game-events";
+import type { GameCommand } from "@dafung/core/engine/authority";
+import type { GameEvent } from "@dafung/core/engine/game-events";
 import {
   autoPilotMsg,
   cmdMsg,
@@ -16,7 +16,7 @@ import {
   pickCapitalMsg,
   type InboundOps,
   type ServerMsg,
-} from "../../scripts/wire";
+} from "@dafung/core/protocol/wire";
 
 /** 任意合法形状事件(事件载荷透传,编解码不关心词汇表——core GameEvent 为准)。 */
 function sampleEvent(): GameEvent {

@@ -28,18 +28,18 @@ import {
   MARCH,
   TIME_SCALE_FLOOR_MS,
   setCatchupScale,
-} from "../../src/app/fx/timings";
-import { AUTOPILOT_STEP_MS, BOT_STEP_MS } from "../../src/core/timings";
-import { GameEngine } from "../../src/core/authority";
-import type { EngineConfig } from "../../src/core/authority";
-import { createDice } from "../../src/core/dice";
-import { TOKEN_SLOT_OFFSETS } from "../../src/core/constants";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import { loadMap } from "../../src/core/board-loader";
-import { testEngine } from "../../src/core/testing";
-import { anchorMarches, extractBatchEvents } from "../../src/app/fx/event-extract";
-import { present, resetFxOrchestration } from "../../src/app/fx/orchestrator";
-import { createMemorySink } from "../../src/app/fx/sinks";
+} from "../../apps/client/src/app/fx/timings";
+import { AUTOPILOT_STEP_MS, BOT_STEP_MS } from "@dafung/core/engine/timings";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { TOKEN_SLOT_OFFSETS } from "@dafung/core/engine/constants";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { testEngine } from "@dafung/core/engine/testing";
+import { anchorMarches, extractBatchEvents } from "../../apps/client/src/app/fx/event-extract";
+import { present, resetFxOrchestration } from "../../apps/client/src/app/fx/orchestrator";
+import { createMemorySink } from "../../apps/client/src/app/fx/sinks";
 
 it("燃烧到期的实心提示在同批全屏骰签收场后可见", async () => {
   resetFxOrchestration();
@@ -56,7 +56,10 @@ it("燃烧到期的实心提示在同批全屏骰签收场后可见", async () =
     { op: "burningPulse", tileIndex: 1, marks: 2 },
   ]);
 });
-import type { MarchSegmentFrames, PresentationEvent } from "../../src/app/fx/presentation";
+import type {
+  MarchSegmentFrames,
+  PresentationEvent,
+} from "../../apps/client/src/app/fx/presentation";
 
 describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系)", () => {
   it("骰子可读结果:DICE.holdMs + DICE.fadeOutMs >= 300(任何掷骰结束后有 ≥300ms 可读结果)", () => {

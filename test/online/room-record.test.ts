@@ -6,12 +6,12 @@
 import { describe, it, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { engineFromRecord } from "../../scripts/room-record";
-import type { RoomRecord } from "../../scripts/room-record";
-import { RoomRegistry } from "../../scripts/room";
-import type { RoomPersistence } from "../../scripts/room-persistence";
+import { engineFromRecord } from "@dafung/core/room/room-record";
+import type { RoomRecord } from "@dafung/core/room/room-record";
+import { RoomRegistry } from "@dafung/core/room/room";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
 import { MAP } from "../../scripts/engine-helpers";
-import type { LoadedMap } from "../../src/core/board-loader";
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
 
 class InMemoryPersistence implements RoomPersistence {
   private readonly m = new Map<string, RoomRecord>();
@@ -89,7 +89,7 @@ describe("room-record · engineFromRecord(#427 唯一实现)", () => {
 describe("room-record · 模块纯度(浏览器可 import)", () => {
   it("源文件零 node 导入(零 fs,浏览器进程内单机通路可直引)", () => {
     const src = readFileSync(
-      join(import.meta.dir, "..", "..", "scripts", "room-record.ts"),
+      join(import.meta.dir, "../../packages/core/src/room/room-record.ts"),
       "utf-8",
     );
     expect(src).not.toContain('"node:');

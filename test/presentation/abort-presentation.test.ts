@@ -2,12 +2,12 @@
 // 庆祝演出只属胜局;作废面板由快照 GameOver 相位驱动挂载,非事件演出(fx 提取器的
 // 显式 abort 分支钉死,正常终局照播胜利音已由 presentation.test.ts 破产清算例压轴断言)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine, type EngineConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { extractBatchEvents } from "../../src/app/fx/event-extract";
-import type { PresentationEvent } from "../../src/app/fx/presentation";
+import { GameEngine, type EngineConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { extractBatchEvents } from "../../apps/client/src/app/fx/event-extract";
+import type { PresentationEvent } from "../../apps/client/src/app/fx/presentation";
 
 const MAP = loadMap(guanzhongData);
 

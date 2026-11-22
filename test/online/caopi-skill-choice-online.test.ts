@@ -3,12 +3,12 @@
 // 验证挂窗下行、非属主拒绝、属主应答落账及对端摘要/事件批收敛。
 // planter 只构造曹丕与标记前态,挂窗与应答均走公共命令(ADR-0065)。
 import { describe, it, expect } from "bun:test";
-import { RoomRegistry } from "../../scripts/room";
-import type { SeatEndpoint } from "../../scripts/room";
-import type { RoomPersistence } from "../../scripts/room-persistence";
-import type { RoomRecord } from "../../scripts/room-record";
+import { RoomRegistry } from "@dafung/core/room/room";
+import type { SeatEndpoint } from "@dafung/core/room/room";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
 import { MAP } from "../../scripts/engine-helpers";
-import { armHero, armPhase, setStamina } from "../../src/core/planter";
+import { armHero, armPhase, setStamina } from "@dafung/core/engine/planter";
 
 class InMemoryPersistence implements RoomPersistence {
   private readonly m = new Map<string, RoomRecord>();

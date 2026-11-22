@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, mock, spyOn, test } from "bun:test";
 import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
-import type { LogEvent } from "@core/model";
+import type { LogEvent } from "@dafung/core/engine/model";
 import type {
   ArchivedGameSummary,
   GameArchiveIdentity,
@@ -15,7 +15,7 @@ let indexedDb: IDBFactory;
 let originalIndexedDb: PropertyDescriptor | undefined;
 
 function openArchiveSession(): Promise<Archive> {
-  const path = `../../src/app/gameLogArchive.ts?session=${++session}`;
+  const path = `../../apps/client/src/app/gameLogArchive.ts?session=${++session}`;
   return import(path);
 }
 

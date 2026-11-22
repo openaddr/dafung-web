@@ -2,11 +2,11 @@
 // 签面字符共用 constants.SIGN_FACES;场景由 planter 构造(ADR-0065)。
 // 行军走廊从街亭 P14 起步,骰 7 落赤壁。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice, DEFAULT_DIE_FACES, type Dice } from "@core/dice";
-import { SIGN_FACES } from "@core/constants";
-import { HEROES } from "@core/heroes";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice, DEFAULT_DIE_FACES, type Dice } from "@dafung/core/engine/dice";
+import { SIGN_FACES } from "@dafung/core/engine/constants";
+import { HEROES } from "@dafung/core/engine/heroes";
 import {
   YINGZI_SKILL_ID,
   heroDieFaces,
@@ -14,14 +14,14 @@ import {
   isStaticSkill,
   isTriggerSkill,
   skillById,
-} from "@core/skills";
-import { resolveDuel } from "@core/reaction-window";
-import { beginGameEventBatch } from "@core/game-events";
-import type { GameEvent } from "@core/game-events";
-import { armHero } from "@core/testing";
-import { pinDice } from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+} from "@dafung/core/engine/skills";
+import { resolveDuel } from "@dafung/core/engine/reaction-window";
+import { beginGameEventBatch } from "@dafung/core/engine/game-events";
+import type { GameEvent } from "@dafung/core/engine/game-events";
+import { armHero } from "@dafung/core/engine/testing";
+import { pinDice } from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 

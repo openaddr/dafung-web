@@ -21,21 +21,21 @@
 // 豁免须先给理由再动此处)。
 const RULES: Array<{ file: string; allow: RegExp[] }> = [
   {
-    file: "src/app/components/board/board.css",
+    file: "apps/client/src/app/components/board/board.css",
     // bv-march-ring-rotor(架构体检 B 批)+ fx-breathe(C4 收口单源 motion.css):
     // 行军金环原单 keyframes 拆成 HTML 转子双动画(rotate+opacity),同一阶段性环、
     // 合成器通路,取舍同 ADR-0039。
     allow: [/^bv-march-ring-rotor$/, /^fx-breathe$/],
   },
   {
-    file: "src/app/components/board/ambient.css",
+    file: "apps/client/src/app/components/board/ambient.css",
     // bv-select-pulse(架构体检 B 批):选都候选脉冲自 board.css 迁层(金盘+描边
     // 金环双通道呼吸出底板进合成层),同一阶段性口径(选都期存活),取舍同 ADR-0039;
     // 呼吸类 C4 起统一走 fx-breathe(motion.css 单源,本文件白名单随之并名)。
     allow: [/^bv-flag-sway$/, /^bv-token-active-breath$/, /^fx-breathe$/],
   },
   {
-    file: "src/app/screens/game/layout.css",
+    file: "apps/client/src/app/screens/game/layout.css",
     allow: [
       /^war-dot-breathe$/,
       /^sign-await-breathe$/,

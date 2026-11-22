@@ -4,16 +4,16 @@
 // 词汇表与产出两口见 src/core/game-events.ts;
 // 批界与折叠口径同 game-events.test.ts(白盒触达的转移用 beginGameEventBatch 显式开批)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { loadMap } from "@core/board-loader";
-import { testEngine, armHero } from "@core/testing";
-import { fullDefenseOf } from "@core/defense";
-import { grantProperty, setDefense } from "@core/planter";
-import { HEROES } from "@core/heroes";
-import { beginGameEventBatch, type GameEvent } from "@core/game-events";
-import guanzhongData from "../public/maps/guanzhong.json";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { testEngine, armHero } from "@dafung/core/engine/testing";
+import { fullDefenseOf } from "@dafung/core/engine/defense";
+import { grantProperty, setDefense } from "@dafung/core/engine/planter";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { beginGameEventBatch, type GameEvent } from "@dafung/core/engine/game-events";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
 
 const MAP = loadMap(guanzhongData);
 

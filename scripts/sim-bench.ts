@@ -27,8 +27,8 @@
 // 定位:按需运行的平衡基准;每个图/座位档输出统计,异常局报告种子。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadMap, type LoadedMap } from "../src/core/board-loader";
-import { netWorth } from "../src/core/networth";
+import { loadMap, type LoadedMap } from "@dafung/core/engine/board-loader";
+import { netWorth } from "@dafung/core/engine/networth";
 import { runWholeGame } from "./whole-game";
 import { CORPUS_MAPS, botSeats } from "./test-corpus";
 

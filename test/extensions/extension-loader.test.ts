@@ -5,15 +5,18 @@ import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { loadExtensionPackages, scanExtensionManifests } from "@core/extension-loader";
-import { HEROES } from "@core/heroes";
+import {
+  loadExtensionPackages,
+  scanExtensionManifests,
+} from "../../apps/server/src/extension-loader";
+import { HEROES } from "@dafung/core/engine/heroes";
 import {
   registerExtensionAuthorityModule,
   registeredExtensionPackages,
   unregisterExtensionPackage,
-} from "@core/extension-registry";
+} from "@dafung/core/engine/extension-registry";
 
-const EXTENSIONS_DIR = resolve(import.meta.dir, "../../extensions");
+const EXTENSIONS_DIR = resolve(import.meta.dir, "../../packages/core/extensions");
 
 /** 现造一个最小扩展包目录(内容全参数化,坏形状用例直接写坏数据)。 */
 function makePkgDir(files: Record<string, string>): string {

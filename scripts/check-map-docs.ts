@@ -13,7 +13,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const root = process.cwd();
-const index = JSON.parse(readFileSync(join(root, "public/maps/index.json"), "utf8")) as {
+const index = JSON.parse(readFileSync(join(root, "packages/core/maps/index.json"), "utf8")) as {
   id: string;
   file: string;
   tileCount: number;
@@ -25,7 +25,7 @@ const actualGrids = new Set<number>();
 const actualCities = new Set<number>();
 
 for (const entry of index) {
-  const data = JSON.parse(readFileSync(join(root, "public/maps", entry.file), "utf8")) as {
+  const data = JSON.parse(readFileSync(join(root, "packages/core/maps", entry.file), "utf8")) as {
     tiles: { type?: string }[];
   };
   const grid = data.tiles.length;

@@ -1,11 +1,11 @@
 // 体力系统单测(#131):初值/夹紧 + 耗竭的城损、休整和期满回满。
 // 通过体力伤害入口触发耗竭。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import { createDice } from "@core/dice";
-import { grantProperty } from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { grantProperty } from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 

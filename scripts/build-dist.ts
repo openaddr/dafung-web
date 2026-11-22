@@ -1,7 +1,8 @@
-// #1434:唯一打包编排入口。build 带 --typecheck,每次检查类型;build:bundle
+// #1434:客户端打包编排入口。build:client 带 --typecheck,每次检查类型;build:bundle
 // 仅保证产物完整新鲜。先撤标记再启动子进程,只有正常成功路径能重新写入。
 import { spawn } from "node:child_process";
 import {
+  CLIENT_DIR,
   completeDistBuild,
   distFreshness,
   distInputFingerprint,
@@ -34,7 +35,7 @@ const { freshness, inputs } = (() => {
   }
 })();
 if (args.includes("--typecheck")) {
-  const code = await run(["run", "--bun", "tsc", "--noEmit"]);
+  const code = await run(["run", "--bun", "tsc", "--noEmit", "-p", `${CLIENT_DIR}/tsconfig.json`]);
   if (code !== 0) process.exit(code);
 }
 if (freshness.fresh) {
@@ -42,7 +43,7 @@ if (freshness.fresh) {
   console.log("[build] dist 新鲜,跳过打包");
 } else {
   console.log(`[build] ${freshness.reason},执行打包…`);
-  const code = await run(["run", "--bun", "vite", "build"]);
+  const code = await run(["run", "--bun", "vite", "build", CLIENT_DIR]);
   if (code !== 0) process.exit(code);
   completeDistBuild(inputs, null);
 }

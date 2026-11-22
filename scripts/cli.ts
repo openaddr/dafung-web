@@ -4,12 +4,12 @@
 // 共享层(地图/序列化/状态摘要)在 ./engine-helpers,与 server.ts 复用;
 // bot 驱动的相位正典 = src/core/bot.ts 的 BOT_ATTENDED_PHASES。
 import { resolve } from "node:path";
-import type { GameEngine } from "../src/core/authority";
-import type { SeatConfig } from "../src/core/authority";
-import type { GameCommand } from "../src/core/authority";
-import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
-import { reactionQueriedSeats } from "./bot-driver";
-import { fingerprint } from "./seat-projection";
+import type { GameEngine } from "@dafung/core/engine/authority";
+import type { SeatConfig } from "@dafung/core/engine/authority";
+import type { GameCommand } from "@dafung/core/engine/authority";
+import { botAct, BOT_ATTENDED_PHASES } from "@dafung/core/engine/bot";
+import { reactionQueriedSeats } from "@dafung/core/room/bot-driver";
+import { fingerprint } from "@dafung/core/room/seat-projection";
 import {
   createEngine,
   loadEngineAt,
@@ -21,13 +21,13 @@ import {
   loadBuiltinMapById,
   type GameConfig,
 } from "./engine-helpers";
-import { loadExtensionPackages } from "../src/core/extension-loader";
+import { loadExtensionPackages } from "../apps/server/src/extension-loader";
 
 // ──────────────────────────── 扩展包装载(#412,与 server.ts 同口径)────────────────────────────
 // 每命令一进程:启动即装载 extensions/(名将/效果注册进引擎注册面,CLI 对局与
 // 服务器/单机同规则)。零兜底口径同 server.ts:坏包当场炸;空目录 = 合法零包。
 // stdout 只出命令 JSON(脚本消费面),装载诊断不打印。
-const EXTENSIONS_DIR = resolve(process.env.EXTENSIONS_DIR ?? "./extensions");
+const EXTENSIONS_DIR = resolve(process.env.EXTENSIONS_DIR ?? "./packages/core/extensions");
 await loadExtensionPackages(EXTENSIONS_DIR);
 
 // ──────────────────────────── arg 解析 ────────────────────────────

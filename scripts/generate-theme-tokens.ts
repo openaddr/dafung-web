@@ -5,10 +5,10 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Theme, Motion } from "../src/core/theme.ts";
+import { Theme, Motion } from "@dafung/core/engine/theme";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(__dirname, "../src/app/styles/tokens.css");
+const OUT = resolve(__dirname, "../apps/client/src/app/styles/tokens.css");
 
 const toHex = ({ r, g, b }: { r: number; g: number; b: number }) =>
   `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;

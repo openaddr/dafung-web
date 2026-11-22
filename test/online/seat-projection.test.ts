@@ -14,17 +14,17 @@ import {
   redactEvents,
   clientView,
   redactSnapshotForSeat,
-} from "../../scripts/seat-projection";
-import { RoomRegistry } from "../../scripts/room";
+} from "@dafung/core/room/seat-projection";
+import { RoomRegistry } from "@dafung/core/room/room";
 import { MAP } from "../../scripts/engine-helpers";
-import type { RoomPersistence } from "../../scripts/room-persistence";
-import type { RoomRecord } from "../../scripts/room-record";
-import type { LoadedMap } from "../../src/core/board-loader";
-import { GameEngine, type SeatConfig } from "../../src/core/authority";
-import type { GameEvent, GameEventBody } from "../../src/core/game-events";
-import type { MovePath } from "../../src/core/board";
-import { createDice } from "../../src/core/dice";
-import { armPhase, giveJinnang } from "../../src/core/planter";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
+import { GameEngine, type SeatConfig } from "@dafung/core/engine/authority";
+import type { GameEvent, GameEventBody } from "@dafung/core/engine/game-events";
+import type { MovePath } from "@dafung/core/engine/board";
+import { createDice } from "@dafung/core/engine/dice";
+import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
 import { foldEventBatch } from "@app/net/event-fold";
 import { reactionQueriesSeat } from "@app/controllers/reaction";
 

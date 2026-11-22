@@ -7,16 +7,16 @@
 //  ④ 快照:书实例(kind/skillId)随快照往返保真(新增字段允许,存量字段零删改)。
 //  ⑤ bot 贪心:出牌阶段扫描珍宝位,可用书即用,多名同池按槽位序取首,零新随机。
 import { describe, it, expect, afterEach } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig, TurnPhase } from "@core/authority";
-import { createDice } from "@core/dice";
-import { loadMap } from "@core/board-loader";
-import { HEROES } from "@core/heroes";
-import { HERO_CAPACITY } from "@core/constants";
-import { isSkillBook, makeSkillBook, SKILL_BOOK_ID_PREFIX } from "@core/treasures";
-import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
-import { grantProperty } from "@core/planter";
-import { botAct } from "@core/bot";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig, TurnPhase } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { HERO_CAPACITY } from "@dafung/core/engine/constants";
+import { isSkillBook, makeSkillBook, SKILL_BOOK_ID_PREFIX } from "@dafung/core/engine/treasures";
+import { armHero, sweepTestHeroes, testEngine } from "@dafung/core/engine/testing";
+import { grantProperty } from "@dafung/core/engine/planter";
+import { botAct } from "@dafung/core/engine/bot";
 
 // ── fixture 图:20 城全城池(招贤城 + 填充城;同 city-event.test 制式)──
 function cityTile(i: number, name: string, extra: Record<string, unknown> = {}) {

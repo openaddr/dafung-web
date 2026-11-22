@@ -7,14 +7,14 @@
 // 五例全在默认池(2026-10-31 #830:#827 再平衡拉长整局墙钟后,每步恢复 round-trip
 // 例的回放视野收短为固定步窗,实测 0.3s,退出慢例池;收短理由与窗口口径见用例内注)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { botAct } from "@core/bot";
-import { SNAPSHOT_FIELDS, type GameSnapshot } from "@core/snapshot";
-import { testEngine } from "@core/testing";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { botAct } from "@dafung/core/engine/bot";
+import { SNAPSHOT_FIELDS, type GameSnapshot } from "@dafung/core/engine/snapshot";
+import { testEngine } from "@dafung/core/engine/testing";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 

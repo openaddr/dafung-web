@@ -7,13 +7,13 @@
 // 不折叠、不即刻播演出——批照常暂存,同 flush 的校准快照承载状态,表现消费游标随
 // 快照帧推进(直译基于水合后引擎,座位/坐标可用)。全程注入消息,零网络零浏览器。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import { createDice } from "@core/dice";
-import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
-import type { GameSnapshot } from "@core/snapshot";
-import type { GameEvent } from "@core/game-events";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { loadMap, type LoadedMap, type MapData } from "@dafung/core/engine/board-loader";
+import type { GameSnapshot } from "@dafung/core/engine/snapshot";
+import type { GameEvent } from "@dafung/core/engine/game-events";
 import { OnlineController } from "@app/controllers/online";
-import guanzhongData from "../../public/maps/guanzhong.json" with { type: "json" };
+import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
 
 const GUANZHONG: { map: LoadedMap; data: MapData } = {
   map: loadMap(guanzhongData),

@@ -1,11 +1,11 @@
 import { expect, it } from "bun:test";
 import { foldEventBatch } from "@app/net/event-fold";
-import { GameEngine } from "@core/authority";
-import { tileIndexOfProperty } from "@core/board";
-import { loadMap } from "@core/board-loader";
-import { createDice } from "@core/dice";
-import { applyCityDamage } from "@core/defense";
-import { beginGameEventBatch } from "@core/game-events";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { tileIndexOfProperty } from "@dafung/core/engine/board";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
+import { applyCityDamage } from "@dafung/core/engine/defense";
+import { beginGameEventBatch } from "@dafung/core/engine/game-events";
 import {
   armBankrupt,
   armHero,
@@ -15,8 +15,8 @@ import {
   placePlayer,
   setDefense,
   setStamina,
-} from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
+} from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
 
 const MAP = loadMap(guanzhongData);
 const CITY = "prop-wujun"; // 购入价 3000，两项攻陷奖励各按此计价。

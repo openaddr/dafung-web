@@ -1,18 +1,18 @@
 // #1421:公共入座/重连行为经生产 ReconnectingSocket 装配,底层 socket/timer 确定性驱动。
 // 守住原座凭证、摘要前上行锁和未开局大厅校准;不测 DOM/几何,不等待真实退避。
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { GameEngine } from "@core/authority";
-import { loadMap, type MapData } from "@core/board-loader";
-import { createDice } from "@core/dice";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
 import { OnlineController } from "@app/controllers/online";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
 import { getEngine, useGameStore } from "@app/store/gameStore";
 import { getController, setController } from "@app/controllers/registry";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
-import type { ServerMsg } from "../../scripts/wire";
-import guanzhongData from "../../public/maps/guanzhong.json" with { type: "json" };
-import zhongyuanData from "../../public/maps/zhongyuan.json" with { type: "json" };
-import mapCatalog from "../../public/maps/index.json" with { type: "json" };
+import type { ServerMsg } from "@dafung/core/protocol/wire";
+import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
+import zhongyuanData from "../../packages/core/maps/zhongyuan.json" with { type: "json" };
+import mapCatalog from "../../packages/core/maps/index.json" with { type: "json" };
 
 const MAP_DATA = guanzhongData as MapData;
 const MAP = loadMap(MAP_DATA);

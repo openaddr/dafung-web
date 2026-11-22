@@ -7,9 +7,12 @@
 import { describe, it, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { Motion } from "../../src/core/theme";
+import { Motion } from "@dafung/core/engine/theme";
 
-const css = readFileSync(resolve(import.meta.dir, "../../src/app/styles/tokens.css"), "utf8");
+const css = readFileSync(
+  resolve(import.meta.dir, "../../apps/client/src/app/styles/tokens.css"),
+  "utf8",
+);
 
 // 与生成器同一条命名规则:camelCase 键转 kebab-case token 后缀(outBack → out-back)。
 const kebab = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();

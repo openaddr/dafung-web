@@ -4,7 +4,10 @@
 // ±30% 抖动(0.7 + random×0.6)。注入 random=0.5 ⇒ 抖动系数恰为 1.0,退避延迟=backoff
 // 本身,便于断言 1,2,4…秒的确定性序列。
 import { describe, it, expect } from "bun:test";
-import { ReconnectingSocket, type WebSocketLike } from "../../src/app/net/reconnecting-socket";
+import {
+  ReconnectingSocket,
+  type WebSocketLike,
+} from "../../apps/client/src/app/net/reconnecting-socket";
 
 /** 假 WebSocket:记录构造 URL 与 send 载荷,可手动触发 open/close/error 事件。 */
 class FakeWebSocket implements WebSocketLike {

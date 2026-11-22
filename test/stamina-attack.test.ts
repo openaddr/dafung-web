@@ -1,8 +1,8 @@
 import { expect, it } from "bun:test";
 import { foldEventBatch } from "@app/net/event-fold";
-import { GameEngine, type GameCommand } from "@core/authority";
-import { loadMap } from "@core/board-loader";
-import { createDice } from "@core/dice";
+import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
 import {
   armHero,
   armPhase,
@@ -13,10 +13,10 @@ import {
   setBot,
   setDefense,
   setStamina,
-} from "@core/planter";
-import guanzhong from "../public/maps/guanzhong.json";
-import { redactEvents, redactSnapshotForSeat } from "../scripts/seat-projection";
-import { cmdMsg, type InboundMsg } from "../scripts/wire";
+} from "@dafung/core/engine/planter";
+import guanzhong from "../packages/core/maps/guanzhong.json";
+import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
+import { cmdMsg, type InboundMsg } from "@dafung/core/protocol/wire";
 
 const { board, catalog } = loadMap(guanzhong);
 

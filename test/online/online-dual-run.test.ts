@@ -17,13 +17,13 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { MovePath } from "@core/board";
-import type { GameSnapshot } from "@core/snapshot";
+import type { MovePath } from "@dafung/core/engine/board";
+import type { GameSnapshot } from "@dafung/core/engine/snapshot";
 import type { NetSeatMeta } from "@app/store/netStore";
 import { DualClientProcess } from "./dual-client-process";
 import type { DualClientObservation, DualClientRetryMode } from "./dual-client-observation";
 
-type ServerModule = typeof import("../../scripts/server");
+type ServerModule = typeof import("../../apps/server/src/server");
 let serverMod: ServerModule | null = null;
 let tmpDir: string | null = null;
 let serverBase = "";
@@ -331,13 +331,12 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     setEnv("HOST", "127.0.0.1");
     setEnv("ROOMS_DIR", join(tmpDir, "rooms"));
     setEnv("LOGS_DIR", join(tmpDir, "logs"));
-    setEnv("STATIC_DIR", join(tmpDir, "static"));
     setEnv("EXTENSIONS_DIR", join(tmpDir, "extensions"));
     setEnv("E2E_BOT_STEP_MS", "0");
     setEnv("E2E_REACTION_MS", undefined); // 实测生产默认,清除外部覆盖并在 afterAll 还原
     setEnv("DECISION_TIMEOUT_MS", "0");
     setEnv("RETENTION_WINDOW_MS", "0");
-    serverMod = await import("../../scripts/server");
+    serverMod = await import("../../apps/server/src/server");
     serverBase = `http://127.0.0.1:${serverMod.engineServer.port}`;
   }, 15_000);
 

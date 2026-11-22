@@ -7,8 +7,8 @@
 // 观测事件开局托管 7.4s / 托管可撤销 7.3s / 托管单节拍不瞬通 7.2s / 托管单节拍节奏
 // 3.0s(实测 2026-10-30);其余 68 例轻,常驻默认池。
 import { describe, it, expect } from "bun:test";
-import { RoomRegistry, RoomError } from "../../scripts/room";
-import type { RoomClock, SeatEndpoint } from "../../scripts/room";
+import { RoomRegistry, RoomError } from "@dafung/core/room/room";
+import type { RoomClock, SeatEndpoint } from "@dafung/core/room/room";
 import {
   lobbyView,
   clientView,
@@ -16,19 +16,19 @@ import {
   redactEvents,
   CALIBRATION_WINDOWS,
   CALIBRATION_EVENT_KINDS,
-} from "../../scripts/seat-projection";
-import { resolveGuohaoClash } from "../../src/core/guohao";
-import { JINNANG_CARDS } from "../../src/core/jinnang";
-import { GameEngine } from "../../src/core/authority";
-import { armHero, armPhase, giveJinnang, setStamina } from "../../src/core/planter";
-import { heroSlotOf, skillMarksOf } from "../../src/core/roster";
-import { createDice } from "../../src/core/dice";
-import { foldEventBatch } from "../../src/app/net/event-fold";
-import type { RoomPersistence } from "../../scripts/room-persistence";
-import type { RoomRecord } from "../../scripts/room-record";
-import type { ServerMsg } from "../../scripts/wire";
+} from "@dafung/core/room/seat-projection";
+import { resolveGuohaoClash } from "@dafung/core/engine/guohao";
+import { JINNANG_CARDS } from "@dafung/core/engine/jinnang";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { armHero, armPhase, giveJinnang, setStamina } from "@dafung/core/engine/planter";
+import { heroSlotOf, skillMarksOf } from "@dafung/core/engine/roster";
+import { createDice } from "@dafung/core/engine/dice";
+import { foldEventBatch } from "../../apps/client/src/app/net/event-fold";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
+import type { ServerMsg } from "@dafung/core/protocol/wire";
 import { MAP } from "../../scripts/engine-helpers";
-import type { LoadedMap } from "../../src/core/board-loader";
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
 
 // 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);判据与实测耗时见文件头注。
 const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);

@@ -5,11 +5,11 @@
 // #1302 确定性族两件同口径:钉骰后骰口按值序、耗尽自还原、种子 rng 不消耗、两注入口
 // 不串队;合成行入日志与真行同 schema。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, EnginePhase, TurnPhase } from "@core/authority";
-import { createDice } from "@core/dice";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, EnginePhase, TurnPhase } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 import {
   applyPlant,
   armBankrupt,
@@ -32,10 +32,10 @@ import {
   setCash,
   setStamina,
   type PlantOp,
-} from "@core/planter";
-import type { ReactionPayload, ReactionView } from "@core/reaction-window";
-import { heroById } from "@core/heroes";
-import { createTreasureDeck } from "@core/treasures";
+} from "@dafung/core/engine/planter";
+import type { ReactionPayload, ReactionView } from "@dafung/core/engine/reaction-window";
+import { heroById } from "@dafung/core/engine/heroes";
+import { createTreasureDeck } from "@dafung/core/engine/treasures";
 
 const MAP = loadMap(guanzhongData);
 

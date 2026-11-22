@@ -3,15 +3,21 @@
 // 访客/城主触发语义、池空/满员沉默(#826 起功能格退役,盘面只剩城池)。
 // 测试只走外部行为(装载器产出 / 引擎相位·日志·公共状态),不碰内部实现。
 import { describe, it, expect, afterEach } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { loadMap } from "@core/board-loader";
-import { HEROES } from "@core/heroes";
-import { HERO_CAPACITY } from "@core/constants";
-import { giveJinnang, grantProperty, pinDice, placePlayer, setStamina } from "@core/planter";
-import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
-import guanzhongData from "../public/maps/guanzhong.json";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { HERO_CAPACITY } from "@dafung/core/engine/constants";
+import {
+  giveJinnang,
+  grantProperty,
+  pinDice,
+  placePlayer,
+  setStamina,
+} from "@dafung/core/engine/planter";
+import { armHero, sweepTestHeroes, testEngine } from "@dafung/core/engine/testing";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
 
 // ── fixture 图:20 城全城池(普通×3 + 事件城×3 + 填充城×14)──
 function cityTile(i: number, name: string, extra: Record<string, unknown> = {}) {

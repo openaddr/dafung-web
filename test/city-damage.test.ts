@@ -1,9 +1,9 @@
 import { expect, it } from "bun:test";
-import { GameEngine } from "@core/authority";
-import { loadMap } from "@core/board-loader";
-import { createDice } from "@core/dice";
-import { upgrade } from "@core/economy";
-import { findHolding } from "@core/player";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
+import { upgrade } from "@dafung/core/engine/economy";
+import { findHolding } from "@dafung/core/engine/player";
 import {
   armHero,
   armPhase,
@@ -11,8 +11,8 @@ import {
   grantProperty,
   placePlayer,
   setDefense,
-} from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
+} from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
 
 const MAP = loadMap(guanzhongData);
 

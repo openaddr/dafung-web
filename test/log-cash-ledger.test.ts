@@ -4,14 +4,14 @@
 // 清算成交、破产成交、清算失败破产扫账五条路径,断言逐玩家 Σamount == 引擎观测的现金
 // 净变动，包含途经轮末时发放的持城收益。另以独立用例构造现金 0 破产成交，锁定实收=0 不挂。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { TREASURE_PRICE } from "@core/treasures";
-import type { TreasureDef } from "@core/treasures";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { testEngine } from "@core/testing";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { TREASURE_PRICE } from "@dafung/core/engine/treasures";
+import type { TreasureDef } from "@dafung/core/engine/treasures";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { testEngine } from "@dafung/core/engine/testing";
 
 const MAP = loadMap(guanzhongData);
 const START_CASH = 300; // 压低起手金:让清算/破产路径在无直写 cash 的情况下自然触发

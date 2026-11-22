@@ -2,18 +2,18 @@
 // 拦检平局与拦停/bot 即席代答口径/越权拒绝/快照往返/出牌指示线留痕。
 // 缝约定同 test/jinnang.test.ts:只测引擎公共面(构造/公共方法/snapshot/log/presentation)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice, type Dice } from "@core/dice";
-import { beginGameEventBatch, type GameEvent } from "@core/game-events";
-import type { TurnPhase } from "@core/authority";
-import { HEROES, heroById } from "@core/heroes";
-import { REACTION_WINDOW_MS } from "@core/constants";
-import { botReactionDecision } from "@core/bot";
-import { armHero } from "@core/testing";
-import { giveJinnang, grantProperty, pinDice, placePlayer } from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice, type Dice } from "@dafung/core/engine/dice";
+import { beginGameEventBatch, type GameEvent } from "@dafung/core/engine/game-events";
+import type { TurnPhase } from "@dafung/core/engine/authority";
+import { HEROES, heroById } from "@dafung/core/engine/heroes";
+import { REACTION_WINDOW_MS } from "@dafung/core/engine/constants";
+import { botReactionDecision } from "@dafung/core/engine/bot";
+import { armHero } from "@dafung/core/engine/testing";
+import { giveJinnang, grantProperty, pinDice, placePlayer } from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 // 半路杀出走廊(关中环位):起点街亭 P14 → 途经咸阳 P15(城主城)→ 落点凉州 P16

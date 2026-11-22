@@ -65,7 +65,14 @@ export function inspectTestBoundaries(root: string): string[] {
       }
     }
   }
-  for (const dir of ["src", "scripts", "test", "extensions"])
+  for (const dir of [
+    "apps/client/src",
+    "apps/server/src",
+    "packages/core/src",
+    "packages/core/extensions",
+    "scripts",
+    "test",
+  ])
     if (existsSync(join(root, dir))) scan(dir);
   return issues;
 }

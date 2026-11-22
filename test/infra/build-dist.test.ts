@@ -14,6 +14,19 @@ import {
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "../..");
+const CLIENT = "apps/client";
+const CORE = "packages/core";
+const DIST = join(CLIENT, "dist");
+const catalog = JSON.stringify([
+  {
+    id: "demo",
+    name: "内置地图",
+    file: "boards/map.json",
+    desc: "",
+    tileCount: 1,
+    targetNetWorth: 1,
+  },
+]);
 const roots: string[] = [];
 const testBuild = test.skipIf(!process.env.DAFUNG_SLOW);
 
@@ -25,22 +38,50 @@ function fixture(): string {
   mkdirSync(join(ROOT, "tmp"), { recursive: true });
   const root = mkdtempSync(join(ROOT, "tmp/build-dist-"));
   roots.push(root);
-  mkdirSync(join(root, ".git")); // Tailwind 扫描以此仓库为界,不继承父目录 tmp 忽略规则。
-  writeFileSync(join(root, ".gitignore"), "dist/\nnode_modules/\n");
-  for (const dir of ["src", "public", "scripts"]) mkdirSync(join(root, dir));
-  cpSync(join(ROOT, "scripts"), join(root, "scripts"), { recursive: true });
-  const { scripts } = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
-  writeFileSync(join(root, "package.json"), JSON.stringify({ type: "module", scripts }));
-  cpSync(join(ROOT, "bun.lock"), join(root, "bun.lock"));
-  writeFileSync(join(root, "index.html"), '<script type="module" src="/src/entry.ts"></script>');
+  for (const dir of [
+    join(CLIENT, "src"),
+    join(CLIENT, "public"),
+    join(CORE, "src/engine"),
+    join(CORE, "maps/boards"),
+    join(CORE, "extensions"),
+    "apps/server",
+    "scripts",
+  ]) {
+    mkdirSync(join(root, dir), { recursive: true });
+  }
+  for (const script of ["build-dist.ts", "dist-freshness.ts", "packaged-maps.ts"]) {
+    cpSync(join(ROOT, "scripts", script), join(root, "scripts", script));
+  }
   writeFileSync(
-    join(root, "src/entry.ts"),
-    'import { value } from "../scripts/bundled"; console.log(value);',
+    join(root, "package.json"),
+    JSON.stringify({
+      type: "module",
+      version: "2026.11.1",
+      scripts: {
+        "build:client": "bun scripts/build-dist.ts --typecheck",
+        "build:bundle": "bun scripts/build-dist.ts",
+      },
+    }),
   );
-  writeFileSync(join(root, "scripts/bundled.ts"), 'export const value: string = "first";');
-  writeFileSync(join(root, "public/message.txt"), "resource");
-  writeFileSync(join(root, "README.md"), "项目说明");
-  writeFileSync(join(root, "vite.config.ts"), "export default { build: { minify: false } };");
+  cpSync(join(ROOT, "bun.lock"), join(root, "bun.lock"));
+  for (const pkg of [CLIENT, CORE]) {
+    writeFileSync(join(root, pkg, "package.json"), '{"type":"module"}');
+  }
+  writeFileSync(
+    join(root, CLIENT, "index.html"),
+    '<script type="module" src="/src/entry.ts"></script>',
+  );
+  writeFileSync(
+    join(root, CLIENT, "src/entry.ts"),
+    'import { value } from "../../../packages/core/src/engine/bundled"; console.log(value);',
+  );
+  writeFileSync(join(root, CORE, "src/engine/bundled.ts"), 'export const value: string = "first";');
+  writeFileSync(join(root, CORE, "maps/index.json"), catalog);
+  writeFileSync(join(root, CORE, "maps/extra.json"), "{}");
+  writeFileSync(join(root, CORE, "maps/boards/map.json"), '{"name":"内置地图"}');
+  writeFileSync(join(root, CORE, "extensions/manifest.json"), "{}");
+  writeFileSync(join(root, CLIENT, "public/message.txt"), "resource");
+  cpSync(join(ROOT, CLIENT, "vite.config.ts"), join(root, CLIENT, "vite.config.ts"));
   writeFileSync(
     join(root, "tsconfig.json"),
     JSON.stringify({
@@ -48,7 +89,10 @@ function fixture(): string {
       include: ["src"],
     }),
   );
-  writeFileSync(join(root, "tsconfig.scripts.json"), "{}");
+  writeFileSync(
+    join(root, CLIENT, "tsconfig.json"),
+    '{"extends":"../../tsconfig.json","include":["src"]}',
+  );
   return root;
 }
 
@@ -65,13 +109,19 @@ function fresh(root: string): boolean {
 }
 
 testBuild(
-  "常规 build 成功后可复用产物,再次 build 仍过类型门而免打包",
+  "build:client 产出 WebView 资源和内置地图,再次构建仍过类型门而免打包",
   () => {
     const root = fixture();
-    const first = run(root, "build");
+    const first = run(root, "build:client");
     expect(first.code, first.output).toBe(0);
+    expect(readFileSync(join(root, DIST, "maps/index.json"), "utf8")).toBe(catalog);
+    expect(readdirSync(join(root, DIST, "maps")).sort()).toEqual(["boards", "index.json"]);
+    expect(readFileSync(join(root, DIST, "maps/boards/map.json"), "utf8")).toBe(
+      '{"name":"内置地图"}',
+    );
+    expect(readFileSync(join(root, DIST, "message.txt"), "utf8")).toBe("resource");
     expect(fresh(root)).toBe(true);
-    const second = run(root, "build");
+    const second = run(root, "build:client");
     expect(second.code, second.output).toBe(0);
     expect(second.output).toContain("tsc --noEmit");
     expect(second.output).toContain("dist 新鲜,跳过打包");
@@ -81,21 +131,24 @@ testBuild(
 );
 
 testBuild(
-  "源码/资源/配置/依赖与被打包脚本变化均失效,产物缺损也不可复用",
+  "客户端源码/资源/配置/依赖与共享包变化均失效,产物缺损也不可复用",
   () => {
     const root = fixture();
     expect(run(root, "build:bundle").code).toBe(0);
     const changes: [string, string][] = [
       [
-        "src/entry.ts",
-        'import { value } from "../scripts/bundled"; console.log("changed", value);',
+        join(CLIENT, "src/entry.ts"),
+        'import { value } from "../../../packages/core/src/engine/bundled"; console.log("changed", value);',
       ],
-      ["public/message.txt", "changed resource"],
-      ["vite.config.ts", "export default { build: { minify: false, sourcemap: true } };"],
+      [join(CLIENT, "public/message.txt"), "changed resource"],
+      [join(CLIENT, "vite.config.ts"), "export default { build: { sourcemap: false } };"],
+      [join(CLIENT, "package.json"), '{"type":"module","private":true}'],
       ["package.json", readFileSync(join(root, "package.json"), "utf8") + "\n"],
+      ["scripts/packaged-maps.ts", "// 构建工具变更"],
       ["bun.lock", readFileSync(join(root, "bun.lock"), "utf8") + "\n"],
-      ["scripts/bundled.ts", 'export const value: string = "second";'],
-      ["README.md", "文档中的 Tailwind 类也影响 CSS: bg-red-500"],
+      [join(CORE, "src/engine/bundled.ts"), 'export const value: string = "second";'],
+      [join(CORE, "maps/boards/map.json"), '{"name":"新内置地图"}'],
+      [join(CORE, "extensions/manifest.json"), '{"id":"demo"}'],
     ];
     for (const [path, content] of changes) {
       const original = readFileSync(join(root, path), "utf8");
@@ -103,14 +156,20 @@ testBuild(
       expect(fresh(root), path).toBe(false);
       writeFileSync(join(root, path), original);
     }
-    writeFileSync(join(root, "scripts/bundled.ts"), 'export const value: string = "second";');
+    writeFileSync(join(root, "apps/server/index.ts"), "throw Error('独立服务端代码');");
+    expect(fresh(root)).toBe(true);
+    writeFileSync(
+      join(root, CORE, "src/engine/bundled.ts"),
+      'export const value: string = "second";',
+    );
     const rebuilt = run(root, "build:bundle");
     expect(rebuilt.code, rebuilt.output).toBe(0);
     expect(rebuilt.output).toContain("执行打包");
     expect(fresh(root)).toBe(true);
-    const asset = readdirSync(join(root, "dist/assets")).find((name) => name.endsWith(".js"))!;
-    expect(readFileSync(join(root, "dist/assets", asset), "utf8")).toContain("second");
-    rmSync(join(root, "dist/assets", asset));
+    const bundles = join(root, DIST, "bundles");
+    const asset = readdirSync(bundles).find((name) => /^core-.*\.js$/.test(name))!;
+    expect(readFileSync(join(bundles, asset), "utf8")).toContain("second");
+    rmSync(join(bundles, asset));
     expect(fresh(root)).toBe(false);
   },
   20_000,
@@ -121,27 +180,29 @@ testBuild(
   () => {
     const root = fixture();
     expect(run(root, "build:bundle").code).toBe(0);
-    const entry = readFileSync(join(root, "src/entry.ts"), "utf8");
-    writeFileSync(join(root, "src/entry.ts"), entry + '\nconst broken: number = "wrong";');
-    const typeFailure = run(root, "build");
+    const entryPath = join(root, CLIENT, "src/entry.ts");
+    const entry = readFileSync(entryPath, "utf8");
+    writeFileSync(entryPath, entry + '\nconst broken: number = "wrong";');
+    const typeFailure = run(root, "build:client");
     expect(typeFailure.code, typeFailure.output).toBe(2);
-    writeFileSync(join(root, "src/entry.ts"), entry);
+    writeFileSync(entryPath, entry);
     expect(fresh(root)).toBe(false); // 恢复原输入也不能让失败前的旧产物复活。
 
-    const config = readFileSync(join(root, "vite.config.ts"), "utf8");
+    const configPath = join(root, CLIENT, "vite.config.ts");
+    const config = readFileSync(configPath, "utf8");
     for (const [action, code] of [
       ["process.exit(23)", 23],
       ['process.kill(process.pid, "SIGTERM")', null],
     ] as const) {
       expect(run(root, "build:bundle").code).toBe(0);
       writeFileSync(
-        join(root, "vite.config.ts"),
+        configPath,
         `export default { plugins: [{ name: "intentional-stop", buildStart() { ${action}; } }] };`,
       );
       const stopped = run(root, "build:bundle");
       if (code === null) expect(stopped.code, stopped.output).not.toBe(0);
       else expect(stopped.code, stopped.output).toBe(code);
-      writeFileSync(join(root, "vite.config.ts"), config);
+      writeFileSync(configPath, config);
       expect(fresh(root)).toBe(false);
     }
     expect(run(root, "build:bundle").code).toBe(0);

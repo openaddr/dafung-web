@@ -1,11 +1,11 @@
 import { afterEach, expect, it } from "bun:test";
 import { foldEventBatch } from "@app/net/event-fold";
-import { GameEngine, type GameCommand } from "@core/authority";
-import { loadMap } from "@core/board-loader";
-import { createDice } from "@core/dice";
-import { defineChoiceEffect, EFFECTS, type EffectCtx } from "@core/effects";
-import type { GameEvent } from "@core/game-events";
-import { findHolding } from "@core/player";
+import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
+import { defineChoiceEffect, EFFECTS, type EffectCtx } from "@dafung/core/engine/effects";
+import type { GameEvent } from "@dafung/core/engine/game-events";
+import { findHolding } from "@dafung/core/engine/player";
 import {
   armDebt,
   armHero,
@@ -15,11 +15,11 @@ import {
   placePlayer,
   setCash,
   setDefense,
-} from "@core/planter";
-import { SKILLS, type TriggerSkill } from "@core/skills";
-import { redactEvents, redactSnapshotForSeat } from "../scripts/seat-projection";
-import guanzhong from "../public/maps/guanzhong.json";
-import { cmdMsg, type InboundMsg } from "../scripts/wire";
+} from "@dafung/core/engine/planter";
+import { SKILLS, type TriggerSkill } from "@dafung/core/engine/skills";
+import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
+import guanzhong from "../packages/core/maps/guanzhong.json";
+import { cmdMsg, type InboundMsg } from "@dafung/core/protocol/wire";
 
 const { board, catalog } = loadMap(guanzhong);
 const CITY = "prop-jinyang";

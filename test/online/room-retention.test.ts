@@ -4,12 +4,12 @@
 // 归属唯一凭证——保留窗到期不使 token 失效;重连不清托管,原玩家点「收回」拿回控制。
 // 窗口期冻结停摆语义不变(ADR-0002 默认冻结)。InMemory 持久化,零 fs / 零 WS。
 import { describe, it, expect } from "bun:test";
-import { RoomRegistry } from "../../scripts/room";
-import type { RoomClock } from "../../scripts/room";
-import type { RoomPersistence } from "../../scripts/room-persistence";
-import type { RoomRecord } from "../../scripts/room-record";
+import { RoomRegistry } from "@dafung/core/room/room";
+import type { RoomClock } from "@dafung/core/room/room";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
 import { MAP } from "../../scripts/engine-helpers";
-import type { LoadedMap } from "../../src/core/board-loader";
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
 
 /** 手动时钟(测试注入):定时全部挂表,fireAll 手动推进——接线断言零真实等待。 */
 class ManualClock implements RoomClock {

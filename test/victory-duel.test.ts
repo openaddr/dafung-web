@@ -1,11 +1,11 @@
 import { expect, it } from "bun:test";
 import { extractBatchEvents } from "@app/fx/event-extract";
-import { GameEngine } from "@core/authority";
-import { loadMap } from "@core/board-loader";
-import { createDice } from "@core/dice";
-import { armBankrupt, armHero, armPhase, pinDice, setCash } from "@core/planter";
-import { checkVictory } from "@core/victory";
-import rawMap from "../public/maps/guanzhong.json";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
+import { armBankrupt, armHero, armPhase, pinDice, setCash } from "@dafung/core/engine/planter";
+import { checkVictory } from "@dafung/core/engine/victory";
+import rawMap from "../packages/core/maps/guanzhong.json";
 
 const { board, catalog } = loadMap(rawMap);
 

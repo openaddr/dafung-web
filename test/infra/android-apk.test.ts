@@ -56,8 +56,8 @@ test("切换固定源码清掉退役文件,保留未变文件时间和构建缓�
   const first = f.commit();
   syncApkSource(first, f.cache, f.repo);
   utimesSync(join(f.cache, "kept.ts"), 1000, 1000);
-  mkdirSync(join(f.cache, "src-tauri/target"), { recursive: true });
-  writeFileSync(join(f.cache, "src-tauri/target/artifact"), "compiled");
+  mkdirSync(join(f.cache, "apps/client/src-tauri/target"), { recursive: true });
+  writeFileSync(join(f.cache, "apps/client/src-tauri/target/artifact"), "compiled");
   rmSync(join(f.repo, "retired.ts"));
   writeFileSync(join(f.repo, "added.ts"), "new\n");
   const next = f.commit();
@@ -65,7 +65,9 @@ test("切换固定源码清掉退役文件,保留未变文件时间和构建缓�
   expect(existsSync(join(f.cache, "retired.ts"))).toBe(false);
   expect(readFileSync(join(f.cache, "added.ts"), "utf8")).toBe("new\n");
   expect(statSync(join(f.cache, "kept.ts")).mtimeMs).toBe(1000000);
-  expect(readFileSync(join(f.cache, "src-tauri/target/artifact"), "utf8")).toBe("compiled");
+  expect(readFileSync(join(f.cache, "apps/client/src-tauri/target/artifact"), "utf8")).toBe(
+    "compiled",
+  );
   assertApkSource(next, f.cache, f.repo);
   writeFileSync(join(f.cache, "kept.ts"), "wrong source\n");
   expect(() => assertApkSource(next, f.cache, f.repo)).toThrow("构建源码偏离");

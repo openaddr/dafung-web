@@ -5,17 +5,17 @@
 // - bot 先经 choicesFor 过滤后启发式(口径收敛,行为不回归);
 // - 快照 choices 派生字段 round-trip 一致。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { armDebt, giveTreasure, setCash } from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { EXCLUDED_FROM_AUTO, type ChoiceOption } from "@core/choices";
-import { fullDefenseOf } from "@core/defense";
-import { HEROES } from "@core/heroes";
-import { botAct } from "@core/bot";
-import { testEngine, heroOffer } from "@core/testing";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { armDebt, giveTreasure, setCash } from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { EXCLUDED_FROM_AUTO, type ChoiceOption } from "@dafung/core/engine/choices";
+import { fullDefenseOf } from "@dafung/core/engine/defense";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { botAct } from "@dafung/core/engine/bot";
+import { testEngine, heroOffer } from "@dafung/core/engine/testing";
 
 const MAP = loadMap(guanzhongData);
 

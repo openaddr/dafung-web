@@ -1,19 +1,19 @@
 // 锦囊系统单测(#122/T1):目录数据校验 + 引擎缝(发牌/无上限抽干/抽空/快照往返/日志不泄牌)。
 // 缝约定:只测引擎公共面(构造/公共方法/snapshot/log),不碰私有中间态。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice, type Dice } from "@core/dice";
-import { beginGameEventBatch, type GameEvent } from "@core/game-events";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice, type Dice } from "@dafung/core/engine/dice";
+import { beginGameEventBatch, type GameEvent } from "@dafung/core/engine/game-events";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 import {
   JINNANG_CARDS,
   JINNANG_DECK_LIST,
   TARGET_DOMAIN_STAGES,
   buildJinnangDeck,
   jinnangCardOf,
-} from "@core/jinnang";
+} from "@dafung/core/engine/jinnang";
 
 const MAP = loadMap(guanzhongData);
 
@@ -284,8 +284,8 @@ describe("锦囊快照往返(恢复/联机一致性)", () => {
 });
 
 // ──────────────────────────── 使用回路(T2)────────────────────────────
-import { botAct } from "@core/bot";
-import { JINNANG_LIVE_EFFECTS, hasUsableJinnang } from "@core/choices";
+import { botAct } from "@dafung/core/engine/bot";
+import { JINNANG_LIVE_EFFECTS, hasUsableJinnang } from "@dafung/core/engine/choices";
 
 /** 把引擎摆到「当前玩家持 cards、停在锦囊相位」的测试态(相位为公开字段,直设同
  *  testEngine 落格后门口径)。同时清走他座的反应牌(#281)——常规锦囊回路不掺杂反应窗,
@@ -422,7 +422,7 @@ describe("锦囊使用回路(T2)", () => {
   });
 });
 
-import { giveJinnang, grantProperty, setDefense } from "@core/planter";
+import { giveJinnang, grantProperty, setDefense } from "@dafung/core/engine/planter";
 
 // ──────────────────────────── 目标段与指向他人(T3)────────────────────────────
 describe("锦囊目标段(T3)", () => {

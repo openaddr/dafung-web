@@ -1,9 +1,9 @@
 import { expect, it } from "bun:test";
 import { foldEventBatch } from "@app/net/event-fold";
-import { GameEngine, type GameCommand } from "@core/authority";
-import { loadMap } from "@core/board-loader";
-import { createDice } from "@core/dice";
-import { findHolding } from "@core/player";
+import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
+import { findHolding } from "@dafung/core/engine/player";
 import {
   armDebt,
   armHero,
@@ -13,10 +13,10 @@ import {
   grantProperty,
   placePlayer,
   setDefense,
-} from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { redactEvents, redactSnapshotForSeat } from "../scripts/seat-projection";
-import { cmdMsg, type InboundMsg } from "../scripts/wire";
+} from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
+import { cmdMsg, type InboundMsg } from "@dafung/core/protocol/wire";
 
 const MAP = loadMap(guanzhongData);
 const CITY = "prop-jinyang";

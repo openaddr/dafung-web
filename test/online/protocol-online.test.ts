@@ -7,7 +7,7 @@ import { basename, join } from "node:path";
 import { protocolTestPort } from "../../scripts/dev-ports";
 import { FaultProxy, type FaultProxyNotice, type FaultProxyStats } from "../../scripts/fault-proxy";
 import { OnlineClient } from "../../scripts/online-client";
-import type { SnapshotMsg } from "../../scripts/wire";
+import type { SnapshotMsg } from "@dafung/core/protocol/wire";
 
 // 慢例池开关:describe 级 skip 连钩子一起跳(默认池不白起服务器);DAFUNG_SLOW=1 才跑,判据见文件头注。
 const describeSlow = describe.skipIf(!process.env.DAFUNG_SLOW);
@@ -77,7 +77,7 @@ describeSlow("协议级联机 e2e(#1164):真服务器 + 故障代理 + 无头客
     // 上的 "bun":本机实证(WinGet/nvm 双装)PATH 解析走启动器,落成两进程对——被跟踪
     // 的 PID 一 kill 就退,真服务器进程逍遥法外,泄漏成下一轮的「残孤占口」(2026-11-07
     // 实锤:spawn pid 退出 143 而监听口的真身另坐 PID)。execPath 单进程直起,kill 即杀。
-    proc = Bun.spawn([process.execPath, "scripts/server.ts"], {
+    proc = Bun.spawn([process.execPath, "apps/server/src/server.ts"], {
       cwd: REPO_ROOT, // 仓库根:地图清单 ./public/maps 相对 cwd 解析(缺失即抛)
       env: {
         ...process.env,
@@ -85,7 +85,6 @@ describeSlow("协议级联机 e2e(#1164):真服务器 + 故障代理 + 无头客
         HOST: "127.0.0.1",
         ROOMS_DIR: TMP_DIR,
         LOGS_DIR: TMP_DIR, // 对局日志/房间落盘一并进临时目录,不污染仓库 data/
-        STATIC_DIR: TMP_DIR, // 无静态托管需求(静态只按请求读,目录缺失本就 404)
         // bot 配速关(bot 座位即时步进;托管人类座位的 2s/拍单节拍不受此 env 影响,
         // core/timings 单源,统一原则无分档)——本测试墙钟主项见文件头注
         E2E_BOT_STEP_MS: "0",

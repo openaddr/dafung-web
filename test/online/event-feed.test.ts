@@ -4,7 +4,7 @@
 import { describe, it, expect } from "bun:test";
 import { useNetStore } from "@app/store/netStore";
 import { stashEventBatch } from "@app/net/event-feed";
-import type { GameEvent } from "@core/game-events";
+import type { GameEvent } from "@dafung/core/engine/game-events";
 
 function ev(kind: string, extra: Record<string, unknown> = {}): GameEvent {
   // 测试事件只需形状(首部三件套 + kind);extra 模拟未来词汇扩展的未知字段透传。

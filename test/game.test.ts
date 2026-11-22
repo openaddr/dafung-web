@@ -1,13 +1,13 @@
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { netWorth } from "@core/networth";
-import { HEROES } from "@core/heroes";
-import { botAct } from "@core/bot";
-import { testEngine, armHero } from "@core/testing";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { netWorth } from "@dafung/core/engine/networth";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { botAct } from "@dafung/core/engine/bot";
+import { testEngine, armHero } from "@dafung/core/engine/testing";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
 function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(

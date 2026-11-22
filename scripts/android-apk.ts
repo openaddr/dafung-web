@@ -112,6 +112,8 @@ interface SourceFile {
   mode: number;
 }
 const SOURCE_MARKER = ".dafung-apk-source.json";
+const CLIENT_DIR = "apps/client";
+const TAURI_DIR = `${CLIENT_DIR}/src-tauri`;
 
 function sourceFiles(commit: string, repo: string): SourceFile[] {
   if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error("构建源码必须是完整 commit");
@@ -138,29 +140,37 @@ function sourceFiles(commit: string, repo: string): SourceFile[] {
 export function assertApkSource(commit: string, root: string, repo = process.cwd()): void {
   const files = sourceFiles(commit, repo);
   const expected = new Set(files.map((entry) => entry.path));
+  // 已有缓存可能仍保留迁移前的原生生成件。按同一清单精确识别这两处生成路径。
+  const nativeDirs = [TAURI_DIR, "src-tauri"];
   const generated = [
     "node_modules",
+    "apps/client/node_modules",
+    "apps/server/node_modules",
+    "packages/core/node_modules",
     "dist",
+    "apps/client/dist",
     "tmp",
-    "src-tauri/target",
-    "src-tauri/gen/android/.gradle",
-    "src-tauri/gen/android/.kotlin",
-    "src-tauri/gen/android/build",
-    "src-tauri/gen/android/buildSrc/build",
-    "src-tauri/gen/android/buildSrc/.gradle",
-    "src-tauri/gen/android/buildSrc/.kotlin",
-    "src-tauri/gen/android/app/build",
-    "src-tauri/gen/android/app/src/main/jniLibs",
-    "src-tauri/gen/schemas",
+    ...nativeDirs.flatMap((dir) => [
+      `${dir}/target`,
+      `${dir}/gen/android/.gradle`,
+      `${dir}/gen/android/.kotlin`,
+      `${dir}/gen/android/build`,
+      `${dir}/gen/android/buildSrc/build`,
+      `${dir}/gen/android/buildSrc/.gradle`,
+      `${dir}/gen/android/buildSrc/.kotlin`,
+      `${dir}/gen/android/app/build`,
+      `${dir}/gen/android/app/src/main/jniLibs`,
+      `${dir}/gen/schemas`,
+    ]),
   ];
   // Tauri/Cargo 生成件保留以复用原生缓存;精确列出源码目录中的生成文件。
-  const generatedFiles = new Set([
-    "src-tauri/gen/android/local.properties",
-    "src-tauri/gen/android/tauri.settings.gradle",
-    "src-tauri/gen/android/app/proguard-tauri.pro",
-    "src-tauri/gen/android/app/tauri.build.gradle.kts",
-    "src-tauri/gen/android/app/tauri.properties",
-    "src-tauri/gen/android/app/src/main/assets/tauri.conf.json",
+  const androidGenerated = [
+    "local.properties",
+    "tauri.settings.gradle",
+    "app/proguard-tauri.pro",
+    "app/tauri.build.gradle.kts",
+    "app/tauri.properties",
+    "app/src/main/assets/tauri.conf.json",
     ...[
       "Ipc.kt",
       "Logger.kt",
@@ -172,8 +182,11 @@ export function assertApkSource(commit: string, root: string, repo = process.cwd
       "RustWebViewClient.kt",
       "TauriActivity.kt",
       "WryActivity.kt",
-    ].map((file) => `src-tauri/gen/android/app/src/main/java/com/dafung/web/generated/${file}`),
-  ]);
+    ].map((file) => `app/src/main/java/com/dafung/web/generated/${file}`),
+  ];
+  const generatedFiles = new Set(
+    nativeDirs.flatMap((dir) => androidGenerated.map((file) => `${dir}/gen/android/${file}`)),
+  );
   const unexpected: string[] = [];
   const visit = (relative: string) => {
     for (const entry of readdirSync(join(root, relative), { withFileTypes: true })) {
@@ -241,14 +254,20 @@ export function syncApkSource(commit: string, root: string, repo = process.cwd()
   writeFileSync(marker, JSON.stringify({ commit }));
 }
 
-export function buildApk(config: ApkConfig, commit: string, tag: string, out: string) {
+export function buildApk(
+  config: ApkConfig,
+  commit: string,
+  tag: string,
+  out: string,
+  target: "aarch64" | "x86_64" = "aarch64",
+) {
   const startedAt = new Date().toISOString();
   const root = config.buildRoot;
   syncApkSource(commit, root);
   const tools = join(config.androidHome, "build-tools", config.buildToolsVersion);
   for (const name of ["zipalign", "apksigner", "aapt"])
     if (!existsSync(join(tools, name))) throw new Error(`SDK 工具不存在:${name}`);
-  const generated = "src-tauri/gen/android/app";
+  const generated = `${TAURI_DIR}/gen/android/app`;
   for (const relative of [
     `${generated}/build/outputs/apk`,
     `${generated}/build/outputs/bundle`,
@@ -259,7 +278,7 @@ export function buildApk(config: ApkConfig, commit: string, tag: string, out: st
     if (existsSync(file)) rmSync(file, { recursive: true });
   }
   mkdirSync(join(root, "tmp/apk-output"), { recursive: true });
-  const apkName = `${tag}-aarch64.apk`;
+  const apkName = `${tag}-${target}.apk`;
   const unsigned = join(
     root,
     generated,
@@ -297,13 +316,15 @@ export function buildApk(config: ApkConfig, commit: string, tag: string, out: st
   command("安装依赖", [config.bun, "install", "--frozen-lockfile"]);
   command("构建 APK", [
     config.bun,
-    "x",
+    "run",
+    "--cwd",
+    CLIENT_DIR,
     "tauri",
     "android",
     "build",
     "--apk",
     "--target",
-    "aarch64",
+    target,
     "--ci",
   ]);
   command("对齐 APK", [join(tools, "zipalign"), "-f", "4", unsigned, aligned]);
@@ -338,15 +359,16 @@ export function buildApk(config: ApkConfig, commit: string, tag: string, out: st
     version: string;
   };
   const { identifier } = JSON.parse(
-    readFileSync(join(root, "src-tauri/tauri.conf.json"), "utf8"),
+    readFileSync(join(root, TAURI_DIR, "tauri.conf.json"), "utf8"),
   ) as { identifier: string };
   const packageLine = /^package: name='([^']+)' versionCode='\d+' versionName='([^']+)'/m.exec(
     badging,
   );
   if (!packageLine || packageLine[1] !== identifier || packageLine[2] !== version)
     throw new Error("APK 包名/版本与固定源码不一致");
-  if (!/^native-code: 'arm64-v8a'\s*$/m.test(badging))
-    throw new Error("APK 必须只包含 arm64-v8a native 库");
+  const abi = target === "aarch64" ? "arm64-v8a" : "x86_64";
+  const actualAbi = /^native-code: '([^']+)'\s*$/m.exec(badging)?.[1];
+  if (actualAbi !== abi) throw new Error(`APK 必须只包含 ${abi} native 库`);
   const signature = readFileSync(join(root, "tmp/apk-output/signature.txt"), "utf8");
   const certificate = /^Signer #1 certificate SHA-256 digest: ([a-f0-9]+)\s*$/m.exec(signature);
   if (!certificate) throw new Error("签名核验未返回证书 SHA256");

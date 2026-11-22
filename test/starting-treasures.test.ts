@@ -2,14 +2,14 @@
 // 骰流顺序敏感纪律(setup-flow.ts 头注):发放按座位序逐人逐件、每人 count 次 nextFloat,
 // 同 seed 构造两次引擎逐人所得必须一致——本文件确定性用例守住它。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { loadMap } from "@core/board-loader";
-import type { MapData } from "@core/board-loader";
-import guanzhongData from "../public/maps/guanzhong.json";
-import zhongyuanData from "../public/maps/zhongyuan.json";
-import { TREASURES, createTreasureDeck } from "@core/treasures";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import type { MapData } from "@dafung/core/engine/board-loader";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import zhongyuanData from "../packages/core/maps/zhongyuan.json";
+import { TREASURES, createTreasureDeck } from "@dafung/core/engine/treasures";
 
 const GUANZHONG = loadMap(guanzhongData);
 const ZHONGYUAN = loadMap(zhongyuanData);

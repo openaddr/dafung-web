@@ -15,9 +15,9 @@
 // DAFUNG_SLOW=1 才跑(bun run test:slow),默认池 skip(skip 行可见);其余四例轻,常驻默认池。
 import { describe, it, expect } from "bun:test";
 import { MAP } from "../../scripts/engine-helpers";
-import { LocalController } from "../../src/app/controllers/local";
-import { useGameStore } from "../../src/app/store/gameStore";
-import { useNetStore } from "../../src/app/store/netStore";
+import { LocalController } from "../../apps/client/src/app/controllers/local";
+import { useGameStore } from "../../apps/client/src/app/store/gameStore";
+import { useNetStore } from "../../apps/client/src/app/store/netStore";
 
 // 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);判据与实测耗时见文件头注。
 const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);

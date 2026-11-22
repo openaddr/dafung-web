@@ -1,22 +1,22 @@
 import { expect, it } from "bun:test";
-import { GameEngine } from "@core/authority";
-import { loadMap } from "@core/board-loader";
-import { botAct } from "@core/bot";
-import { HERO_CAPACITY } from "@core/constants";
-import { createDice } from "@core/dice";
-import { HEROES } from "@core/heroes";
-import { armHero, armPhase, pinDice, placePlayer } from "@core/planter";
-import { isSkillBook } from "@core/treasures";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { botAct } from "@dafung/core/engine/bot";
+import { HERO_CAPACITY } from "@dafung/core/engine/constants";
+import { createDice } from "@dafung/core/engine/dice";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { armHero, armPhase, pinDice, placePlayer } from "@dafung/core/engine/planter";
+import { isSkillBook } from "@dafung/core/engine/treasures";
 import { foldEventBatch } from "@app/net/event-fold";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { redactEvents, redactSnapshotForSeat } from "../scripts/seat-projection";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 import {
   cmdMsg,
   dispatchInbound,
   eventsMsg,
   type InboundOps,
   type ServerMsg,
-} from "../scripts/wire";
+} from "@dafung/core/protocol/wire";
 
 const map = loadMap(guanzhongData);
 const recruitCity = map.board.tiles.find((tile) => tile.event === "hero")!;

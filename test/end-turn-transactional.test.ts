@@ -4,14 +4,14 @@
 // 的结构性残余,驱动链下一拍连环崩=无声软锁);异常必须照炸(零兜底)。
 // (延期问询排空抛错点已随问询线退役,#1065。)
 import { describe, it, expect, afterEach } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig, TurnPhase } from "@core/authority";
-import { createDice } from "@core/dice";
-import type { HeroDef } from "@core/heroes";
-import { SKILLS, type TriggerSkill } from "@core/skills";
-import { armHero, sweepTestHeroes } from "@core/testing";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig, TurnPhase } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import type { HeroDef } from "@dafung/core/engine/heroes";
+import { SKILLS, type TriggerSkill } from "@dafung/core/engine/skills";
+import { armHero, sweepTestHeroes } from "@dafung/core/engine/testing";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 

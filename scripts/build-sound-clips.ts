@@ -1,12 +1,12 @@
 // 用法：bun scripts/build-sound-clips.ts。本地需有 ffmpeg，常规构建直接使用已提交的成品。
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { SOUND_CLIPS, type SoundEvent } from "../src/app/fx/sound-clips";
+import { SOUND_CLIPS, type SoundEvent } from "../apps/client/src/app/fx/sound-clips";
 
 const rate = 48_000;
 const floor = 0.0001;
 const master = 0.5;
-const audioDir = resolve(import.meta.dir, "../public/assets/audio");
+const audioDir = resolve(import.meta.dir, "../apps/client/public/assets/audio");
 const playbackDir = join(audioDir, "playback");
 
 function exponential(from: number, to: number, progress: number): number {

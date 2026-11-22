@@ -1,7 +1,8 @@
 {
   "$schema": "./node_modules/knip/schema.json",
   "entry": [
-    "index.html",
+    "apps/client/index.html",
+    "apps/server/src/server.ts",
     "scripts/build-sound-clips.ts",
     "scripts/bun-release.ts",
     "scripts/cli.ts",
@@ -17,5 +18,9 @@
     "test/**/*.test.{ts,tsx}",
     "test/online/dual-client-runtime.ts"
   ],
-  "ignore": ["public/fonts/fonts.css", "src/app/components/ui/**", "extensions/**"]
+  "ignore": [
+    "apps/client/public/fonts/fonts.css",
+    "apps/client/src/app/components/ui/**",
+    "packages/core/extensions/**"
+  ]
 }

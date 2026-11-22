@@ -2,9 +2,9 @@
 // 首连摘要、transportBroadcast 合并节奏、事件批先行/整房摘要随后的单拍下行次序。
 // InMemory 持久化注入(同 room.test.ts 口径),零 fs / 零 WS。
 import { describe, it, expect } from "bun:test";
-import { RoomRegistry, RoomError, type SeatEndpoint } from "../../scripts/room";
-import type { RoomPersistence } from "../../scripts/room-persistence";
-import type { RoomRecord } from "../../scripts/room-record";
+import { RoomRegistry, RoomError, type SeatEndpoint } from "@dafung/core/room/room";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
 import { MAP } from "../../scripts/engine-helpers";
 
 class InMemoryPersistence implements RoomPersistence {

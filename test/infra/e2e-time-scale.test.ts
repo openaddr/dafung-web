@@ -1,6 +1,6 @@
 // 验证生产缩放双通道的恒等、追帧压缩与非法倍率拒绝。
 import { describe, it, expect } from "bun:test";
-import { LAG, sc, scStage, setCatchupScale } from "../../src/app/fx/timings";
+import { LAG, sc, scStage, setCatchupScale } from "../../apps/client/src/app/fx/timings";
 
 describe("追帧运行时速度倍率(#610:演出编排 scStage = e2e 基准 ÷ 倍率,除法活合成)", () => {
   it("倍率 1 恒等直通(生产常态,不落地板);两通道在 1 处逐位重合", () => {

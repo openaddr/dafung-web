@@ -4,9 +4,9 @@
 
 技能需要表达同一时机内谁先结算。每个时机保留一个定义。技能指定时机及所在阶段，依次完成「前」「时」「后」三个阶段，现有技能归入「时」。原时机仍在原本的规则节点发生。例如「得银」发生在银两到账后，三个阶段安排的是到账之后各技能的结算次序。
 
-阶段顺序见 [timing.ts](../../src/core/timing.ts) 的 `MOMENT_STAGES`。
+阶段顺序见 [timing.ts](../../packages/core/src/engine/timing.ts) 的 `MOMENT_STAGES`。
 
-某一阶段触发的「你可」选择在该阶段完成，选择产生的效果也结清后再走下一阶段。权威待决时机保存当前进度和续接信息，快照校准后可继续处理同一时机。回合结束的三段时机结清后，处理到期燃烧及其选择，再结算全桌轮末事项。最后执行 [ADR-0067](./0067-city-conquest-economy.md) 约定的一次判胜。实现见 [moment-stages.ts](../../src/core/moment-stages.ts) 的 `PendingMoment` 和 `resumePendingMoment`，燃烧顺序见 [ADR-0070](./0070-city-levels-and-defense-scale.md)。
+某一阶段触发的「你可」选择在该阶段完成，选择产生的效果也结清后再走下一阶段。权威待决时机保存当前进度和续接信息，快照校准后可继续处理同一时机。回合结束的三段时机结清后，处理到期燃烧及其选择，再结算全桌轮末事项。最后执行 [ADR-0067](./0067-city-conquest-economy.md) 约定的一次判胜。实现见 [moment-stages.ts](../../packages/core/src/engine/moment-stages.ts) 的 `PendingMoment` 和 `resumePendingMoment`，燃烧顺序见 [ADR-0070](./0070-city-levels-and-defense-scale.md)。
 
 扩展技能的同步效果可指定任一已登记时机及阶段。新增需要应答的技能时，在原生效果中声明时机，并由触发它的业务节点提供可序列化的续接操作。曹丕的「放逐」从体力损耗继续，「行殇」从耗竭休整继续。
 

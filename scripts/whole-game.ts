@@ -6,13 +6,13 @@
 // 本驱动器的一切输出都以 (map, seed, seats) 全给定为准,缺一当场抛(零兜底)。
 // 摘要生产在引擎之外(vera20k ParityDigestSink 条款:sink 归驱动器所有,启用测量
 // 不得扰动被测的跑法)——引擎对摘要一事全然不知。
-import type { GameEngine, SeatConfig } from "../src/core/authority";
-import { GAME_EVENT_KINDS, type GameEvent } from "../src/core/game-events";
-import type { LoadedMap } from "../src/core/board-loader";
-import { BOT_ATTENDED_PHASES, botAct } from "../src/core/bot";
-import { netWorth } from "../src/core/networth";
+import type { GameEngine, SeatConfig } from "@dafung/core/engine/authority";
+import { GAME_EVENT_KINDS, type GameEvent } from "@dafung/core/engine/game-events";
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
+import { BOT_ATTENDED_PHASES, botAct } from "@dafung/core/engine/bot";
+import { netWorth } from "@dafung/core/engine/networth";
 import { autoSetup, createEngine, type GameConfig } from "./engine-helpers";
-import { fingerprint } from "./seat-projection";
+import { fingerprint } from "@dafung/core/room/seat-projection";
 import { turnDigestOf, type TurnDigest } from "./state-digest";
 
 /** 无僵死窗(任务口径「连续 N 回合无事件」):连续 N 个回合边界事件批全空 = 僵死,

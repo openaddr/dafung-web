@@ -1,0 +1,8 @@
+{
+  "name": "@dafung/server",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@dafung/core": "workspace:*"
+  }
+}

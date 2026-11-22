@@ -3,19 +3,19 @@
 // (18 个新时机的场景构造:peekDie 预读骰面 + landActiveOn 恰落目标格)。
 // 现有 3 名将的行为等价断言(moveBonus+1 / 曹丕+50 / 星彩+20)在 game.test.ts,此处测框架本身。
 import { describe, it, expect, afterEach } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice, type Dice } from "@core/dice";
-import { EFFECTS } from "@core/effects";
-import { HEROES, type HeroDef } from "@core/heroes";
-import { SKILLS, type TriggerSkill } from "@core/skills";
-import { guidePriceOf } from "@core/treasures";
-import { fullDefenseOf } from "@core/defense";
-import type { GameMoment, MomentCtx } from "@core/timing";
-import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
-import { placePlayer, setDefense, setStamina } from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice, type Dice } from "@dafung/core/engine/dice";
+import { EFFECTS } from "@dafung/core/engine/effects";
+import { HEROES, type HeroDef } from "@dafung/core/engine/heroes";
+import { SKILLS, type TriggerSkill } from "@dafung/core/engine/skills";
+import { guidePriceOf } from "@dafung/core/engine/treasures";
+import { fullDefenseOf } from "@dafung/core/engine/defense";
+import type { GameMoment, MomentCtx } from "@dafung/core/engine/timing";
+import { armHero, sweepTestHeroes, testEngine } from "@dafung/core/engine/testing";
+import { placePlayer, setDefense, setStamina } from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
 function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(

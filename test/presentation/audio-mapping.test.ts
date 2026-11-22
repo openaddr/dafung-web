@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 describe("对局音效素材表", () => {
   it("每个对局音效的播放资源都在安装包内", async () => {
     for (const [event, clip] of Object.entries(SOUND_CLIPS)) {
-      const path = resolve(import.meta.dir, "../../public", `.${soundClipUrl(clip)}`);
+      const path = resolve(import.meta.dir, "../../apps/client/public", `.${soundClipUrl(clip)}`);
       expect(await Bun.file(path).exists(), `${event} 缺少 ${path}`).toBe(true);
     }
   });

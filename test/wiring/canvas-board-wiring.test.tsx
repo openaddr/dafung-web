@@ -1,11 +1,11 @@
 // 使用真实棋盘接线，控制解码完成的先后次序。平台替身只记录最终提交到可见画布的次数。
 import { expect, it } from "bun:test";
 import { act } from "react";
-import { loadMap } from "@core/board-loader";
+import { loadMap } from "@dafung/core/engine/board-loader";
 import { CanvasBoard } from "@app/components/board/CanvasBoard";
 import { computeFitView } from "@app/components/board/board-viewport";
 import type { CityScene } from "@app/components/board/city-scene";
-import mapData from "../../public/maps/zhongyuan.json";
+import mapData from "../../packages/core/maps/zhongyuan.json";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 
 it("棋盘仅提交最新城池贴图，地图背景跨城池更新复用", async () => {

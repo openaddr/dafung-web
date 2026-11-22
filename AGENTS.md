@@ -1,6 +1,6 @@
 # dafung-web — 群雄逐鹿(三国大富翁)
 
-TypeScript + Vite + React 三国大富翁:**权威引擎** `src/core/`(纯逻辑、可上服务器)+ **瘦客户端** `src/app/`；支持单机人机对战与 WebSocket 联机。**正式交付为 Tauri 安卓 APK**，验收移动横屏 844×390；网页只作开发及明确请求的单次排查。**不考虑前后兼容，需要重构直接改。**
+TypeScript + Vite + React 三国大富翁：公共逻辑在 `packages/core/`，联机服务器在 `apps/server/`，安卓客户端在 `apps/client/`。支持单机人机对战与 WebSocket 联机。玩家端正式交付为 Tauri 安卓 APK，验收移动横屏 844×390。网页只作开发及明确请求的单次排查。**不考虑前后兼容，需要重构直接改。**
 
 **产品只面向移动端**：只设计、实现和验证安卓触屏所需功能；PC 专属快捷键、鼠标交互、布局和兼容问题不保留、不新增、不投入排查。移动端软键盘、系统返回、无障碍与不同尺寸的安卓屏幕仍须支持；电脑上的构建、服务端和开发工具照常保留。
 
@@ -18,7 +18,7 @@ TypeScript + Vite + React 三国大富翁:**权威引擎** `src/core/`(纯逻辑
 
 ## 事实源地图
 
-- 游戏规则与数值(权威=`src/core/`):[rules 十页](./docs/reference/rules/README.md)
+- 游戏规则与数值(权威=`packages/core/src/engine/`):[rules 十页](./docs/reference/rules/README.md)
 - 领域词汇(定名与弃用名):[GLOSSARY.md](./GLOSSARY.md)
 - 代码文件职责速查:[代码地图](./docs/reference/代码地图.md)
 - 探索领域或变更决策前：[领域文档](./docs/agents/domain.md)、[docs/adr/](./docs/adr/)
@@ -44,7 +44,7 @@ TypeScript + Vite + React 三国大富翁:**权威引擎** `src/core/`(纯逻辑
 
 ## 架构红线(所有代码改动必须遵守)
 
-1. **`src/core/` 零 DOM 依赖**：不 import `app/` 或 DOM API。
+1. **公共包零宿主依赖**：`packages/core/src/` 只用两端可运行的接口。客户端与服务端通过公共包的导出入口共享逻辑。
 2. **GameEngine player-agnostic**:引擎只知道 `activeIndex`,不关心屏幕前是谁;不写 `if (player.isLocal)`。
 3. **所有状态变更走引擎公共方法**,不直接改属性——服务器可审计/序列化每次操作。
 4. **LocalController 是单机专用层**;联机走 `online.ts`;两者共享 `controller.ts` 基类。controller 不加引擎假设:引擎要做新事,先加引擎方法,controller 只调用。

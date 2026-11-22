@@ -21,11 +21,11 @@
 // ④变卖系数削弱(#1077,2026-11-05):[60,90,120,150]% → [50,70,90,110]%——破产自救
 //   回收变紧;满级 110% 仍高于购价,「可增值」语义保留但变薄。
 import { describe, it, expect } from "bun:test";
-import { loadMap } from "@core/board-loader";
-import type { CityTier } from "@core/economy";
-import { TREASURE_PRICE } from "@core/treasures";
-import zhongyuanData from "../../public/maps/zhongyuan.json";
-import guanzhongData from "../../public/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import type { CityTier } from "@dafung/core/engine/economy";
+import { TREASURE_PRICE } from "@dafung/core/engine/treasures";
+import zhongyuanData from "../../packages/core/maps/zhongyuan.json";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
 
 /** 两图共用标准表(ADR-0041 两图统一;关中图侧 make-guanzhong-map.ts TIERS 同源同值),
  *  键 = 城池档位单字口径(economy.CityTier,逐城 tier 字段)。购价百两速记:

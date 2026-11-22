@@ -1,6 +1,6 @@
 // 货币格式化单测(#299 重标定:唯一单位「两」;#745 千分位退役=裸数;0 → 「0 两」,负数契约违例抛)。
 import { describe, it, expect } from "bun:test";
-import { formatMoney } from "@core/money";
+import { formatMoney } from "@dafung/core/engine/money";
 
 describe("formatMoney(#299 重标定)", () => {
   it("裸数 + 「两」后缀(#745 千分位退役,弹层/常驻层口径归一)", () => {
