@@ -2,29 +2,11 @@
 // 全屏宣告横幅壳(S9 #515:卷轴壳退役后的决策弹层制式,#492 决议②「漆金横幅+朱印题」)。
 // ADR-0013 机制零改动:选项集≥2⇔弹层、choices 快照消费、命令路由全在原层,本件只换壳——
 // 深墨横幅带(漆木 #332a1e 系)+漆金描边+金印题(印章漆金化,#492 决议①)+正文井(纸色正文)。
-// 入场 = 横幅自上缘压下+淡入(banner.css banner-drop,--dur-slow 单拍);收起 = 上浮淡出
-// (banner-lift,--dur-fast),「播完再移除」的 210ms 出口沿用旧卷轴口径(--dur-fast 150ms
-// + 60 余量,与幽灵帧 GHOST.frameMs/timings.ts 同一条 210,fx 层单源不在此复制)。
-// 行为基座沿用旧壳:shared/DialogFocusScope 自研焦点陷阱(#174 收编)——活横幅获得焦点
-// 陷阱/关闭还焦 + role=dialog/aria-modal;收起中与幽灵退场帧不走 FocusScope(纯视觉重放,
-// 自带 aria-hidden/inert)。刻意不用 Dialog.Content:它强制 Portal 会破坏 #scroll-layer
-// 定位栈与幽灵帧协议。
 // 拖拽(ADR-0031 翻案):横幅决策弹窗支持题名行拖动——「边看边掂量」需要把弹层拖到
 // 一旁看盘面,旧判词「横幅是宣告件,无常驻需求」废止。拖拽逻辑单源在
 // hooks/use-dialog-drag(与 ui/dialog 底件系同一份),本壳只接三处:题行挂把手、
 // 壳体 transform 消费 --drag-x/--drag-y、遮罩随拖离中心减淡(色值单源在 hook)。
-// 退场帧(幽灵帧/banner-anim-out)不绑拖动:exit 重放是纯视觉,把手事件随活实例
-// 卸载失效,退场帧整体 inert+pointer-events:none 不可达。入场动画 banner-drop 写
-// transform、与 translate 属性叠加合成,动画进行中拖动照录变量、动画结束后位移生效。
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 // #174:焦点陷阱收编为 shared/DialogFocusScope(2026-09-12 起为自研实现,无第三方依赖)
 import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
 // #846 正文井内滚换 ui/scroll-area 底件(#708 现成件):keepMounted 漆金轨道 +
@@ -34,7 +16,6 @@ import { ScrollArea } from "@app/components/ui/scroll-area";
 import { Button } from "@base-ui/react/button";
 import "./banner.css";
 import { getAudio } from "@app/fx/audio";
-import { Sym } from "@app/screens/shared/Sym";
 // 题名拖动(#674,ADR-0031):原语单源与遮罩色值单源都在 hook 文件
 import {
   OVERLAY_TINT,
@@ -44,14 +25,9 @@ import {
 } from "@app/hooks/use-dialog-drag";
 // 叠层开栈(#767):同帧多弹层时上层遮罩减淡,计数器单源在 hook 文件
 import { useDialogPeekSurface, useDialogStackSlot } from "@app/hooks/dialog-stack";
-import { DialogMinimize } from "@app/components/ui/dialog-minimize";
+import { DialogControlIcon, DialogMinimize } from "@app/components/ui/dialog-controls";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
-
-/** #90(R3-C3)退场幽灵帧开关:DecisionScrollLayer 相位切换时把上一个子节点快照
- *  再渲染 210ms 作退场帧,用本上下文标记该实例是幽灵——Shell 直接以退场类登场,
- *  不重放入场动画、不重播横幅音(它不是新开的弹层,是旧弹层退场的重放帧)。 */
-export const BannerGhostContext = createContext(false);
 
 interface BannerShellProps {
   title: string;
@@ -61,6 +37,8 @@ interface BannerShellProps {
    *  拍板钮恒在场、永不滚出视口。传了才渲染:不可决断的弹层(详情等
    *  钮即内容或无可拍板)不传,槽不占位、零余白。 */
   footer?: ReactNode;
+  /** 决策所需的读数，固定在滚动井上方。 */
+  summary?: ReactNode;
   /** 可放弃的弹层提供关闭钮。 */
   onClose?: () => void;
   /** 外层容器上的 data-testid(各决策弹层用自己的 id;e2e 契约:scroll-* 前缀保留)。 */
@@ -87,19 +65,12 @@ export function BannerButton({
   testid?: string;
   disabled?: boolean;
 }) {
-  // #90:幽灵退场帧里的按钮一律 disabled——e2e/用户的选择器(如
-  // `button[data-testid^="action-"]:not([disabled])`)在 210ms 退场窗口内
-  // 不会再命中死钮吞掉真实点击。
-  // #93(R3-C6)决策按钮主次权重:primary 升档为墨钮(漆底金字)+加大字号
-  // 与内边距;secondary 降半档只缩字号。并排时主次一眼可辨。disabled 两类口径不变
-  // (disabled:opacity-40);次级笺钮在横幅上的描边/衬底收口见 banner.css(.banner-shell .note-btn)。
-  const isGhost = useContext(BannerGhostContext);
   return (
     <Button
       type="button"
       data-testid={testid}
       onClick={onClick}
-      disabled={disabled || isGhost}
+      disabled={disabled}
       className={
         primary
           ? "ink-btn relative rounded-[5px] px-5 py-2.5 font-brush text-[17px] transition-colors disabled:opacity-40"
@@ -115,79 +86,26 @@ export function BannerShell({
   title,
   children,
   footer,
+  summary,
   onClose,
   testid,
   wide,
   fixedBody,
   className,
 }: BannerShellProps) {
-  // #90(R3-C3)关闭:× 走 requestClose——先置 closing(壳体挂退场类、
-  // 遮罩淡出并放行点击、aria-hidden),210ms 后(退场动画 var(--dur-fast) =150ms 已走完)
-  // 再调真 onClose 卸载。「播完再移除」模式照抄 useDeltaFloat 的定时出列;
-  // 零兜底:只有一个明确的 setTimeout,不设超时兜底分支。
-  const [closing, setClosing] = useState(false);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 相位切换的幽灵帧(BannerGhostContext)与本地 closing 同样按收起处理
-  const isGhost = useContext(BannerGhostContext);
-  const exiting = closing || isGhost;
-
-  const requestClose = useCallback(() => {
-    // 计时器在途 = 已在收起,忽略重复点击
-    if (!onClose || closeTimerRef.current !== null) return;
-    setClosing(true);
-    closeTimerRef.current = setTimeout(() => {
-      closeTimerRef.current = null;
-      onClose();
-    }, 210); // 收起出口 = 退场 150ms(--dur-fast)+ 60 余量。刻意字面量不进倍率:
-    // 地板 100ms 会砍断退场动画并与幽灵帧同刻竞态(#117 评审实测并行两连挂)。
-  }, [onClose]);
-
-  // 收起途中组件被外部直接卸载(如整屏切换)时清理计时器
-  useEffect(
-    () => () => {
-      if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current);
-    },
-    [],
-  );
-  // 卷声挂点迁到横幅出现(S9 #515):复用既有 scroll-unroll 音效文件(新音归 S7 演出包),
-  // 挂载即播,与 banner-drop 动画 0ms 同帧起步;播放惯例与 DiceOverlay 的 useEffect 内
-  // getAudio().play 一致,静音由播放器内部处理。幽灵帧(退场重放)跳过——旧弹层收走时不能再喊一声。
   useEffect(() => {
-    if (isGhost) return;
     getAudio().play("scrollOpen");
-  }, [isGhost]);
-  // #90:收起途中同实例换了内容主体(如详情弹层 A 未收完就点了城 B)则撤销收起——
-  // 否则退场动画的 fill forwards 会把新内容也钉在 opacity 0 上,弹层永久隐身。
-  // 内容身份由题名承载(详情题名带城名,A→B 题名必变),不再另设内容键。
-  useEffect(() => {
-    if (closeTimerRef.current !== null) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-      setClosing(false);
-    }
-  }, [title]);
+  }, []);
 
   // 题名拖动(#674):壳体即变量宿主;题名更替 = 内容换新(#90 内容身份由题名承载),
   // 位置随 resetKey 回中心。
   const shellRef = useRef<HTMLDivElement | null>(null);
   const drag = useDialogDrag({ popupRef: shellRef, resetKey: title });
-  // 叠层开栈(#767):活横幅入栈、幽灵帧不入栈(纯视觉重放);栈深>1 且本层为上层时
+  // 叠层开栈(#767):栈深>1 且本层为上层时
   // 遮罩消费减淡档 --mask-dim-stacked(alpha 单源 app.css,rgb 三元组与两档同族)。
-  const peek = useDialogPeekSurface(!exiting);
-  const { stacked, frontmost } = useDialogStackSlot(
-    !exiting && !peek.hidden,
-    false,
-    onClose === undefined ? undefined : requestClose,
-  );
+  const peek = useDialogPeekSurface(true);
+  const { stacked, frontmost } = useDialogStackSlot(!peek.hidden, false, onClose);
 
-  // 壳体本体(横幅带 + 金印题行 + 正文井):活横幅与退场帧两条渲染路径共用同一份 JSX。
-  // role=dialog/aria-modal 挂壳体(可达名称用 aria-label=题名);退场帧的父层已
-  // aria-hidden+inert,壳上的 role 对辅助技术不可见,无需按路径分支。
-  // translate 消费 --drag-x/--drag-y(缺省 0px = 原居中;banner-drop/lift 写 transform,
-  // 与 translate 属性叠加合成——入场动画进行中拖动照录变量,动画结束位移生效)。
-  // 宽自适应(#767 弹窗详情族③):clamp(480px,72vw,640px)——844 标准档 607px,
-  // 价值表升到 560 后两侧死带消除;窄横屏(≥667)随 72vw 收窄,480 下限保住拍板钮行;
-  // 上限 640 维持既有制式。
   const shellBody = (
     <div
       ref={(node) => {
@@ -200,9 +118,7 @@ export function BannerShell({
       data-testid={testid ?? T.scrollShell}
       className={`banner-card banner-shell relative flex max-h-[86dvh] ${
         wide ? "w-[clamp(540px,80vw,700px)]" : "w-[clamp(480px,72vw,640px)]"
-      } translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] flex-col px-6 py-4 ${
-        exiting ? "banner-anim-out" : ""
-      } ${className ?? ""}`}
+      } translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] flex-col px-6 py-4 ${className ?? ""}`}
     >
       {/* 题行:金印 + 笔书题名,兼拖动把手(#674):把手事件与触屏隔离由
           handleProps 承担;行内 X 钮自带豁免(起点命中按钮不启动拖)。题印漆金化:
@@ -210,9 +126,9 @@ export function BannerShell({
       <div
         {...drag.handleProps}
         data-testid={TESTIDS.modalDragHandle}
-        data-peek-heading={peek.minimize !== undefined || undefined}
-        data-peek-close={onClose !== undefined || undefined}
-        className="relative mb-3 flex shrink-0 items-center justify-center gap-2.5 border-b border-[rgba(217,185,92,0.35)] px-1 pb-2 pt-0.5"
+        data-banner-heading={peek.minimize !== undefined || onClose !== undefined || undefined}
+        data-peek-close={peek.minimize !== undefined && onClose !== undefined ? true : undefined}
+        className="relative mb-1 flex shrink-0 items-center justify-center gap-2.5 border-b border-[rgba(217,185,92,0.35)] px-1 pb-2 pt-0.5"
       >
         {/* 题印投影 rgba(43,35,23,·) 为裸色:墨影族阴影豁免,登记本体见同域 banner.css 头注 */}
         <span
@@ -229,25 +145,15 @@ export function BannerShell({
           {title}
         </h2>
         {onClose && (
-          // #64:44px 热区不变,视觉为漆金发丝描边圆钮。
-          <button
+          <Button
             type="button"
             data-testid={T.scrollClose}
             aria-label="关闭"
-            onClick={(e) => {
-              e.stopPropagation();
-              requestClose();
-            }}
-            disabled={isGhost}
-            className="absolute top-1/2 right-[-8px] flex size-(--touch-primary) -translate-y-1/2 items-center justify-center "
+            onClick={onClose}
+            className="dialog-control"
           >
-            <span
-              aria-hidden="true"
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.35)] text-paper-dim transition-colors "
-            >
-              <Sym name="close" size={13} />
-            </span>
-          </button>
+            <DialogControlIcon name="close" />
+          </Button>
         )}
         {peek.minimize !== undefined && <DialogMinimize onClick={peek.minimize} />}
       </div>
@@ -258,6 +164,7 @@ export function BannerShell({
           限高内滚链(壳体 max-h 86dvh → 井 min-h-0 → viewport flex-1 内滚),
           长内容(破产清单等)横屏也不溢出;内衬 px-3/py-3 随内容走(挂井内包裹层,
           视口缘的渐隐带才贴得住内容断头处,观感口径同 pile-body 内容 margin)。 */}
+      {summary != null && <div className="banner-summary">{summary}</div>}
       {fixedBody ? (
         <div className="banner-body banner-body-fixed min-h-0">{children}</div>
       ) : (
@@ -268,9 +175,9 @@ export function BannerShell({
       {/* #729 footer 槽:正文井之后的钉底段。shrink-0 + 壳体 flex-col 限高链
           (max-h-86dvh → 井 min-h-0 → viewport 内滚)让 footer 在场时正文井自然被
           压缩内滚,钮组不随内容滚走;发丝分隔线与题行 border-b 同色对称(#729 拍板),
-          水平内衬 px-3 与正文井对齐。活横幅与退场帧共用 shellBody,footer 两路同构。 */}
+          水平内衬 px-3 与正文井对齐。 */}
       {footer != null && (
-        <div className="mt-3 shrink-0 border-t border-[rgba(217,185,92,0.35)] px-3 pt-3">
+        <div className="mt-1 shrink-0 border-t border-[rgba(217,185,92,0.35)] px-3 pt-1">
           {footer}
         </div>
       )}
@@ -280,30 +187,29 @@ export function BannerShell({
   // 原地保留正文树。最小化时遮罩退出命中，横幅退出焦点栈。
   return (
     <div
-      className={`banner-overlay absolute inset-0 z-30 flex items-center justify-center${exiting ? " banner-overlay-out" : ""}`}
+      className={`banner-overlay absolute inset-0 z-30 flex items-center justify-center`}
       data-testid={peek.minimize !== undefined ? TESTIDS.modalBackdrop : undefined}
       hidden={peek.hidden}
-      aria-hidden={peek.hidden || exiting || undefined}
-      inert={peek.hidden || exiting || undefined}
+      aria-hidden={peek.hidden || undefined}
+      inert={peek.hidden || undefined}
       // 遮罩两档减淡(#674 拖离 + #767 叠层):拖离减淡(0.15)强于叠层减淡(0.28),
       // 两者同时命中取更强;色值单源在 hook 文件
       style={{
-        backgroundColor:
-          !exiting && drag.dimmed
-            ? OVERLAY_TINT_DIMMED
-            : !exiting && stacked
-              ? OVERLAY_TINT_STACKED
-              : OVERLAY_TINT,
+        backgroundColor: drag.dimmed
+          ? OVERLAY_TINT_DIMMED
+          : stacked
+            ? OVERLAY_TINT_STACKED
+            : OVERLAY_TINT,
       }}
       onClick={(e) => {
-        if (e.target !== e.currentTarget || peek.hidden || exiting || !frontmost) return;
+        if (e.target !== e.currentTarget || peek.hidden || !frontmost) return;
         if (peek.minimize !== undefined) peek.minimize();
-        else requestClose();
+        else onClose?.();
       }}
     >
       <DialogFocusScope
         asChild
-        active={!exiting && !peek.hidden && frontmost}
+        active={!peek.hidden && frontmost}
         restoreOnClose={!peek.hidden && frontmost}
       >
         {shellBody}

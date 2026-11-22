@@ -14,11 +14,10 @@
    遮罩自身必须显式开启,否则点击穿透到棋盘);#239 T4 窄短横屏升格 fixed 口径保留 ── */
 .banner-overlay {
   pointer-events: auto;
-  animation: fx-fade-in var(--dur-med) var(--ease-out);
 }
 
 /* ── 横幅带材质:深墨底(漆木系渐变)+漆金双描边(外 1.5px 实线+内 1px 发丝)+
-   墨影;入场 = 自上缘压下 + 淡入(--dur-slow 大件入场单拍,#492 ⑤区右案口径)── */
+   墨影。── */
 .banner-card {
   background: linear-gradient(180deg, var(--color-lacquer), var(--color-panel));
   border: 1.5px solid rgba(217, 185, 92, 0.55);
@@ -26,17 +25,11 @@
   box-shadow:
     inset 0 0 0 1px rgba(217, 185, 92, 0.16),
     var(--ink-shadow-lg);
-  animation: banner-drop var(--dur-slow) var(--ease-out);
 }
-@keyframes banner-drop {
-  from {
-    transform: translateY(-28px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+.banner-summary {
+  flex: none;
+  padding-block: 4px 6px;
+  color: var(--color-paper);
 }
 
 /* ── 正文井:深墨实底(bg-deep)收口深底可读性(小字 ≥4.5:1)——漆金带上直接排
@@ -108,22 +101,6 @@
   background: linear-gradient(180deg, var(--color-gold-bright), var(--color-gold-deep));
 }
 
-/* ── 收起/幽灵退场:上浮淡出(--dur-fast 快档退场;210ms 出口 = 150 + 60 余量,
-   与幽灵帧协议 GHOST.frameMs 同口径)。规则写在 .banner-card 之后,同特异性后到胜 ── */
-@keyframes banner-lift {
-  to {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-}
-.banner-anim-out {
-  animation: banner-lift var(--dur-fast) var(--ease-in) forwards;
-}
-.banner-overlay-out {
-  pointer-events: none;
-  animation: fx-fade-out var(--dur-fast) var(--ease-in) forwards;
-}
-
 /* ── 城池详情缩略图(#767 弹窗详情族②):TileThumb 规范类(city-ledger-thumb,
    组件单源)的横幅域尺寸档——清单弹层域的尺寸在 pile-modal.css(.pile-modal 作用域),
    两域各管各档不跨引。基准高 96px 上限(宽随 viewBox 比例自适应),矮横屏档 48px
@@ -131,20 +108,6 @@
 .banner-body .city-ledger-thumb {
   height: 96px;
   width: auto;
-}
-
-/* ── 底件系小卡退场(#767 弹窗详情族⑤):ConfirmDialog 收起的壳体档——淡出+下沉
-   8px,与 pile-modal-out/zl-out 同语言(横幅系本体退场是 banner-lift 上浮,小卡随
-   底件族口径下沉);「播完再移除」协议单源 hooks/use-dialog-exit。双类特异性压过
-   入场 banner-drop。 ── */
-@keyframes dialog-card-out {
-  to {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-.banner-card.dialog-card-out {
-  animation: dialog-card-out var(--dur-fast) var(--ease-in) forwards;
 }
 
 /* ── 短横屏遮罩升格(#239 T4 收口,沿旧 scroll-anim-overlay 同款):板区被手牌架

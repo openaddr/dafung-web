@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // 模块求值读构建期注入的 __APP_VERSION__——按生产同一值源(package.json CalVer)先行
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
-import { GHOST, UI } from "@app/fx/timings";
+import { UI } from "@app/fx/timings";
 import { SHORT_LANDSCAPE_QUERY } from "@app/hooks/use-media-query";
 import { SCROLL_TESTIDS as T } from "@app/screens/game/scroll/testids";
 import { TESTIDS } from "@app/screens/game/testids";
@@ -145,7 +145,7 @@ const settle = () => clock.settle();
 /** 明确走完退场协议后断卸载,不轮询真实业务时钟。布尔断言避免失败时序列化
  *  happy-dom 节点的循环引用;时间取生产单源,不缩短玩家节拍。 */
 async function finishExit(query: () => Element | null, label: string): Promise<void> {
-  await clock.advance(GHOST.frameMs);
+  await clock.advance(0);
   expect(query() === null, label).toBe(true);
 }
 
@@ -298,7 +298,7 @@ describe("城池待决策卷轴", () => {
         snapshot: { ...snap(), lastLandOutcomeKind: "Noop", lastLandOutcomeProperty: null },
       });
     });
-    await clock.advance(GHOST.frameMs);
+    await clock.advance(0);
     expect(q(el, scroll) !== null).toBe(true);
     const confirm = q(el, TESTIDS.actionButton(action))!;
     expect(confirm.hasAttribute("disabled")).toBe(false);
@@ -458,7 +458,7 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(snap().players[0].properties.find((h) => h.propertyId === propertyId)!.level).toBe(2);
     expect(snap().players[1].treasures.some((t) => t.id === "seal")).toBe(true);
     // 层随结算收口(幽灵帧 210ms 走完;命令留痕已被钉住,层收跟拍不吃竞速)
-    await clock.advance(GHOST.frameMs);
+    await clock.advance(0);
     expect(pick() === null, "选宝层应随结算收口").toBe(true);
     expect(docQ(T.treasureScroll) === null, "交涉卷轴应随结算收场").toBe(true);
   });

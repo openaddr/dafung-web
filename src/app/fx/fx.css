@@ -1263,7 +1263,7 @@
   }
 }
 
-/* 招贤授技 chips 钤落(#850):候选卡入场(壳体 banner-drop = --dur-slow)后,
+/* 招贤授技 chips 钤落(#850):候选卡呈现后,
    实授技 chips 沿落章弧逐个钤落(rotate -12°→-8° 同 fx-seal-slam 落章弧,缩 0.6→1
    为 chip 量级,票面口径),120ms 错拍逐个落定并驻留 -8° 钤定角(both)。
    错拍账本:--chip-skip = 本卡之前所有候选的授技数(HeroPickScroll 逐卡内联),

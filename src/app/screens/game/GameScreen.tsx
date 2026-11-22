@@ -116,7 +116,12 @@ function reactionTurnScope(snapshot: GameSnapshot): string {
   return JSON.stringify([snapshot.gameId, snapshot.turnNumber, snapshot.activeIndex]);
 }
 
-export function GameScreen() {
+type GameEntryProps = {
+  preparing?: boolean;
+  onFirstPaint?: (error?: string) => void;
+};
+
+export function GameScreen({ preparing, onFirstPaint }: GameEntryProps = {}) {
   const snapshot = useGameStore((s) => s.snapshot);
   const controller = getController();
   // 静态上下文由 registry 提供,门卫确认快照与地图均已就位。
@@ -147,6 +152,8 @@ export function GameScreen() {
       snapshot={snapshot}
       board={context.board}
       controller={controller}
+      preparing={preparing}
+      onFirstPaint={onFirstPaint}
     />
   );
 }
@@ -204,7 +211,9 @@ function GameScreenLive({
   snapshot,
   board,
   controller,
-}: {
+  preparing,
+  onFirstPaint,
+}: GameEntryProps & {
   snapshot: GameSnapshot;
   board: Board;
   controller: GameController;
@@ -767,6 +776,7 @@ function GameScreenLive({
           <ConnectionBanner onReconnect={reconnect} onExit={goHome} />
           <BoardView
             players={players}
+            onFirstPaint={onFirstPaint}
             /* 视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
             viewSeat={localPlayer.id}
             /* 点格相位路由(Playing 详情 / Setup 选都 / 灰城 hint)在 useCapitalPick;
@@ -800,8 +810,6 @@ function GameScreenLive({
             isSetupPhase={snapshot.phase === "Setup"}
             skipTokenIds={marching}
           />
-          {/* 进屏压暗叠罩使用 opacity 合成,避免 SVG filter 逐帧整板重栅;样式见 screen-transition.css。 */}
-          <div className="board-dim-in" aria-hidden="true" />
           {/* 浮字/铜钱雨/印章由表现 store 驱动;知会内容由 NoticeBanner 承载。 */}
           <FxLayer />
           {setupHint && (
@@ -823,14 +831,16 @@ function GameScreenLive({
             容器 pointer-events-none:无弹层时不挡棋盘;各弹层自带遮罩(z-30)接管交互。
             选都/详情流程只下发一个窄 props(tileDetail,状态机在 useCapitalPick)。 */}
           <div id="scroll-layer" className="pointer-events-none absolute inset-0">
-            <DecisionScrollLayer
-              snapshot={snapshot}
-              viewSeat={viewSeat}
-              interactive={interactive && !peeking}
-              decisionKey={decisionKey}
-              parked={parkedDecision}
-              tileDetail={tileDetail}
-            />
+            {!preparing && (
+              <DecisionScrollLayer
+                snapshot={snapshot}
+                viewSeat={viewSeat}
+                interactive={interactive && !peeking}
+                decisionKey={decisionKey}
+                parked={parkedDecision}
+                tileDetail={tileDetail}
+              />
+            )}
             {inspection !== null && (
               <DialogPeekInspection.Provider value={closeInspection}>
                 <TileDetail snapshot={snapshot} viewSeat={viewSeat} request={inspection} />
@@ -1096,7 +1106,7 @@ function GameScreenLive({
         )}
         {/* 窥探弹层:军情密探即时窥探的 viewer-only 演出——开关态单源 fxStore
           (peekApplied 表现事件驱动,关闭即清),组件按 viewerSeat===本座自门。 */}
-        {!gameOver && <PeekModal selfSeat={selfSeat} />}
+        {!preparing && !gameOver && <PeekModal selfSeat={selfSeat} />}
         {/* 竖屏手机「请横屏」提示层:常驻 DOM,显隐在 layout.css 媒询。 */}
         <RotateHintOverlay />
       </div>

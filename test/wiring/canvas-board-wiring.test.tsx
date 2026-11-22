@@ -54,6 +54,8 @@ it("棋盘仅提交最新城池贴图，地图背景跨城池更新复用", asyn
   let nextURL = 0;
   let terrainDecodes = 0;
   let visiblePaints = 0;
+  const firstPaintReports: (string | undefined)[] = [];
+  const reportFirstPaint = (error?: string) => firstPaintReports.push(error);
   const blobs = new Map<string, Blob>();
   const cityDecodes: (() => void)[] = [];
   const queuedCities = Promise.withResolvers<void>();
@@ -122,7 +124,15 @@ it("棋盘仅提交最新城池贴图，地图背景跨城池更新复用", asyn
 
   try {
     act(() =>
-      root.render(<CanvasBoard svgRef={svgRef} board={board} fit={fit} cities={[initial]} />),
+      root.render(
+        <CanvasBoard
+          svgRef={svgRef}
+          board={board}
+          fit={fit}
+          cities={[initial]}
+          onFirstPaint={reportFirstPaint}
+        />,
+      ),
     );
     const deck = container.firstElementChild!;
     Object.defineProperties(deck, {
@@ -132,12 +142,23 @@ it("棋盘仅提交最新城池贴图，地图背景跨城池更新复用", asyn
     act(runFrames);
     const active = { ...initial, state: { ...initial.state, isActive: true } };
     act(() =>
-      root.render(<CanvasBoard svgRef={svgRef} board={board} fit={fit} cities={[active]} />),
+      root.render(
+        <CanvasBoard
+          svgRef={svgRef}
+          board={board}
+          fit={fit}
+          cities={[active]}
+          onFirstPaint={reportFirstPaint}
+        />,
+      ),
     );
     await act(async () => {
       runFrames();
       await queuedCities.promise;
     });
+
+    expect(firstPaintReports).toStrictEqual([]);
+    expect(deck.querySelector("canvas")?.hidden).toBe(true);
 
     await act(async () => {
       cityDecodes[1]();
@@ -152,6 +173,7 @@ it("棋盘仅提交最新城池贴图，地图背景跨城池更新复用", asyn
     });
     expect(visiblePaints).toBe(1);
     expect(terrainDecodes).toBe(1);
+    expect(firstPaintReports).toStrictEqual([undefined]);
   } finally {
     act(() => root.unmount());
     window.requestAnimationFrame = oldRequestFrame;

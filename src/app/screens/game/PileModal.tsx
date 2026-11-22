@@ -18,9 +18,9 @@
 // 矮横屏档行高自适应(卡基/列宽缩档)断头防治,细则全在 pile-modal.css 规范块。
 import { memo, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
+import { RoundClose } from "@app/screens/shared/RoundClose";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
-import { useDialogExit } from "@app/hooks/use-dialog-exit";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { TreasureArt } from "@app/components/card/TreasureArt";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
@@ -76,9 +76,7 @@ interface PileShellProps {
  *  内容(children)= 陈列网格。题名即 DialogTitle(可达名单源)。
  *  矮屏规范(#708):头部钉住 + 体部 pile-body 内滚(ui/scroll-area)+ footer 钉底;
  *  壳自身不滚(夹高细则在 pile-modal.css 规范块)。
- *  退场动画(#767 底件族⑤):×/Esc/点外三路关闭统一走 useDialogExit 的「播完再移除」
- *  (壳体 pile-modal-out 淡出下沉 8px + 遮罩 dialog-overlay-out 淡出,210ms 出口卸载,
- *  与横幅系 banner-lift 协议同刻);挂载不夺焦口径不变。 */
+ */
 export function PileShell({
   title,
   seal,
@@ -90,12 +88,11 @@ export function PileShell({
   onClose,
   children,
 }: PileShellProps) {
-  const { closing, requestClose } = useDialogExit(onClose);
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) requestClose();
+        if (!open) onClose();
       }}
     >
       <DialogContent
@@ -104,12 +101,7 @@ export function PileShell({
         /* 挂载不夺焦(JinnangDetailSheet 同款):只读浮层,焦点留在触发入口上,
             Esc/点遮罩/X 三路关闭全由底件与壳承担 */
         initialFocus={false}
-        /* 收起中:壳体/遮罩挂退场类(动画播完由协议卸载,重复出口由协议守卫挡掉) */
-        overlayProps={closing ? { className: "dialog-overlay-out" } : undefined}
-        className={
-          (className ? `pile-modal ${className}` : "pile-modal") +
-          (closing ? " pile-modal-out" : "")
-        }
+        className={className ? `pile-modal ${className}` : "pile-modal"}
       >
         {/* 题名行兼拖动把手(#674):把手原语由 DialogContent 下发,行内 X 钮自带
             豁免(起点命中按钮不启动拖)——五个藏品弹层共用本壳,自动获得同一手势 */}
@@ -124,15 +116,7 @@ export function PileShell({
             </DialogTitle>
             <div className="pile-sub">{sub}</div>
           </div>
-          <button
-            type="button"
-            data-testid={TESTIDS.modalClose}
-            aria-label="关闭"
-            onClick={requestClose}
-            className="pile-close"
-          >
-            ×
-          </button>
+          <RoundClose testid={TESTIDS.modalClose} />
         </DialogDragHandle>
         {/* 体部内滚(#708):头部/footer 之外的全部内容;首帧可见滚动提示由
             ui/scroll-area 底件承担(keepMounted+溢出门控常显) */}
@@ -184,9 +168,6 @@ export function treasurePrice(t: SnapshotPlayer["treasures"][number]) {
 function TreasureGrid({ player }: { player: SnapshotPlayer }) {
   return (
     <>
-      <PileZone>
-        已持有 · {player.treasures.length} 件<small>(名牌=指导价)</small>
-      </PileZone>
       {player.treasures.length === 0 ? (
         <div className="flex justify-center py-6">
           <SealEmpty char="宝" note="库中尚空" title="暂无珍宝" />
@@ -253,7 +234,7 @@ export const PileModal = memo(function PileModal({
     <PileShell
       title={KIND_META[kind].title}
       seal={KIND_META[kind].seal}
-      sub={`${player.guohao} · ${KIND_META[kind].sub}`}
+      sub={`${player.guohao} · ${player.treasures.length} 件`}
       testid={KIND_META[kind].testid}
       ariaLabel={`${KIND_META[kind].title} · ${player.guohao}`}
       onClose={onClose}

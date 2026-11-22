@@ -3,7 +3,7 @@
 // 与 --dur-* 同值的字段直接引用 Motion;其余编排窗口保留独立调参。
 // 下方时长表按取数时的倍率求值,分两条缩放通道:
 //   演出编排(MARCH/FX/DICE/DUEL/CEREMONY/DESK)经 scStage:先做 sc 缩放,再除追帧速度倍率;
-//   界面/节拍(UI、GHOST、反应窗倒计时弧、判据时距)只吃 sc(e2e 键),保持与权威节拍对齐。
+//   界面/节拍(UI、反应窗倒计时弧、判据时距)只吃 sc(e2e 键),保持与权威节拍对齐。
 // 追帧积压越深播得越快(ADR-0029);倍率变化即时作用于播放期取数。
 // 无倍率键且无追帧时逐位恒等,不落地板。
 import { Motion } from "@core/theme";
@@ -64,7 +64,7 @@ export const setCatchupScale = (scale: number): void => {
 };
 
 /** 界面/节拍时长缩放(模块内约定俗成的 sc):只吃 e2e 键,追帧倍率不进门——
- *  UI TTL、GHOST、bot 节拍(core/timings)都不是棋盘演出。
+ *  UI TTL、bot 节拍(core/timings)都不是棋盘演出。
  *  无键时直通(不落地板,80ms 级短拍保持原值)。 */
 export const sc = (ms: number): number => {
   if (S === 1) return ms;
@@ -374,18 +374,6 @@ export const DESK = {
 } as const;
 
 export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-/** 幽灵帧协议(#107 批次 6 收编 #117):useGhostChild 的退场帧驻留时长——子节点身份
- *  变化后上一帧快照再渲染多久。与 ScrollShell closing 出口同一条 210 口径:收起动画
- *  scroll-anim-rollback 走 --dur-fast = 150ms(Motion.dur.fast,经 gen:theme),210 =
- *  150 + 60ms 余量,保证动画播完有余再卸载。刻意字面量而不读运行时 CSS——
- *  getComputedStyle 首帧未就绪且触发强制布局;同源关系以此注释钉死,改 --dur-fast 时
- *  这里要跟着核一遍。界面帧驻留(非棋盘演出),只吃 sc 不吃追帧(F4 作用域拆分)。 */
-export const GHOST = {
-  get frameMs() {
-    return sc(210);
-  },
-} as const;
 
 /** 界面层反馈节奏(#117 收编,非棋盘特效):提示/状态条的自动清除 TTL 与胜利屏
  *  交互件的延后挂载。UI 直改即生效的反馈,不吃编排链,独立于 FX/DICE 调参;

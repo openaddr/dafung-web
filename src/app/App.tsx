@@ -11,6 +11,7 @@ import { OnlineController } from "@app/controllers/online";
 import { setController } from "@app/controllers/registry";
 import { returnHome } from "@app/screens/shared/return-home";
 import { useGameStore } from "@app/store/gameStore";
+import { useNetStore } from "@app/store/netStore";
 import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
 import { HomeScreen } from "@app/screens/home/HomeScreen";
 import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupScreen";
@@ -19,11 +20,7 @@ import { HintBar } from "@app/screens/shared/HintBar";
 // R3-C2(#89) 屏间转场(#771 墨韵化:墨晕盖入+内容浮现):keyed 外壳动画与对局屏棋盘缓推的 keyframes 集中于此
 import "./styles/screen-transition.css";
 
-// 对局屏懒化(#1273):棋盘/对局弹层族/对局独占依赖(@base-ui tooltip/sheet 原语等)
-// 随本屏进异步 chunk,首包(823KB 单体)卸下约 1/4;主页挂载后 idle 预取同 chunk
-// (warmup.ts warmupGameScreenChunk),玩家点「起兵」时已热,进对局零可感延迟。
-// Suspense fallback=null:屏间转场的墨晕盖入幕(screen-ink)本就先行、内容浮现
-// 搭接在 240ms(delay)之后,本地 chunk 拉取藏在这个窗里,无需骨架屏。
+// 主页首次绘制后，主页预热同一个懒加载模块。
 const GameScreen = lazy(() =>
   import("@app/screens/game/GameScreen").then((m) => ({ default: m.GameScreen })),
 );
@@ -41,6 +38,22 @@ function urlSeed(): number | undefined {
 export function App() {
   const screen = useGameStore((s) => s.screen);
   const setScreen = useGameStore((s) => s.setScreen);
+  const gameId = useGameStore((s) => (s.screen === "game" ? s.snapshot?.gameId : undefined));
+  const roomMapId = useNetStore((s) => s.mapId);
+  const [previousScreen, setPreviousScreen] = useState<Exclude<typeof screen, "game">>("setup");
+  if (screen !== "game" && screen !== previousScreen) setPreviousScreen(screen);
+
+  const [firstPaint, setFirstPaint] = useState<{ gameId: string; error?: string } | null>(null);
+  const reportFirstPaint = useCallback(
+    (error?: string) => {
+      if (gameId !== undefined) setFirstPaint({ gameId, error });
+    },
+    [gameId],
+  );
+  const startError = firstPaint?.gameId === gameId ? firstPaint?.error : undefined;
+  const preparing =
+    gameId !== undefined && (firstPaint?.gameId !== gameId || startError !== undefined);
+  const shownScreen = preparing ? previousScreen : screen;
   const pushHint = useGameStore((s) => s.pushHint);
   const hint = useGameStore((s) => s.hint);
   const hintLevel = useGameStore((s) => s.hintLevel);
@@ -50,8 +63,8 @@ export function App() {
   // 五屏逐一写入、无缺省分支;首帧前 body 无该属性,CSS 基准值即菜单屏浓度,
   // 与 store 初始屏 setup 一致,无闪变。
   useEffect(() => {
-    document.body.dataset.screen = screen;
-  }, [screen]);
+    document.body.dataset.screen = shownScreen;
+  }, [shownScreen]);
 
   // 正式开局:加载地图 → 构造单机控制器(进程内房间编排,#398:引擎在房间 startGame
   // 同步段建好并驱动 bot 选都到轮到人类,不再有本地 doDraftRoll/aiSetupStep 直驱)→
@@ -126,27 +139,25 @@ export function App() {
     };
   }, [initialMapId, pushHint]);
 
-  // R3-C2(#89) 屏间转场,#771 墨韵化+#835 as-built:五屏统一收进 keyed 外壳,
-  // key=screen 换屏即重挂。换屏语言 =「墨晕成形 + 内容浮现搭接 + 棋盘缓推」:
-  // .screen-ink 墨幕 t=0 独立成幕(三团偏移墨泡+金缘,不随壳淡入),内容浮现
-  // delay 240ms 搭接(砍黑窗);对局屏棋盘 720ms 缓推(scale 1.12→1)。退场不做:
-  // 保留瞬时卸载。编排细节与 reduced-motion 口径见 screen-transition.css 头注
-  // (单源)。
+  const selectedMapId = screen === "lobby" ? roomMapId : initialMapId;
+  useEffect(() => {
+    if (selectedMapId === null || (screen !== "solo-setup" && screen !== "lobby")) return;
+    void getMapSource()
+      .loadMapData(selectedMapId)
+      .catch((error: Error) => {
+        console.warn("地图预热失败", error);
+      });
+  }, [screen, selectedMapId]);
+
   // ?dev=sound 音效试听台:dev 工具直达,压过一切 store 路由(不进 screen 状态机);
   // SPA 内 URL 不变,挂载时读一次即可。
   const [devSound] = useState(() => new URLSearchParams(location.search).get("dev") === "sound");
   let content: ReactNode = null;
-  if (devSound) {
-    content = <SoundBoard />;
-  } else if (screen === "game") {
-    content = (
-      <Suspense fallback={null}>
-        <GameScreen />
-      </Suspense>
-    );
-  } else if (screen === "lobby") {
+  if (devSound) return <SoundBoard />;
+
+  if (shownScreen === "lobby") {
     content = <LobbyScreen onExit={handleExitLobby} />;
-  } else if ((screen === "setup" || screen === "solo-setup") && !initialMapId) {
+  } else if ((shownScreen === "setup" || shownScreen === "solo-setup") && !initialMapId) {
     // 地图 id 未解析出(localStorage 无记忆且清单未回/失败)时不进依赖地图的屏:
     // 首页/配置页的地图名都以它为入参,无值比给假默认更诚实。
     content = (
@@ -155,7 +166,7 @@ export function App() {
         <HintBar hint={hint} level={hintLevel} />
       </div>
     );
-  } else if (screen === "solo-setup" && initialMapId) {
+  } else if (shownScreen === "solo-setup" && initialMapId) {
     // 单机配置页:首页「单机模式」进入;起兵走原 handleStart;地图由首页选定后传入
     content = (
       <div className="relative h-full">
@@ -170,7 +181,7 @@ export function App() {
         <HintBar hint={hint} level={hintLevel} />
       </div>
     );
-  } else if (screen === "setup" && initialMapId) {
+  } else if (shownScreen === "setup" && initialMapId) {
     // 首页:三个模式入口(单机 / 联机 / 选图),对局配置在 solo-setup 次级页
     content = (
       <div className="relative h-full">
@@ -187,18 +198,41 @@ export function App() {
       </div>
     );
   }
-  if (content === null) return null;
-  // 外壳夹在 #app(100dvh)与各屏根(均 h-full)之间,高度链不能断,故补 h-full w-full;
-  // relative 为墨晕盖入幕(#771)提供定位上下文;
-  // testid 全挂在屏内组件上,多包一层不影响 e2e 选择器。
   return (
-    <div
-      key={screen}
-      className={`screen-in relative h-full w-full${screen === "game" ? " screen-in-game" : ""}`}
-    >
-      {/* 墨晕盖入幕:铺在屏内容之前的纯装饰背景层(pointer-events:none,见 screen-transition.css) */}
-      <div className="screen-ink" aria-hidden="true" />
-      {content}
+    <div className="relative h-full w-full">
+      {content !== null && (
+        <div key={shownScreen} className="screen-in relative h-full w-full" inert={preparing}>
+          <div className="screen-ink" aria-hidden="true" />
+          {content}
+        </div>
+      )}
+      {screen === "game" && (
+        <div
+          key="game"
+          className={preparing ? "invisible absolute inset-0" : "absolute inset-0"}
+          inert={preparing}
+        >
+          <Suspense fallback={null}>
+            <GameScreen preparing={preparing} onFirstPaint={reportFirstPaint} />
+          </Suspense>
+        </div>
+      )}
+      {preparing && (
+        <div className="absolute inset-0 z-50 grid place-items-center bg-bg-deep/55">
+          <div className="max-w-[80vw] rounded border border-gold/30 bg-panel px-6 py-4 text-center">
+            {startError === undefined ? (
+              <p role="status">正在绘制棋盘…</p>
+            ) : (
+              <>
+                <p role="alert">棋盘绘制失败。{startError}</p>
+                <button type="button" className="ink-btn mt-2 min-h-11 px-4" onClick={returnHome}>
+                  回到首页
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -218,8 +218,7 @@ export const SettingsDialog = memo(function SettingsDialog({
             }}
             onCancel={() => setConfirmHome(false)}
           >
-            对局进度将丢弃,不可找回
-            {roomId !== "" ? ",并退出房间" : ""}。
+            {roomId !== "" ? "将退出房间。" : "本局进度将丢弃。"}
           </ConfirmDialog>
         )}
         {/* 可达名兜底出口:× 关闭钮(原型无,模态弹层出口口径同城池详情/锦囊详情);

@@ -4,7 +4,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // 模块求值读构建期注入的 __APP_VERSION__——按生产同一值源(package.json CalVer)先行
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
-import { GHOST } from "@app/fx/timings";
 import { targetCandidates } from "@app/screens/game/target-selection";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
@@ -136,7 +135,7 @@ async function settle(): Promise<void> {
 
 /** 推进退场出口后断卸载;布尔断言避免失败时序列化 happy-dom 循环节点。 */
 async function finishExit(query: () => Element | null, label: string): Promise<void> {
-  await clock.advance(GHOST.frameMs);
+  await clock.advance(0);
   expect(query() == null, label).toBe(true);
 }
 

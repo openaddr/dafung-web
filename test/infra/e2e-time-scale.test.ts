@@ -21,7 +21,7 @@ describe("追帧运行时速度倍率(#610:演出编排 scStage = e2e 基准 ÷ 
       // 方向钉死(评审实锤旧实现乘进时长=积压时更慢,倒向防假绿):顶格时长 < 起步时长 < 原长
       expect(scStage(600)).toBeLessThan(400);
       expect(400).toBeLessThan(600);
-      // 追帧不进 e2e 通道:sc 恒只随 e2e 键(倒计时弧/UI TTL/GHOST 族不受追帧牵动)
+      // 追帧不进 e2e 通道:sc 恒只随 e2e 键(倒计时弧/UI TTL不受追帧牵动)
       expect(sc(600)).toBe(600);
     } finally {
       setCatchupScale(1); // 全局态复原,防跨用例泄漏

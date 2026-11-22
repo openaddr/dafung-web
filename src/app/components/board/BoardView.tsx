@@ -36,6 +36,7 @@ interface BoardViewProps {
   viewSeat?: string;
   /** 点击城池回调(索引)。 */
   onTileClick?: (index: number) => void;
+  onFirstPaint?: (error?: string) => void;
   /** 可交互高亮城池集合(如选都阶段轮到本地的候选)。 */
   selectableTiles?: ReadonlySet<number>;
   /** 目标段选城候选(#1388 T2):主动技城目标段的合法城格集(引擎 choices 城选项,
@@ -98,6 +99,7 @@ export function BoardView({
   players,
   viewSeat,
   onTileClick,
+  onFirstPaint,
   selectableTiles,
   cityTargetTiles,
   cityPickedTileIndex,
@@ -234,6 +236,7 @@ export function BoardView({
         fit={fit}
         cities={cities}
         onTileClick={onTileClick}
+        onFirstPaint={onFirstPaint}
       />
       {/* 棋子层(HTML 宿主,ADR-0042):每棋子一个合成器提升的包装 div(transform
           过渡走合成器)+ mini-svg 旗面/环原绘;宿主矩阵与底板 viewBox 同拍跟随。 */}

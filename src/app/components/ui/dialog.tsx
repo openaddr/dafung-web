@@ -22,7 +22,7 @@ import {
 } from "@app/hooks/use-dialog-drag";
 import { useDialogPeekSurface, useDialogStackSlot } from "@app/hooks/dialog-stack";
 import { TESTIDS } from "@app/screens/game/testids";
-import { DialogMinimize } from "./dialog-minimize";
+import { DialogMinimize } from "./dialog-controls";
 
 const DialogMinimizeContext = React.createContext<
   (ReturnType<typeof useDialogPeekSurface> & { active: boolean; closeFromBack: () => void }) | null
@@ -72,13 +72,11 @@ const DialogClose = DialogPrimitive.Close;
 
 function DialogOverlay({
   className,
-  animateOnOpen = true,
   dimmed,
   stacked,
   style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Backdrop> & {
-  animateOnOpen?: boolean;
   /** 拖离中心减淡态(#674;useDialogDrag 的 dimmed,色值单源在 hook 文件)。 */
   dimmed?: boolean;
   /** 叠层减淡态(#767;开栈栈深>1 且本层为上层,计数单源 hooks/dialog-stack)。 */
@@ -88,9 +86,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       forceRender
       data-slot="dialog-overlay"
-      /* 默认入场(#1370):dialog-overlay-in 淡入 150ms,形制单源 app.css 底件系
-         弹层段;消费方传 dialog-overlay-out(退场)时靠 app.css 源序后者胜接管。 */
-      className={cn("fixed inset-0 z-50", animateOnOpen && "dialog-overlay-in", className)}
+      className={cn("fixed inset-0 z-50", className)}
       style={{
         // 两档减淡取强不叠加:拖离(0.15)强于叠层(0.28)
         backgroundColor: dimmed
@@ -108,13 +104,10 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
-  animateOnOpen = true,
   overlayProps,
   ref: contentRef,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Popup> & {
-  /** 控制壳体与遮罩的入场动画。 */
-  animateOnOpen?: boolean;
   /** 透传给内部遮罩(DialogOverlay)。非模态弹层(modal="trap-focus")需要遮罩
    *  pointer-events 放行底层交互——必须走内联 style:banner.css 等未分层规则里的
    *  pointer-events:auto 恒压过 utilities 层的 pointer-events-none 类。 */
@@ -139,7 +132,6 @@ function DialogContent({
       <DialogOverlay
         {...overlayProps}
         data-testid={minimize !== undefined ? TESTIDS.modalBackdrop : undefined}
-        animateOnOpen={animateOnOpen}
         dimmed={drag.dimmed}
         stacked={stacked}
       />
@@ -158,11 +150,7 @@ function DialogContent({
           // 居中位移消费 --drag-x/--drag-y(#674,变量由题名拖动命令式写入,缺省 0px =
           // 原居中);消费方以同组 translate-x/y-* 类经 twMerge 改写(贴底抽屉/宏中距)。
           // paper-skin(#845/P1-A4):Portal 挂 body 罩不到 #app 材质膜,纸面自带颗粒+晕影。
-          // 默认入场(#1370):dialog-content-in 淡入+scale 0.95→1 150ms,与遮罩同拍,
-          // 形制单源 app.css 底件系弹层段;关键帧只动 transform,不碰 translate 属性
-          // (上面 translate-x/y-* 拖动消费位是另一条通道,叠加合成不互抹)。
-          animateOnOpen && "dialog-content-in",
-          "paper-skin fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] translate-x-[calc(-50%_+_var(--drag-x,0px))] translate-y-[calc(-50%_+_var(--drag-y,0px))] flex-col rounded-[3px] border border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-paper shadow-[var(--ink-shadow-lg)]",
+          "paper-skin fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] translate-x-[calc(-50%_+_var(--drag-x,0px))] translate-y-[calc(-50%_+_var(--drag-y,0px))] flex-col rounded-[3px] border border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-paper shadow-[var(--ink-shadow-sm)]",
           className,
         )}
         {...props}

@@ -69,7 +69,7 @@ function HeroInspection({
     <PileShell
       title="名将"
       seal="将"
-      sub={`${player.guohao} · 麾下名将 · ${player.heroes.length} 席`}
+      sub={`${player.guohao} · ${player.heroes.length} 位`}
       testid={testid}
       ariaLabel={`名将 · ${player.guohao}`}
       className="hero-inspection"

@@ -1,6 +1,6 @@
 // 组件收口:BannerShell 沿用焦点/拖动语义;预选用 Base UI Toggle,数量与翻页用 Button。
 // 预选只在本组件保存;最终将按加选顺序排列的逐件明细交权威一次出售并清偿。
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { Button } from "@base-ui/react/button";
 import { Toggle } from "@base-ui/react/toggle";
 import type { GameCommand } from "@core/authority";
@@ -13,7 +13,7 @@ import { treasureArtId } from "@app/components/card/treasure-art";
 import { cn } from "@app/utils/cn";
 import { Sym } from "@app/screens/shared/Sym";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
-import { BannerGhostContext, BannerShell, BannerButton } from "./BannerShell";
+import { BannerShell, BannerButton } from "./BannerShell";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SCROLL_TESTIDS as T } from "./testids";
 
@@ -52,7 +52,6 @@ export function BankruptcyScroll({
   const [selected, setSelected] = useState<SelectedAsset[]>([]);
   const [page, setPage] = useState(0);
   const [confirmingBankruptcy, setConfirmingBankruptcy] = useState(false);
-  const isGhost = useContext(BannerGhostContext);
   const treasureGroups = new Map<string, SaleGroup & { kind: "treasure" }>();
   for (const t of treasures) {
     // 普通珍宝=目录 id + 牌堆序号;同技多册技能书共用 id,不能用 Set 去重实物。
@@ -159,14 +158,14 @@ export function BankruptcyScroll({
                 现钱 {formatMoney(cash)} · 债务 {formatMoney(debtAmount)}
               </span>
               {groups.length > 0 && totalValue < owe && (
-                <small>全部变卖仍差 {formatMoney(owe - totalValue)},可查看资产或认破产。</small>
+                <small>全部变卖仍差 {formatMoney(owe - totalValue)}</small>
               )}
             </div>
             <div className="bankruptcy-pages">
               <Button
                 aria-label="上一页"
                 data-testid={T.bankruptcyPrevious}
-                disabled={page === 0 || isGhost}
+                disabled={page === 0}
                 onClick={() => setPage(page - 1)}
               >
                 <Sym name="back" size={16} />
@@ -177,7 +176,7 @@ export function BankruptcyScroll({
               <Button
                 aria-label="下一页"
                 data-testid={T.bankruptcyNext}
-                disabled={page + 1 === pageCount || isGhost}
+                disabled={page + 1 === pageCount}
                 onClick={() => setPage(page + 1)}
               >
                 <Sym name="back" size={16} />
@@ -236,7 +235,7 @@ export function BankruptcyScroll({
                       <Button
                         aria-label={`减少${group.name}`}
                         data-testid={T.bankruptcyDecrease(id)}
-                        disabled={quantity === 0 || isGhost}
+                        disabled={quantity === 0}
                         onClick={() => decrease(group)}
                       >
                         −
@@ -245,7 +244,7 @@ export function BankruptcyScroll({
                       <Button
                         aria-label={`增加${group.name}`}
                         data-testid={T.bankruptcyIncrease(id)}
-                        disabled={enough || quantity === group.ids.length || isGhost}
+                        disabled={enough || quantity === group.ids.length}
                         onClick={() => add(group, quantity)}
                       >
                         +
@@ -257,7 +256,7 @@ export function BankruptcyScroll({
                     key={group.key}
                     data-testid={T.bankruptcyAsset(group.kind, id)}
                     pressed={quantity > 0}
-                    disabled={(enough && quantity === 0) || isGhost}
+                    disabled={enough && quantity === 0}
                     onPressedChange={(pressed) => (pressed ? add(group, 0) : decrease(group))}
                     className={cn("bankruptcy-asset", quantity > 0 && "bankruptcy-selected")}
                   >

@@ -13,7 +13,7 @@ import { OVERLAY_TINT, OVERLAY_TINT_STACKED } from "@app/hooks/use-dialog-drag";
 import { useDialogStackSlot } from "@app/hooks/dialog-stack";
 import { TESTIDS } from "@app/screens/game/testids";
 import { Dialog, useDialogMinimize } from "./dialog";
-import { DialogMinimize } from "./dialog-minimize";
+import { DialogControlIcon, DialogMinimize } from "./dialog-controls";
 
 const Sheet = Dialog;
 const SheetTrigger = SheetPrimitive.Trigger;
@@ -39,15 +39,12 @@ function SheetOverlay({
   );
 }
 
-/** 四向定位/入退场类(side 的实装):贴缘滑入滑出,shadcn 的 2.5rem 短滑改整幅滑
- *  (抽屉语义=从屏缘抽出的纸匣)。尺寸档与圆角按 §4.2:面板圆角 8px(贴缘侧无角)。 */
+/** 四向停靠尺寸和圆角，贴缘侧无圆角。 */
 const SIDE_CLASSES: Record<"top" | "right" | "bottom" | "left", string> = {
-  right:
-    "inset-y-0 right-0 h-full w-80 max-w-[85vw] border-l rounded-l-[8px] data-starting-style:translate-x-full data-ending-style:translate-x-full",
-  left: "inset-y-0 left-0 h-full w-80 max-w-[85vw] border-r rounded-r-[8px] data-starting-style:-translate-x-full data-ending-style:-translate-x-full",
-  top: "inset-x-0 top-0 w-full max-w-full border-b rounded-b-[8px] data-starting-style:-translate-y-full data-ending-style:-translate-y-full",
-  bottom:
-    "inset-x-0 bottom-0 w-full max-w-full border-t rounded-t-[8px] data-starting-style:translate-y-full data-ending-style:translate-y-full",
+  right: "inset-y-0 right-0 h-full w-80 max-w-[85vw] border-l rounded-l-[8px]",
+  left: "inset-y-0 left-0 h-full w-80 max-w-[85vw] border-r rounded-r-[8px]",
+  top: "inset-x-0 top-0 w-full max-w-full border-b rounded-b-[8px]",
+  bottom: "inset-x-0 bottom-0 w-full max-w-full border-t rounded-t-[8px]",
 };
 
 function SheetContent({
@@ -86,7 +83,7 @@ function SheetContent({
         data-side={side}
         className={cn(
           // paper-skin(#845/P1-A4):Portal 挂 body 罩不到 #app 材质膜,纸面自带颗粒+晕影
-          "paper-skin fixed z-50 flex flex-col overflow-hidden border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo text-paper text-sm shadow-[var(--ink-shadow-lg)] transition-transform duration-200 ease-out",
+          "paper-skin fixed z-50 flex flex-col overflow-hidden border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo text-paper text-sm shadow-[var(--ink-shadow-sm)]",
           SIDE_CLASSES[side],
           className,
         )}
@@ -102,20 +99,9 @@ function SheetContent({
           <SheetPrimitive.Close
             data-slot="sheet-close"
             aria-label="关闭"
-            className="absolute top-1 right-1 flex size-[var(--touch-primary)] items-center justify-center text-paper-dim focus-visible:outline-2 focus-visible:outline-dashed focus-visible:outline-gold"
+            className="dialog-control"
           >
-            {/* × 符号走内联 SVG(Sym 同款口径:箭头/符号类不在字体栈内裸排,离线字体零 tofu) */}
-            <span className="grid size-8 place-items-center rounded-[3px] border border-gold/30 bg-panel">
-              <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true" focusable="false">
-                <path
-                  d="M3.5 3.5 12.5 12.5 M12.5 3.5 3.5 12.5"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-              </svg>
-            </span>
+            <DialogControlIcon name="close" />
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

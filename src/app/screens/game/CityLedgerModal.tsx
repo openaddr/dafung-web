@@ -1,17 +1,3 @@
-// 名下城池清单弹层(#622,规格 #621):诸侯详情城池 chips 钻入的只读清单(#1097 起
-// 唯一入口)——
-// 一城一行按棋盘 index 序(行军顺序,合上弹窗扫视方向一致),行首真实格缩略图
-// (#623,TileThumb 与棋盘逐像素同源)+ 五列 = 城名 / 等级和防御 / 购入价 / 变卖价 /
-// 交易加成;城池档位两字名(ADR-0042 决策 6,读数场合口径)小字缀在城名格内,
-// 不设第六列。壳复用 PileShell(朱印「城」,题名「○○名下城池」/自看
-// 「本方名下城池」;挂载不夺焦、Esc/点外/X 三路关闭全由底件白拿),零操作项;
-// 弹层开着随内容变化重渲(#1140 值等 memo:数据每渲染现查 players + board/catalog,
-// 不冻结不快照;内容没变的拍 bail out,演出期开着不再每拍陪跑)。
-// 珍宝城与都城同权入列(ADR-0024,无特判外壳)。数据口径(与引擎同一函数):
-// 购入价 = 城表 purchasePrice;变卖价 = 当前档 valueByLevel(`sellValueOf`);
-// 交易加成 = 当前档 tradeMult/tradeAdd 现值(坐地要价公式的两项参数,公式细则
-// 见「要价」词条与 rules 05-珍宝)。名下无城 = 「名下暂无城池」空态(真业务态:
-// 未购地/破产清场均可达)。
 import { memo } from "react";
 import { fullDefenseOf } from "@core/defense";
 import { formatMoney } from "@core/money";
@@ -20,19 +6,15 @@ import { tileIndexOfProperty } from "@core/board";
 import { Theme } from "@core/theme";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { getControllerContext } from "@app/controllers/registry";
-import { PileShell, PileZone } from "./PileModal";
-import { TileThumb } from "./TileThumb";
+import { PileShell } from "./PileModal";
 import { TESTIDS } from "./testids";
 
-/** 行栅格(六列):行首 = 真实格缩略图位(约 96px 高,列宽随之);后五列 = 五字段。
- *  表头与数据行共用同一模板,列对齐不漂移。行首列宽走 --pile-thumbw(默认 88px,
- *  矮屏档 48px,单源 pile-modal.css 规范块 #708 行高自适应)。 */
 const GRID_COLS =
-  "grid grid-cols-[var(--pile-thumbw,88px)_minmax(7em,1.3fr)_minmax(5em,0.9fr)_minmax(6.5em,1fr)_minmax(6.5em,1fr)_minmax(8em,1.1fr)] items-center";
+  "grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_repeat(3,minmax(0,1fr))] items-center";
 
 /** 值等(#1140 渲染税):消费面=players[seat](引用稳定,GameTopBar 经
  *  useStablePlayers 下传)+ seat/self;onClose 不入比较(setState 驱动,行为恒定)。
- *  行渲染(rows/TileThumb)全由 players+registry 静态上下文派生。 */
+ *  行渲染(rows)全由 players+registry 静态上下文派生。 */
 function cityLedgerEqual(
   a: { players: SnapshotPlayer[]; seat: number; self: boolean },
   b: { players: SnapshotPlayer[]; seat: number; self: boolean },
@@ -46,7 +28,7 @@ export const CityLedgerModal = memo(function CityLedgerModal({
   self,
   onClose,
 }: {
-  /** 全体玩家(值等复用引用,#1140;目标行与 TileThumb 归属推导真源)。 */
+  /** 全体玩家(值等复用引用,#1140;目标行的数据源)。 */
   players: SnapshotPlayer[];
   /** 清单目标座位(开合态由 GameScreen 持座位号,不持玩家对象——随快照常新)。 */
   seat: number;
@@ -73,22 +55,18 @@ export const CityLedgerModal = memo(function CityLedgerModal({
     <PileShell
       title={title}
       seal="城"
-      sub="按行军顺序一览 · 只读"
+      sub={`${rows.length} 座`}
       testid={TESTIDS.cityLedger}
       onClose={onClose}
     >
       {rows.length > 0 ? (
         <>
-          <PileZone>
-            名下城池 · {rows.length} 城<small>(行序 = 行军顺序)</small>
-          </PileZone>
           <div
             className={
-              GRID_COLS + " city-ledger-head border-b border-gold/25 pb-1.5 font-brush text-paper"
+              GRID_COLS +
+              " city-ledger-head sticky top-0 z-[1] gap-2 border-b border-gold/25 bg-panel py-2 font-brush text-paper"
             }
           >
-            {/* 行首列:缩略图列头(图形列,无文字头) */}
-            <span aria-hidden="true" />
             <span>城名</span>
             <span>等级 / 防御</span>
             <span className="text-right">购入价</span>
@@ -102,13 +80,12 @@ export const CityLedgerModal = memo(function CityLedgerModal({
                 key={def.id}
                 data-testid={TESTIDS.cityLedgerRow(def.id)}
                 className={
-                  GRID_COLS + " city-ledger-row border-t border-gold/15 py-1.5 first:border-t-0"
+                  GRID_COLS +
+                  " city-ledger-row gap-2 border-t border-gold/15 py-1.5 first:border-t-0"
                 }
                 role="group"
                 aria-label={`棋盘第 ${tileIndex} 格`}
               >
-                {/* 行首缩略图(#623):真实格渲染与棋盘同源,状态推导在 TileThumb */}
-                <TileThumb tile={tile} def={def} tileIndex={tileIndex} players={players} />
                 {/* 城池档位两字名(ADR-0042 决策 6 + DESIGN §4.8):小字缀在城名格内,
                     不加第六列(844×390 挤);唯一源 Theme.cityTierNames,零兜底直查
                     (tier 逐城必配)。 */}
@@ -136,10 +113,6 @@ export const CityLedgerModal = memo(function CityLedgerModal({
               </div>
             );
           })}
-          {/* 口径小字(#621):交易加成列是坐地要价公式的两项现值参数 */}
-          <div className="mt-3 text-right font-wenkai text-[11.5px] text-paper-dim">
-            坐地要价 = 指导价 × 系数 + 加成
-          </div>
         </>
       ) : (
         <div className="flex justify-center py-10">
