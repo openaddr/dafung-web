@@ -286,22 +286,6 @@
 /* 窗态可见焦点圈:架体钮层金虚线(既有 .hand-rack-hand > :where(button, .skill-rack-card):focus-visible
    规则已覆盖,窗态不改口径)。 */
 
-/* ── 详情弹层入场(一次性演出,无 infinite):底部滑入 + 淡入,
-   居中面板与窄屏抽屉共用(壳定位差异在组件 className,动势同一条 keyframes)── */
-@keyframes rack-sheet-in {
-  from {
-    opacity: 0;
-    transform: translateY(1.5em);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.jinnang-detail-sheet {
-  animation: rack-sheet-in var(--dur-med) var(--ease-out);
-}
-
 /* ── 矮屏规范·体部内滚+钉头(#708,弹层族一处口径):壳夹高(视口−64px)后
    滚动归体部 scroll-area(壳自身 overflow-hidden,组件侧);牌名行 sticky 钉住,
    原下边距改内衬铺底(钉住带底色盖住滚过内容,不露缝);面板侧边内衬是排版留白,

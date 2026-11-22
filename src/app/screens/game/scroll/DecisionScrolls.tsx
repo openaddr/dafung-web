@@ -12,6 +12,7 @@ import { useState } from "react";
 import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
 import { cityIncomeOf } from "@core/city-income";
+import { fullDefenseOf } from "@core/defense";
 import { INITIAL_CITY_LEVEL } from "@core/constants";
 import { cityTradeTermsOf, sellValueOf, type PropertyDef } from "@core/economy";
 import { formatMoney } from "@core/money";
@@ -55,6 +56,16 @@ export function BuyDecisionScroll({
     <BannerShell
       title="购地抉择"
       testid={T.buyScroll}
+      summary={
+        <>
+          <p className="text-center text-sm">
+            {tileName} · {tierLabel}
+            {groupLabel ? ` · ${groupLabel}` : ""} · 每轮收益 {formatMoney(cityIncomeOf(property))}
+          </p>
+          <AffordRow cash={cash} need={property.purchasePrice} purpose="purchase" />
+          {!buy.available && <p className="text-center text-sm text-danger">{buy.reason}</p>}
+        </>
+      }
       footer={
         <div className="flex items-center justify-center gap-3">
           <BannerButton
@@ -63,7 +74,7 @@ export function BuyDecisionScroll({
             testid={TESTIDS.actionButton("buy")}
             onClick={() => onCommand({ type: "buyProperty" })}
           >
-            购地 {formatMoney(property.purchasePrice)}
+            购地
           </BannerButton>
           <BannerButton
             testid={TESTIDS.actionButton("skip")}
@@ -74,14 +85,6 @@ export function BuyDecisionScroll({
         </div>
       }
     >
-      <p className="m-1 mb-2 text-center text-xs text-paper-dim">
-        「{tileName}」{tierLabel}
-        {groupLabel ? ` · ${groupLabel}` : ""} · 无主 · 每轮收益{" "}
-        {formatMoney(cityIncomeOf(property))}
-      </p>
-      {/* 主数值行(#767 弹窗详情族①):持有/需/余差从摘要行升格的独立主行,
-          买不买得起 0.5 秒可读(余绿/差红);#566 符号语义照旧(付得起记「余」) */}
-      <AffordRow cash={cash} need={property.purchasePrice} purpose="purchase" />
       {/* 复用城池详情的等级表:买地的权衡核心是这座城往后怎么生钱——交易加成(未来
           坐地卖珍宝的定价参数)与逐级变卖价(破产跑道)。#92:买入即落 Lv.1,高亮购入档 */}
       {showValues ? (
@@ -102,7 +105,6 @@ export function BuyDecisionScroll({
           查看等级表
         </button>
       )}
-      {!buy.available && <p className="mt-2 text-center text-xs text-paper-dim">{buy.reason}</p>}
     </BannerShell>
   );
 }
@@ -112,6 +114,7 @@ export function UpgradeDecisionScroll({
   tileName,
   tierLabel,
   level,
+  defense,
   property,
   isCapital,
   choices,
@@ -121,6 +124,7 @@ export function UpgradeDecisionScroll({
   /** 城池档位两字名(Theme.cityTierNames 单源经 DecisionScrollLayer,ADR-0042 决策 6)。 */
   tierLabel: string;
   level: number;
+  defense: number;
   /** 城池定义直传(catalog PropertyDef 结构超集,手工收窄已收口)。 */
   property: ValueTableProperty;
   /** 是否城主的都城(#671):都城第二列显示补给(固定值,不随档位;都城不可变卖)。 */
@@ -134,12 +138,40 @@ export function UpgradeDecisionScroll({
   // 注册表不符(数据 bug),非空断言让其抛(零兜底)。
   const upgrade = choices.find((o) => o.id === "upgrade")!;
   const current = cityTradeTermsOf(property, level);
-  const next = upgrade.available ? cityTradeTermsOf(property, level + 1) : null;
+  const next = upgrade.available
+    ? { ...cityTradeTermsOf(property, level + 1), defense: fullDefenseOf(level + 1) }
+    : null;
   // #729:扩军/按兵不动两钮钉底(同购地),变化行与价值表留正文井
   return (
     <BannerShell
       title="扩军抉择"
       testid={T.upgradeScroll}
+      summary={
+        <div className="text-center text-sm">
+          <p>
+            {tileName} · {tierLabel} · {level} 级{upgrade.available && ` → ${level + 1} 级`}
+          </p>
+          {next !== null ? (
+            <>
+              <p>
+                防御 {defense}/{fullDefenseOf(level)} → {next.defense}/{next.defense}
+              </p>
+              <p>
+                交易加成 ×{current.multiplier} +{formatMoney(current.addition)} → ×{next.multiplier}{" "}
+                +{formatMoney(next.addition)}
+              </p>
+              {!isCapital && (
+                <p>
+                  变卖价 {formatMoney(sellValueOf(property, level))} →{" "}
+                  {formatMoney(sellValueOf(property, level + 1))}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-danger">{upgrade.reason}</p>
+          )}
+        </div>
+      }
       footer={
         <div className="flex items-center justify-center gap-3">
           <BannerButton
@@ -159,23 +191,6 @@ export function UpgradeDecisionScroll({
         </div>
       }
     >
-      <p className="m-1 text-center text-sm text-paper-dim">
-        「{tileName}」<span className="text-xs">{tierLabel}</span> 当前 Lv.{level} · 扩军免费
-      </p>
-      {next !== null ? (
-        <>
-          <p className="m-1 text-center text-sm text-paper-dim">
-            交易加成 ×{current.multiplier} +{formatMoney(current.addition)} → ×{next.multiplier} +
-            {formatMoney(next.addition)}
-          </p>
-          <p className="m-1 text-center text-sm text-paper-dim">
-            变卖价 {formatMoney(sellValueOf(property, level))} →{" "}
-            {formatMoney(sellValueOf(property, level + 1))}
-          </p>
-        </>
-      ) : (
-        <p className="m-1 mb-3 text-center text-sm text-paper-dim">({upgrade.reason})</p>
-      )}
       {/* #92:扩军权衡也上同一张表,高亮「扩军后」档(当前级+1;满级时下标越界,自然无命中行);
           #671:都城第二列显示补给 */}
       <ValueTable

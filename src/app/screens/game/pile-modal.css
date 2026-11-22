@@ -26,7 +26,6 @@
      整体缩档,断头防治(周瑜卡技能行、城池清单行不再切半)。── */
 .pile-modal {
   /* 行首缩略图列宽(城池清单六列栅格的变量化列,#622;矮屏档缩档见文件尾) */
-  --pile-thumbw: 88px;
   width: min(940px, 94vw);
   max-width: 94vw;
   /* 矮屏规范(#708):最大高 = 视口高 − 64px。height 用 min(内容高, 夹高) 给
@@ -38,30 +37,11 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 18px 24px 22px;
+  padding: 6px 16px 12px;
   border: 1px solid var(--color-gold-deep);
   border-radius: 8px;
   background: var(--color-panel);
-  box-shadow:
-    inset 0 0 0 3px var(--color-panel),
-    inset 0 0 0 4px rgba(200, 161, 58, 0.55),
-    0 18px 50px rgba(0, 0, 0, 0.55);
-  /* 入场随 pile-modal-in 退役(#1370):归一 ui/dialog 底件默认入场
-     dialog-content-in(150ms 淡入+scale),壳不再自带散形制。 */
-}
-
-/* ── 退场(#767 底件族⑤):淡出+下沉 8px(--dur-fast),「播完再移除」协议单源
-   hooks/use-dialog-exit(210ms 出口 = 150 动画 + 60 余量);双类特异性压过底件
-   默认入场 dialog-content-in。transform 关键帧与 translate 属性(拖动变量消费位)
-   分属两条通道,叠加合成不互抹。 ── */
-@keyframes pile-modal-out {
-  to {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-.pile-modal.pile-modal-out {
-  animation: pile-modal-out var(--dur-fast) var(--ease-in) forwards;
+  box-shadow: var(--ink-shadow-sm);
 }
 
 /* ── 钉住的头部 / 底部操作行(#708):flex:none 恒在场,不随体部滚动 ── */
@@ -114,8 +94,10 @@
 .pile-modal .pile-head {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding-bottom: 10px;
+  gap: 8px;
+  min-height: var(--touch-dialog-control);
+  padding-inline-end: var(--touch-dialog-control);
+  padding-bottom: 4px;
   border-bottom: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
 }
 /* 题名即 DialogTitle(可达名单源,PileModal 组件侧);字族 font-title(#508 标题字族),
@@ -148,40 +130,12 @@
   font-size: 12px;
   color: var(--color-paper-dim);
 }
-/* 右上 X:圆框关闭钮(关闭语义由 aria-label 承担,字形 × 即通用关闭符)。
-   触达制式(#745 高2):视觉 26px 环不动,透明命中垫扩到 44×44(inset −9)——
-   伪元素属按钮本体,拖动把手的「起点命中按钮不启动拖」豁免照常生效。 */
-.pile-modal .pile-close {
-  position: relative;
-  flex: none;
-  margin-left: auto;
-  width: 26px;
-  height: 26px;
-  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: none;
-  font-size: 15px;
-  line-height: 1;
-  color: var(--color-paper-dim);
-  transition:
-    transform var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out);
-}
-.pile-modal .pile-close::after {
-  content: "";
-  position: absolute;
-  inset: -9px;
-}
-
 /* ── 区签:朱砂菱点 + 计数 + 括注小字(r5 .zone-label 制式)── */
 .pile-modal .pile-zone {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 16px 2px 10px;
+  margin: 6px 2px;
   font-family: var(--font-wenkai);
   font-size: 13px;
   color: var(--color-paper-dim);
@@ -197,13 +151,6 @@
 }
 .pile-modal .pile-zone small {
   font-size: 11.5px;
-}
-
-/* ── 城池清单行首缩略图(#623/#708):基准高 96px(宽随 viewBox 比例自适应),
-   矮屏档 48px 随列宽同缩——清单行高自适应,见文件尾规范块 ── */
-.pile-modal .city-ledger-thumb {
-  height: 96px;
-  width: auto;
 }
 
 /* ── 珍宝陈列网格:装裱卡大格(r5 .fuku-grid/.fuku-cell/.price-tag 移植);
@@ -311,15 +258,6 @@
   }
   .pile-modal .pile-grid .pile-cell-card {
     font-size: 6.4px;
-  }
-  /* 城池清单:行首缩略图 96 → 48px(随列宽同缩)、表头/行内衬与字号收档(行高
-     自适应,名下 2 城首帧双行完整;列最小宽随 em 同收,矮横屏窄幅不生横向溢);
-     列模板变量挂 CityLedgerModal 的 GRID_COLS */
-  .pile-modal {
-    --pile-thumbw: 48px;
-  }
-  .pile-modal .city-ledger-thumb {
-    height: 48px;
   }
   .pile-modal .city-ledger-head {
     padding-bottom: 2px;

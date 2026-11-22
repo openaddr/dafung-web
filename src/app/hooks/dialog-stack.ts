@@ -48,7 +48,7 @@ function syncAndroidBackListener() {
 }
 
 /** 本实例是否为叠层中的上层:栈深>1 且本实例下标>0。底层实例恒 false(全档遮罩)。
- *  active=false(如幽灵帧)不入栈、恒 false。layout effect:入栈/出栈都发生在绘制前,
+ *  active=false 时不入栈、恒 false。layout effect:入栈/出栈都发生在绘制前,
  *  上层遮罩首帧即减淡档,不闪全档(遮罩无入场动画,整帧跳变可见)。 */
 export function useDialogStackSlot(active: boolean, portal = true, onBack?: () => void) {
   const back = useRef(onBack);

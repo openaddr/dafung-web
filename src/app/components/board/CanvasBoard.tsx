@@ -63,12 +63,14 @@ export function CanvasBoard({
   fit,
   cities,
   onTileClick,
+  onFirstPaint,
 }: {
   svgRef: React.RefObject<SVGSVGElement | null>;
   board: Board;
   fit: ViewBox;
   cities: readonly CityScene[];
   onTileClick?: (index: number) => void;
+  onFirstPaint?: (error?: string) => void;
 }) {
   const deckRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -175,6 +177,16 @@ export function CanvasBoard({
   }, [svgRef, board, cities, fit]);
 
   const ready = failure === undefined && painted?.board === board;
+  const reportedFirstPaint = useRef(false);
+  useLayoutEffect(() => {
+    if (reportedFirstPaint.current) return;
+    if (ready) {
+      reportedFirstPaint.current = true;
+      onFirstPaint?.();
+    } else if (failure !== undefined) {
+      onFirstPaint?.(failure);
+    }
+  }, [ready, failure, onFirstPaint]);
   return (
     <div className="bv-deck" aria-busy={!ready} ref={deckRef}>
       <canvas className="bv-city-canvas" ref={canvasRef} aria-hidden="true" hidden={!ready} />

@@ -98,7 +98,7 @@ export function TreasurePickModal({
         </div>
       }
     >
-      <PileZone>待选 · {treasures.length} 件</PileZone>
+      <PileZone>{treasures.length} 件可选</PileZone>
       <div className="pile-grid">
         {treasures.map((t) => {
           const sel = t.id === pickedId;

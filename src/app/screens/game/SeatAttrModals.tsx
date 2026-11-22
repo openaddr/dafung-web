@@ -1,7 +1,7 @@
 // 组件收口:已收口——诸侯详情内的名将与珍宝分项共用现有弹层。
 import { memo } from "react";
 import type { SnapshotPlayer } from "@app/store/gameStore";
-import { PileShell, PileZone, treasureFace, treasurePrice } from "./PileModal";
+import { PileShell, treasureFace, treasurePrice } from "./PileModal";
 import { HeroInspectionModal } from "./HeroInspectionModal";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { TESTIDS } from "./testids";
@@ -20,14 +20,11 @@ function SeatGemModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }
     <PileShell
       title="珍宝"
       seal="宝"
-      sub={`${p.guohao} · 珍宝收藏册`}
+      sub={`${p.guohao} · ${p.treasures.length} 件`}
       testid={TESTIDS.seatGemModal}
       ariaLabel={`珍宝 · ${p.guohao}`}
       onClose={onClose}
     >
-      <PileZone>
-        已持有 · {p.treasures.length} 件<small>(名牌=指导价)</small>
-      </PileZone>
       {p.treasures.length === 0 ? (
         <div className="flex justify-center py-6">
           <SealEmpty char="宝" note="库中尚空" title="暂无珍宝" />

@@ -11,7 +11,6 @@ import { getControllerContext } from "@app/controllers/registry";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
-import { useDialogExit } from "@app/hooks/use-dialog-exit";
 import { RoundClose } from "@app/screens/shared/RoundClose";
 import { STAMINA_LOW } from "./SeatRail";
 import { CityLedgerModal } from "./CityLedgerModal";
@@ -136,62 +135,72 @@ export const WarlordsOverview = memo(function WarlordsOverview({
   onClose: () => void;
 }) {
   const [detail, setDetail] = useState<WarlordDetail | null>(null);
-  const { closing, requestClose } = useDialogExit(onClose);
   const inspectingBoard = useContext(DialogPeekInspection) !== null;
+  const seatGroups = players.length > 6 ? [players.slice(0, 4), players.slice(4)] : [players];
   const closeDetail = useCallback(() => setDetail(null), []);
 
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) requestClose();
+        if (!open) onClose();
       }}
     >
-      <DialogContent
-        data-testid={TESTIDS.warlordsOverview}
-        animateOnOpen={false}
-        initialFocus={false}
-        inert={closing}
-        overlayProps={closing ? { className: "dialog-overlay-out" } : undefined}
-        className={"zl" + (closing ? " zl-out" : "")}
-      >
+      <DialogContent data-testid={TESTIDS.warlordsOverview} initialFocus={false} className="zl">
         <DialogDragHandle className="zl-head" testid={TESTIDS.modalDragHandle}>
           <DialogTitle className="zl-title">诸侯详情</DialogTitle>
           <span className="zl-round">第 {round} 轮</span>
         </DialogDragHandle>
         <RoundClose testid={TESTIDS.modalClose} />
         <ScrollArea className="zl-scroll">
-          <table className="zl-table">
-            <colgroup>
-              {OVERVIEW_COLUMNS.map(({ label, width }) => (
-                <col key={label} style={{ width }} />
-              ))}
-            </colgroup>
-            <thead>
-              <tr>
-                {OVERVIEW_COLUMNS.map(({ label }) => (
-                  <th key={label} scope="col">
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((player, seat) => (
-                <OverviewRow
-                  key={player.id}
-                  player={player}
-                  seat={seat}
-                  self={seat === selfSeat}
-                  active={seat === activeSeat}
-                  onInspect={setDetail}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className={seatGroups.length > 1 ? "zl-columns is-split" : "zl-columns"}>
+            {seatGroups.map((seats, group) => (
+              <table
+                className="zl-table"
+                key={group}
+                aria-label={
+                  seatGroups.length === 1
+                    ? "诸侯名录"
+                    : group === 0
+                      ? "诸侯一至四席"
+                      : "诸侯五至八席"
+                }
+              >
+                <colgroup>
+                  {OVERVIEW_COLUMNS.map(({ label, width }) => (
+                    <col key={label} style={seatGroups.length === 1 ? { width } : undefined} />
+                  ))}
+                </colgroup>
+                <thead>
+                  <tr>
+                    {OVERVIEW_COLUMNS.map(({ label }) => (
+                      <th key={label} scope="col">
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {seats.map((player, row) => {
+                    const seat = group * 4 + row;
+                    return (
+                      <OverviewRow
+                        key={player.id}
+                        player={player}
+                        seat={seat}
+                        self={seat === selfSeat}
+                        active={seat === activeSeat}
+                        onInspect={setDetail}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+            ))}
+          </div>
         </ScrollArea>
       </DialogContent>
-      {!closing && detail !== null && (
+      {detail !== null && (
         <DialogPeekInspection.Provider value={inspectingBoard ? closeDetail : null}>
           {detail.kind === "city" ? (
             <CityLedgerModal

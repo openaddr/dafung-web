@@ -92,52 +92,6 @@
   initial-value: 0px;
 }
 
-/* ── 底件系弹层默认入场(#1370,shadcn 正典形制回归):遮罩淡入 + 壳体淡入+
-   scale 0.95→1,同帧起、同速 --dur-fast(150ms)+--ease-out——「壳先卡半透明」
-   两段感收口为一口气出现。ui/dialog 底件默认挂这两类(dialog.tsx)，
-   animateOnOpen=false 的弹窗直接显示。壳体动画只动 transform,
-   不碰 translate 属性——定位位移消费 --drag-x/--drag-y 拖动变量(dialog.tsx
-   translate-x/y-* 类),transform 关键帧与 translate 属性分属两条通道,叠加合成
-   不互抹(pile-modal.css 退场段同判词)。fill 不 forwards:一次性过场,播完回
-   自然态,常态透明度由各自样式声明,不留动画帧驻留。
-   源序即接管序:本段必须声明在下方退场段之前——开后立即关(<150ms)时同元素
-   两类并存、同特异度 animation 按源序后者胜,退场类压过入场类接管动画,
-   from-less 退场从当前透明度起退,无透明度闪变;reduced-motion 由 M-4 全局兜层
-   (* 选择器压 animation-duration)一并压瞬时,无需另写。 ── */
-@keyframes dialog-overlay-in {
-  from {
-    opacity: 0;
-  }
-}
-@keyframes dialog-content-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-}
-.dialog-overlay-in {
-  animation: dialog-overlay-in var(--dur-fast) var(--ease-out);
-}
-.dialog-content-in {
-  animation: dialog-content-in var(--dur-fast) var(--ease-out);
-}
-
-/* ── 底件系弹层遮罩退场(#767 弹窗详情族⑤):「播完再移除」——壳挂退场类的同时
-   遮罩淡出(--dur-fast),210ms 出口整树卸载(协议单源 hooks/use-dialog-exit)。
-   横幅系同款出口在 banner.css(.banner-overlay-out),两系互不引用;横幅系遮罩
-   已有 pointer-events:auto 的未分层规则,本档只挂底件系遮罩(utilities 层,无冲突)。
-   关键帧刻意 from-less(只有 to{opacity:0}):退场起态=当前透明度(含刚被接管的
-   入场动画已播到的值),开后立即关不闪变。 ── */
-@keyframes dialog-overlay-out {
-  to {
-    opacity: 0;
-  }
-}
-.dialog-overlay-out {
-  pointer-events: none;
-  animation: dialog-overlay-out var(--dur-fast) var(--ease-in) forwards;
-}
-
 /* ── #559 深色原生控件与占位符 ──
    color-scheme:dark:原生控件(number spinner/autofill/系统滚动条等)按深色模式
    渲染,不再按浅色反白突兀;全站无浅色模式,html 声明一次全生效。
@@ -187,7 +141,7 @@ body {
 :root {
   --touch-target: 40px;
   --touch-primary: 44px;
-  --touch-minimize: 48px;
+  --touch-dialog-control: 48px;
 }
 
 /* ── S2(#35) 可见焦点全局圈:虚线墨圈,与首页 H-4 同一口径 ──
@@ -420,7 +374,7 @@ body[data-screen="game"] #app::after {
    消费约定:宿主必须是定位元素(ui/dialog、ui/sheet 的 Popup 均 fixed),absolute
    pseudo 才有锚;圆角随宿主 border-radius:inherit;膜随宿主盒走、Portal 内自洽。
    色值与透明度零新源:渐变/噪点 URI 逐字同 #app 两膜,颗粒透明度消费同一组
-   --texture-opacity-* token(对局屏降档同拍,见下方 game 覆盖)。── */
+   --texture-opacity-menu token。── */
 .paper-skin::before,
 .paper-skin::after {
   content: "";
@@ -452,7 +406,38 @@ body[data-screen="game"] #app::after {
     700px 700px;
   opacity: var(--texture-opacity-menu);
 }
-/* 对局屏同拍 #app::after(#87):格线优先,纹理退后。 */
+/* 对局弹窗省去第二层 SVG 噪点栅格。 */
 body[data-screen="game"] .paper-skin::after {
-  opacity: var(--texture-opacity-game);
+  content: none;
+}
+
+.dialog-control {
+  position: absolute;
+  z-index: 11;
+  inset-block-start: 2px;
+  inset-inline-end: 2px;
+  display: grid;
+  inline-size: var(--touch-dialog-control);
+  block-size: var(--touch-dialog-control);
+  place-items: center;
+  color: var(--color-gold-bright);
+}
+
+.dialog-control > span {
+  display: grid;
+  inline-size: 32px;
+  block-size: 32px;
+  place-items: center;
+  border: 1px solid var(--color-gold-deep);
+  border-radius: 50%;
+  background: var(--color-panel);
+}
+
+.dialog-control:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: -2px;
+}
+
+.dialog-minimize {
+  inset-inline-end: calc(var(--touch-dialog-control) + 2px);
 }

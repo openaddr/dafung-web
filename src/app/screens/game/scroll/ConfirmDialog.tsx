@@ -1,10 +1,9 @@
 // 组件收口:已收口——确认框走 ui/ 底件惯用法(细则 docs/design/组件收口.md)
 // 通用确认弹层:对照旧 createConfirm(选都确认等场景)。
 // 不走 BannerShell 的完整横幅,用小卡片形态(标题 + 正文 + 两按钮),材质同横幅制式
-// (banner-card:漆底+漆金描边+压下入场)。
+// (banner-card:漆底+漆金描边)。
 // #153 收口到 ui/dialog(Base UI 水墨底件):role=dialog/aria-labelledby/aria-describedby、
-// 焦点陷阱、Esc 关闭、关闭还焦、初始聚焦确认钮全部由底件白拿;漆金小卡视觉、
-// banner 入场动画与全部 data-testid 与旧自绘版一致,调用方 props 签名不变。
+// 焦点陷阱、Esc 关闭、关闭还焦与初始聚焦由底件提供。
 // 模态口径(#155/#158 结论):backdropBlocks=true → modal=true(全模态:焦点陷阱 +
 // 锁滚 + 内部底衬拦棋盘,编辑器重置/导入失败同旧遮罩拦截体验);backdropBlocks=false
 // → modal="trap-focus"(只陷阱焦点,不锁滚、不拦外部指针)——选都确认态下棋盘保持
@@ -13,7 +12,6 @@ import { useEffect, useRef, type ReactNode } from "react";
 import "./banner.css";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@app/components/ui/dialog";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
-import { useDialogExit } from "@app/hooks/use-dialog-exit";
 import { BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
@@ -48,11 +46,6 @@ export function ConfirmDialog({
   danger,
 }: ConfirmDialogProps) {
   const popupRef = useRef<HTMLDivElement>(null);
-  // 退场动画(#767 底件族⑤):Esc 出口走「播完再移除」(小卡 dialog-card-out 淡出
-  // 下沉 8px + 遮罩 banner-overlay-out,210ms 出口再 onCancel 卸载);确认/取消两钮
-  // 是拍板,决策即时生效不走动画(横幅系 footer 钮同口径)。
-  const { closing, requestClose } = useDialogExit(onCancel);
-
   // 关闭还焦(硬卸载路径的兜底):本组件由调用方条件挂载、按钮点击后整树卸载,
   // 不走 Base UI open→false 的收起流程(其 returnFocus 挂在关闭事件上)。若焦点
   // 随弹层消失落到 body,则还焦给打开前聚焦的元素(如编辑器的「重置地图」钮);
@@ -114,32 +107,21 @@ export function ConfirmDialog({
       modal={backdropBlocks ? true : "trap-focus"}
       // 旧口径:点遮罩空白不关闭(出口只有 Esc 与两按钮);disablePointerDismissal
       // 在非模态下同时关掉「焦点移出即关」——点城换选择时焦点必然移出弹层。
-      // Esc 出口走退场协议(#767):收起中重复出口由协议守卫挡掉。
       disablePointerDismissal
       onOpenChange={(next) => {
-        if (!next) requestClose();
+        if (!next) onCancel();
       }}
     >
       <DialogContent
         ref={popupRef}
         data-testid={testid ?? T.confirmDialog}
         overlayProps={{
-          className: closing ? "banner-overlay banner-overlay-out" : "banner-overlay",
-          // 非模态遮罩只保留暗纱视觉、放行点击。必须内联 style:banner-overlay
-          // 自带 pointer-events:auto(未分层 CSS 恒压过 utilities 层的 none 类)。
+          // 非模态遮罩放行棋盘点击。
           style: backdropBlocks ? undefined : { pointerEvents: "none" },
         }}
-        // 弹层居中改 auto-margin 口径(inset-0 + m-auto + 尺寸自适应):入场动画
-        // banner-drop 的关键帧写 transform,与 translate 属性叠加合成但动画帧承担
-        // 落位动势;translate-x/y-* 消费 --drag-x/--drag-y(#674,变量由题名拖动
-        // 命令式写入,缺省 0px = 原居中)。切勿加 relative(会经 twMerge 顶掉底件
-        // 默认的 fixed)。pointer-events-auto:遮罩放行时卡片仍要接住点击。
-        // banner-card = 漆金横幅制式小卡(材质/入场动画,banner.css);banner-shell =
-        // 次级笺钮描边收口的作用域钩子。
         className={
           "banner-card banner-shell inset-0 m-auto h-max w-max translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] max-w-[400px] px-7 py-5" +
-          (backdropBlocks ? "" : " pointer-events-auto") +
-          (closing ? " dialog-card-out" : "")
+          (backdropBlocks ? "" : " pointer-events-auto")
         }
       >
         <DialogTitle data-testid={T.scrollTitle} className="mb-2 text-center text-xl">

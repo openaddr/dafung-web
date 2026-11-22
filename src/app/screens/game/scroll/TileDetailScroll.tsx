@@ -155,6 +155,45 @@ export const TileDetailScroll = memo(function TileDetailScroll({
       title={`「${tileName}」`}
       onClose={onClose}
       testid={T.tileDetailScroll}
+      summary={
+        <>
+          <span hidden data-tile-index={tileIndex} />
+          <div className="flex items-center justify-center gap-3">
+            <TileThumb tile={tile} def={property} tileIndex={tileIndex} players={players} />
+            <div className="text-center text-xs text-paper-dim">
+              <p className="m-0">
+                {tierLabel}
+                {" · "}
+                {groupLabel ? `${groupLabel} · ` : ""}
+                {ownerGuohao ? `${ownerGuohao}持有` : "无主"}
+                {isCapital && ownerLevel !== null ? ` · 都城 Lv.${ownerLevel}` : ""}
+                {/* 防御值沿用core/defense单源;无主城无防御语义。 */}
+                {ownerLevel !== null && ownerDefense !== null ? (
+                  <>
+                    {" · 防御 "}
+                    <span data-testid={T.tileDetailDefense} className="text-paper">
+                      {ownerDefense}/{fullDefenseOf(ownerLevel)}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+              {burningText !== null && <p className="m-0 mt-1 text-paper">{burningText}</p>}
+            </div>
+          </div>
+          {pickCapital ? (
+            <>
+              <AffordRow cash={context.cash} need={property.buildCost} purpose="capital" />
+              <p className="m-0 text-center text-sm text-paper">
+                都城补给 {formatMoney(property.resupply)}
+              </p>
+            </>
+          ) : (
+            <p className="text-center text-xs text-paper-dim">
+              购入价 {formatMoney(property.purchasePrice)}
+            </p>
+          )}
+        </>
+      }
       footer={
         pickCapital ? (
           <div className="flex justify-center gap-3">
@@ -168,47 +207,7 @@ export const TileDetailScroll = memo(function TileDetailScroll({
         ) : undefined
       }
     >
-      <span hidden data-tile-index={tileIndex} />
       <>
-        {/* 城池档位两字名(ADR-0042 决策 6 + DESIGN §4.8 名词纪律):题名下小字弱化
-            直缀档位名,不加前缀/定位语/解释。壳题名是 string 单源(BannerShell 的
-            aria-label/题印取字/内容身份/拖拽 resetKey 四职),档位名不入题名串
-            (否则吃题名 26px 金字制式,违背小字弱化),与缩略图并排省出费用与补给空间。 */}
-        {/* 真实格缩略图(#767 ②):与棋盘/名下清单逐像素同源,置摘要上方纯展示;
-            尺寸档(96px/矮横屏 48px)单源 banner.css 的横幅域 city-ledger-thumb 规则 */}
-        <div className="mb-1 flex items-center justify-center gap-3">
-          <TileThumb tile={tile} def={property} tileIndex={tileIndex} players={players} />
-          <div className="text-center text-xs text-paper-dim">
-            <p className="m-0 mb-1">{tierLabel}</p>
-            <p className="m-0">
-              {groupLabel ? `${groupLabel} · ` : ""}
-              {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
-              {isCapital && ownerLevel !== null ? ` · 都城 Lv.${ownerLevel}` : ""}
-              {/* 防御值沿用core/defense单源;无主城无防御语义。 */}
-              {ownerLevel !== null && ownerDefense !== null ? (
-                <>
-                  {" · 防御 "}
-                  <span data-testid={T.tileDetailDefense} className="text-paper">
-                    {ownerDefense}/{fullDefenseOf(ownerLevel)}
-                  </span>
-                </>
-              ) : null}
-            </p>
-            {burningText !== null && <p className="m-0 mt-1 text-paper">{burningText}</p>}
-          </div>
-        </div>
-        {pickCapital ? (
-          <>
-            <AffordRow cash={context.cash} need={property.buildCost} purpose="capital" />
-            <p className="m-0 mb-2 text-center text-sm text-paper">
-              都城补给 {formatMoney(property.resupply)}
-            </p>
-          </>
-        ) : (
-          <p className="m-1 mb-2 text-center text-xs text-paper-dim">
-            购入价 {formatMoney(property.purchasePrice)}
-          </p>
-        )}
         {damageRanking !== null && <CityDamageRanking entries={damageRanking} players={players} />}
         {/* 等级表:抽成共用 ValueTable(购地/扩军卷轴复用同一张表,避免三处漂移)。
             #671:主列=交易加成;第二列按城型——都城与选都候选显示补给(变卖价对都城

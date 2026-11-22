@@ -3,11 +3,7 @@
 // 命令统一经 controller.dispatchCommand 下发——组件不直接改引擎,与旧 openScroll 体系同构。
 // Wave3(候选5):不再 import getEngine 摸活引擎,城名/地产定义经 getControllerContext。
 // 挂载于 GameScreen #scroll-layer(absolute 覆盖,pointer-events 由各弹层自身开启)。
-// #90(R3-C3):相位切换时保留上一个子节点 210ms 作幽灵退场帧(经 BannerGhostContext
-// 让其壳体以退场类收场),决策弹层「收走」不再瞬时消失。
-// #107 C6:该机制(prev 快照/sig 判定/ghost state/定时/让位)整体下沉 useGhostChild,
-// 本层只算 skip(按子节点类型)、就地收场时调 yield(),render 期不再有 state/ref/定时。
-import { Fragment, useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { GameCommand } from "@core/authority";
 import { sellValueOf, type CityTier } from "@core/economy";
 import { tileIndexOfProperty } from "@core/board";
@@ -26,8 +22,6 @@ import { TileDetailScroll } from "./TileDetailScroll";
 import { TreasureVisitorScroll } from "./TreasureVisitorScroll";
 import { VictoryScreen } from "./VictoryScreen";
 import { BuyDecisionScroll, UpgradeDecisionScroll } from "./DecisionScrolls";
-import { BannerGhostContext } from "./BannerShell";
-import { useGhostChild } from "./useGhostChild";
 import type { TileDetailRequest } from "../useCapitalPick";
 
 interface DecisionScrollLayerProps {
@@ -172,7 +166,7 @@ export function DecisionScrollLayer({
     })();
   }, [snapshot.gameId]);
 
-  // 本帧应显示的弹层:原路由逻辑原样收进 IIFE,供幽灵帧机制对比子节点身份。
+  // 当前相位的抉择或详情。
   // registry 未就绪时旧版整层直接 return null;现统一表达为 child = null——
   // hook 调用须每渲染都执行(顺序稳定),「什么都不弹」与「弹层清空」是同一份输入。
   const child = (() => {
@@ -321,6 +315,7 @@ export function DecisionScrollLayer({
             tileName={tile.name}
             tierLabel={tierLineLabel(def.tier)}
             level={holding.level}
+            defense={holding.defense}
             property={def}
             isCapital={p.capitalIndex >= 0 && board.at(p.capitalIndex).propertyId === def.id}
             choices={snapshot.choices}
@@ -349,35 +344,20 @@ export function DecisionScrollLayer({
     return null;
   })();
 
-  // ── 幽灵帧协议唯一入口(#107 C6 useGhostChild):只在「弹层区清空」(child 由非空转
-  //    null)时为上一个卷轴播 210ms 退场帧;A→B 直接换页不播——快节奏相位回环下幽灵与
-  //    新卷轴并存,死按钮会抢在真按钮前面被 `.first()` 类选择器/e2e 命中,吞掉真实点击
-  //    (e2e 速战档实测)。终局属于全屏覆盖，详情卷轴就地收场，最小化后的旧卷轴也无需重现。
-  const ghostSlot = useGhostChild(child, {
-    skip: parked || child?.type === TileDetail || child?.type === VictoryScreen,
-  });
   const scope = tileDetail !== null && !tileDetail.pickCapital ? null : decisionKey;
 
   if (!map || !ctx) return null;
 
   return (
     <>
-      {/* 常驻 key 槽:幽灵帧出列时当前子节点不被 React 按位对调重挂 */}
-      <Fragment key="scroll-current">
-        {child?.type === VictoryScreen ? (
-          <div className="contents" inert={restartError !== null}>
-            {child}
-          </div>
-        ) : (
-          <DialogPeekDecision.Provider key={scope} value={scope}>
-            {child}
-          </DialogPeekDecision.Provider>
-        )}
-      </Fragment>
-      {/* 幽灵帧渲染在当前子节点之后(DOM 末位)+ 壳体幽灵态整体 inert,
-          保证任何选择器/点击永远先命中真实卷轴 */}
-      {ghostSlot.ghost !== null && (
-        <BannerGhostContext.Provider value={true}>{ghostSlot.ghost}</BannerGhostContext.Provider>
+      {child?.type === VictoryScreen ? (
+        <div className="contents" inert={restartError !== null}>
+          {child}
+        </div>
+      ) : (
+        <DialogPeekDecision.Provider key={scope} value={scope}>
+          {child}
+        </DialogPeekDecision.Provider>
       )}
       {restartError !== null && (
         <ConfirmDialog

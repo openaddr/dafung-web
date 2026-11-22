@@ -24,7 +24,6 @@ import { TESTIDS } from "../game/testids";
 import { InkBreathe, SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 // S1(#34):面板入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)。
 // 本面板被首页/配置页/大厅三处复用,css 在此引入保证每个宿主屏都带动画定义。
-import "@app/screens/game/scroll/scroll.css";
 // #832:矮横屏档密度收放(清单 34vh/预览段 8px),本面板专属不进共享文件。
 import "./MapSelectPanel.css";
 
@@ -219,13 +218,12 @@ export function MapSelectPanel({
         data-testid={TID.mapPanel}
         // 无独立 DialogTitle(笺头是自绘 h3),可访名走 aria-label
         aria-label="选择地图"
-        // S1(#34):面板入场 scroll-anim-unroll(0.35s;max-h 内滚不变)。
         // W2-包A:换皮入控件种——note-card 笺纸材质(墨褐发丝边),弹层投影走
         // --ink-shadow-lg(DESIGN §4.2 弹层档;note-card 默认 sm 是非分层样式会压过
         // 分层 utilities,故加 ! 钉住 lg)。宽度/内滚不动;定位改由底件接管。
         // block 抵消底件 Popup 的 flex 档,保持原块级布局(内滚滚动语义不变);
         // note-card(非分层)自压底件的纸底/发丝边 utilities,水墨皮不变。
-        className="map-select-panel scroll-anim-unroll note-card block w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-[8px] p-5 shadow-[var(--ink-shadow-lg)]!"
+        className="map-select-panel note-card block w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-[8px] p-5 shadow-[var(--ink-shadow-lg)]!"
       >
         {/* 笺头制式(视觉重做 v2):「图」字朱印 + 标签 + 发丝线(用法同 game/StatusBar);
             兼拖动把手(#674,DialogDragHandle 消费 DialogContent 下发的原语) */}

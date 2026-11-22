@@ -141,7 +141,9 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
         className="w-[min(92vw,520px)] gap-2.5 px-5 pt-3 pb-4"
       >
         <DialogDragHandle aria-hidden="true" className="absolute inset-x-0 top-0 h-11" />
-        <DialogTitle className="shrink-0 pr-10">对局诊断</DialogTitle>
+        <DialogTitle data-dialog-heading className="shrink-0 min-h-10 pr-12">
+          对局诊断
+        </DialogTitle>
         <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col gap-2 py-1 pr-3 font-wenkai text-sm">
             {captureError !== null && !reportedCapture && (

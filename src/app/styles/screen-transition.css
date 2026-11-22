@@ -9,13 +9,13 @@
    编排(#835 拍板节奏):0ms 起墨晕盖入(.screen-ink,400ms:三团偏移墨泡自
    屏幕中心晕开、盖满后化开,泡缘掺 gold 微光给「晕」可读边缘);240ms 起内容
    浮现(.screen-in 内容子代 250ms)——浮现与墨晕搭接(空窗 400→240ms 减半);
-   对局屏棋盘缓推(720ms)接在墨晕之后串播,不叠加。
+   对局由棋盘首画直接揭幕。
    reduced-motion:墨晕整个退场,浮现直接播——app.css 全局兜层把动画时长压到
    0.01ms,但不管 animation-delay,延迟归零须在本文件尾部显式处理。
    时长与缓动一律引用 tokens.css 动效 token(唯一源 core/theme.ts Motion);
-   例外:浮现延迟 240ms 与缓推时长 720ms 是 #835 票面写死的节奏字面量
+   例外:浮现延迟 240ms 是 #835 票面写死的节奏字面量
    (token 表无对应档,屏间转场单文件既存例外,DESIGN §6 已登记)。
-   浮现/缓推两条保留 from-only 写法(终态即元素自然状态,动画结束无样式跳变);
+   浮现保留 from-only 写法(终态即元素自然状态,动画结束无样式跳变);
    .screen-ink 播放中态(可见)≠ 终态(隐身),故显式写满三帧。 */
 
 /* ── 墨晕盖入层:铺在屏内容之前的背景幕,换屏瞬间的空档由晕开的墨团盖住。
@@ -112,60 +112,11 @@
   }
 }
 
-/* ── 对局屏棋盘缓推:进 game 屏一次性 scale 1.12→1,镜头感落座。
-   #835:推幅 1.06→1.12 + 缓动换 --ease-out(快推慢收,逐帧可辨,原 --ease-sine
-   中段匀速无感);一次性播完回到 none,transform 不残留包含块副作用。
-   架构体检 A 批:from 帧原叠 brightness(0.94)——filter 动画逐帧整板滤镜重栅
-   (真机弱 GPU 进屏最贵单笔),微压暗改由 .board-dim-in 叠罩承担(opacity 动画
-   走合成器,同延迟/时长/缓动,观感等价)。
-   选择器经 .screen-in-game 后代命中棋盘底板及触区共同的宿主:它是 HTML 布局盒
-   (transform-origin 默认即中心),只动 CSS transform,与棋盘 viewBox 取景
-   体系互不触碰(取景恒 computeFitView 总览定格,#946 平移缩放退役)。
-   #771 起与墨晕串接:延迟 --dur-slow,墨晕盖满化开后起推,不叠加。
-   时长 720ms 为 #835 拍板节奏(「240ms 墨起→内容入→720ms 镜头缓推」),token
-   表无对应档(见头注例外)。── */
-.screen-in-game .bv-deck {
-  transform-origin: center;
-  animation: board-push-in 720ms var(--ease-out);
-  animation-delay: var(--dur-slow);
-  animation-fill-mode: backwards;
-}
-@keyframes board-push-in {
-  from {
-    transform: scale(1.12);
-  }
-}
-/* 进屏压暗叠罩(架构体检 A 批,与缓推同拍串接):纯 opacity 动画合成器插值;
-   from 6% 黑与原 brightness(0.94) 观感等价(backwards fill:墨晕期即压暗,
-   推近中罩子淡出=「推近中提亮」)。盖 board-wrap 全域(棋盘+宿主),z 在
-   ConnectionBanner(z-20)之下、棋盘之上;pointer-events 放行。 */
-#board-wrap .board-dim-in {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: rgb(0 0 0 / 0.06);
-  opacity: 0;
-  animation: board-dim-in 720ms var(--ease-out);
-  animation-delay: var(--dur-slow);
-  animation-fill-mode: backwards;
-}
-@keyframes board-dim-in {
-  from {
-    opacity: 1;
-  }
-}
-
-/* ── reduced-motion:墨晕退场(整个不播,停在自然隐身态),浮现/缓推直接播。
-   全局兜层只压时长,这里补延迟归零(否则减弱动态下内容要白等一个墨晕拍)。
-   #835 墨泡/gold 全在 .screen-ink 内,随其退场一并静止,无新增 infinite。── */
 @media (prefers-reduced-motion: reduce) {
   .screen-ink {
     animation: none;
   }
-  .screen-in > :not(.screen-ink),
-  .screen-in-game .bv-deck,
-  #board-wrap .board-dim-in {
+  .screen-in > :not(.screen-ink) {
     animation-delay: 0ms;
   }
 }

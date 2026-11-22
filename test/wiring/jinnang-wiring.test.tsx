@@ -14,7 +14,6 @@ import { tileIndexOfProperty } from "@core/board";
 import { loadMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { JINNANG_DECK_LIST, jinnangCardOf } from "@core/jinnang";
-import { GHOST } from "@app/fx/timings";
 import {
   armBankrupt,
   armHero,
@@ -204,7 +203,7 @@ it("任一席位打开全员详情，查档关闭回到全员，选目标时席�
     expect(parent.hasAttribute("data-nested-dialog-open")).toBe(true);
     const detail = q(document, modal)!;
     click(q(detail, TESTIDS.modalClose)!);
-    await clock.advance(GHOST.frameMs);
+    await clock.advance(0);
     expect(q(document, modal)).toBeNull();
     expect(overview() === parent).toBe(true);
     expect(viewport.scrollTop).toBe(72);
@@ -212,7 +211,7 @@ it("任一席位打开全员详情，查档关闭回到全员，选目标时席�
   click(q(parent, TESTIDS.warlordsGems(2))!);
   click(q(parent, TESTIDS.modalClose)!);
   expect(q(document, TESTIDS.seatGemModal)).toBeNull();
-  await clock.advance(GHOST.frameMs);
+  await clock.advance(0);
 
   click(q(el, TESTIDS.jinnangCard("军情密探"))!);
   click(q(el, TESTIDS.actionbarPlay)!);
@@ -240,13 +239,13 @@ it("安卓系统返回先关闭分项，再关闭诸侯详情", async () => {
     const pressBack = register.mock.calls[0][0];
 
     act(() => pressBack({ canGoBack: false }));
-    await clock.advance(GHOST.frameMs);
+    await clock.advance(0);
     expect(q(document, TESTIDS.cityLedger)).toBeNull();
     expect(overview()).not.toBeNull();
     expect(unregister).not.toHaveBeenCalled();
 
     act(() => pressBack({ canGoBack: false }));
-    await clock.advance(GHOST.frameMs);
+    await clock.advance(0);
     expect(overview()).toBeNull();
     expect(unregister).toHaveBeenCalledTimes(1);
   } finally {
@@ -528,7 +527,7 @@ describe("手牌架内容与临时显隐", () => {
     expect(treasureModal.textContent).toContain(book.name);
     expect(q(treasureModal, TESTIDS.bookUse(book.id))).toBeNull();
     click(q(treasureModal, TESTIDS.modalClose)!);
-    await clock.advance(GHOST.frameMs);
+    await clock.advance(0);
 
     const deck = [...engine.jinnangDeck];
     const discard = [...engine.jinnangDiscard];
