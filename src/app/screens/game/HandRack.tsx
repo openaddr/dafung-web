@@ -3,7 +3,7 @@
 // 全展检视,#254)。空手且无技能卡时，手动打开只显示底缘一行「暂无锦囊」(#1519)。
 // 显隐由 GameScreen 的回合、决策窗和手动开收状态控制，banner-only 形态只挂触发技横幅。
 //
-// 样式在 hand-rack.css，牌面复用 card/ 目录的 JinnangCardFace 和 SkillCardFace。
+// 样式在 hand-rack.css，锦囊、技能与技能书复用 card/ 目录的牌面。
 //
 // 常态交互(已决事项 5:点牌=抽屉,长按同效):点击/长按(按住 500ms)单张牌 → 详情
 // 弹层,壳走 ui/dialog 底件(Base UI:焦点陷阱/Esc/点外关闭全部白拿,不自写交互
@@ -35,9 +35,14 @@ import {
   type ReactNode,
 } from "react";
 import { Button } from "@base-ui/react/button";
-import { JinnangCardDetail, JinnangCardFace } from "@app/components/card/JinnangCardFace";
+import {
+  JinnangCardDetail,
+  JinnangCardFace,
+  TreasureCardFace,
+} from "@app/components/card/JinnangCardFace";
 import { heroDefOf } from "@app/components/card/HeroCardFace";
 import { SkillCardFace } from "@app/components/card/SkillCardFace";
+import { TreasureArt } from "@app/components/card/TreasureArt";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
@@ -53,6 +58,7 @@ import { jinnangCardOf } from "@core/jinnang";
 import { isSkillOption } from "@core/choices";
 import type { HeroSlotRow } from "@core/snapshot";
 import type { ChoiceOption } from "@core/choices";
+import type { TreasureDef } from "@core/treasures";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import type { SkillGlossaryTarget } from "./SkillGlossaryDialog";
 import { TESTIDS } from "./testids";
@@ -465,6 +471,8 @@ interface HandRackProps {
   player: SnapshotPlayer;
   /** 出牌阶段态(#256);缺省 = 常态架(点牌开详情)。 */
   junshi?: JunshiWindow;
+  skillBooks: readonly TreasureDef[];
+  onReadBook?: (bookId: string) => void;
   /** 反应窗态(#281);缺省 = 常态架。与 junshi 互斥(AwaitingReaction ≠ AwaitingJinnang)。 */
   reaction?: RackReaction;
   /** 「你可」触发卡(#1378,SkillChoiceBanner 件,GameScreen 组装):待决技窗态,
@@ -502,12 +510,14 @@ interface StackVars {
 }
 
 /** 屏幕下缘手牌架(#238 一期 T3;#700 全浮层骨架改形:透明浮置、chrome 退役):
- *  手牌与技能卡横排，签面归 HandZone。出牌阶段在架上选牌，反应锦囊在架上以金边提示。
+ *  锦囊、技能书与主动技横排，签面归 HandZone。出牌阶段在架上选牌，反应锦囊在架上以金边提示。
  *  待决触发技挂在架上缘，收架时只呈现触发技横幅。
  *  em 基和降档断点见 hand-rack.css，叠加压缩按架体可用宽度测量。 */
 export const HandRack = memo(function HandRack({
   player,
   junshi,
+  skillBooks,
+  onReadBook,
   reaction,
   skillBanner,
   nudgePulse = 0,
@@ -536,6 +546,7 @@ export const HandRack = memo(function HandRack({
   const hand = player.jinnangHand;
   // 渲染项实例键区分同名牌，不替代引擎的语义 id。
   const cardOptions = junshi != null && !targeting ? junshi.options : [];
+  const skillCount = cardOptions.filter(isSkillOption).length;
   const cardItems = cardOptions.map((option, index) => ({
     option,
     key: isSkillOption(option) ? option.id : `${option.id}-${nthSame(hand, index, option.id)}`,
@@ -546,7 +557,8 @@ export const HandRack = memo(function HandRack({
       ? selectedOption.id
       : reaction?.selection?.optionId;
   const selectedCard = selectedCardId == null ? null : jinnangCardOf(selectedCardId);
-  const renderCount = junshi != null ? (targeting ? hand.length : cardOptions.length) : hand.length;
+  const renderCount =
+    junshi != null && !targeting ? cardOptions.length + skillBooks.length : hand.length;
   const many = renderCount > 3;
   // 生命周期只看业务段与窗实例，不看每拍新建的 options/ReactNode 引用。
   const inspectionStage =
@@ -665,12 +677,11 @@ export const HandRack = memo(function HandRack({
             box.cardWidth + 3 * box.em,
             (box.avail - box.cardWidth) / (renderCount - 1),
           );
-          const skills = cardOptions.filter(isSkillOption).length;
-          const skillWidth = skills * box.cardWidth;
+          const skillWidth = skillCount * box.cardWidth;
           // 技能卡在牌序末尾，保留卡脚触区；空间不足时仍可全展。
-          if (skills > 1 && step < box.cardWidth && box.avail > skillWidth) {
+          if (skillCount > 1 && step < box.cardWidth && box.avail > skillWidth) {
             return {
-              step: (box.avail - skillWidth) / (renderCount - skills),
+              step: (box.avail - skillWidth) / (renderCount - skillCount),
               skillStep: box.cardWidth,
             };
           }
@@ -722,7 +733,7 @@ export const HandRack = memo(function HandRack({
               key={key}
               option={o}
               heroId={slot.heroId}
-              index={i}
+              index={i + skillBooks.length}
               selected={junshi.selectedKey === key && o.available}
               onSelect={() => select({ key, optionId: o.id })}
               onDeselect={() => select(null)}
@@ -786,12 +797,14 @@ export const HandRack = memo(function HandRack({
       );
     });
   })();
+  // 技能卡保留在牌架末尾，避免后续牌面盖住它们的技能详情入口。
+  const bookPosition = handItems.length - skillCount;
 
   return (
     <section
       ref={rackRef}
       data-testid={TESTIDS.jinnangRack}
-      aria-label="锦囊手牌"
+      aria-label="手牌架"
       className={"hand-rack" + (junshi != null ? " junshi" : "") + (spreadAll ? " spread-all" : "")}
       style={box == null ? undefined : { ["--rack-avail" as string]: `${box.avail}px` }}
     >
@@ -857,7 +870,36 @@ export const HandRack = memo(function HandRack({
               }
               style={handStyle}
             >
-              {handItems}
+              {handItems.slice(0, bookPosition)}
+              {skillBooks.map((book, index) => (
+                <Button
+                  key={`${book.id}:${index}`}
+                  type="button"
+                  data-testid={TESTIDS.bookUse(book.id)}
+                  aria-label={`研读${book.name}`}
+                  aria-haspopup="dialog"
+                  className="usable border-0 bg-transparent p-0"
+                  style={{ ["--i" as string]: bookPosition + index }}
+                  disabled={onReadBook === undefined}
+                  onClick={
+                    onReadBook &&
+                    (() => {
+                      collapseSpread();
+                      getAudio().play("jinnangSelect");
+                      onReadBook(book.id);
+                    })
+                  }
+                >
+                  <TreasureCardFace
+                    name={book.name}
+                    level={book.level}
+                    desc={book.desc}
+                    art={<TreasureArt treasure={book} />}
+                    style={tiltVars(`${book.id}#${index}`)}
+                  />
+                </Button>
+              ))}
+              {handItems.slice(bookPosition)}
             </div>
           </div>
         ) : (
@@ -871,7 +913,7 @@ export const HandRack = memo(function HandRack({
           ref={badgeRef}
           type="button"
           data-testid={TESTIDS.jinnangSpreadBadge}
-          aria-label={`手牌 ${renderCount} 张,点按${spreadAll ? "收起" : "全展检视"}`}
+          aria-label={`牌架 ${renderCount} 项，点按${spreadAll ? "收起" : "全展检视"}`}
           aria-pressed={spreadAll}
           onClick={() => setSpreadAll((value) => !value)}
           className={"rack-spread-badge" + (spreadAll ? " on" : "")}

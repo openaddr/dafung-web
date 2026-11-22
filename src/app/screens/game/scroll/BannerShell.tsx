@@ -57,24 +57,19 @@ interface BannerShellProps {
   title: string;
   children: ReactNode;
   /** #729 footer 槽:三段式的钉底段(题行钉顶 + 正文井内滚 + 拍板钮钉底)。
-   *  摆固定抉择钮组(购地/扩军/耗竭/选都)或破产结算行——正文内滚合法(浏览内容),
-   *  拍板钮恒在场、永不滚出视口。传了才渲染:不可决断的弹层(机遇选项集/详情等
+   *  摆固定抉择钮组(购地/扩军/选都)或破产结算行——正文内滚合法(浏览内容),
+   *  拍板钮恒在场、永不滚出视口。传了才渲染:不可决断的弹层(详情等
    *  钮即内容或无可拍板)不传,槽不占位、零余白。 */
   footer?: ReactNode;
   /** 可放弃的弹层提供关闭钮。 */
   onClose?: () => void;
   /** 外层容器上的 data-testid(各决策弹层用自己的 id;e2e 契约:scroll-* 前缀保留)。 */
   testid?: string;
-  /** 奇遇宽卷(#1155 奇遇演出):比常规决策横幅宽一号——奇遇身份全靠形制传达,
-   *  不立文字牌(ADR-0051);消费方=EncounterChoiceScroll(按 ONCE id 集合派生)。 */
+  /** 破产清算的资产网格使用较宽的横幅。 */
   wide?: boolean;
   /** 定高分页内容不使用滚动井;由业务网格控制页内密度。 */
   fixedBody?: boolean;
   className?: string;
-  /** 题行侧饰槽(#1155):纯视觉纹饰宿主(奇遇金穗一对),绝对定位不占排版、
-   *  pointer-events 归宿主自管;渲染在题行末位,章印 span:first-child/题名 h2 的
-   *  结构选择器契约(TIER_SKIN 皮肤下探口径)两位不变。 */
-  sideOrnament?: ReactNode;
 }
 
 /** 决策弹层共用按钮(旧 .btn .btn-primary → ink-btn/note-btn 种,app.css 材质单源)。
@@ -85,14 +80,12 @@ export function BannerButton({
   primary,
   testid,
   disabled,
-  accessibleLabel,
 }: {
   children: ReactNode;
   onClick: () => void;
   primary?: boolean;
   testid?: string;
   disabled?: boolean;
-  accessibleLabel?: string;
 }) {
   // #90:幽灵退场帧里的按钮一律 disabled——e2e/用户的选择器(如
   // `button[data-testid^="action-"]:not([disabled])`)在 210ms 退场窗口内
@@ -107,7 +100,6 @@ export function BannerButton({
       data-testid={testid}
       onClick={onClick}
       disabled={disabled || isGhost}
-      aria-label={accessibleLabel}
       className={
         primary
           ? "ink-btn relative rounded-[5px] px-5 py-2.5 font-brush text-[17px] transition-colors disabled:opacity-40"
@@ -128,7 +120,6 @@ export function BannerShell({
   wide,
   fixedBody,
   className,
-  sideOrnament,
 }: BannerShellProps) {
   // #90(R3-C3)关闭:× 走 requestClose——先置 closing(壳体挂退场类、
   // 遮罩淡出并放行点击、aria-hidden),210ms 后(退场动画 var(--dur-fast) =150ms 已走完)
@@ -192,8 +183,7 @@ export function BannerShell({
   // 与 translate 属性叠加合成——入场动画进行中拖动照录变量,动画结束位移生效)。
   // 宽自适应(#767 弹窗详情族③):clamp(480px,72vw,640px)——844 标准档 607px,
   // 价值表升到 560 后两侧死带消除;窄横屏(≥667)随 72vw 收窄,480 下限保住拍板钮行;
-  // 上限 640 维持大屏既有制式。奇遇宽卷(#1155):wide 档宽一号 clamp(540px,80vw,700px)
-  // ——844 标准档 675px,金穗侧饰与「宽一号」形制共同承载奇遇身份(纯视觉,无文字牌)。
+  // 上限 640 维持既有制式。
   const shellBody = (
     <div
       ref={(node) => {
@@ -256,9 +246,6 @@ export function BannerShell({
           </button>
         )}
         {peek.minimize !== undefined && <DialogMinimize onClick={peek.minimize} />}
-        {/* 题行侧饰槽(#1155 奇遇金穗):末位渲染保住「首子题印 span/次子题名 h2」
-            的皮肤选择器契约;纹饰自带绝对定位与 pointer-events-none(见 EncounterSpray)。 */}
-        {sideOrnament}
       </div>
       {/* 正文井:深墨实底(bg-deep)收口深底可读性——纸色正文 ≈16:1、淡纸 ≈9:1、
           朱砂警示 ≈5.5:1,全部 ≥4.5(漆金带上直接排小字对 danger 仅 ≈4.1,井底加深

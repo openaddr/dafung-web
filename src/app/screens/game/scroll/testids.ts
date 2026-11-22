@@ -15,12 +15,6 @@ export const SCROLL_TESTIDS = {
   buyScroll: "scroll-buy",
   upgradeScroll: "scroll-upgrade",
 
-  // ── 抉择机遇(#124):容器 + 选项(下标 = def.choices 序,与 snapshot.choices 一致)──
-  encounterScroll: "scroll-encounter",
-  encounterOption: (index: number) => `scroll-encounter-option-${index}` as const,
-  /** 奇遇金穗纹饰(#1155):宽卷题行两端的金穗侧饰宿主(一对镜像 SVG,纯装饰)。 */
-  encounterSpray: "scroll-encounter-spray",
-
   // (scroll-jinnang* 族已随旧弹窗退役删除,#256/#255:放行点迁 actionbar-pass,
   //  选项/确认 testid 族由 HandRack 的 jinnang-card-* 与动作条 actionbar-* 承担。)
 

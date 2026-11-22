@@ -6,13 +6,13 @@
 // 【判词(本件一处,判词归一 #1295)】giveJinnang=裸写形:生产发牌只有牌堆顶随机抽
 // (drawJinnang),无「给指定牌」流程——直写是唯一通路;种的是手牌**终态**(cards 即
 // 手牌全集,非追加),写后重灌派生量 jinnangHandCount(公开信息字段,模型注释单源)。
-// 数值族三件判词在各自函数头注(giveTreasure/setCash 各一处;setReputation/
-// setStamina 薄包族共一处),#1299。布景族四件判词在各自函数头注(placePlayer/
+// 数值族三件判词在各自函数头注(giveTreasure/setCash/setStamina,#1299)。
+// 布景族四件判词在各自函数头注(placePlayer/
 // grantProperty/giveTreasureFromDeck 各一处;armHero/armHeroOffer 名将候选族共一处),
 // #1300。执行态族三件判词:armPhase 一处、破产终局族(armBankrupt/armDebt/
 // armGameOver)共一处、armReaction 一处,#1301。确定性族两件判词:pinDice(测试
-// 替身)一处、injectWarLog 一处,#1302。残块收编四件(投影族 armLanding/
-// setJinnangUsedTags 共一处、armVisitor 一处、setBot 一处),#1303——force 逃生口
+// 替身)一处、injectWarLog 一处,#1302。其余判词随 armLanding、armVisitor、setBot
+// 与 setJinnangPiles。#1303 起 force 逃生口
 // 随 #1303 退役,全仓非常规通道只剩 plant(场景字段种植)+ callEngine(公共方法
 // 直呼)两条。
 // 生产零 import 本文件不受限(与 testing.ts「仅 test/ 可 import」的区别):桥
@@ -39,6 +39,12 @@ export interface GiveJinnangOp {
   cards: string[];
 }
 
+export interface SetJinnangPilesOp {
+  kind: "setJinnangPiles";
+  deck: string[];
+  discard: string[];
+}
+
 /** 塞指定珍宝指令(裸写形):把 seat 的珍宝位直写为 treasures 终态(全集替换,非追加;
  *  保起始珍宝的追加语义由测试侧读现值拼全集——snap 通路,形制仍一处)。
  *  珍宝对象不校验目录(与 giveJinnang 相反,判词见头注)。 */
@@ -53,13 +59,6 @@ export interface SetCashOp {
   kind: "setCash";
   seat: number;
   cash: number;
-}
-
-/** 声望指令(薄包公共方法):把 seat 的声望种到 reputation 终态(对外绝对值语义)。 */
-export interface SetReputationOp {
-  kind: "setReputation";
-  seat: number;
-  reputation: number;
 }
 
 /** 体力指令(薄包公共方法):把 seat 的体力种到 stamina 终态(对外绝对值语义;
@@ -215,20 +214,13 @@ export interface SetBotOp {
   bot: boolean;
 }
 
-/** 出牌用过标签投影指令(裸写形,#1303,判词同投影族见 armLanding):把回合内
- *  已用标签投影直写为 tags 终态。 */
-export interface SetJinnangUsedTagsOp {
-  kind: "setJinnangUsedTags";
-  tags: string[];
-}
-
 /** 种植指令联合(可序列化,#1298 giveJinnang 族首发;其余族按迁移票逐族扩展
  *  kind,#1299-#1303——联合即扩展位,桥分发 switch 穷尽校验)。 */
 export type PlantOp =
   | GiveJinnangOp
+  | SetJinnangPilesOp
   | GiveTreasureOp
   | SetCashOp
-  | SetReputationOp
   | SetStaminaOp
   | PlacePlayerOp
   | GrantPropertyOp
@@ -245,8 +237,7 @@ export type PlantOp =
   | InjectWarLogOp
   | ArmLandingOp
   | ArmVisitorOp
-  | SetBotOp
-  | SetJinnangUsedTagsOp;
+  | SetBotOp;
 
 /** 塞指定锦囊(判词见文件头注):手牌终态=cards,派生量 jinnangHandCount 同步重灌。
  *  目录外牌/越界座位当场炸(零兜底:种错的场要响)。 */
@@ -258,7 +249,15 @@ export function giveJinnang(e: GameEngine, seat: number, cards: string[]): void 
   p.jinnangHandCount = p.jinnangHand.length;
 }
 
-/** 【判词(giveTreasure 一处,#1299)】塞指定珍宝=裸写形:生产珍宝入手只随机遇/探宝/
+/** 种植指定牌序与弃牌：生产流程由骰源和历次出牌决定，布景直接替换两堆并重算公开余数。 */
+export function setJinnangPiles(e: GameEngine, deck: string[], discard: string[]): void {
+  for (const id of [...deck, ...discard]) jinnangCardOf(id);
+  e.jinnangDeck = [...deck];
+  e.jinnangDeckCount = deck.length;
+  e.jinnangDiscard = [...discard];
+}
+
+/** 【判词(giveTreasure 一处,#1299)】塞指定珍宝=裸写形:生产珍宝入手可经探宝、求书、
  *  交易/变卖结算,无「给指定珍宝」流程(落点与时机不可控)——直写是唯一通路。语义=
  *  **终态替换**(与 giveJinnang 同款,站点多数派):关中谱起手珍宝 2 件/人,「保起始
  *  珍宝再添几件」的站点(scrolls 交涉/变卖)由测试侧读现值拼全集,形制仍一处。
@@ -284,19 +283,7 @@ export function setCash(e: GameEngine, seat: number, cash: number): void {
   p.cash = cash;
 }
 
-/** 【判词(setReputation/setStamina 共一处,#1299)】声望/体力=**薄包公共方法**(两件
- *  形制同款,判词归一到此):对外绝对值语义(测试要终态),内部换算 delta 走引擎
- *  唯一写口 addReputation/addStamina——公共口的不变量天然全保真。声望:无夹紧
- *  (#1090 去夹紧),绝对值精确可达;ReputationChanged 时机随唯一写口正常广播
- *  (事件流多一条,战报零染——断言事件流序列的被测面需择位,现状无此面)。
- *  体力:夹紧 0~100 随公共口,种超界值=落夹紧终态(这正是公共口语义,不加防)。
- *  历史依赖场景(如「连续扣到耗竭」)由测试侧多次调本件或直呼公共方法。越界座位炸。 */
-export function setReputation(e: GameEngine, seat: number, reputation: number): void {
-  const p = e.players[seat];
-  if (p == null) throw new Error(`setReputation:座位 ${seat} 不存在(共 ${e.players.length} 席)`);
-  e.addReputation(seat, reputation - p.reputation);
-}
-
+/** 【判词(setStamina)】把目标体力换算为增减量，走 addStamina 夹紧到 0~100。 */
 export function setStamina(e: GameEngine, seat: number, stamina: number): void {
   const p = e.players[seat];
   if (p == null) throw new Error(`setStamina:座位 ${seat} 不存在(共 ${e.players.length} 席)`);
@@ -366,9 +353,8 @@ export function setDefense(e: GameEngine, seat: number, propertyId: string, defe
 
 /** 【判词(armHero/armHeroOffer 名将候选族共一处,#1300)】塞名将/候选=裸写形:麾下
  *  槽位与招贤候选都无「授指定将/指定候选」公共命令——生产仅招贤卷轴随机抽 3
- *  (offerHeroes shuffle+slice,授技预掷 rollGrantedSkills)与机遇效果 grantHero
- *  一途,落点与时机不可控,直写是唯一通路。签名与白盒先例统一(testing.ts
- *  armHero/heroOffer,#785 槽位化):armHero=槽位行**追加**(HeroSlot 形状单源
+ *  (授技预掷 rollGrantedSkills)与锦囊「求贤令」,种植件直接写入确定的候选或槽位。
+ *  armHero=槽位行**追加**(HeroSlot 形状单源
  *  roster;skillIds 缺省=整池原序,显式=实授子集——种植者定预掷结果,引擎落定原样
  *  入槽不重掷);armHeroOffer=候选**终态整体替换**(e.offeredHeroes 单字段,候选行
  *  {def,skillIds} 形状单源 recruitment,行序=卷轴陈列序,skillIds=各行全池)。候选
@@ -400,7 +386,7 @@ export function armHeroOffer(e: GameEngine, heroIds: string[]): void {
  *  虚构 def 在这些面会画错,giveTreasure 的「不校验目录」判词只覆盖计数位被测面。
  *  语义=**终态替换**(与 giveTreasure 同款,三站点多数派;「保起始珍宝再添」的追加
  *  形由测试侧读现值拼全集,同 giveTreasure 判词口径)。牌堆**只读不收缩**(slice 非
- *  splice):抽走实例会扰动后续机遇抽珍宝的牌序,种植件不碰对局随机面。count 超牌堆
+ *  splice):抽走实例会改变后续探宝抽取顺序,种植件不碰对局随机面。count 超牌堆
  *  深度与越界座位当场炸(零兜底:静默短发是掩盖)。 */
 export function giveTreasureFromDeck(e: GameEngine, seat: number, count: number): void {
   const p = e.players[seat];
@@ -417,7 +403,6 @@ const TURN_PHASES: ReadonlySet<TurnPhase> = new Set([
   "Roll",
   "AwaitingDecision",
   "AwaitingHeroPick",
-  "AwaitingEncounter",
   "AwaitingJinnang",
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
@@ -612,18 +597,15 @@ export function injectWarLog(e: GameEngine, line: Omit<InjectWarLogOp, "kind">):
   e.logEvent(line.category, line.player, line.brief, line.detail, line.amount);
 }
 
-/** 【判词(投影族 armLanding/setJinnangUsedTags 共一处,#1303)】落格投影/用过标签
- *  投影=裸写形:两者都是结算的派生呈现/决策态——pendingLand(决策上下文)与
+/** 【判词(armLanding,#1303)】落格投影=裸写形:pendingLand(决策上下文)与
  *  lastLandOutcome(表现投影)由落格结算一并置值(movement-flow 落格分流同拍双写),
- *  jinnangUsedTags 由出牌结算累积、endTurn 清;「指定投影形态」无生产流程(行军落点
+ *  「指定投影形态」无生产流程(行军落点
  *  由骰流驱动,推演到指定落格不可控)——直写是唯一通路。armLanding 两字段**一体置值/
  *  一体清**(拆开即表现与决策不自洽,react-solo 购地例布场注同判词);停车坪清投影
  *  (landing=null)=「决策卷轴不遮顶栏」的空闲态形(rack/narrow/layout/float-skeleton
  *  八站多数派)。propertyId 是唯一句柄(与 pendingLand 同模式),def 目录现查(目录外
  *  当场炸);形制与归属矛盾当场炸(PropertyAvailable 须无主/OwnProperty 须有主——
- *  owner 按持有关系解析,与生产 settleMarchLanding 同源,不另设座位参数)。
- *  setJinnangUsedTags=终态替换,标签文本不校验(渲染面按文本出章,素材由测试作者
- *  定,同 giveTreasure 口径)。 */
+ *  owner 按持有关系解析,与生产 settleMarchLanding 同源,不另设座位参数)。 */
 export function armLanding(e: GameEngine, landing: ArmLandingOp["landing"]): void {
   if (landing == null) {
     e.lastLandOutcome = null;
@@ -664,10 +646,6 @@ export function setBot(e: GameEngine, seat: number, bot: boolean): void {
   e.players[seat].isBot = bot;
 }
 
-export function setJinnangUsedTags(e: GameEngine, tags: string[]): void {
-  e.jinnangUsedTags = [...tags];
-}
-
 /** 种植指令分发单源:桥 plant(op) 与单测共用的唯一入口(未知 kind 当场炸——
  *  分发口不吞错,零兜底)。 */
 export function applyPlant(e: GameEngine, op: PlantOp): void {
@@ -675,14 +653,14 @@ export function applyPlant(e: GameEngine, op: PlantOp): void {
     case "giveJinnang":
       giveJinnang(e, op.seat, op.cards);
       return;
+    case "setJinnangPiles":
+      setJinnangPiles(e, op.deck, op.discard);
+      return;
     case "giveTreasure":
       giveTreasure(e, op.seat, op.treasures);
       return;
     case "setCash":
       setCash(e, op.seat, op.cash);
-      return;
-    case "setReputation":
-      setReputation(e, op.seat, op.reputation);
       return;
     case "setStamina":
       setStamina(e, op.seat, op.stamina);
@@ -734,9 +712,6 @@ export function applyPlant(e: GameEngine, op: PlantOp): void {
       return;
     case "setBot":
       setBot(e, op.seat, op.bot);
-      return;
-    case "setJinnangUsedTags":
-      setJinnangUsedTags(e, op.tags);
       return;
     default:
       throw new Error(`applyPlant:未知种植指令 kind=${String((op as { kind: unknown }).kind)}`);

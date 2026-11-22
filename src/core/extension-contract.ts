@@ -56,7 +56,7 @@ export interface ExtensionManifest {
 export interface ExtensionAuthorityContribution {
   /** 追加进技能表的技能(被动+主动同表,ADR-0036;扩展名将的池可引用核心技)。 */
   skills?: SkillDef[];
-  /** 追加进名将池的名将(招贤/机遇送将/快照回链全走 HEROES 单表;skillPool 声明池)。 */
+  /** 追加进名将池的名将(招贤、锦囊求贤令和快照恢复共用 HEROES；skillPool 声明技能池)。 */
   heroes?: HeroDef[];
   /** 追加进效果注册表的效果(TriggerSkill.effect 按 id 查用)。 */
   effects?: Record<string, EffectFn>;

@@ -15,7 +15,7 @@
 // 流程详见 docs/how-to/开发与测试.md「黄金台账」节。
 //
 // 语料 = 票一同款(test/whole-game/headless-whole-game.test.ts):guanzhong/zhongyuan/yanzhou
-// × seed 3001-3010 × 4 bot 座,走 runWholeGame(机遇 = 产品默认,ADR-0035)。
+// × seed 3001-3010 × 4 bot 座,走 runWholeGame。
 // 不装扩展包——与票一同口径(装载会把扩展名将灌进全局名将池,bun test 单进程实锤)。
 //
 // 用法:bun scripts/check-goldens.ts          # 校验模式(重跑 diff,漂移即红)

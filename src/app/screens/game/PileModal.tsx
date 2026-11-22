@@ -16,7 +16,7 @@
 // 矮屏规范(#708,五族一处收口):壳最大高=视口高−64px(上下安全边);头部钉住,
 // 体部=ui/scroll-area 内滚(首帧可见滚动提示),底部操作行经 footer 槽钉住不随滚;
 // 矮横屏档行高自适应(卡基/列宽缩档)断头防治,细则全在 pile-modal.css 规范块。
-import { memo, useEffect, useState, type ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
@@ -29,7 +29,6 @@ import { guidePriceOf, isSkillBook } from "@core/treasures";
 import { skillBookLearners } from "@core/roster";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
-import { SkillBookLearnModal } from "./SkillBookLearnModal";
 import { HeroInspectionModal } from "./HeroInspectionModal";
 import "./pile-modal.css";
 
@@ -181,37 +180,8 @@ export function treasurePrice(t: SnapshotPlayer["treasures"][number]) {
 }
 
 /** 珍宝弹层内容:已持有全件的装裱卡大格网格(陈列档 7.6px 基=114×152),
- *  每格 = TreasureCardFace(品级角标+题签+鉴藏印)+ 指导价名牌。
- *  技能书可点态(#1146):己方出牌阶段(bookPlayReady)+麾下可学
- *  (skillBookLearners 单源)时为真 button——1 名可学直发用书命令、多名开选人弹窗;
- *  0 名可学=不可用态(书=纯交易物照常陈列),非出牌阶段同理,原因显示在书格内。
- *  空网格(#851 空态器物化):裸网格空洞退役,接 #768 斜放朱印制式(单源
- *  ArtifactEmpty,MapStrip 先例);计数行如实报 0 口径不变。 */
-function TreasureGrid({
-  player,
-  bookPlayScope,
-  bookPlayReady,
-  onUseBook,
-}: {
-  player: SnapshotPlayer;
-  bookPlayScope: string | null;
-  bookPlayReady: boolean;
-  onUseBook?: (treasureId: string, heroId: string) => void;
-}) {
-  // 选将跟随同一次出牌机会和当前藏品，临时操作锁仅禁止提交。
-  const [learnPick, setLearnPick] = useState<{ bookId: string; scope: string } | null>(null);
-  const selectedTreasure =
-    learnPick !== null && learnPick.scope === bookPlayScope
-      ? player.treasures.find((treasure) => treasure.id === learnPick.bookId)
-      : undefined;
-  const selectedBook =
-    selectedTreasure !== undefined && isSkillBook(selectedTreasure) ? selectedTreasure : null;
-  const learnersForPick =
-    selectedBook === null ? [] : skillBookLearners(player, selectedBook.skillId);
-  const canKeepPick = learnersForPick.length > 0;
-  useEffect(() => {
-    if (!canKeepPick && learnPick !== null) setLearnPick(null);
-  }, [canKeepPick, learnPick]);
+ *  每格显示装裱卡与指导价，技能书还显示研读入口或当前不可学原因。 */
+function TreasureGrid({ player }: { player: SnapshotPlayer }) {
   return (
     <>
       <PileZone>
@@ -223,87 +193,29 @@ function TreasureGrid({
         </div>
       ) : (
         <div className="pile-grid">
-          {player.treasures.map((t, i) => {
-            const face = treasureFace(t);
-            const price = treasurePrice(t);
-            if (!isSkillBook(t)) {
-              return (
-                <div className="pile-cell" key={`${t.id}:${i}`}>
-                  {face}
-                  {price}
-                </div>
-              );
-            }
-            const book = t;
-            const learners = skillBookLearners(player, book.skillId);
-            if (bookPlayScope === null || learners.length === 0 || onUseBook == null) {
-              // 不可用态静态陈列,原因随书格可见且可被读屏读取。
-              const why =
-                bookPlayScope === null
-                  ? "出牌阶段可研读"
-                  : learners.length === 0
-                    ? "麾下无人可习此技(可交易变卖)"
-                    : "此处不可研读";
-              return (
-                <div className="pile-cell" key={`${book.id}:${i}`}>
-                  {face}
-                  {price}
-                  <span className="pile-book-reason">{why}</span>
-                </div>
-              );
-            }
-            return (
-              <button
-                type="button"
-                className="pile-cell"
-                key={`${book.id}:${i}`}
-                data-testid={TESTIDS.bookUse(book.id)}
-                aria-label={`研读${book.name}`}
-                disabled={!bookPlayReady}
-                onClick={() => {
-                  if (!bookPlayReady) return;
-                  if (learners.length === 1) onUseBook(book.id, learners[0]!.heroId);
-                  else setLearnPick({ bookId: book.id, scope: bookPlayScope });
-                }}
-              >
-                {face}
-                {price}
-              </button>
-            );
-          })}
+          {player.treasures.map((t, i) => (
+            <div className="pile-cell" key={`${t.id}:${i}`}>
+              {treasureFace(t)}
+              {treasurePrice(t)}
+              {isSkillBook(t) && (
+                <span className="pile-book-reason">
+                  {skillBookLearners(player, t.skillId).length > 0
+                    ? "出牌阶段可在手牌区研读"
+                    : "麾下无人可习此技（可交易变卖）"}
+                </span>
+              )}
+            </div>
+          ))}
         </div>
-      )}
-      {selectedBook !== null && canKeepPick && (
-        <SkillBookLearnModal
-          bookName={selectedBook.name}
-          skillId={selectedBook.skillId}
-          learners={learnersForPick}
-          locked={!bookPlayReady}
-          onPick={(heroId) => {
-            if (!bookPlayReady || !learnersForPick.some((slot) => slot.heroId === heroId)) return;
-            onUseBook?.(selectedBook.id, heroId);
-            setLearnPick(null);
-          }}
-          onClose={() => setLearnPick(null)}
-        />
       )}
     </>
   );
 }
 
-/** 藏品弹层(#361):kind 决定陈列内容与题名(player = 本地视角玩家,数据单源快照)。
- *  用书通路(#1146):onUseBook/bookPlayReady 由对局屏传入,书可点态只在己方出牌阶段;
- *  其余挂载语境缺省=书恒陈列不可点。 */
 /** Props 形状单点(值等比较器与组件共用,防两处漂移)。 */
 interface PileModalProps {
   kind: PileModalKind;
   player: SnapshotPlayer;
-  /** 本次可研读的出牌阶段。 */
-  bookPlayScope: string | null;
-  /** 当前可提交用书命令。 */
-  bookPlayReady?: boolean;
-  /** 用书学技命令通路(useBookSkill;缺省=无通路,书恒不可点)。 */
-  onUseBook?: (treasureId: string, heroId: string) => void;
   /** 遣散可点窗口(#1147):己方回合(GameScreen 计算=本地决策+Playing+自己回合);
    *  缺省=false——遣散钮恒禁用态。 */
   dismissReady?: boolean;
@@ -312,26 +224,16 @@ interface PileModalProps {
   onClose: () => void;
 }
 
-/** 值等(#1140 渲染税):kind+player(值等复用引用)+bookPlayReady(值等,#1146 书可点态
- *  随出牌阶段翻面)+dismissReady(值等,#1147 遣散钮随己方回合翻面);onClose/onUseBook/
+/** 值等(#1140 渲染税):kind+player(值等复用引用)+dismissReady(值等,#1147 遣散钮随己方回合翻面);onClose/
  *  onDismiss 不入比较(setState/命令驱动,行为恒定)。藏品层是全仓最大壳(94vw),
  *  演出期开着掂量时内容没变的拍在此 bail out。 */
 function pileModalEqual(a: PileModalProps, b: PileModalProps): boolean {
-  return (
-    a.kind === b.kind &&
-    a.player === b.player &&
-    a.bookPlayScope === b.bookPlayScope &&
-    a.bookPlayReady === b.bookPlayReady &&
-    a.dismissReady === b.dismissReady
-  );
+  return a.kind === b.kind && a.player === b.player && a.dismissReady === b.dismissReady;
 }
 
 export const PileModal = memo(function PileModal({
   kind,
   player,
-  bookPlayScope,
-  bookPlayReady = false,
-  onUseBook,
   dismissReady = false,
   onDismiss,
   onClose,
@@ -356,12 +258,7 @@ export const PileModal = memo(function PileModal({
       ariaLabel={`${KIND_META[kind].title} · ${player.guohao}`}
       onClose={onClose}
     >
-      <TreasureGrid
-        player={player}
-        bookPlayScope={bookPlayScope}
-        bookPlayReady={bookPlayReady}
-        onUseBook={onUseBook}
-      />
+      <TreasureGrid player={player} />
     </PileShell>
   );
 }, pileModalEqual);

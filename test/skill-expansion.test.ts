@@ -1,15 +1,4 @@
-// 技能扩展内容包(#1145,spec #1144 拆票 A/五):12 条联动被动技 + 6 个效果函数 +
-// 四新将(司马懿/邓艾/曹仁/糜竺)(内置将 4→8)。#1378 曹丕池换血:趁火打劫随曹丕
-// 退役整删(本件 NEW_IDS 降为 11 技、破产行为例删),曹丕池={放逐,行殇}
-// (池钉与属主钉随 #1378 更新;放逐/行殇行为面归 fangzhu-xingshang.test.ts)。
-// #1390 周瑜池换血:周瑜池={英姿,火攻}(疾行/擂鼓移出周瑜池,技能本体保留、
-// 张星彩池不动;英姿行为面归 yingzi.test.ts)。
-// 数据形制钉(#1145 表:时机×效果×初值×scope,终稿形制;数值=校准初值,校准归 D 票)+
-// 全表逐字钉(自 hero-skill.test 钉4 迁入并扩至九将,#1145 收口裁决 + #1142 卧龙并入)+
-// 每技引擎行为四钉(命中/不命中/数值/受益人)+ timing 派发点位/scope 断言。
-// 缝约定同 test/hero-skill.test.ts / test/timing.test.ts(makeEngine/finishSetup/armHero
-// 模式复制,不 import 测试文件;只测引擎公共面);行军走廊(scriptDice/marchUp)同
-// test/reaction-window.test.ts 口径(街亭 P14 → 咸阳 P15 → 凉州 P16,骰 2 途经、骰 1 落点)。
+// 技能扩展包现役名将技能池、效果注册与引擎结算。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
@@ -18,7 +7,7 @@ import { HEROES } from "@core/heroes";
 import { isTriggerSkill, skillById } from "@core/skills";
 import { EFFECTS } from "@core/effects";
 import { MOMENTS } from "@core/timing";
-import { armHero, testEngine } from "@core/testing";
+import { armHero } from "@core/testing";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
@@ -72,17 +61,12 @@ function prepared(seed?: number, seats?: SeatConfig[]) {
   return e;
 }
 
-/** 扩展包技 id(#1145 表序;#1378 趁火打劫退役整删,余 11)。 */
+/** 扩展包现役技能。 */
 const NEW_IDS = [
-  "tuntian",
-  "shengshi",
-  "hushi",
   "delongwangshu",
   "yusui",
-  "wengzhongzhuobie",
   "shengougolei",
   "taoguangyanghui",
-  "saiwengshima",
   "chubianbujing",
   "suifeng",
 ] as const;
@@ -102,7 +86,6 @@ function arm(e: GameEngine, seat: number, heroId: string, skillId: string) {
 // ── 行军走廊(关中环位,同 test/reaction-window.test.ts 口径)──
 const AT = (pid: string) => MAP.board.tiles.find((t) => t.propertyId === pid)!.index;
 const START = AT("prop-jieting"); // 街亭 P14:走廊起点
-const PASSED = AT("prop-xianyang"); // 咸阳 P15:途经城
 const LAND = AT("prop-liangzhou"); // 凉州 P16:骰 2 落点
 
 /** 骰子替身(readonly 只挡编译,测试注入走断言,同 reaction-window scriptDice 口径)。 */
@@ -153,10 +136,10 @@ describe("技能扩展内容包:数据形制(#1145)", () => {
       ["zhangxingcai", ["zhijin", "leigu", "jixing"]], // 张星彩{掷金,擂鼓,疾行}
       ["huatuo", ["qingnang", "zhenji"]], // 华佗{青囊,赈济}
       ["zhugeliang", ["huogong", "yuli"]], // 诸葛亮{火攻,渔利}(池 2 仿华佗非对称,#1142)
-      ["simayi", ["taoguangyanghui", "saiwengshima", "suifeng"]], // 司马懿{韬光养晦,塞翁失马,岁俸}
-      ["dengai", ["tuntian", "suifeng", "chubianbujing"]], // 邓艾{屯田,岁俸,处变不惊}
-      ["caoren", ["wengzhongzhuobie", "shengougolei", "shengshi"]], // 曹仁{瓮中捉鳖,深沟高垒,声势}
-      ["mizhu", ["hushi", "delongwangshu", "yusui"]], // 糜竺{互市,得陇望蜀,玉碎}
+      ["simayi", ["taoguangyanghui", "suifeng"]],
+      ["dengai", ["suifeng", "chubianbujing"]],
+      ["caoren", ["shengougolei"]],
+      ["mizhu", ["delongwangshu", "yusui"]],
     ]);
   });
 
@@ -179,28 +162,17 @@ describe("技能扩展内容包:数据形制(#1145)", () => {
     }
   });
 
-  it("12 技形制钉(#1145 表逐行:id×时机×效果×初值×scope,终稿形制)", () => {
+  it("现役技能形制(#1145 表逐行:id×时机×效果×初值×scope,终稿形制)", () => {
     const rows = NEW_IDS.map((id) => {
       const s = skillById(id);
       if (!isTriggerSkill(s)) throw new Error(`${id} 应为被动技(数据 bug)`);
       return [s.id, s.when, s.effect, s.params, s.scope ?? "self"];
     });
     expect(rows).toEqual([
-      ["tuntian", "PropertyBought", "gainReputation", { amount: 5 }, "self"],
-      ["shengshi", "PropertyUpgraded", "reputationOnMaxLevelUpgrade", { amount: 10 }, "self"],
-      ["hushi", "TradeSettled", "gainReputation", { amount: 4 }, "self"],
       ["delongwangshu", "TreasureGained", "gainCash", { amount: 100 }, "self"],
       ["yusui", "TreasureLost", "gainCash", { amount: 80 }, "self"],
-      ["wengzhongzhuobie", "LandedOnProperty", "reputationOnOwnCityHit", { amount: 2 }, "any"],
       ["shengougolei", "MarchPassedCity", "cashOnOwnCityPassed", { amount: 20 }, "any"],
       ["taoguangyanghui", "TurnSkipImposed", "gainCash", { amount: 100 }, "self"],
-      [
-        "saiwengshima",
-        "CashLost",
-        "reputationOnPassiveCashLoss",
-        { threshold: 300, amount: 5 },
-        "self",
-      ],
       ["chubianbujing", "JinnangAnnounced", "cashIfTargetedByJinnang", { amount: 10 }, "others"],
       ["suifeng", "TurnStart", "gainCash", { amount: 1 }, "any"],
     ]);
@@ -215,15 +187,8 @@ describe("技能扩展内容包:数据形制(#1145)", () => {
     }
   });
 
-  it("六新效果函数入注册表;得陇/玉碎/韬光/岁俸四技纯参数复用 gainCash 零新 fn", () => {
-    for (const fn of [
-      "gainReputation",
-      "reputationOnMaxLevelUpgrade",
-      "reputationOnOwnCityHit",
-      "cashOnOwnCityPassed",
-      "reputationOnPassiveCashLoss",
-      "cashIfTargetedByJinnang",
-    ]) {
+  it("两个扩展效果入注册表;得陇/玉碎/韬光/岁俸四技纯参数复用 gainCash 零新 fn", () => {
+    for (const fn of ["cashOnOwnCityPassed", "cashIfTargetedByJinnang"]) {
       expect(typeof EFFECTS[fn]).toBe("function");
     }
     for (const id of ["delongwangshu", "yusui", "taoguangyanghui", "suifeng"]) {
@@ -235,115 +200,6 @@ describe("技能扩展内容包:数据形制(#1145)", () => {
 });
 
 describe("技能扩展内容包:引擎行为(命中/不命中/数值/受益人)", () => {
-  it("屯田:购城 +5 声望(受益人=买家自己);他人购城不触发(scope self)", () => {
-    const e = prepared();
-    const me = e.activePlayer;
-    const meSeat = e.players.indexOf(me);
-    arm(e, meSeat, "dengai", "tuntian");
-    const tile = e.board.tiles.find(
-      (t) => t.event == null && t.propertyId != null && e.findOwner(t.propertyId!) == null,
-    )!;
-    const propId = tile.propertyId!; // find 谓词已保证非空,窄化给断言用
-    testEngine(e).placeActive(tile.index);
-    testEngine(e).land();
-    expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: propId });
-    const rep0 = me.reputation;
-    e.buyProperty(); // 真实购城路:PropertyBought 派发点
-    expect(me.reputation).toBe(rep0 + 5);
-    e.dispatchMoment("PropertyBought", {
-      subject: (meSeat + 1) % e.players.length,
-      propertyId: propId,
-    }); // 他人购城
-    expect(me.reputation).toBe(rep0 + 5); // scope self:不触发
-  });
-
-  it("声势:己城升至满级 +10 声望(fn 内判满级);未满级升级与他人升级不触发", () => {
-    // 满级命中:2→3
-    const e = prepared();
-    const me = e.activePlayer;
-    const meSeat = e.players.indexOf(me);
-    arm(e, meSeat, "caoren", "shengshi");
-    const capProp = e.board.at(me.capitalIndex)?.propertyId;
-    const tile = e.board.tiles.find(
-      (t) =>
-        t.event == null &&
-        t.propertyId != null &&
-        t.propertyId !== capProp &&
-        e.findOwner(t.propertyId!) == null,
-    )!;
-    const propId = tile.propertyId!; // find 谓词已保证非空,窄化给断言用
-    me.properties.push({
-      burning: null,
-      damageRanking: [],
-      propertyId: propId,
-      group: "a",
-      level: 3,
-      maxLevel: 4,
-      defense: 20,
-    });
-    testEngine(e).placeActive(tile.index);
-    testEngine(e).land();
-    expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: propId });
-    const rep0 = me.reputation;
-    e.upgradeProperty(); // 扩军真实路:PropertyUpgraded 派发点
-    expect(me.properties.find((h) => h.propertyId === propId)?.level).toBe(4);
-    expect(me.reputation).toBe(rep0 + 10);
-    // scope self:他人城升级不触发
-    e.dispatchMoment("PropertyUpgraded", {
-      subject: (meSeat + 1) % e.players.length,
-      propertyId: propId,
-    });
-    expect(me.reputation).toBe(rep0 + 10);
-    // 未满级(2→3)不触发:新局同布场,级别降为 2
-    const e2 = prepared();
-    const me2 = e2.activePlayer;
-    arm(e2, e2.players.indexOf(me2), "caoren", "shengshi");
-    const capProp2 = e2.board.at(me2.capitalIndex)?.propertyId;
-    const tile2 = e2.board.tiles.find(
-      (t) =>
-        t.event == null &&
-        t.propertyId != null &&
-        t.propertyId !== capProp2 &&
-        e2.findOwner(t.propertyId!) == null,
-    )!;
-    me2.properties.push({
-      burning: null,
-      damageRanking: [],
-      propertyId: tile2.propertyId!,
-      group: "a",
-      level: 2,
-      maxLevel: 4,
-      defense: 30,
-    });
-    testEngine(e2).placeActive(tile2.index);
-    testEngine(e2).land();
-    const rep2 = me2.reputation;
-    e2.upgradeProperty(); // 2→3,未满级
-    expect(me2.reputation).toBe(rep2);
-  });
-
-  it("互市:你的城交涉成交(你=卖家主体)+4 声望;他人的成交不触发(scope self)", () => {
-    const e = prepared();
-    const meSeat = e.players.indexOf(e.activePlayer);
-    const other = (meSeat + 1) % e.players.length;
-    arm(e, meSeat, "mizhu", "hushi");
-    const rep0 = e.players[meSeat].reputation;
-    e.dispatchMoment("TradeSettled", {
-      subject: meSeat,
-      buyerSeat: other,
-      sellerSeat: meSeat,
-      amount: 500,
-    });
-    expect(e.players[meSeat].reputation).toBe(rep0 + 4);
-    e.dispatchMoment("TradeSettled", {
-      subject: other,
-      buyerSeat: meSeat,
-      sellerSeat: other,
-      amount: 500,
-    });
-    expect(e.players[meSeat].reputation).toBe(rep0 + 4);
-  });
-
   it("得陇望蜀:得宝 +100 两;他人得宝不触发(scope self)", () => {
     const e = prepared();
     const meSeat = e.players.indexOf(e.activePlayer);
@@ -370,30 +226,6 @@ describe("技能扩展内容包:引擎行为(命中/不命中/数值/受益人)"
       treasureId: "t1",
     });
     expect(e.players[meSeat].cash).toBe(cash0 + 80);
-  });
-
-  it("瓮中捉鳖:他人落你城 +2 声望(受益人=城主,非访客);落他人城不触发", () => {
-    // 命中:访客(座位0)落咸阳(城主=持技座位1)
-    const e = prepared();
-    const moverSeat = e.players.indexOf(e.activePlayer);
-    const holderSeat = (moverSeat + 1) % e.players.length;
-    arm(e, holderSeat, "caoren", "wengzhongzhuobie");
-    marchCorridor(e, moverSeat, 1); // 骰 1:街亭 → 咸阳(落点)
-    grantCity(e, holderSeat, "prop-xianyang");
-    e.rollAndMove();
-    expect(e.players[moverSeat].position).toBe(PASSED); // 落点即咸阳
-    expect(e.players[holderSeat].reputation).toBe(2); // 城主 +2(开局 0)
-    expect(e.players[moverSeat].reputation).toBe(0); // 访客不受益
-    // 不命中:落点=他人(座位2)之城,持技者不触发
-    const e3 = prepared(42, SEATS3);
-    const mover3 = e3.players.indexOf(e3.activePlayer);
-    const holder3 = (mover3 + 1) % 3;
-    const third3 = (mover3 + 2) % 3;
-    arm(e3, holder3, "caoren", "wengzhongzhuobie");
-    marchCorridor(e3, mover3, 1);
-    grantCity(e3, third3, "prop-xianyang");
-    e3.rollAndMove();
-    expect(e3.players[holder3].reputation).toBe(0);
   });
 
   it("深沟高垒:他人途经你城不停留 +20 两(受益人=城主);落点即你城不算;途经他人城不触发", () => {
@@ -462,19 +294,6 @@ describe("技能扩展内容包:引擎行为(命中/不命中/数值/受益人)"
     e3.resolveJinnang("缓兵之计");
     e3.resolveJinnang("缓兵之计", [third3]);
     expect(e3.players[holder3].cash).toBe(cash3); // 未被指向(scope others+targetSeats 双条件)
-  });
-
-  it("塞翁失马:被动失银单笔 ≥300 +5 声望(数值钉 299 不触发);他人失银不触发(scope self)", () => {
-    const e = prepared();
-    const meSeat = e.players.indexOf(e.activePlayer);
-    arm(e, meSeat, "simayi", "saiwengshima");
-    const rep0 = e.players[meSeat].reputation;
-    e.dispatchMoment("CashLost", { subject: meSeat, amount: 300 });
-    expect(e.players[meSeat].reputation).toBe(rep0 + 5);
-    e.dispatchMoment("CashLost", { subject: meSeat, amount: 299 });
-    expect(e.players[meSeat].reputation).toBe(rep0 + 5); // 阈值不满:静默跳过
-    e.dispatchMoment("CashLost", { subject: (meSeat + 1) % e.players.length, amount: 999 });
-    expect(e.players[meSeat].reputation).toBe(rep0 + 5); // scope self
   });
 
   it("岁俸:每个回合开始 +1 两(scope any,含他人回合);真实 endTurn 派发点逐回合逐两", () => {

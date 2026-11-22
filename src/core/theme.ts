@@ -87,8 +87,6 @@ export const Theme = {
   attrCashBright: hex("8fbf77"), // 现金·漆底亮档
   attrCity: hex("76aaa5"), // 城池 = 黛青(同 sealQing)
   attrCityBright: hex("7fb0ad"), // 城池·漆底亮档(黛青提亮,原型无此件,按同族推导)
-  attrRep: hex("b58cc5"), // 声望 = 蓝紫(2026-10-19 由紫 c28cc2 偏蓝 ~17°,与名将朱砂拉开色相;声望专用 token 单动,不涉 danger 同值)
-  attrRepBright: hex("c383c5"), // 声望·漆底亮档(随主档同步偏蓝)
   attrGem: hex("d89a55"), // 珍宝 = 橙金
   attrGemBright: hex("e09a52"), // 珍宝·漆底亮档
   attrHero: hex("e2634d"), // 名将 = 朱砂(同 danger)

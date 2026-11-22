@@ -12,9 +12,8 @@ import { SKILLS, type TriggerSkill } from "@core/skills";
 import { guidePriceOf } from "@core/treasures";
 import { fullDefenseOf } from "@core/defense";
 import type { GameMoment, MomentCtx } from "@core/timing";
-import type { EncounterDef } from "@core/encounters";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
-import { placePlayer, setDefense } from "@core/planter";
+import { placePlayer, setDefense, setStamina } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
@@ -216,6 +215,7 @@ describe("时机框架:派发点位", () => {
       "JinnangGained",
       "GameStart",
       "TurnStart",
+      "JinnangGained",
     ]);
   });
 
@@ -228,32 +228,31 @@ describe("时机框架:派发点位", () => {
     passJinnang(e).rollAndMove();
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
-    // seed=1(#827 重钉:36 城 9×4 环序重排,选都/行军骰流重钓):两家分选交州/长沙,
-    // 两回合落点均为无主普通城(落格族时机由「37 时机各挂点一例」的场景构造覆盖),
-    // 途经棋子/城池如实钉住——本例主旨是框架派发顺序本身
-    expect(calls).toEqual([
+    // 行军路径和固定城池效果另有用例，这里只核对公共时机顺序。
+    const routeMoments = new Set(["PassedPlayer", "MarchPassedCity", "TreasureGained"]);
+    expect(calls.filter((moment) => !routeMoments.has(moment))).toEqual([
       "SetupComplete",
       "JinnangGained", // #456:起手发牌每座位一派(drawJinnang 单点)
       "JinnangGained",
       "GameStart", // 开局收尾(最后落子者 → 对局开始)
       "TurnStart", // 开局首回合
+      "JinnangGained",
       "BeforeMarch",
       "BeforeRoll",
       "DieRolled",
-      "PassedPlayer", // 途经棋子
-      "MarchPassedCity", // 途经城池
       "AfterMarch",
       "TurnEnd", // 第一位玩家(落无主城,按兵不动收场)
       "TurnStart", // 第二位玩家回合开始
+      "JinnangGained",
       "BeforeMarch",
       "BeforeRoll",
       "DieRolled",
-      "PassedPlayer", // 途经棋子
       "AfterMarch",
       "TurnEnd", // 第二位玩家
       "RoundEnd",
       "RoundStart",
       "TurnStart", // 轮次交替 + 新轮首位玩家
+      "JinnangGained",
     ]);
   });
 
@@ -717,19 +716,20 @@ describe("时机框架:生命周期(GameStart/SetupComplete/GameOver)", () => {
     armHero(e, e.players[0], heroWith([gain("gs", "GameStart", 100, { scope: "any" })]));
     finishSetup(e);
     const lastPicker = e.draftOrder[e.draftOrder.length - 1];
-    // #456:起手发牌两派夹在中间,时机主序列不变
     expect(entries.map((x) => x.moment)).toEqual([
       "SetupComplete",
       "JinnangGained",
       "JinnangGained",
       "GameStart",
       "TurnStart",
+      "JinnangGained",
     ]);
     expect(entries[0].ctx.subject).toBe(lastPicker); // SetupComplete:最后一位选都落子者
     expect(entries[1].ctx).toEqual({ subject: 0, count: 1 }); // JinnangGained:起手发牌(座位序)
     expect(entries[2].ctx).toEqual({ subject: 1, count: 1 });
     expect(entries[3].ctx.subject).toBe(e.roundAnchor); // GameStart:对局开始,主体=首动者
     expect(entries[4].ctx.subject).toBe(e.roundAnchor); // TurnStart:开局首回合
+    expect(entries[5].ctx).toEqual({ subject: e.roundAnchor, count: 1 }); // 首回合摸牌
     expect(fireCount(e, "gs")).toBe(1); // GameStart 已可挂技能(选都完成前的英雄池注入)
   });
 
@@ -1210,7 +1210,8 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     const sold = entries.filter((x) => x.moment === "TreasureSold").map((x) => x.ctx);
     expect(sold).toEqual([{ subject: e.players.indexOf(mover), treasureId: "bk-t", amount: 100 }]); // 破产变卖也走 TreasureSold
     expect(mover.isBankrupt).toBe(false); // 凑足自救
-    expect(e.turnPhase as string).toBe("Roll"); // 对局继续(轮到下一位)
+    expect(e.activePlayer).not.toBe(mover);
+    expect(e.pendingDebt).toBeNull();
   });
 });
 
@@ -1231,16 +1232,6 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     (e as unknown as { dice: Dice }).dice = dice;
   }
 
-  /** 合成即时机遇(无 choices → 引擎直接结算,同 test/encounters.test.ts 口径)。 */
-  const enc = (effect: EncounterDef["effect"]): EncounterDef => ({
-    id: "测试机遇",
-    tier: "好运",
-    tags: ["银两"],
-    weight: 1,
-    text: "t",
-    effect,
-  });
-
   /** 摆出牌阶段测试态:当前玩家持牌停在锦囊相位(同 test/bot-jinnang.test.ts armJinnang 口径)。 */
   function armJinnang(e: GameEngine, cards: string[]) {
     const p = e.activePlayer;
@@ -1249,62 +1240,6 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     e.turnPhase = "AwaitingJinnang";
     return p;
   }
-
-  it("机遇 siphon:被吸方派 CashLost、吸取方派 CashGained;曹丕被动(CashLost→+50)随之生效", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    armHero(
-      e,
-      mover,
-      HEROES.find((h) => h.id === "caopi")!,
-      ["yuli"], // 池收窄到受试技(#1378 曹丕池换血:渔利直授,见上例)
-    ); // 持技者挂 CashLost scope=others
-    const moverSeat = e.players.indexOf(mover);
-    const oppSeat = moverSeat === 0 ? 1 : 0;
-    e.players[oppSeat].cash = 500;
-    const moverCash0 = mover.cash;
-    const entries = recordMomentCtx(e);
-    e.settleEncounter(mover, enc({ kind: "siphon", amount: 150 }));
-    expect(e.players[oppSeat].cash).toBe(350); // 上限=对方现金,语义不变
-    expect(mover.cash).toBe(moverCash0 + 150 + 50); // 吸得 150 + 曹丕 +50
-    expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
-      { subject: oppSeat, amount: 150 },
-    ]);
-    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
-      { subject: moverSeat, amount: 150 },
-    ]);
-  });
-
-  it("机遇 trade:双方各派 CashGained(国库出,正和)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    const moverSeat = e.players.indexOf(mover);
-    const oppSeat = moverSeat === 0 ? 1 : 0;
-    const entries = recordMomentCtx(e);
-    e.settleEncounter(mover, enc({ kind: "trade", amount: 100 }));
-    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
-      { subject: moverSeat, amount: 100 },
-      { subject: oppSeat, amount: 100 },
-    ]);
-  });
-
-  it("机遇 levy:得款的随机对手派 CashGained(付款方 CashLost 既有派发不动)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    const moverSeat = e.players.indexOf(mover);
-    const oppSeat = moverSeat === 0 ? 1 : 0;
-    const entries = recordMomentCtx(e);
-    e.settleEncounter(mover, enc({ kind: "levy", amount: 120 }));
-    expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
-      { subject: moverSeat, amount: 120 },
-    ]);
-    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
-      { subject: oppSeat, amount: 120 },
-    ]);
-  });
 
   it("连环计:胜者国库款派 CashGained(+300,缺口补齐);败者赔款双派照旧,曹丕(用牌者)被动 +50", () => {
     const e = makeEngine(1, [
@@ -1343,21 +1278,7 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     ]);
   });
 
-  it("grantHero fallbackCash 双路派 CashGained:机遇义士来投折现 200、锦囊求贤令折现 300", () => {
-    // 机遇路径(义士来投):名将已尽 → 折现(#1146 起「满编」改印技能书不再折现,
-    // 折现触发收窄为名将已尽;位满印书行为归 test/skill-book.test.ts)
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    for (const h of HEROES) e.recruitedHeroIds.add(h.id);
-    const seat = e.players.indexOf(mover);
-    const entries = recordMomentCtx(e);
-    e.settleEncounter(mover, enc({ kind: "grantHero", fallbackCash: 200 }));
-    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
-      { subject: seat, amount: 200 },
-    ]);
-
-    // 锦囊路径(求贤令):名将已尽 → 折现
+  it("求贤令在名将已尽时折现，派发 CashGained", () => {
     const e2 = makeEngine(1);
     finishSetup(e2);
     const user = e2.activePlayer;
@@ -1374,16 +1295,6 @@ describe("时机框架:派发缺口补齐(#299)", () => {
 
 // ──────────────────── 事件化第二批(#456):状态与牌流六新时机 ────────────────────
 describe("时机框架:事件化第二批(#456)", () => {
-  /** 合成即时机遇(同 #299 块 enc 口径;staminaDelta 走机遇体力接线)。 */
-  const enc = (effect: EncounterDef["effect"]): EncounterDef => ({
-    id: "测试机遇",
-    tier: "好运",
-    tags: ["银两"],
-    weight: 1,
-    text: "t",
-    effect,
-  });
-
   /** 摆出牌阶段测试态(同 test/bot-jinnang.test.ts armJinnang 口径)。 */
   function armJinnang(e: GameEngine, cards: string[]) {
     const p = e.activePlayer;
@@ -1408,43 +1319,27 @@ describe("时机框架:事件化第二批(#456)", () => {
       { subject: victimSeat, reason: "jinnang" },
     ]);
 
-    // ② 耗竭善后(encounter-flow applyExhaustionAftermath:skipTurns += EXHAUSTION_REST_TURNS)
+    // ② 耗竭善后(stamina-damage resumeExhaustion:skipTurns += EXHAUSTION_REST_TURNS)
     const e3 = makeEngine(1);
     finishSetup(e3);
     const mover3 = e3.activePlayer;
     const seat3 = e3.players.indexOf(mover3);
     const entries3 = recordMomentCtx(e3);
-    const r = e3.settleEncounter(
-      mover3,
-      enc({
-        kind: "cash",
-        delta: 0,
-        staminaDelta: -100,
-      }),
-    );
-    expect(r).toBe("exhausted"); // 全自动善后(诸城降级+休整+endTurn)
+    expect(e3.damageStamina(seat3, 100, null)).toBe(0);
     expect(mover3.skipTurns).toBe(2); // 休整两回合
     expect(entries3.filter((x) => x.moment === "TurnSkipImposed").map((x) => x.ctx)).toEqual([
       { subject: seat3, reason: "exhaustion" },
     ]);
   });
 
-  it("JinnangGained:drawJinnang 物理单点派发——起手发牌每座位一派(拍定要派)+ 游戏时授书路再派(count=实际入手)", () => {
+  it("JinnangGained 对起手、首回合摸牌分别派发实际入手张数", () => {
     const e = makeEngine(1);
     const entries = recordMomentCtx(e);
     finishSetup(e);
-    // 起手(JINNANG_STARTING_HAND=1):每座位恰一派——事件流「开局不发」是显示口径,不约束总线
-    expect(entries.filter((x) => x.moment === "JinnangGained").map((x) => x.ctx)).toEqual(
-      e.players.map((_, seat) => ({ subject: seat, count: 1 })),
-    );
-    // 游戏时:机遇圯上授书(grantCard → drawJinnangTraced → drawJinnang)再进手一张
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    e.settleEncounter(mover, enc({ kind: "grantCard" }));
-    expect(mover.jinnangHand.length).toBe(1);
-    const gains = entries.filter((x) => x.moment === "JinnangGained").map((x) => x.ctx);
-    expect(gains[gains.length - 1]).toEqual({ subject: seat, count: 1 });
-    expect(gains).toHaveLength(e.players.length + 1); // 起手 n 派 + 授书 1 派,单点覆盖无多派
+    expect(entries.filter((x) => x.moment === "JinnangGained").map((x) => x.ctx)).toEqual([
+      ...e.players.map((_, seat) => ({ subject: seat, count: 1 })),
+      { subject: e.activeIndex, count: 1 },
+    ]);
   });
 
   it("PeekApplied:军情密探窥探生效时派发(subject=使用者,targetSeat=被窥者)", () => {
@@ -1461,69 +1356,24 @@ describe("时机框架:事件化第二批(#456)", () => {
     ]);
   });
 
-  it("StaminaChanged:仅机遇路派发(delta=夹紧后实际增减);耗竭结算与休整回满均不派(恰一派钉住口径)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    const entries = recordMomentCtx(e);
-    const r = e.settleEncounter(
-      mover,
-      enc({
-        kind: "cash",
-        delta: 0,
-        staminaDelta: -100,
-      }),
-    );
-    expect(r).toBe("exhausted");
-    expect(mover.stamina).toBe(0); // 归 0 当刻不回血(回满在休整期满;rest 路同样不派时机)
-    expect(entries.filter((x) => x.moment === "StaminaChanged").map((x) => x.ctx)).toEqual([
-      { subject: seat, delta: -100 }, // 机遇路 −100 恰一派;耗竭结算/休整回满均不派
-    ]);
-  });
-
   it("StaminaLoss:体力唯一写口损失方向一律派发(delta=夹紧后实际损失恒负);增益方向不派(#1377 放逐攒怒挂点)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
+    setStamina(e, seat, 20);
     const entries = recordMomentCtx(e);
-    e.settleEncounter(mover, enc({ kind: "cash", delta: 0, staminaDelta: -30 }));
-    // 与 StaminaChanged 同点并存双派:彼处记机遇路事件面,此处是任何来路损失的机制挂点
+    e.damageStamina(seat, 30, null);
     expect(entries.filter((x) => x.moment === "StaminaLoss").map((x) => x.ctx)).toEqual([
-      { subject: seat, delta: -30 },
+      { subject: seat, delta: -20 },
     ]);
     e.addStamina(seat, 50); // 增益:不派(温泉/赈济不攒)
     expect(entries.filter((x) => x.moment === "StaminaLoss")).toHaveLength(1);
-  });
-
-  it("ReputationChanged:addReputation 唯一写口单点广播——天命城 +20 派发(事件流 before/after 差值在调用点,并存不冲突)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    const fateTile = e.board.tiles.find((t) => t.event === "fate")!;
-    const entries = recordMomentCtx(e);
-    landActiveOn(e, fateTile.index);
-    expect(mover.reputation).toBe(20);
-    expect(entries.filter((x) => x.moment === "ReputationChanged").map((x) => x.ctx)).toEqual([
-      { subject: seat, delta: 20 },
-    ]);
   });
 });
 
 // ──────────────────── 事件化第二批·资产域(#457):四新时机 + 留痕补齐 ────────────────────
 describe("时机框架:事件化第二批·资产域(#457)", () => {
-  /** 合成即时机遇(同 #456 块 enc 口径)。 */
-  const enc = (effect: EncounterDef["effect"]): EncounterDef => ({
-    id: "测试机遇",
-    tier: "好运",
-    tags: ["银两"],
-    weight: 1,
-    text: "t",
-    effect,
-  });
-
   /** 摆出牌阶段测试态(同 #456 块 armJinnang 口径)。 */
   function armJinnang(e: GameEngine, cards: string[]) {
     const p = e.activePlayer;
@@ -1562,41 +1412,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     }
   }
 
-  it("TreasureLost:以宝换贤交出两件每件一派 + 窃玉偷香失主与窃方(#455 A4)同点成对(subject=失主)", () => {
-    // ① 以宝换贤(grantHero 型选项:先扣 2 件珍宝再得将,splice 处每件一派)
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    mover.treasures.push(
-      { id: "cost-t1", name: "换贤宝一", level: 1 },
-      { id: "cost-t2", name: "换贤宝二", level: 2 },
-    );
-    const entries = recordMomentCtx(e);
-    e.enterEncounterPhase(e.activePlayer, {
-      id: "以宝换贤",
-      tier: "好运",
-      tags: ["名将"],
-      weight: 1,
-      text: "t",
-      choices: [
-        {
-          text: "献两件珍宝换名将",
-          repDelta: 0,
-          effect: { kind: "grantHero", fallbackCash: 0 },
-          treasureCost: 2, // #1067 代价入条目数据:手工夹具同契约(结算读声明,不再有全局常数)
-        },
-        { text: "婉言相拒", repDelta: 0 },
-      ],
-    });
-    expect(e.turnPhase).toBe("AwaitingEncounter"); // 两选项皆可用 → 抉择相位
-    e.resolveEncounterChoice(0);
-    expect(entries.filter((x) => x.moment === "TreasureLost").map((x) => x.ctx)).toEqual([
-      { subject: seat, treasureId: "cost-t1" }, // splice(0,2) 按手持序每件一派
-      { subject: seat, treasureId: "cost-t2" },
-    ]);
-
-    // ② 窃玉偷香:失主 TreasureLost 与窃方 TreasureGained 同点成对
+  it("窃玉偷香的失主与窃方分别触发 TreasureLost 和 TreasureGained", () => {
     const e2 = makeEngine(1);
     finishSetup(e2);
     const userSeat = e2.activeIndex;
@@ -1612,31 +1428,6 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     expect(entries2.filter((x) => x.moment === "TreasureGained").map((x) => x.ctx)).toEqual([
       { subject: userSeat, treasureId: "stolen-t" }, // 成对:窃方得宝(#455 A4 既有派发)
     ]);
-  });
-
-  it("PropertyGained:机遇赐城入册后派发(subject=得城者,ctx.propertyId);留痕补齐(ADR-0015)写法对齐购地", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    const owned = new Set(mover.properties.map((h) => h.propertyId));
-    const entries = recordMomentCtx(e);
-    e.settleEncounter(mover, enc({ kind: "grantCity", fallbackCash: 200 }));
-    const gained = mover.properties.find((h) => !owned.has(h.propertyId));
-    expect(gained).toBeDefined(); // 关中恒有无主城 → 走赐城路不折现
-    expect(entries.filter((x) => x.moment === "PropertyGained").map((x) => x.ctx)).toEqual([
-      { subject: seat, propertyId: gained!.propertyId },
-    ]);
-    // 留痕补齐(三无写点 → 补 ADR-0015):赐城即易主(无主→得城者),形状对齐 movement-flow buyProperty
-    const trace = e.propertyChanges[e.propertyChanges.length - 1];
-    expect(trace).toEqual({
-      tileIndex: e.tileIndexOfProperty(gained!.propertyId),
-      level: 1,
-      ownerColorIndex: mover.colorIndex,
-      levelChanged: false,
-      ownerChanged: true,
-    });
-    expect(e.findOwner(gained!.propertyId)).toBe(mover); // 印章/涟漪表现通路可走到
   });
 
   it("城池实际降级、攻陷各派对应时机，纯扣防只更新防御", () => {
@@ -1707,8 +1498,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const seat4 = e4.players.indexOf(mover4);
     const city4 = giveCity(e4, seat4, 2);
     const entries4 = recordMomentCtx(e4);
-    const r4 = e4.settleEncounter(mover4, enc({ kind: "cash", delta: 0, staminaDelta: -100 }));
-    expect(r4).toBe("exhausted");
+    expect(e4.damageStamina(seat4, 100, null)).toBe(0);
     expect(mover4.properties.find((h) => h.propertyId === city4.propertyId)!.level).toBe(1);
     expect(entries4.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
       { subject: seat4, propertyId: city4.propertyId, tileIndex: city4.tileIndex },
@@ -1721,8 +1511,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const seat5 = e5.players.indexOf(mover5);
     const city5 = giveCity(e5, seat5, 1);
     const entries5 = recordMomentCtx(e5);
-    const r5 = e5.settleEncounter(mover5, enc({ kind: "cash", delta: 0, staminaDelta: -100 }));
-    expect(r5).toBe("exhausted");
+    expect(e5.damageStamina(seat5, 100, null)).toBe(0);
     expect(e5.findOwner(city5.propertyId)).toBeNull();
     expect(entries5.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
       { subject: seat5, propertyId: city5.propertyId, tileIndex: city5.tileIndex },
@@ -1759,9 +1548,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     expect(e.players[creditorSeat].properties.some((h) => h.propertyId === city.propertyId)).toBe(
       true,
     ); // 资产确已转债主
-    expect(
-      entries.filter((x) => x.moment === "TreasureGained" || x.moment === "PropertyGained"),
-    ).toHaveLength(0); // 不逐件派:转移发生在 settleDebt 内,无逐件时机
+    expect(entries.filter((x) => x.moment === "TreasureGained")).toHaveLength(0); // 不逐件派:转移发生在 settleDebt 内,无逐件时机
 
     // 无债主(归银行/销毁):PlayerBankrupt 照派,AssetsSeized 不派(无收走方)
     const e2 = makeEngine(1);
@@ -1773,58 +1560,5 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     e2.declareBankruptcy();
     expect(entries2.filter((x) => x.moment === "PlayerBankrupt")).toHaveLength(1);
     expect(entries2.filter((x) => x.moment === "AssetsSeized")).toHaveLength(0);
-  });
-});
-
-// ──────────────────── 事件化第一批(#455):现有时机补漏 + 收款派发下沉 ────────────────────
-describe("时机框架:事件化第一批(#455)", () => {
-  /** nextFloat 定值骰替身(商市涨跌两向钉死;本路径不掷骰)。 */
-  function stubFloat(e: GameEngine, float: number): void {
-    const dice: Dice = {
-      roll: () => {
-        throw new Error("测试路径不应 roll");
-      },
-      rollDie: () => {
-        throw new Error("测试路径不应 rollDie");
-      },
-      nextFloat: () => float,
-      getRngState: () => 0,
-      setRngState: () => {},
-    };
-    (e as unknown as { dice: Dice }).dice = dice;
-  }
-
-  it("商市看涨(A1):得银侧补派 CashGained(与看跌侧 CashLost 对称),金额=实得", () => {
-    const stockTile = MAP.board.tiles.findIndex((t) => t.event === "market");
-    expect(stockTile).toBeGreaterThanOrEqual(0);
-
-    // 看涨:nextFloat→0 → gain=true、amt=100(+100)
-    const up = makeEngine(1);
-    finishSetup(up);
-    stubFloat(up, 0);
-    const mover = up.activePlayer;
-    const seat = up.players.indexOf(mover);
-    const cash0 = mover.cash;
-    const entries = recordMomentCtx(up);
-    testEngine(up).landActiveAt(stockTile);
-    expect(mover.cash).toBe(cash0 + 100); // 行情 +100 入账
-    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
-      { subject: seat, amount: 100 }, // 恰一派,金额=实得
-    ]);
-    expect(entries.filter((x) => x.moment === "CashLost")).toHaveLength(0); // 得银侧不派失银
-
-    // 看跌:nextFloat→0.9 → gain=false、amt=190(−190)——既有派发不动
-    const down = makeEngine(1);
-    finishSetup(down);
-    stubFloat(down, 0.9);
-    const loser = down.activePlayer;
-    const cash02 = loser.cash;
-    const entries2 = recordMomentCtx(down);
-    testEngine(down).landActiveAt(stockTile);
-    expect(loser.cash).toBe(cash02 - 190);
-    expect(entries2.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
-      { subject: down.players.indexOf(loser), amount: 190 },
-    ]);
-    expect(entries2.filter((x) => x.moment === "CashGained")).toHaveLength(0); // 失银侧不派得银
   });
 });

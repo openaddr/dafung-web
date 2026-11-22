@@ -3,7 +3,7 @@
 // 诊断取证;③单局耗时记录(完成门证据)。驱动/摘要单源在 whole-game.ts/state-digest.ts,
 // 本文件只做参数解析与呈现(严格解析,非法当场抛,零兜底,同 sim-batch 口径)。
 //
-// 用法:bun scripts/sim-digest.ts <seed> [--map <id>] [--seats <2-4>] [--json <path>] [--no-encounter]
+// 用法:bun scripts/sim-digest.ts <seed> [--map <id>] [--seats <2-4>] [--json <path>]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
@@ -18,15 +18,11 @@ function intValue(raw: string, label: string): number {
 const argv = process.argv.slice(2);
 const positionals: string[] = [];
 const flags = new Map<string, string>();
-const BOOLEAN_FLAGS = new Set(["no-encounter"]);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a.startsWith("--")) {
     const key = a.slice(2);
-    if (BOOLEAN_FLAGS.has(key)) {
-      flags.set(key, "true");
-      continue;
-    }
+    if (key !== "map" && key !== "seats" && key !== "json") throw new Error(`未知旗标 ${a}`);
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) throw new Error(`旗标 ${a} 缺值`);
     flags.set(key, v);
@@ -37,7 +33,7 @@ for (let i = 0; i < argv.length; i++) {
 }
 if (positionals.length !== 1)
   throw new Error(
-    `用法:bun scripts/sim-digest.ts <seed> [--map <id>] [--seats <2-4>] [--json <path>] [--no-encounter]`,
+    `用法:bun scripts/sim-digest.ts <seed> [--map <id>] [--seats <2-4>] [--json <path>]`,
   );
 const SEED = intValue(positionals[0], "seed");
 const mapId = flags.get("map") ?? builtinMapCatalog()[0].id;
@@ -46,7 +42,6 @@ const seatsRaw = flags.get("seats");
 const SEATS_N = seatsRaw !== undefined ? intValue(seatsRaw, "--seats") : 4;
 if (!(SEATS_N >= 2 && SEATS_N <= 4))
   throw new Error(`--seats 必须 2-4(国号池四家),收到:${SEATS_N}`);
-const ENCOUNTER_ON = !flags.has("no-encounter");
 const JSON_OUT = flags.get("json");
 
 // ── 跑局 + 计时 ──
@@ -60,14 +55,11 @@ const result = runWholeGame({
   mapId,
   seed: SEED,
   seats,
-  encounter: ENCOUNTER_ON ? undefined : { enabled: false },
 });
 const elapsedMs = Math.round(performance.now() - t0);
 
 // ── 呈现 ──
-console.log(
-  `═══ sim-digest:seed ${SEED} @ ${mapId}(${SEATS_N} bot · 机遇${ENCOUNTER_ON ? "开" : "关"})═══`,
-);
+console.log(`═══ sim-digest:seed ${SEED} @ ${mapId}(${SEATS_N} bot)═══`);
 console.log(
   `${result.finished ? `终局` : "未终局(触回合上限)"} · ${result.rounds} 轮 · ${result.digests.length} 笔摘要 · 单局耗时 ${elapsedMs}ms`,
 );
@@ -89,7 +81,6 @@ if (JSON_OUT !== undefined) {
     mapId,
     seed: SEED,
     seats: SEATS_N,
-    encounter: ENCOUNTER_ON,
     elapsedMs,
     finished: result.finished,
     rounds: result.rounds,

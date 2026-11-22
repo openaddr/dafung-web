@@ -1,6 +1,6 @@
-// 组件收口:已收口——手册大弹层,ui/dialog 自组壳+ADR-0031 拖动把手,挂载不夺焦;体部内滚同 #708 规范,顶带 ≥44px 见 ADR-0049;详情叠层零新壳(锦囊/珍宝/机遇复用 game 侧 PileShell、名将复用 SkillGlossaryDialog),五签切换语义全在真 button[role=tab] 上(细则 docs/design/组件收口.md)
+// 组件收口:已收口——手册大弹层,ui/dialog 自组壳+ADR-0031 拖动把手,挂载不夺焦;体部内滚同 #708 规范,顶带 ≥44px 见 ADR-0049;详情叠层零新壳(锦囊/珍宝复用 game 侧 PileShell、名将复用 SkillGlossaryDialog),四签切换语义全在真 button[role=tab] 上(细则 docs/design/组件收口.md)
 // 手册大弹层(#1070,spec #1069 T1;形态决议 ADR-0049):首页「手册」入口点开的
-// 五类玩法内容总览,大弹层而非全屏屏——对局内将来复用同一组件,顶边恒让出 ≥44px 顶带
+// 四类玩法内容总览,大弹层而非全屏屏——对局内将来复用同一组件,顶边恒让出 ≥44px 顶带
 // (回合胶囊带,游戏内挂载前条件;首页虽无胶囊也照此几何)。几何写死(规格口径):
 //   顶带 44px + 底距 20px → 壳高 ≤ 100dvh − 64px(844×390 上 ≤326px),
 //   纵向锚 = 让位区 [44px, 100dvh−20px] 的中点(translate-y(-50%) 居中于该区),
@@ -11,7 +11,7 @@
 // 210ms 出口;壳体淡出下沉 8px 走 transition 等效 pile-modal-out——本票文件集无 CSS
 // 文件位,不自造 keyframes,遮罩退场复用全局 dialog-overlay-out)。内容区 ui/scroll-area
 // 内滚(#708 同规范:头部/签行钉住,体部内滚)。
-// 五签 tab 行:名将/技能/锦囊/珍宝/机遇,选中态=金描边+上浮(DESIGN §4.6 状态视觉
+// 四签 tab 行:名将/技能/锦囊/珍宝,选中态=金描边+上浮(DESIGN §4.6 状态视觉
 // 通道,无文字标牌);位移/描边过渡走 --dur/--ease token,无自造常驻动画。
 // props={open,onClose} 纯受控,不绑屏不绑路由(游戏内直接复用);签选态存本地 state。
 // 内容=各签目录(珍宝采用图文行册,其余沿既有陈列);壳样式走 tailwind utilities + token
@@ -27,7 +27,6 @@ import ManualHeroesTab from "./ManualHeroesTab";
 import ManualSkillsTab from "./ManualSkillsTab";
 import ManualJinnangTab from "./ManualJinnangTab";
 import ManualTreasuresTab from "./ManualTreasuresTab";
-import ManualEncountersTab from "./ManualEncountersTab";
 
 interface ManualModalProps {
   /** 开合(纯受控;关闭由壳内协议走完退场再回调 onClose)。 */
@@ -36,7 +35,7 @@ interface ManualModalProps {
 }
 
 /** 签键(签序=目录序,spec #1069 决议④)。 */
-type ManualTabKey = "heroes" | "skills" | "jinnang" | "treasures" | "encounters";
+type ManualTabKey = "heroes" | "skills" | "jinnang" | "treasures";
 
 const TABS: ReadonlyArray<{
   key: ManualTabKey;
@@ -47,7 +46,6 @@ const TABS: ReadonlyArray<{
   { key: "skills", label: "技能", tid: MANUAL_TID.tabSkills },
   { key: "jinnang", label: "锦囊", tid: MANUAL_TID.tabJinnang },
   { key: "treasures", label: "珍宝", tid: MANUAL_TID.tabTreasures },
-  { key: "encounters", label: "机遇", tid: MANUAL_TID.tabEncounters },
 ];
 
 /** 每签独立占位，签间留出空白。选中签上浮 2px 并显示金边。 */
@@ -112,7 +110,7 @@ export function ManualModal({ open, onClose }: ManualModalProps) {
               <Sym name="close" size={13} />
             </button>
           </DialogDragHandle>
-          {/* 五签行(钉住不随滚):选中态=金描边+上浮,无文字标牌(§4.6) */}
+          {/* 四签行(钉住不随滚):选中态=金描边+上浮,无文字标牌(§4.6) */}
           <div
             role="tablist"
             aria-label="手册分类"
@@ -151,7 +149,6 @@ export function ManualModal({ open, onClose }: ManualModalProps) {
             {!closing && tab === "skills" && <ManualSkillsTab />}
             {!closing && tab === "jinnang" && <ManualJinnangTab />}
             {!closing && tab === "treasures" && <ManualTreasuresTab />}
-            {!closing && tab === "encounters" && <ManualEncountersTab />}
           </ScrollArea>
         </div>
       </DialogContent>

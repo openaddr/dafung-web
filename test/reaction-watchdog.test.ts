@@ -113,11 +113,10 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     const clock = new ManualClock();
     const { reg, roomId, events, e, guestToken } = await playingRoom(clock);
     // 布场:seat0(真人)出横征暴敛(全体域,宣布即入窗,无目标段);seat1 持识破诡计
-    // =唯一被询问座位(jinnang 窗询问集=持识破者,引擎单源);清标签名额保出牌可用。
+    // =唯一被询问座位(jinnang 窗询问集=持识破者,引擎单源)。
     e.activeIndex = 0;
     e.pendingJinnang = null;
     e.pendingSkill = null;
-    e.jinnangUsedTags = [];
     e.turnPhase = "AwaitingJinnang";
     e.players[0].jinnangHand = ["横征暴敛"];
     e.players[0].jinnangHandCount = 1;
@@ -187,7 +186,6 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
     e.activeIndex = 2;
     e.pendingJinnang = null;
     e.pendingSkill = null;
-    e.jinnangUsedTags = [];
     e.turnPhase = "AwaitingJinnang";
     e.players[2].jinnangHand = ["火烧连营"];
     e.players[2].jinnangHandCount = 1;

@@ -3,16 +3,10 @@
 // status.prompt / choices / reaction 发命令推进,循环到终局;全 bot 局可 run-to-end 一步跑完。
 // 共享层(地图/序列化/状态摘要)在 ./engine-helpers,与 server.ts 复用;
 // bot 驱动的相位正典 = src/core/bot.ts 的 BOT_ATTENDED_PHASES。
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { GameEngine } from "../src/core/authority";
 import type { SeatConfig } from "../src/core/authority";
 import type { GameCommand } from "../src/core/authority";
-import {
-  ENCOUNTER_PRODUCT_DEFAULTS,
-  parseEncounterFile,
-  type EncounterSwitch,
-} from "../src/core/encounters";
 import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import { reactionQueriedSeats } from "./bot-driver";
 import { fingerprint } from "./seat-projection";
@@ -41,13 +35,27 @@ interface ParsedArgs {
   positionals: string[];
   flags: Record<string, string>; // --key value 形式
 }
+const CLI_FLAGS = new Set([
+  "state",
+  "seats",
+  "bot",
+  "seed",
+  "target",
+  "map",
+  "starting-cash",
+  "reaction-window-ms",
+]);
+
 function parseArgs(argv: string[]): ParsedArgs {
   const positionals: string[] = [];
   const flags: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a.startsWith("--")) {
+    if (a === "--help" && i === 0) {
+      positionals.push(a);
+    } else if (a.startsWith("--")) {
       const key = a.slice(2);
+      if (!CLI_FLAGS.has(key)) throw new Error(`未知旗标 ${a}`);
       const next = argv[i + 1];
       // 布尔短形(--flag)后跟另一个 -- 视为真;否则取下一个值
       if (next === undefined || next.startsWith("--")) {
@@ -78,16 +86,6 @@ function intFlag(flags: Record<string, string>, key: string): number | undefined
   return parseInt(flags[key], 10);
 }
 
-/** --encounter 解析:"jiyu" = 产品默认配置(public/config/jiyu.json);其余按路径读。
- *  parseEncounterFile 返回 null(结构不齐)即抛错——机遇开关是重放要素(档位抽取消耗
- *  骰流),坏配置不许静默降级。 */
-function loadEncounterCfg(spec: string): EncounterSwitch {
-  const path = spec === "jiyu" ? resolve("public/config/jiyu.json") : resolve(spec);
-  const cfg = parseEncounterFile(JSON.parse(readFileSync(path, "utf-8")));
-  if (!cfg) throw new Error(`机遇配置无效(enabled 布尔缺失):${path}`);
-  return cfg;
-}
-
 function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: GameConfig } {
   const seatsNum = parseInt(flags.seats ?? "2", 10);
   if (!(seatsNum >= 2 && seatsNum <= 4)) throw new Error("--seats 必须 2-4");
@@ -105,11 +103,6 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
   // 地图:--map <id>,缺省 = 内置清单首项;未知 id 由 loadBuiltinMapById 抛错
   const mapId = flags.map ?? builtinMapCatalog()[0].id;
   const map = loadBuiltinMapById(mapId);
-  // 机遇(#458):--encounter 显式给定则按其值;缺省 = 产品默认开关(ENCOUNTER_PRODUCT_DEFAULTS,
-  // 唯一事实源在 core,不重新解析 jiyu.json)——引擎缺省 enabled=false 恒关,CLI 对局要与
-  // 产品同源可触发机遇。
-  const encounter =
-    flags.encounter !== undefined ? loadEncounterCfg(flags.encounter) : ENCOUNTER_PRODUCT_DEFAULTS;
 
   const seats: SeatConfig[] = [];
   for (let i = 0; i < seatsNum; i++) {
@@ -119,8 +112,7 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
       // guohao 留空,doDraftRoll 会从字池分配(对 bot 必要,对人类也省事)
     });
   }
-  // config 即落盘构造参数(mapId 为重放要素必带,ADR-0014;encounter 恒存(缺省=产品
-  // 默认档)/reactionWindowMs 有则存,反应窗缺省查 core 常量表,与 EngineConfig 对齐;
+  // config 落盘构造参数包含地图 id。显式覆盖反应窗时长时一并保存，缺省读 core 常量表。
   // 目标线/起手现金无旗标时按地图顶层解析落盘——ADR-0041 起引擎无缺省,地图必配;
   // 起手珍宝无旗标,恒随地图顶层(#1100))
   const config: GameConfig = {
@@ -130,7 +122,6 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
     startingCash: startingCash ?? map.startingCash,
     startingTreasures: map.startingTreasures,
     mapId,
-    encounter,
     ...(reactionWindowMs !== undefined && { reactionWindowMs }),
   };
   const engine = createEngine(config, true, map);
@@ -203,11 +194,10 @@ function main(): void {
     );
     process.exit(2);
   }
-  const { positionals, flags } = parseArgs(argv);
-  const command = positionals[0];
-  const path = statePath(flags);
-
   try {
+    const { positionals, flags } = parseArgs(argv);
+    const command = positionals[0];
+    const path = statePath(flags);
     // 查询命令(不改状态,无需 save)
     if (command === "help" || command === "--help" || command === "-h") {
       console.log(
@@ -215,7 +205,7 @@ function main(): void {
           {
             commands: {
               "new [--seats N] [--bot 0,1] [--seed S] [--target T]":
-                "开新局;参数面:--map <id>(缺省=内置清单首项)/ --starting-cash N / --encounter jiyu|<路径>(缺省=产品默认档)/ --reaction-window-ms N",
+                "开新局;参数面:--map <id>(缺省=内置清单首项)/ --starting-cash N/ --reaction-window-ms N",
               "auto-setup": "自动跑选都到 Playing",
               auto: "连续驱动 bot 决策,直到轮到人类(stoppedBy=human)/终局(over)/无进展(idle)",
               "run-to-end": "全 bot 局一键跑完到终局(任一座位非 bot 即抛错)",
@@ -234,8 +224,6 @@ function main(): void {
             options: { "--state path": "状态文件路径(默认 data/cli-state.json,相对 cwd)" },
             注: "快捷命令(roll/buy/…/cmd)ok:false = 命令被引擎拒绝,reason 给原因(如相位不符)",
             "cmd JSON 示例(按相位)": {
-              AwaitingEncounter:
-                '{"type":"resolveEncounterChoice","index":0}(下标见 status.choices)',
               AwaitingJinnang:
                 '{"type":"useJinnang","cardId":"<id>"} / {"type":"useJinnang","cardId":null}(今不用);待发动技 {"type":"useHeroSkill","heroId":"<heroId>","skillId":"<skillId>"}',
               AwaitingReaction:

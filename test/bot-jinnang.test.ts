@@ -108,7 +108,6 @@ describe("锦囊 bot 策略(#148)", () => {
     expect(e.players[1].cash).toBe(350); // 各缴 200
     expect(user.cash).toBe(before + 200);
     expect(user.jinnangHand).toEqual([]);
-    expect(e.jinnangUsedTags).toEqual(["攻"]);
     expect(e.turnPhase).toBe("Roll");
     expect(e.jinnangDeckCount).toBe(deckBefore); // 用牌不抽牌
   });
@@ -127,16 +126,15 @@ describe("锦囊 bot 策略(#148)", () => {
     expect(e.turnPhase).toBe("Roll");
   });
 
-  it("异类标签连用:一次 botAct 把求贤令+横征暴敛连用完再收卷", () => {
-    // seed 1(#471 换源重钓):求贤令招到华佗(无资金型技能),横征暴敛账面干净;
-    // 默认 seed 42 会招曹丕,其「他人失金+50/施惠回补」技能干扰现金断言。
-    const e = prepared(1);
-    const user = armJinnang(e, ["求贤令", "横征暴敛"]);
-    e.players[1].cash = 300;
+  it("bot 与托管共用的出牌逻辑可连续打出两张同标签锦囊", () => {
+    const e = prepared();
+    const user = armJinnang(e, ["横征暴敛", "横征暴敛"]);
+    const target = e.players.find((p) => p !== user)!;
+    target.cash = 500;
     botAct(e);
     expect(user.jinnangHand).toEqual([]);
-    expect(e.jinnangUsedTags.slice().sort()).toEqual(["攻", "援"].sort());
-    expect(e.players[1].cash).toBe(100);
+    expect(e.jinnangDiscard).toEqual(["横征暴敛", "横征暴敛"]);
+    expect(target.cash).toBe(100);
     expect(e.turnPhase).toBe("Roll");
   });
 

@@ -1,8 +1,7 @@
-// AI 诸侯:回合 EV 决策(抽签/买/升级/抉择机遇/锦囊),单档(#613 难度系统退役)。
+// AI 诸侯:回合 EV 决策(抽签/买/升级/锦囊),单档(#613 难度系统退役)。
 // 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
 import type { GameEngine, TurnPhase } from "./authority";
 import type { Player } from "./model";
-import { encounterChoiceAt, type EncounterEffect } from "./encounters";
 import type { PendingReaction } from "./reaction-window";
 import { jinnangCardOf } from "./jinnang";
 import {
@@ -11,13 +10,14 @@ import {
   fireWallSplashCities,
   heroSkillCityTargets,
   isSkillOption,
+  jinnangTargetOk,
   skillOptionId,
 } from "./choices";
 import { netWorth } from "./networth";
 import { guidePriceOf, isSkillBook } from "./treasures";
 import { skillBookLearners } from "./roster";
 import { beginGameEventBatch } from "./game-events";
-import { INITIAL_CITY_LEVEL, STAMINA_CASH_RATE } from "./constants";
+import { EXHAUSTION_REST_TURNS, INITIAL_CITY_LEVEL, STAMINA_CASH_RATE } from "./constants";
 import type { BankruptcyAsset } from "./bankruptcy";
 import { sellValueOf } from "./economy";
 
@@ -29,52 +29,12 @@ export const BOT_ATTENDED_PHASES: ReadonlySet<TurnPhase> = new Set([
   "Roll",
   "AwaitingDecision",
   "AwaitingHeroPick",
-  "AwaitingEncounter",
   "AwaitingJinnang",
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
   "AwaitingReaction", // 见头注:开窗即席代答,驱动器停等人类,不走 botAct
   "AwaitingSkillChoice", // 「你可」时机内待决，驱动器调用 botAct 按策略应答
 ]);
-
-/** 座位散列(抉择声望折算系数的性格源,#124):纯座位派生,确定性、与对局状态无关,
- *  不消耗引擎骰(重放安全)。 */
-function seatHash(seat: number): number {
-  let h = (seat + 0x9e3779b9) >>> 0;
-  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
-  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
-  return (h ^ (h >>> 16)) >>> 0;
-}
-
-/** 声望折银系数(#124):5 + (seatHash % 5) ∈ [5,9]——不同 bot 性格不同:重声望者愿为
- *  声望多掏银(携民渡江式的仁主),轻声望者见利即取。repDelta × 系数折成银两后与选项的
- *  立即银两影响同尺比较。exported 供单测。 */
-export function repCoefficient(seat: number): number {
-  return 5 + (seatHash(seat) % 5);
-}
-
-/** 抉择选项的立即银两影响(#124 bot 贪心口径):cash 直取;玩家间转移(siphon/trade/levy)
- *  按面值;grantHero/grantCity 只计 fallbackCash(得将得城的长期价值不入立即净值);
- *  grantTreasure 无现金流量计 0;无 effect(纯声望/无事)= 0。exported 供单测。 */
-export function encounterCashImpact(effect: EncounterEffect | undefined): number {
-  if (!effect) return 0;
-  switch (effect.kind) {
-    case "cash":
-      return effect.delta;
-    case "siphon":
-    case "trade":
-      return effect.amount;
-    case "levy":
-      return -effect.amount;
-    case "grantCard":
-      return 0; // #147:得的是锦囊,无现金流量
-    case "grantHero":
-    case "grantCity":
-      return effect.fallbackCash;
-    case "grantTreasure":
-      return 0;
-  }
-}
 
 // ────────────────────────── 锦囊策略(#148,T6,docs/explanation/锦囊设计.md §8)──────────────────────────
 
@@ -122,6 +82,12 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
         ({ t }) => t.treasures.length > 0,
       );
       return { use: ranked.length > 0, targets: ranked.map(({ seat }) => seat) };
+    }
+    case "staminaDamage": {
+      const targets = byKeyDesc(({ t }) => -t.stamina)
+        .filter(({ seat }) => jinnangTargetOk(engine, mySeat, seat, def.effect).ok)
+        .map(({ seat }) => seat);
+      return { use: targets.length > 0, targets };
     }
     case "fireWall": {
       // 火烧连营(#1389 溅射化,统一原则与人类同规则):择溅射收益最大的中心——
@@ -225,6 +191,10 @@ function counterLossEstimate(
       return Math.min(def.effect.amount, me.cash);
     case "skipTurn":
       return EST_SKIP_TURN_LOSS;
+    case "staminaDamage":
+      return def.effect.damage >= me.stamina
+        ? EXHAUSTION_REST_TURNS * EST_SKIP_TURN_LOSS
+        : def.effect.damage * STAMINA_CASH_RATE;
     case "duel": {
       // 期望损失对表推导(#299):等概率胜(国库 +winnerBankGain)/负(赔 loserPaysUser)
       // → 期望净收益 (winnerBankGain − loserPaysUser)/2,损失取其相反数;
@@ -484,15 +454,16 @@ function commitHeroSkillTargets(engine: GameEngine, heroId: string, skillId: str
  *  即用(#1146 贪心:可用即用零权衡;多名同池按槽位序取首=skillBookLearners 单源序,
  *  零新随机;书尽/不可学才让位),再按窗口顺序逐项过锦囊/主动技策略表,取第一张
  *  「值得用」的;锦囊指向域提交后入目标段按偏好序选人,偏好全不可发作罢换下一张;技能
- *  目标段同构(#817 意图/发动都携实例定位对)。用一项后引擎可能停留窗口(异类标签/
- *  其他就绪技/下一册书),循环续推直到收卷;tried 挡作罢-重选死循环,guard 兜底。 */
+ *  目标段同构(#817 意图/发动都携实例定位对)。有其他可用项时继续选择，记录未能
+ *  结算的锦囊以免反复作罢。实际消耗一张后，手里同名的牌仍可继续出。 */
 function driveJinnang(engine: GameEngine): void {
   const tried = new Set<string>();
   if (engine.pendingJinnang) {
     // 中途接管:上一调用停在锦囊目标段,先续推完这一张
     const cardId = engine.pendingJinnang.cardId;
-    tried.add(cardId);
+    const count = engine.activePlayer.jinnangHandCount;
     commitJinnangTargets(engine, cardId);
+    if (engine.activePlayer.jinnangHandCount === count) tried.add(cardId);
   }
   if (engine.pendingSkill) {
     // 中途接管:停在技能目标段,续推这一实例(#817 载荷携实例定位对)
@@ -528,13 +499,15 @@ function driveJinnang(engine: GameEngine): void {
       engine.resolveJinnang(null);
       break;
     }
-    tried.add(chosen.id);
     if (isSkillOption(chosen)) {
+      tried.add(chosen.id);
       engine.resolveHeroSkill(chosen.skillHeroId, chosen.skillId); // other/any 域 → 入目标段;none 域 → 直接执行
       if (engine.pendingSkill) commitHeroSkillTargets(engine, chosen.skillHeroId, chosen.skillId);
     } else {
+      const count = me.jinnangHandCount;
       engine.resolveJinnang(chosen.id); // one/two-others → 入目标段;self/all-others → 直接执行
       if (engine.pendingJinnang) commitJinnangTargets(engine, chosen.id);
+      if (me.jinnangHandCount === count) tried.add(chosen.id);
     }
   }
 }
@@ -584,46 +557,18 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingHeroPick": {
-      // bot 招贤纳士:随机选一位。候选非空是该相位的引擎不变量(recruitment.ts 载荷与相位
-      // 同点置位);曾有「空候选 resolveHeroPick(0)」把「相位挂着、载荷已空」的失配态静默
-      // 驱过掩盖(#649),删——失配就该在读取点当场炸,零兜底(同 AwaitingEncounter 口径)。
-      const count = engine.offeredHeroes.length;
-      if (count === 0) throw new Error("AwaitingHeroPick 相位 offeredHeroes 为空:状态机不一致"); // 零兜底
-      engine.resolveHeroPick(Math.floor(engine.dice.nextFloat() * count));
-      break;
-    }
-
-    case "AwaitingEncounter": {
-      // 抉择机遇(#124):立即净值贪心——score = 选项 effect 银两影响 + repDelta × 声望折银
-      // 系数(repCoefficient(decisionOwner),不同 bot 性格不同)− 体力增量×体力折银率
-      // (#789 数值平衡:体力按 STAMINA_CASH_RATE 计价后,「体力换银」类选项只有在
-      // 卖价高于折银锚时才值得接)。确定性:不掷骰,同分取
-      // 目录序在前者。选项集先经
-      // choicesFor 过滤(ADR-0013 同一口径,不可用选项不参评)。
-      const enc = engine.pendingEncounter;
-      if (!enc || !enc.choices)
-        throw new Error("AwaitingEncounter 相位 pendingEncounter/choices 缺失:状态机不一致"); // 零兜底
-      const coef = repCoefficient(engine.decisionOwner);
-      let bestIdx = -1;
-      let bestScore = -Infinity;
-      engine.choicesFor().forEach((o, i) => {
-        if (!o.available) return;
-        const c = encounterChoiceAt(enc, i);
-        // 体力计价 = 选项级与效果级 staminaDelta 合计 × 折银率(staminaDelta 为负值即扣分;
-        // 与结算两路一致,#789)。选项现金代价 cashCost(#1154)按面值扣分——与闸门
-        // optionCashCost 同尺,付费与得物分离的选项不作免费白捡。
-        const staminaDelta = (c.staminaDelta ?? 0) + (c.effect?.staminaDelta ?? 0);
-        const score =
-          encounterCashImpact(c.effect) -
-          (c.cashCost ?? 0) +
-          c.repDelta * coef +
-          staminaDelta * STAMINA_CASH_RATE;
-        if (score > bestScore) {
-          bestScore = score;
-          bestIdx = i;
-        }
-      });
-      if (bestIdx >= 0) engine.resolveEncounterChoice(bestIdx);
+      // 有可招名将时随机选一位，其次求书，最后跳过。托管同走此决策。
+      const picks = engine
+        .choicesFor()
+        .flatMap(({ available, heroPick }) => (available && heroPick != null ? [heroPick] : []));
+      const recruits = picks.filter((pick) => "index" in pick);
+      const pick =
+        recruits.length > 0
+          ? recruits[Math.floor(engine.dice.nextFloat() * recruits.length)]
+          : (picks.find((pick) => "action" in pick && pick.action === "seekBook") ??
+            picks.find((pick) => "action" in pick && pick.action === "skip"));
+      if (pick == null) throw new Error("招贤相位没有可用选项");
+      engine.resolveHeroPick(pick);
       break;
     }
 

@@ -4,7 +4,6 @@
 // resolveDuel)的同名薄委托,src/core/authority.ts 反应窗区段。
 import type { GameEngine } from "./authority";
 import { botReactionDecision } from "./bot";
-import { isEventCity } from "./board";
 import { jinnangCardOf, type JinnangEffect } from "./jinnang";
 import { emitGameEvent } from "./game-events";
 import { REACTION_WINDOW_MS } from "./constants";
@@ -640,8 +639,7 @@ function returnSupersededCounters(
   }
 }
 
-/** 反应牌扣账(#281):离手入弃堆。不入 jinnangUsedTags 名额——名额账本是活跃玩家的
- *  出牌阶段额度(回合开始清零),反应牌多在他人回合打出,混入会污染账本。 */
+/** 结算已生效的反应牌，扣除手牌并放入弃牌堆。 */
 function consumeReactionCard(g: GameEngine, seat: number, cardId: string): void {
   const p = g.players[seat];
   p.jinnangHand.splice(p.jinnangHand.indexOf(cardId), 1);
@@ -697,29 +695,15 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction, play?: ReactionP
   resumeMarch(g, payload);
 }
 
-/** 拦停落格:行人止步拦检城、照常落格结算(机遇/城池;可能被交涉)。lastMove 截断到
+/** 拦停落格:行人止步拦检城、照常结算该城(可能进入珍宝交涉)。lastMove 截断到
  *  拦检城(行军动画只走此)。 */
 function settleAmbushStop(
   g: GameEngine,
   payload: Extract<ReactionPayload, { kind: "march" }>,
 ): void {
   const mover = g.players[payload.moverSeat];
-  const path = g.board.computePath(payload.fromPos, payload.stepsToTile, mover.capitalIndex);
-  g.lastMove = path;
-  mover.position = payload.tileIndex;
-  emitGameEvent(g, payload.moverSeat, {
-    kind: "marchArrived",
-    tileIndex: payload.tileIndex,
-    path,
-  }); // 事件流(#375):行军落格(拦停止步;截断路径随事件走)
-  g.dispatchMoment("AfterMarch", { subject: payload.moverSeat }); // 时机·AfterMarch:移动完成(拦停止步)、落格结算前
-  g.turnPhase = "Land";
-  // 特殊城池免掷(#824,ADR-0037):拦停止步同落格门——落点是事件城不掷随机机遇,
-  // 照常走落格结算(固定事件 → 交易链)。
-  const enc = isEventCity(g.board.at(mover.position)) ? "none" : g.maybeApplyEncounter(mover);
-  if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
-    return;
-  g.resolveLanding();
+  g.lastMove = g.board.computePath(payload.fromPos, payload.stepsToTile, mover.capitalIndex);
+  g.settleMarchLanding(mover, payload.tileIndex);
 }
 
 /** 拦检未拦住:行人自拦检城之后续走余下途经格(逐格,可再遇新挂点),走完照常落格。 */

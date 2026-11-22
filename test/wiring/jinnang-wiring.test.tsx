@@ -11,7 +11,7 @@ import { GameEngine, type GameCommand, type SeatConfig } from "@core/authority";
 import { tileIndexOfProperty } from "@core/board";
 import { loadMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
-import { jinnangCardOf } from "@core/jinnang";
+import { JINNANG_DECK_LIST, jinnangCardOf } from "@core/jinnang";
 import { GHOST } from "@app/fx/timings";
 import {
   armBankrupt,
@@ -23,7 +23,6 @@ import {
   pinDice,
   placePlayer,
   setCash,
-  setJinnangUsedTags,
 } from "@core/planter";
 import { skillOptionId } from "@core/choices";
 import { makeSkillBook } from "@core/treasures";
@@ -77,7 +76,6 @@ function seedPlayingEngine(): GameEngine {
     startingTreasures: MAP.startingTreasures,
     seed: SEED,
     mapId: "guanzhong",
-    encounter: { enabled: false }, // 机遇硬关:与 e2e quickStart/单测既有口径同
   });
   e.doDraftRoll();
   while (e.phase === "Setup") {
@@ -441,30 +439,62 @@ describe("手牌架内容与临时显隐", () => {
     expect(engine.players[0]!.heroes).toHaveLength(0);
   });
 
-  it("技能书不可研读时说明原因，可研读后仍能使用", async () => {
+  it("合资格技能书在自己的出牌阶段进入牌架，选将确认才消耗一册", async () => {
+    clock = installControlledClock();
     const book = makeSkillBook("huogong");
     const { el, engine, writeEngine } = startGame((e) => {
-      giveTreasure(e, 0, [book]);
+      giveJinnang(e, 0, []);
+      giveTreasure(e, 0, [book, book]);
       armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
     });
-    click(q(el, TESTIDS.pileTreasures)!);
-    await settle();
-    const modal = () => modalQ(TESTIDS.treasureModal)!;
-    expect(modal().textContent).toContain("麾下无人可习此技");
-    expect(modalQ(TESTIDS.bookUse(book.id))).toBeNull();
+    const rackBook = () => q(el, TESTIDS.bookUse(book.id));
+    expect(rackBook()).toBeNull();
 
     writeEngine((e) => {
       armHero(e, 0, "zhouyu", ["yingzi"]);
+      armHero(e, 0, "zhugeliang", ["huogong"]);
       armPhase(e, { turnPhase: "Roll" });
     });
-    expect(modal().textContent).toContain("出牌阶段可研读");
-    expect(modalQ(TESTIDS.bookUse(book.id))).toBeNull();
+    expect(rackBook()).toBeNull();
+    writeEngine((e) => armPhase(e, { activeIndex: 1, turnPhase: "AwaitingJinnang" }));
+    expect(rackBook()).toBeNull();
+    writeEngine((e) => armPhase(e, { activeIndex: 0 }));
+    expect(rackBook()).not.toBeNull();
+    expect(q(el, TESTIDS.jinnangToggle)!.textContent).toBe("锦囊");
 
-    writeEngine((e) => armPhase(e, { turnPhase: "AwaitingJinnang" }));
-    click(modalQ(TESTIDS.bookUse(book.id))!);
+    click(q(el, TESTIDS.pileTreasures)!);
+    await clock.settle();
+    const treasureModal = modalQ(TESTIDS.treasureModal)!;
+    expect(treasureModal.textContent).toContain(book.name);
+    expect(q(treasureModal, TESTIDS.bookUse(book.id))).toBeNull();
+    click(q(treasureModal, TESTIDS.modalClose)!);
+    await clock.advance(GHOST.frameMs);
+
+    const deck = [...engine.jinnangDeck];
+    const discard = [...engine.jinnangDiscard];
+    const openPicker = () => click(rackBook()!);
+    const chooseZhouYu = () => click(modalQ(TESTIDS.bookLearnItem("zhouyu"))!);
+    const confirm = () => modalQ(TESTIDS.bookLearnConfirm)! as HTMLButtonElement;
+    openPicker();
+    expect(confirm().disabled).toBe(true);
+    expect(modalQ(TESTIDS.bookLearnItem("zhugeliang"))).toBeNull();
+    chooseZhouYu();
+    click(modalQ(TESTIDS.bookLearnCancel)!);
+    expect(engine.players[0]!.heroes[0]!.skillIds).toEqual(["yingzi"]);
+    expect(engine.players[0]!.treasures).toHaveLength(2);
+
+    openPicker();
+    chooseZhouYu();
+    expect(confirm().disabled).toBe(false);
+    expect(engine.players[0]!.treasures).toHaveLength(2);
+    click(confirm());
     expect(engine.players[0]!.heroes[0]!.skillIds).toContain("huogong");
-    expect(engine.players[0]!.treasures).toHaveLength(0);
-    await settle();
+    expect(engine.players[0]!.treasures).toEqual([book]);
+    expect(rackBook()).toBeNull();
+    expect(engine.players[0]!.jinnangHand).toEqual([]);
+    expect(engine.jinnangDeck).toEqual(deck);
+    expect(engine.jinnangDiscard).toEqual(discard);
+    await clock.settle();
   });
 
   it("手指移出签面后取消长按，重新长按仍可查看浮签", async () => {
@@ -654,12 +684,7 @@ describe("手牌架内容与临时显隐", () => {
     writeEngine((e) => e.endTurn());
     writeEngine((e) => armPhase(e, { activeIndex: 0, turnPhase: "Roll" }));
     expect(rack() !== null).toBe(true); // 只有反应牌也算内容,新回合复位手动收。
-    writeEngine((e) => {
-      giveJinnang(e, 0, ["横征暴敛"]);
-      setJinnangUsedTags(e, ["攻"]);
-      armPhase(e, { turnPhase: "AwaitingJinnang" });
-    });
-    expect(q(el, TESTIDS.jinnangCard("横征暴敛"))!.getAttribute("aria-disabled")).toBe("true");
+    writeEngine((e) => armPhase(e, { turnPhase: "AwaitingJinnang" }));
     writeEngine((e) => giveJinnang(e, 0, []));
     expect(rack() === null).toBe(true);
     writeEngine((e) => armHero(e, 0, "zhangxingcai", ["leigu"]));
@@ -672,7 +697,6 @@ describe("手牌架内容与临时显隐", () => {
     writeEngine((e) => {
       giveJinnang(e, 0, ["识破诡计"]);
       giveJinnang(e, 1, ["横征暴敛"]);
-      setJinnangUsedTags(e, []);
       armPhase(e, { activeIndex: 1, turnPhase: "AwaitingJinnang" });
       e.submitCommand({ type: "useJinnang", cardId: "横征暴敛" });
     });
@@ -736,24 +760,26 @@ describe("锦囊 secrecy 可见性(自 react-jinnang 迁入,#1315 批T1)", () =>
   // view(引擎在本机),「他人只见计数」的投影逻辑由 room 层单测 redactSnapshotForSeat
   // 直测;本例断言 UI 面不泄:他人牌面永不出现在 DOM。引擎缝账目断言(牌库/离库)同
   // e2e __dafung 桥语义,直读进程内引擎。
-  it("起手各 1 张:架中见自己牌面;牌库余 14;席位卡见计数章", () => {
+  it("起手与首回合摸牌后，架中只见自己牌面，其他席位显示张数", () => {
     const { el, engine, snap } = startGame(() => {
       // 零种植:seed 67 离线核算天然凑齐断言面(头注第 2 步)
     });
     // 引擎缝 fail-fast:发牌没进引擎,后面全是废话(e2e 同款断言,直读引擎)
-    expect(engine.jinnangDeck.length).toBe(14); // 18 − 4 起手(#281 牌库 9 种 18 张)
+    expect(engine.jinnangDeck.length).toBe(JINNANG_DECK_LIST.length - 5);
     expect(
       engine.players.reduce((a, p) => a + p.jinnangHand.length, 0) + engine.jinnangDiscard.length,
-    ).toBe(4); // 离库 4 张无一消失(用牌只进弃牌堆不回库,牌库数即发牌证据)
-    // 己方牌面:手牌行 + 恰好 1 张(testid 带牌名,目录中文 id)
+    ).toBe(5);
+    const ownCount = engine.activeIndex === 0 ? 2 : 1;
+    const otherCount = engine.activeIndex === 1 ? 2 : 1;
     expect(q(el, TESTIDS.handZone)).not.toBeNull();
     expect(
       el.querySelectorAll(`[data-testid="${TESTIDS.jinnangHand}"] [data-testid^="jinnang-card-"]`),
-    ).toHaveLength(1);
+    ).toHaveLength(ownCount);
     // 他人计数章可见(席位卡手牌徽章 aria 即计数,#253 jinnang-count 随诸侯行退役)
-    expect(q(el, TESTIDS.seatAttr(1, "hand"))!.getAttribute("aria-label")).toBe("锦囊手牌 1");
-    // 整页不存在第二份锦囊牌面(他人内容不渲染——secrecy 的 UI 面本体)
-    expect(el.querySelectorAll("[data-testid^='jinnang-card-']")).toHaveLength(1);
-    expect(snap().players[0].jinnangHand).toHaveLength(1);
+    expect(q(el, TESTIDS.seatAttr(1, "hand"))!.getAttribute("aria-label")).toBe(
+      `锦囊手牌 ${otherCount}`,
+    );
+    expect(el.querySelectorAll("[data-testid^='jinnang-card-']")).toHaveLength(ownCount);
+    expect(snap().players[0].jinnangHand).toHaveLength(ownCount);
   });
 });

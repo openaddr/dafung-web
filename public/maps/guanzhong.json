@@ -118,7 +118,7 @@
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
-      "id": "prop-jinnang-1",
+      "id": "prop-lushui",
       "name": "泸水",
       "pos": [380, 480],
       "group": "c",
@@ -127,8 +127,7 @@
       "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
       "valueByLevel": [900, 1260, 1620, 1980],
-      "tradeAdd": [100, 200, 400, 800],
-      "event": "jinnang"
+      "tradeAdd": [100, 200, 400, 800]
     },
     {
       "id": "prop-changsha",
@@ -289,7 +288,7 @@
       "tradeAdd": [0, 0, 0, 0]
     },
     {
-      "id": "prop-jinnang-2",
+      "id": "prop-nanxu",
       "name": "南徐",
       "pos": [760, 160],
       "group": "g",
@@ -298,11 +297,10 @@
       "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
       "valueByLevel": [900, 1260, 1620, 1980],
-      "tradeAdd": [100, 200, 400, 800],
-      "event": "jinnang"
+      "tradeAdd": [100, 200, 400, 800]
     },
     {
-      "id": "prop-tianming",
+      "id": "prop-shouchantai",
       "name": "受禅台",
       "pos": [760, -160],
       "group": "a",
@@ -311,8 +309,7 @@
       "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
       "valueByLevel": [900, 1260, 1620, 1980],
-      "tradeAdd": [100, 200, 400, 800],
-      "event": "fate"
+      "tradeAdd": [100, 200, 400, 800]
     },
     {
       "id": "prop-ye",

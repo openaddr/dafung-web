@@ -9,11 +9,10 @@ import {
   pinDice,
   placePlayer,
   setCash,
-  setReputation,
+  setDefense,
   setStamina,
 } from "../../src/core/planter";
 import type { GameCommand, GameEngine } from "../../src/core/authority";
-import { encounterDefOfId } from "../../src/core/event-tiers";
 import { foldEventBatch } from "../../src/app/net/event-fold";
 import { assembleDownlinkShot } from "../../scripts/seat-projection";
 import { cmdMsg, dispatchInbound, type InboundMsg, type ServerMsg } from "../../scripts/wire";
@@ -57,10 +56,7 @@ it("单机构造同步水合首帧,后续选都命令由下行推进副本", asy
   }
 });
 
-async function playingRoom(
-  beforeConnect?: (engine: GameEngine) => void,
-  { seatCount = 2, encounter = false } = {},
-) {
+async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatCount = 2 } = {}) {
   const records = new Map<string, RoomRecord>();
   const registry = new RoomRegistry(
     {
@@ -77,7 +73,6 @@ async function playingRoom(
     undefined,
     undefined,
     {
-      encounter: { enabled: encounter },
       clock: { setTimeout: () => ({}), clearTimeout: () => {} },
     },
   );
@@ -223,8 +218,7 @@ it("目标锦囊最终提交后，下行副本从目标段进入反应窗", asyn
   }
 });
 
-it("结盟互市自动结算后,真实下行将咸阳交易交给城主并可续行下一回合", async () => {
-  // 守住机遇 → 最终城池决策的真实 JSON 下行接缝,单例只等两个合并拍。
+it("落到咸阳，真实下行将交易交给城主并可续行下一回合", async () => {
   const { registry, room, token, engine, replica, messages, broadcast } = await playingRoom(
     (authority) => {
       for (let seat = 0; seat < 4; seat++) giveJinnang(authority, seat, []);
@@ -232,11 +226,9 @@ it("结盟互市自动结算后,真实下行将咸阳交易交给城主并可续
       placePlayer(authority, 3, 9);
       grantProperty(authority, 0, "prop-xianyang", 2);
       giveTreasureFromDeck(authority, 0, 3);
-      setReputation(authority, 3, 80);
       pinDice(authority, "march", [6]);
-      authority.dice.setRngState(2);
     },
-    { seatCount: 4, encounter: true },
+    { seatCount: 4 },
   );
   try {
     const message = JSON.parse(cmdMsg({ type: "rollAndMove" })) as Extract<
@@ -246,9 +238,6 @@ it("结盟互市自动结算后,真实下行将咸阳交易交给城主并可续
     await registry.applyCommand(room.roomId, message.cmd, broadcast);
     await downlinkTurn();
     expect(messages.map((message) => message.type)).toEqual(["events"]);
-    expect(engine.gameEvents).toContainEqual(
-      expect.objectContaining({ kind: "encounterChoice", encounterId: "结盟互市" }),
-    );
     expect(engine.turnPhase).toBe("AwaitingTreasureOwner");
     expect(engine.decisionOwner).toBe(0);
     expect({
@@ -282,58 +271,16 @@ it("结盟互市自动结算后,真实下行将咸阳交易交给城主并可续
   }
 });
 
-it("机遇全灰后经联机命令提交无事发生，两端都保留资源并继续落格", async () => {
-  const { registry, room, token, engine, replica, messages, sendCommand } = await playingRoom(
-    (authority) => {
-      for (let seat = 0; seat < 2; seat++) giveJinnang(authority, seat, []);
-      armPhase(authority, { activeIndex: 0, turnPhase: "Land" });
-      setCash(authority, 0, 79);
-      setStamina(authority, 0, 55);
-      const unowned = authority.board.tiles.find(
-        (tile) => tile.propertyId != null && authority.findOwner(tile.propertyId) == null,
-      )!;
-      placePlayer(authority, 0, unowned.index);
-      authority.enterEncounterPhase(authority.activePlayer, encounterDefOfId("河堤告急"));
-    },
-  );
-  try {
-    const onlineSeats = new Set([0, 1]);
-    const start = assembleDownlinkShot(room, onlineSeats, 0, [], true);
-    const snapshot = JSON.parse(start.snapshot);
-    replica.restoreFromSnapshot(snapshot);
-    expect(replica.choicesFor().map((option) => option.available)).toEqual([false, false, true]);
-    await sendCommand({ type: "resolveEncounterChoice", index: 2 });
-    const events = messages.flatMap((msg) => (msg.type === "events" ? msg.events : []));
-    expect(events).toContainEqual(
-      expect.objectContaining({ kind: "encounterChoice", encounterId: "河堤告急", choiceIndex: 2 }),
-    );
-    const downlink = assembleDownlinkShot(room, onlineSeats, 0, events, false);
-    replica.restoreFromSnapshot(snapshot);
-    foldEventBatch(replica, JSON.parse(downlink.events!).events);
-    for (const game of [engine, replica]) {
-      expect(game.players[0].cash).toBe(79);
-      expect(game.players[0].stamina).toBe(55);
-      expect(game.activeIndex).toBe(1);
-      expect(game.turnPhase).not.toBe("AwaitingEncounter");
-    }
-    expect(replica.turnPhase).toBe(engine.turnPhase);
-  } finally {
-    registry.dismissRoom(room.roomId, token);
-  }
-});
-
-it("即时机遇增加现金后,副本按最终购地决策提交命令", async () => {
+it("落到无主城，副本同步购买选项和成交结果", async () => {
   const { registry, room, token, engine, replica, messages, broadcast } = await playingRoom(
     (authority) => {
       for (let seat = 0; seat < 4; seat++) giveJinnang(authority, seat, []);
       armPhase(authority, { phase: "Playing", turnPhase: "Roll", activeIndex: 3 });
       placePlayer(authority, 3, 9);
-      setCash(authority, 3, authority.catalog.get("prop-xianyang")!.purchasePrice - 50);
-      setReputation(authority, 3, 80);
+      setCash(authority, 3, authority.catalog.get("prop-xianyang")!.purchasePrice + 200);
       pinDice(authority, "march", [6]);
-      authority.dice.setRngState(0);
     },
-    { seatCount: 4, encounter: true },
+    { seatCount: 4 },
   );
   try {
     const message = JSON.parse(cmdMsg({ type: "rollAndMove" })) as Extract<
@@ -343,9 +290,6 @@ it("即时机遇增加现金后,副本按最终购地决策提交命令", async 
     await registry.applyCommand(room.roomId, message.cmd, broadcast);
     await downlinkTurn();
     expect(messages.map((message) => message.type)).toEqual(["events"]);
-    expect(engine.gameEvents).toContainEqual(
-      expect.objectContaining({ kind: "encounterTriggered", encounterId: "屯粮居奇" }),
-    );
     expect(replica.turnPhase).toBe("AwaitingDecision");
     expect(replica.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "prop-xianyang" });
     expect(replica.snapshot().lastLandOutcome).toEqual(engine.snapshot().lastLandOutcome);
@@ -459,57 +403,57 @@ it("非校准拍房间托管元数据按变化下行,不依赖全量快照", asy
   }
 });
 
-it("同一次行军的放逐、行殇先后下行，副本继续下一回合", async () => {
-  const { registry, room, token, engine, replica, messages, broadcast } = await playingRoom(
-    (authority) => {
-      armPhase(authority, { turnPhase: "Roll", activeIndex: 0 });
+it("袭扰归零后放逐、行殇先后下行，副本继续原出牌者回合", async () => {
+  const { registry, room, token, engine, replica, messages, broadcast, sendCommand } =
+    await playingRoom((authority) => {
+      armPhase(authority, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
       placePlayer(authority, 0, 1);
-      giveJinnang(authority, 0, []);
+      placePlayer(authority, 1, 2);
+      giveJinnang(authority, 0, ["袭扰", "识破诡计"]);
       giveJinnang(authority, 1, []);
-      setReputation(authority, 0, -300);
-      setStamina(authority, 0, 60);
-      armHero(authority, 0, "caopi", ["fangzhu"]);
-      armHero(authority, 1, "caopi", ["xingshang"]);
-      setStamina(authority, 0, 5);
-      authority.dice.setRngState(1); // 粮道被劫使体力归零
-    },
-    { encounter: true },
-  );
+      setStamina(authority, 1, 60);
+      armHero(authority, 1, "caopi", ["fangzhu"]);
+      armHero(authority, 0, "caopi", ["xingshang"]);
+      setStamina(authority, 1, 5);
+      grantProperty(authority, 1, "prop-xianyang", 2);
+      setDefense(authority, 1, "prop-xianyang", 2);
+    });
   try {
-    pinDice(engine, "march", [1]);
-    await registry.applyCommand(room.roomId, { type: "rollAndMove" }, broadcast);
-    await downlinkTurn();
+    await sendCommand({ type: "useJinnang", cardId: "袭扰" });
+    await sendCommand({ type: "useJinnang", cardId: "袭扰", targets: [1] });
     expect(replica.turnPhase).toBe("AwaitingSkillChoice");
     expect(replica.pendingSkillChoices).toEqual(engine.pendingSkillChoices);
     expect(replica.pendingSkillChoices.map((choice) => choice.skillId)).toEqual(["fangzhu"]);
-    expect(messages.map((message) => message.type)).toEqual(["events"]);
+    expect(messages[0]?.type).toBe("events");
 
     const firstOwner = replica.decisionOwner;
+    const onlineSeats = new Set([0, 1]);
+    const reconnect = assembleDownlinkShot(room, onlineSeats, 1, [], true);
+    const rejoined = JSON.parse(reconnect.snapshot) as Extract<ServerMsg, { type: "snapshot" }>;
+    expect(rejoined.turnPhase).toBe("AwaitingSkillChoice");
+    expect(rejoined.decisionOwner).toBe(1);
+    expect(rejoined.players[0]).toMatchObject({ jinnangHand: [], jinnangHandCount: 1 });
     await registry.applyCommand(
       room.roomId,
       { type: "respondSkillChoice", seat: firstOwner, use: false },
       broadcast,
     );
     await downlinkTurn();
-    expect(replica.turnPhase).toBe("AwaitingSkillChoice");
     expect(replica.pendingSkillChoices).toEqual(engine.pendingSkillChoices);
     expect(replica.pendingSkillChoices.map((choice) => choice.skillId)).toEqual(["xingshang"]);
-    expect(replica.decisionOwner).not.toBe(firstOwner);
-
-    await registry.applyCommand(
-      room.roomId,
-      { type: "respondSkillChoice", seat: replica.decisionOwner, use: false },
-      broadcast,
+    expect(replica.decisionOwner).toBe(0);
+    expect(replica.players[1]).toMatchObject({ stamina: 0, skipTurns: 2, resting: true });
+    expect(replica.players[1].properties).toContainEqual(
+      expect.objectContaining({ propertyId: "prop-xianyang", level: 1 }),
     );
-    await downlinkTurn();
+
+    await sendCommand({ type: "respondSkillChoice", seat: 0, use: false });
     expect(replica.pendingSkillChoices).toEqual([]);
-    expect(replica.turnPhase).toBe("Roll");
-    const nextSeat = replica.activeIndex;
-    const beforeMarch = replica.players[nextSeat]!.position;
+    expect([replica.activeIndex, replica.turnPhase]).toEqual([0, "Roll"]);
+    const beforeMarch = replica.players[0]!.position;
     pinDice(engine, "march", [1]);
-    await registry.applyCommand(room.roomId, { type: "rollAndMove" }, broadcast);
-    await downlinkTurn();
-    expect(replica.players[nextSeat]!.position).not.toBe(beforeMarch);
+    await sendCommand({ type: "rollAndMove" });
+    expect(replica.players[0]!.position).not.toBe(beforeMarch);
     expect(replica.turnPhase).toBe(engine.turnPhase);
   } finally {
     registry.dismissRoom(room.roomId, token);

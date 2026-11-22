@@ -1,7 +1,7 @@
 // 真服务器与故障代理只守硬断重连和确定性丢帧后的摘要校准。
 // DAFUNG_SLOW=1 定向执行;健康、隐私与反应窗由独立双端和领域测试覆盖。
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { protocolTestPort } from "../../scripts/dev-ports";
@@ -86,8 +86,6 @@ describeSlow("协议级联机 e2e(#1164):真服务器 + 故障代理 + 无头客
         ROOMS_DIR: TMP_DIR,
         LOGS_DIR: TMP_DIR, // 对局日志/房间落盘一并进临时目录,不污染仓库 data/
         STATIC_DIR: TMP_DIR, // 无静态托管需求(静态只按请求读,目录缺失本就 404)
-        // 机遇隔离(#118 教训:节奏类变更必须可隔离;playwright.config 同款注入)
-        JIYU_CONFIG: realpathSync(join(REPO_ROOT, "test", "fixtures", "jiyu-off.json")),
         // bot 配速关(bot 座位即时步进;托管人类座位的 2s/拍单节拍不受此 env 影响,
         // core/timings 单源,统一原则无分档)——本测试墙钟主项见文件头注
         E2E_BOT_STEP_MS: "0",

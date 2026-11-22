@@ -8,6 +8,19 @@ interface JinnangInkArt {
 
 export const JINNANG_INK_ART: ReadonlyMap<string, JinnangInkArt> = new Map([
   [
+    "袭扰",
+    {
+      label: "两支斜掠坡地的羽箭",
+      paths: (
+        <>
+          <path d="M16 42 L76 12 M66 10 L76 12 L72 22 M20 33 L29 36 L25 45" strokeWidth={2.8} />
+          <path d="M32 58 L86 31 M76 29 L86 31 L82 41 M36 50 L44 52 L41 61" strokeWidth={2.3} />
+          <path d="M12 61 Q24 56 34 61 M63 58 Q77 53 91 58" strokeWidth={1.6} />
+        </>
+      ),
+    },
+  ],
+  [
     "军情密探",
     {
       label: "一只睁开的眼睛",

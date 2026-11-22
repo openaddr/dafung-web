@@ -25,7 +25,7 @@ import { HeroPickScroll } from "./HeroPickScroll";
 import { TileDetailScroll } from "./TileDetailScroll";
 import { TreasureVisitorScroll } from "./TreasureVisitorScroll";
 import { VictoryScreen } from "./VictoryScreen";
-import { BuyDecisionScroll, EncounterChoiceScroll, UpgradeDecisionScroll } from "./DecisionScrolls";
+import { BuyDecisionScroll, UpgradeDecisionScroll } from "./DecisionScrolls";
 import { BannerGhostContext } from "./BannerShell";
 import { useGhostChild } from "./useGhostChild";
 import type { TileDetailRequest } from "../useCapitalPick";
@@ -81,11 +81,6 @@ export function decisionScrollIdentity(snapshot: GameSnapshot, viewSeat: number)
       return JSON.stringify([...identity, snapshot.treasureVisitor]);
     case "AwaitingDecision":
       return JSON.stringify([...identity, snapshot.pendingLand]);
-    case "AwaitingEncounter":
-      return JSON.stringify([
-        ...identity,
-        snapshot.choices.find((o) => o.encounterId != null)?.encounterId,
-      ]);
     case "AwaitingHeroPick":
       return JSON.stringify([...identity, snapshot.offeredHeroes]);
     default:
@@ -293,7 +288,7 @@ export function DecisionScrollLayer({
 
     // ── 常规决策卷轴(交互重构:从侧栏 ActionInline 迁入,轮到即自动弹出)──
     // 判定逻辑原样迁自 HandPanel.ActionInline;数据走 snapshot + registry 静态上下文。
-    // spec #107 C1(选项集消费缝):三个卷轴的可用性/原因经 snapshot.choices 消费引擎
+    // spec #107 C1(选项集消费缝):卷轴的可用性/原因经 snapshot.choices 消费引擎
     // 注册表口径(ADR-0013),本层只透传,不自行判定。
     // 联机 pending 期间 interactive=false,卷轴暂不弹——命令回包后相位离开,无需「…中」占位。
     if (showDecision && snapshot.phase === "Playing") {
@@ -335,40 +330,20 @@ export function DecisionScrollLayer({
       }
     }
 
-    // ── 抉择机遇(#124):机遇文段 + 目录选项;上下文单源快照 choices(选项携带
-    // encounterId/encounterText,choices.ts 注册表产出)——选项缺失/无标识 = 相位与注册表
-    // 不符(数据 bug),不弹(与旧版整层 return null 同口径)。
-    // (体力耗竭卷轴已退役:耗竭全自动结算,无选项相位;演出走浮字。)
-    if (
-      showDecision &&
-      snapshot.phase === "Playing" &&
-      snapshot.turnPhase === "AwaitingEncounter"
-    ) {
-      const head = snapshot.choices.find((o) => o.encounterId != null);
-      if (head) {
-        return (
-          <EncounterChoiceScroll
-            encounterId={head.encounterId!}
-            encounterText={head.encounterText!}
-            choices={snapshot.choices}
-            onCommand={dispatch}
-          />
-        );
-      }
-    }
-
     // ── 出牌阶段路由已退役(#256):AwaitingJinnang 不再弹卷轴,出牌面上架手牌架
     // (出牌阶段态/动作条/目标段接线归 GameScreen;引擎相位与 choices 零改动)。
     // JinnangScroll 组件体已随 #255 收口删除;令笺亦于 #360 退役(主动技牌归
     // HandRack 窗态消费,#818 起为 SkillCardFace 技能卡)──
 
-    // ── 招贤纳士:三选一(无"不取",引擎相位守卫如此)──
-    if (
-      snapshot.turnPhase === "AwaitingHeroPick" &&
-      snapshot.offeredHeroes.length > 0 &&
-      showDecision
-    ) {
-      return <HeroPickScroll offered={snapshot.offeredHeroes} onCommand={dispatch} />;
+    // 招贤无候选时仍可求书或跳过。
+    if (snapshot.turnPhase === "AwaitingHeroPick" && showDecision) {
+      return (
+        <HeroPickScroll
+          offered={snapshot.offeredHeroes}
+          choices={snapshot.choices}
+          onCommand={dispatch}
+        />
+      );
     }
 
     return null;

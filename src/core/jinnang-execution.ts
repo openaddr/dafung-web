@@ -16,7 +16,13 @@ import {
   otherLivingSeats,
   skillOptionId,
 } from "./choices";
-import { diceShuffle, jinnangCardOf, SINGLE_TARGET, TARGET_DOMAIN_STAGES } from "./jinnang";
+import {
+  diceShuffle,
+  JINNANG_TURN_DRAW,
+  jinnangCardOf,
+  SINGLE_TARGET,
+  TARGET_DOMAIN_STAGES,
+} from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
 import { heroById, HEROES } from "./heroes";
@@ -38,9 +44,10 @@ import {
   type ReactionPayload,
   type ReactionViewSeed,
 } from "./reaction-window";
-import { emitGameEvent } from "./game-events";
+import { emitGameEvent, type JinnangDrawSource } from "./game-events";
 import { applyDirectFireDamage } from "./defense";
 import { findHolding } from "./player";
+import { damageStamina } from "./stamina-damage";
 import type { Player } from "./model";
 
 // ── 锦囊/出牌阶段引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
@@ -74,19 +81,20 @@ export interface FireWallContinuation {
   remainingCities: { propertyId: string; tileIndex: number }[];
 }
 
-/** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
+export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
+  return drawJinnangCards(g, seat, count).length;
+}
+
+/** 从牌库堆顶抽 count 张入手。手牌无上限(#250);
  *  牌库空而弃牌非空 → 弃牌堆骰序洗回牌库(正式机制,逐张检查,洗回后继续抽满 count)
  *  再抽;双空(牌库与弃堆皆空)→ 落空宣告(jinnangExhausted 事件,每次调用至多一次;
  *  「锦囊已空」浮字由 fx 面消费派生,#588 迁事件面)。
- *  返回实际入手张数(#384:落空=无转移,调用方据此不产转移类事件)。
- *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。
- *  时机·JinnangGained(#456):物理单点内部派发(入手张数>0 时按次派一次),三路同覆盖
- *  ——起手发牌/锦囊城/机遇授书;暗牌不带牌 id(ADR-0016)。 */
-export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
+ *  对局日志只记张数。JinnangGained 时机每次入手派发一次，只携实际张数。 */
+function drawJinnangCards(g: GameEngine, seat: number, count: number): string[] {
   const p = g.players[seat];
-  if (!p || p.isBankrupt) return 0;
+  if (!p || p.isBankrupt) return [];
   let emptyNotified = false;
-  let drawn = 0;
+  const cards: string[] = [];
   for (let k = 0; k < count; k++) {
     if (g.jinnangDeck.length === 0) {
       if (g.jinnangDiscard.length > 0) {
@@ -103,7 +111,7 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
     g.jinnangDeckCount = g.jinnangDeck.length;
     p.jinnangHand.push(id);
     p.jinnangHandCount = p.jinnangHand.length;
-    drawn++;
+    cards.push(id);
     g.logEvent(
       "system",
       p.guohao,
@@ -111,8 +119,8 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
       `jinnangDraw player=${p.id} handSize=${p.jinnangHand.length}`,
     );
   }
-  if (drawn > 0) g.dispatchMoment("JinnangGained", { subject: seat, count: drawn }); // 时机·JinnangGained:得锦囊进手(#456,落空不派)
-  return drawn;
+  if (cards.length > 0) g.dispatchMoment("JinnangGained", { subject: seat, count: cards.length });
+  return cards;
 }
 
 /** 弃牌堆洗回牌库(牌库耗尽的正式机制,非防御逻辑):弃牌堆骰序(diceShuffle 单源,
@@ -136,31 +144,30 @@ function reshuffleDiscardIntoDeck(g: GameEngine, seat: number): void {
   emitGameEvent(g, seat, { kind: "jinnangReshuffled", count: deck.length });
 }
 
-/** 抽锦囊进手并产事件(#384):drawJinnang 之上带 reason 产出 jinnangDrawn(count=
- *  实际入手;0=牌库空落空,无转移即无事件)。开局发牌(setup-flow)直走 drawJinnang
- *  不发——起手属开局校准点覆盖,与初始现金/体力同口径;游戏时进手(机遇/
- *  锦囊城)一律经本口。隐私口径:不写牌名(ADR-0016,与对局日志同)。 */
+/** 游戏中摸牌走同一牌堆与结算，再发实际张数及仅持牌者可见的牌面。起手由开局校准同步。 */
 export function drawJinnangTraced(
   g: GameEngine,
   seat: number,
   count: number,
-  reason: string,
+  source: JinnangDrawSource,
 ): number {
-  const drawn = drawJinnang(g, seat, count);
-  if (drawn > 0) emitGameEvent(g, seat, { kind: "jinnangDrawn", count: drawn, reason });
-  return drawn;
+  const cardIds = drawJinnangCards(g, seat, count);
+  if (cardIds.length > 0)
+    emitGameEvent(g, seat, { kind: "jinnangDrawn", count: cardIds.length, ...source, cardIds });
+  return cardIds.length;
 }
 
-/** 回合开始掷骰前(#122/T2):按注册表算锦囊选项集,有可用牌才进相位(ADR-0013:
- *  ≤1 可用=静默跳过不弹卷轴)。无可用牌时维持 Roll,不打扰。 */
-export function enterJinnangPhase(g: GameEngine): void {
+/** 实际回合开始先摸锦囊，再按摸牌后的可用选项决定是否进入出牌阶段。 */
+export function beginTurnJinnang(g: GameEngine): void {
+  drawJinnangTraced(g, g.activeIndex, JINNANG_TURN_DRAW, { reason: "turnStart" });
   if (hasUsableJinnang(g)) {
     g.turnPhase = "AwaitingJinnang";
+    emitGameEvent(g, g.activeIndex, { kind: "jinnangPhaseResumed", turnPhase: g.turnPhase });
   }
 }
 
-/** 用锦囊(#122/T2):cardId=null=今不用(收卷进 Roll);否则校验持有/可用(标签名额)
- *  后结算效果,再重算选项集——同回合仍有可用牌(异类标签)则继续停留卷轴,否则进 Roll。
+/** 用锦囊(#122/T2):cardId=null=今不用(收卷进 Roll);否则校验持有/时机/效果条件。
+ *  结算后重算选项集，仍有可用项则留在出牌阶段，否则进 Roll。
  *  用牌是公开事件(战报+宣布事件,浮字由 fx 面派生),暗的只有持有(ADR-0016)。
  *  #188 档 3:出牌阶段内与技能目标段(pendingSkill)共存——cardId=null 时若停在技能目标段,
  *  代为作罢该技(驱动方兜子状态安全),其余锦囊命令属跨子状态误用,警告拒绝。 */
@@ -246,7 +253,7 @@ export function resolveJinnang(
       return; // 留在相位,选项集重算为第二段候选
     }
     const [first] = pending.picked;
-    if (!jinnangTargetOk(g, userSeat, first, def.effect.kind).ok) {
+    if (!jinnangTargetOk(g, userSeat, first, def.effect).ok) {
       g.warn(`首选目标不可用:座位 ${first}`);
       return;
     }
@@ -296,17 +303,11 @@ function requireCenter(def: ReturnType<typeof jinnangCardOf>, targets: number[])
   return center;
 }
 
-/** 手牌段扣账(#122/T3):出牌=离手入弃堆+占标签名额(执行时点;作罢不占)。 */
-function consumeJinnangCard(
-  g: GameEngine,
-  p: Player,
-  cardId: string,
-  def: ReturnType<typeof jinnangCardOf>,
-): void {
+/** 出牌时将锦囊从手牌移入弃牌堆。 */
+function consumeJinnangCard(g: GameEngine, p: Player, cardId: string): void {
   p.jinnangHand.splice(p.jinnangHand.indexOf(cardId), 1);
   p.jinnangHandCount = p.jinnangHand.length;
   g.jinnangDiscard.push(cardId);
-  g.jinnangUsedTags.push(...def.tags);
 }
 
 /** 锦囊宣布与反应窗挂点(#281):出牌扣账 → 公开事件(jinnangAnnounced 事件浮字+出牌指示线,fx 面派生)→
@@ -321,7 +322,7 @@ function settleJinnangPlay(
   def: ReturnType<typeof jinnangCardOf>,
   targets: number[],
 ): void {
-  consumeJinnangCard(g, user, def.id, def); // 出牌即扣账:被识破也不回手(识破只护份)
+  consumeJinnangCard(g, user, def.id); // 出牌即扣账:被识破也不回手(识破只护份)
   // 份清单(view.targetSeats):self=使用者自身一份;全体域=受影响全员;指向域=被指定者;
   // 城指向域(#1389)=受击城 tileIndex 清单(一份=一座受击城:有主且非打空都城免疫)。
   const splash =
@@ -643,13 +644,12 @@ function cityAfterLoss(g: GameEngine, propertyId: string): string {
   return owner === null ? "城回无主" : `城归${owner.guohao}`;
 }
 
-/** 用牌收尾(#122/T3):重算卡牌段,同回合仍有可用牌(异类标签)→ 停留卷轴;否则进 Roll。 */
-export function settleJinnangExit(g: GameEngine, resumedFromCityDamage = false): void {
+/** 待决时机结清才恢复出牌阶段或进入掷骰，并同步权威相位。 */
+export function settleJinnangExit(g: GameEngine): void {
   if (g.pendingMoment !== null) return;
   const turnPhase = hasUsableJinnang(g) ? "AwaitingJinnang" : "Roll";
   g.turnPhase = turnPhase;
-  if (resumedFromCityDamage)
-    emitGameEvent(g, g.activeIndex, { kind: "jinnangPhaseResumed", turnPhase });
+  emitGameEvent(g, g.activeIndex, { kind: "jinnangPhaseResumed", turnPhase });
 }
 
 // ──────────────────────────── 技能书·用书学技(#1146)────────────────────────────
@@ -804,6 +804,20 @@ export function executeJinnang(
     case "fireWall":
       fireWallStrike(g, userSeat, def, targets, exempt);
       break;
+    case "staminaDamage": {
+      const [target] = targets;
+      if (target === undefined) throw new Error(`锦囊【${def.id}】缺目标座位`);
+      const victim = g.players[target];
+      const before = victim.stamina;
+      const stamina = damageStamina(g, target, def.effect.damage, userSeat, "jinnangExit");
+      g.logEvent(
+        "system",
+        user.guohao,
+        `${user.guohao} 使用锦囊【${def.id}】：${victim.guohao} 损失 ${before - stamina} 点体力`,
+        `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} staminaLoss=${before - stamina}`,
+      );
+      break;
+    }
     case "skipTurn": {
       const victim = g.players[targets[0]];
       victim.skipTurns += 1;
@@ -959,7 +973,7 @@ function fireWallStrike(
 
 export function resumeFireWall(g: GameEngine, state: FireWallContinuation): void {
   settleFireWallCities(g, state);
-  settleJinnangExit(g, true);
+  settleJinnangExit(g);
 }
 
 function settleFireWallCities(g: GameEngine, state: FireWallContinuation): void {
@@ -1008,8 +1022,7 @@ function settleFireWallCities(g: GameEngine, state: FireWallContinuation): void 
   }
 }
 
-/** 招贤入队共享(#122/T2 自机遇 grantHero 抽取):名将已尽折现;位满改印书(#1146 单喉);
- *  否则骰选一名入麾下。prefix=战报前缀(机遇「id」/锦囊【名】两路同文风)。 */
+/** 求贤令：名将已尽则折现，麾下满编时把授技印成书，其余情况骰选一名入麾下。 */
 function grantHeroToPlayer(
   g: GameEngine,
   p: Player,

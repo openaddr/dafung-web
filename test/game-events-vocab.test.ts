@@ -1,6 +1,5 @@
 // 事件词汇补全测试(#384,折叠切换②):新增六类事件的序列断言——名将被动技击发
-// (skillFired)/主动技发动(heroSkillActivated)/抽锦囊进手(jinnangDrawn)/声望变更
-// (reputationChanged)/体力变更(staminaChanged)/跳过回合(turnSkipped),以及
+// (skillFired)/主动技发动(heroSkillActivated)/抽锦囊进手(jinnangDrawn)/体力变更(staminaChanged)/跳过回合(turnSkipped),以及
 // playerBankrupt 的债主座位字段;尾部为 #385 缺口闭合的演出映射事件(六处缺口)。
 // 词汇表与产出两口见 src/core/game-events.ts;
 // 批界与折叠口径同 game-events.test.ts(白盒触达的转移用 beginGameEventBatch 显式开批)。
@@ -13,7 +12,6 @@ import { testEngine, armHero } from "@core/testing";
 import { fullDefenseOf } from "@core/defense";
 import { grantProperty, setDefense, setStamina } from "@core/planter";
 import { HEROES } from "@core/heroes";
-import { ENCOUNTERS } from "@core/encounters";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import guanzhongData from "../public/maps/guanzhong.json";
 
@@ -111,7 +109,7 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     beginGameEventBatch(e);
     e.resolveHeroSkill("zhangxingcai", "leigu");
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["heroSkillActivated"]);
+    expect(kinds(events)).toEqual(["heroSkillActivated", "jinnangPhaseResumed"]);
     expect(events[0]).toMatchObject({
       kind: "heroSkillActivated",
       seat,
@@ -146,7 +144,12 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     e.resolveHeroSkill("zhouyu", "huogong"); // 城目标域:先入目标段
     e.resolveHeroSkill("zhouyu", "huogong", [spare.index]); // 选定目标城(tileIndex 提交),发动
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["heroSkillActivated", "propertyDamaged", "cashChanged"]);
+    expect(kinds(events)).toEqual([
+      "heroSkillActivated",
+      "propertyDamaged",
+      "cashChanged",
+      "jinnangPhaseResumed",
+    ]);
     expect(events[0]).toMatchObject({
       kind: "heroSkillActivated",
       seat: userSeat,
@@ -178,7 +181,7 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     e.resolveHeroSkill("huatuo", "zhenji"); // any 域:先入目标段
     e.resolveHeroSkill("huatuo", "zhenji", [userSeat]); // 选定自己,发动
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["heroSkillActivated", "staminaChanged"]);
+    expect(kinds(events)).toEqual(["heroSkillActivated", "staminaChanged", "jinnangPhaseResumed"]);
     expect(events[0]).toMatchObject({
       kind: "heroSkillActivated",
       skillKind: "relief",
@@ -209,7 +212,7 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     beginGameEventBatch(e);
     expect(e.exhaustIfDepleted(seat)).toBe("resolved");
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["exhaustionResolved", "turnEnded", "turnStarted"]);
+    expect(kinds(events).slice(0, 3)).toEqual(["exhaustionResolved", "turnEnded", "turnStarted"]);
     expect(events[0]).toMatchObject({
       kind: "exhaustionResolved",
       seat,
@@ -221,58 +224,6 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     expect(mover.stamina).toBe(0); // 归 0 当刻不回血,休整期满才回满
     expect(mover.skipTurns).toBe(2);
     expect(mover.resting).toBe(true);
-  });
-});
-
-describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinnangDrawn", () => {
-  it("天命城:[reputationChanged, …交易链续跑],delta=+20,reason=fate", () => {
-    const e = makeEngine(5);
-    finishSetup(e);
-    const t = testEngine(e);
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    const fate = MAP.board.tiles.find((tile) => tile.event === "fate");
-    expect(fate).toBeDefined(); // 关中设受禅台(数据不变量,#826 全城池制)
-    beginGameEventBatch(e);
-    t.landActiveAt(fate!.index);
-    const events = e.snapshot().events;
-    // 固定事件解毕续跑交易链(#824 ADR-0037):无主城 → 停 AwaitingDecision,不再当回合收尾
-    expect(kinds(events)).toEqual(["reputationChanged", "landingResolved"]);
-    expect(e.turnPhase).toBe("AwaitingDecision");
-    expect(events[0]).toMatchObject({
-      kind: "reputationChanged",
-      seat,
-      delta: 20,
-      reason: "fate",
-    });
-  });
-
-  it("天命城无夹紧(#1090):声望 95 再 +20,delta=+20(实际增减=名义增量)", () => {
-    const e = makeEngine(5);
-    finishSetup(e);
-    const t = testEngine(e);
-    const mover = e.activePlayer;
-    mover.reputation = 95;
-    beginGameEventBatch(e);
-    t.landActiveAt(MAP.board.tiles.find((tile) => tile.event === "fate")!.index);
-    const events = e.snapshot().events;
-    expect(events[0]).toMatchObject({ kind: "reputationChanged", delta: 20, reason: "fate" });
-    expect(mover.reputation).toBe(115);
-  });
-
-  it("跨档不献牌(#1098 否定断言):越过 +30 手牌不增,事件批为空(声望变更事件由调用点产,落账本体无事件)", () => {
-    const e = makeEngine(5);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    mover.reputation = 29;
-    const baseHand = mover.jinnangHandCount;
-    beginGameEventBatch(e);
-    e.addReputation(seat, 1); // 跨 30:#1098 起只剩无界累加,无宣告无献牌
-    const events = e.snapshot().events;
-    expect(kinds(events)).toEqual([]);
-    expect(mover.jinnangHandCount).toBe(baseHand);
-    expect(mover.reputation).toBe(30);
   });
 });
 
@@ -288,12 +239,12 @@ describe("事件流(#384):跳过回合 turnSkipped 与破产债主 creditorSeat"
     t.forceTurnPhase("AwaitingDecision");
     beginGameEventBatch(e);
     e.endDecision(); // 标记回合收尾(本回合不产 skip 事件)
-    expect(kinds(e.snapshot().events)).toEqual(["turnEnded", "turnStarted"]); // 标记侧无 skip 事件
+    expect(kinds(e.snapshot().events)).not.toContain("turnSkipped");
     t.forceTurnPhase("AwaitingDecision");
     beginGameEventBatch(e);
     e.endDecision(); // 回合收尾 → 推进到被跳过者 → 跳过
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual([
+    expect(kinds(events).slice(0, 5)).toEqual([
       "turnEnded",
       "roundEnded",
       "roundStarted",
@@ -352,7 +303,7 @@ describe("事件流(#385 缺口 1):购地被拒/按兵不动 propertyRejected", 
     beginGameEventBatch(e);
     t.landActiveAt(tile.index);
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["propertyRejected", "turnEnded", "turnStarted"]);
+    expect(kinds(events).slice(0, 3)).toEqual(["propertyRejected", "turnEnded", "turnStarted"]);
     expect(events[0]).toMatchObject({
       kind: "propertyRejected",
       seat: e.players.indexOf(p),
@@ -529,7 +480,7 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
     e.resolveJinnang("缓兵之计"); // one 域:入目标段
     e.resolveJinnang("缓兵之计", [otherSeat]); // 选定目标,执行
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["jinnangAnnounced", "jinnangInflicted"]);
+    expect(kinds(events)).toEqual(["jinnangAnnounced", "jinnangInflicted", "jinnangPhaseResumed"]);
     expect(events[1]).toMatchObject({
       kind: "jinnangInflicted",
       seat: userSeat,
@@ -559,7 +510,12 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
     e.resolveJinnang("窃玉偷香"); // one 域:入目标段
     e.resolveJinnang("窃玉偷香", [otherSeat]);
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["jinnangAnnounced", "treasureGained", "treasureStolen"]);
+    expect(kinds(events)).toEqual([
+      "jinnangAnnounced",
+      "treasureGained",
+      "treasureStolen",
+      "jinnangPhaseResumed",
+    ]);
     expect(events[1]).toMatchObject({
       kind: "treasureGained",
       seat: userSeat, // subject=窃方
@@ -587,32 +543,7 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
   });
 });
 
-describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事件", () => {
-  it("机遇抉择:resolveEncounterChoice 产出 encounterChoice(id+下标,成品文案不入事件)", () => {
-    const e = makeEngine(5);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    const def = ENCOUNTERS.find(
-      (c) =>
-        c.choices != null &&
-        c.choices.length >= 2 &&
-        c.choices.every((o) => o.effect?.kind !== "grantHero"),
-    )!; // 无门槛双选项:两路都可用,恒入 AwaitingEncounter
-    beginGameEventBatch(e);
-    expect(e.enterEncounterPhase(e.activePlayer, def)).toBe("deciding");
-    expect(e.turnPhase).toBe("AwaitingEncounter");
-    e.resolveEncounterChoice(0);
-    const events = e.snapshot().events;
-    expect(events[0]).toMatchObject({
-      kind: "encounterChoice",
-      seat,
-      encounterId: def.id,
-      choiceIndex: 0,
-    });
-    expect("text" in events[0]).toBe(false); // 静态目录案:文案由 fx 查 ENCOUNTERS 派生
-  });
-
+describe("事件流(#385 缺口 6):耗竭处置的文案事件", () => {
   it("耗竭先同步城损，再宣告实际的降级清单和休整回合数", () => {
     const e = makeEngine(5);
     finishSetup(e);

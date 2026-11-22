@@ -1,7 +1,7 @@
 // 引擎不变量 soak(#293 Q1 / #304):GameEngine 直驱多 seed 全 bot 局,逐步断言六条
 // 引擎态不变量(现金非负 / 身价非负 / 位置合法 / 破产无残留 / 终局有 winner / 锦囊守恒),
 // 取代已删的 e2e「速战档全程驱动」(66.2s 全库最贵单例)——不变量是引擎态断言,浏览器只是
-// 昂贵的驱动器;这里秒级跑几十局(2-4 人 × 机遇产品默认档),广度反超浏览器单局。
+// 昂贵的驱动器;这里秒级跑几十局(2-4 人),广度反超浏览器单局。
 // 驱动范式:选都 aiSetupStep + 对局 botAct 循环,全 bot 局
 // 决策方恒为 bot(AwaitingReaction 反应窗 bot 即席代答,相位不外显)。
 // 步数 guard 打满仍未终局 → isOver 断言当场失败(零兜底:僵局就是要炸出来的 bug)。
@@ -12,7 +12,6 @@ import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
 import { netWorth } from "@core/networth";
 import { JINNANG_CARDS } from "@core/jinnang";
-import { ENCOUNTER_PRODUCT_DEFAULTS } from "@core/encounters";
 import { loadMap } from "@core/board-loader";
 import guanzhongData from "../../public/maps/guanzhong.json";
 
@@ -33,7 +32,6 @@ function makeEngine(seed: number, seatCount: number): GameEngine {
     targetNetWorth: TARGET,
     startingCash: 10000,
     startingTreasures: 0,
-    encounter: ENCOUNTER_PRODUCT_DEFAULTS, // 产品默认 40%:机遇抉择/银两转移路径纳入巡检
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }

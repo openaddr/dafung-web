@@ -67,7 +67,6 @@ export function App() {
           seed: config.seed ?? urlSeed(),
           // ADR-0014 对局日志局头要素
           mapId: config.mapId,
-          encounter: config.encounter, // 机遇配置(#125):设置屏默认读 jiyu.json,单局覆盖
         });
         // registry 的 MapData 取同图原始数据(#1273 单源缓存:命中进程内 memo,
         // 同图不再第二次 fetch+parse)

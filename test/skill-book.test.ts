@@ -1,27 +1,19 @@
 // 技能书全链(#1146,spec #1144 拆票 B/五)引擎单测:
-//  ① 位满改发书:四渠道(招贤城/义士来投/以宝换贤/求贤令)位满不再得将,该次预掷授技
+//  ① 盲盒来投位满印书:义士来投/以宝换贤/求贤令位满不再得将,该次预掷授技
 //     各印一册技能书按普通珍宝入位(零折现、不占招贤池);池空(名将已尽)折现不变。
 //  ② 用书学技:出牌阶段命令,三态校验(0 名拒绝/1 名直学/多名按槽位序)、池序入槽、
 //     lastFired 照新授技同款(不落键)、用后书消耗、skillLearned 事件。
 //  ③ 同构:学技后的技能与招贤所得技同槽同账,时机派发/冷却零第二套。
 //  ④ 快照:书实例(kind/skillId)随快照往返保真(新增字段允许,存量字段零删改)。
 //  ⑤ bot 贪心:出牌阶段扫描珍宝位,可用书即用,多名同池按槽位序取首,零新随机。
-// 骰流敏感点(位满分叉的掷将 1 掷 + 授技 1 掷)以同 seed 双引擎对跑断言可复现。
 import { describe, it, expect, afterEach } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig, TurnPhase } from "@core/authority";
-import type { EncounterDef } from "@core/encounters";
 import { createDice } from "@core/dice";
 import { loadMap } from "@core/board-loader";
 import { HEROES } from "@core/heroes";
 import { HERO_CAPACITY } from "@core/constants";
-import {
-  isSkillBook,
-  makeSkillBook,
-  SKILL_BOOK_LEVEL,
-  SKILL_BOOK_ID_PREFIX,
-} from "@core/treasures";
-import type { TreasureDef } from "@core/treasures";
+import { isSkillBook, makeSkillBook, SKILL_BOOK_ID_PREFIX } from "@core/treasures";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
 import { grantProperty } from "@core/planter";
 import { botAct } from "@core/bot";
@@ -68,13 +60,12 @@ const SEATS: SeatConfig[] = [
   { name: "B", isBot: false, guohao: "蜀" },
 ];
 
-function makeEngine(seed = 7, encounter?: { enabled?: boolean }): GameEngine {
+function makeEngine(seed = 7): GameEngine {
   const cfg: EngineConfig = {
     seats: SEATS,
     targetNetWorth: 30000,
     startingCash: 10000,
     startingTreasures: 0,
-    ...(encounter ? { encounter: { enabled: true } } : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -108,76 +99,7 @@ function armBook(e: GameEngine, seat: number, skillId: string): void {
 
 afterEach(() => sweepTestHeroes());
 
-// ────────────────────────── 位满改发书:四渠道 ──────────────────────────
-describe("位满改发书(#1146 四渠道统一)", () => {
-  it("招贤城:位满不设候选(事件沉默契约不变),预掷授技印书入珍宝位、不占招贤池", () => {
-    const e = makeEngine(23);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    fillRoster(e, 0);
-    const cash0 = mover.cash;
-    const heroes0 = [...e.recruitedHeroIds];
-    testEngine(e).placeActive(1);
-    testEngine(e).land(); // 招贤城落格
-    expect(e.turnPhase).not.toBe("AwaitingHeroPick"); // 不设候选:位满不再走三选一
-    expect(testEngine(e).logText()).not.toMatch(/招贤纳士/); // 事件沉默契约(收尾照旧)
-    expect(mover.heroes.length).toBe(HERO_CAPACITY); // 不再得将
-    expect(mover.cash).toBe(cash0); // 位满印书零折现
-    expect([...e.recruitedHeroIds]).toEqual(heroes0); // 不占招贤池(将未入麾下)
-    const books = mover.treasures.filter(isSkillBook);
-    expect(books.length).toBeGreaterThanOrEqual(1); // 该次预掷授技各印一册
-    for (const b of books) {
-      expect(b.level).toBe(SKILL_BOOK_LEVEL);
-      expect(b.id.startsWith(SKILL_BOOK_ID_PREFIX)).toBe(true);
-      expect(b.name.startsWith("技能书·")).toBe(true);
-    }
-    // TreasureGained 时机照走珍宝通路(每册一条 treasureGained 事件)
-    const gained = e.snapshot().events.filter((ev) => ev.kind === "treasureGained");
-    expect(gained.length).toBe(books.length);
-  });
-
-  it("招贤城位满印书:骰流契约同 seed 复现(选将 1 掷 + 授技 1 掷,零新随机)", () => {
-    const run = (seed: number) => {
-      const e = makeEngine(seed);
-      finishSetup(e);
-      fillRoster(e, 0);
-      testEngine(e).placeActive(1);
-      testEngine(e).land();
-      return e.activePlayer.treasures.filter(isSkillBook).map((b) => b.skillId);
-    };
-    expect(run(23)).toEqual(run(23)); // 同 seed 同书序(可复现)
-  });
-
-  it("机遇义士来投:位满改印书(零折现);池空名将已尽折现不变", () => {
-    const e = makeEngine(7, { enabled: true });
-    finishSetup(e);
-    const mover = e.activePlayer;
-    fillRoster(e, 0);
-    const cash0 = mover.cash;
-    const def: EncounterDef = {
-      id: "义士来投",
-      tier: "好运",
-      tags: ["名将"],
-      weight: 1,
-      text: "义士来投",
-      effect: { kind: "grantHero", fallbackCash: 200 },
-    };
-    e.settleEncounter(mover, def);
-    expect(mover.heroes.length).toBe(HERO_CAPACITY); // 不再得将
-    expect(mover.cash).toBe(cash0); // 零折现
-    expect(mover.treasures.filter(isSkillBook).length).toBeGreaterThanOrEqual(1);
-
-    // 池空(名将已尽):折现不变(兜底语义与位满分叉互斥)
-    const e2 = makeEngine(7, { enabled: true });
-    finishSetup(e2);
-    const mover2 = e2.activePlayer;
-    for (const h of HEROES) e2.recruitedHeroIds.add(h.id);
-    const cash02 = mover2.cash;
-    e2.settleEncounter(mover2, def);
-    expect(mover2.treasures.filter(isSkillBook).length).toBe(0);
-    expect(mover2.cash).toBe(cash02 + 200);
-  });
-
+describe("盲盒来投位满印书(#1146)", () => {
   it("锦囊求贤令:位满改印书(零折现);骰流=选将 1 掷 + 授技 1 掷", () => {
     const e = makeEngine(7);
     finishSetup(e);
@@ -191,16 +113,6 @@ describe("位满改发书(#1146 四渠道统一)", () => {
     expect(user.heroes.length).toBe(HERO_CAPACITY);
     expect(user.cash).toBe(cash0); // 零折现(fallbackCash=300 不发)
     expect(user.treasures.filter(isSkillBook).length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("四渠道单喉:三种调用路径(招贤城/机遇/锦囊)印出的书形状同一(makeSkillBook 单源)", () => {
-    const e = makeEngine(23);
-    finishSetup(e);
-    fillRoster(e, 0);
-    testEngine(e).placeActive(1);
-    testEngine(e).land();
-    const book: TreasureDef = e.activePlayer.treasures.find(isSkillBook)!;
-    expect(book).toEqual(makeSkillBook(book.skillId!)); // 形状=印书单源逐字段一致
   });
 });
 

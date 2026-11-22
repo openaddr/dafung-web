@@ -1,0 +1,31 @@
+.skill-book-learn .pile-hero-cell[aria-pressed="true"] {
+  outline: 2px solid var(--color-gold-bright);
+  outline-offset: 3px;
+}
+
+.skill-book-learn-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.skill-book-learn-actions button {
+  min-height: var(--touch-target);
+  padding: 6px 22px;
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
+  border-radius: 5px;
+  font-family: var(--font-brush);
+  font-size: 15px;
+}
+
+.skill-book-learn-actions .skill-book-learn-confirm {
+  min-height: var(--touch-primary);
+  color: var(--color-lacquer-gold);
+  background: var(--color-lacquer);
+  border-color: var(--color-gold);
+}
+
+.skill-book-learn-confirm:disabled {
+  opacity: 0.4;
+}

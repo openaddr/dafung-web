@@ -26,7 +26,6 @@ export function heroById(id: string): HeroDef {
 // #1378 曹丕池换血后渔利=诸葛亮单属、掷金=张星彩单属;#1390 周瑜池换血(周瑜重做,
 // 规格 #1386)后共享仅两条(火攻/岁俸)——疾行/擂鼓随周瑜出池改张星彩单属(技能本体
 // 保留不动);余单属主(青囊/赈济/放逐/行殇/英姿);
-// 池大小 = 强度旋钮(张星彩/司马懿/邓艾/曹仁/糜竺池 3、曹丕/华佗/诸葛亮/周瑜池 2,不对称有意)。
 export const HEROES: HeroDef[] = [
   {
     id: "zhouyu",
@@ -69,24 +68,24 @@ export const HEROES: HeroDef[] = [
     id: "simayi",
     image: "/assets/heroes/hero-simayi-sgs.png",
     name: "司马懿",
-    skillPool: ["taoguangyanghui", "saiwengshima", "suifeng"], // {韬光养晦,塞翁失马,岁俸}
+    skillPool: ["taoguangyanghui", "suifeng"], // {韬光养晦,岁俸}
   },
   {
     id: "dengai",
     image: "/assets/heroes/hero-dengai-sgs.png",
     name: "邓艾",
-    skillPool: ["tuntian", "suifeng", "chubianbujing"], // {屯田,岁俸,处变不惊}
+    skillPool: ["suifeng", "chubianbujing"], // {岁俸,处变不惊}
   },
   {
     id: "caoren",
     image: "/assets/heroes/hero-caoren-sgs.png",
     name: "曹仁",
-    skillPool: ["wengzhongzhuobie", "shengougolei", "shengshi"], // {瓮中捉鳖,深沟高垒,声势}
+    skillPool: ["shengougolei"], // {深沟高垒}
   },
   {
     id: "mizhu",
     image: "/assets/heroes/hero-mizhu-sgs.png",
     name: "糜竺",
-    skillPool: ["hushi", "delongwangshu", "yusui"], // {互市,得陇望蜀,玉碎}
+    skillPool: ["delongwangshu", "yusui"], // {得陇望蜀,玉碎}
   },
 ];

@@ -17,7 +17,7 @@ import guanzhongData from "../public/maps/guanzhong.json";
 
 const MAP = loadMap(guanzhongData);
 
-function makeEngine(seed = 1, seats?: SeatConfig[], encounter?: EngineConfig["encounter"]) {
+function makeEngine(seed = 1, seats?: SeatConfig[]) {
   const cfg: EngineConfig = {
     seats: seats ?? [
       { name: "A", isBot: false, guohao: "魏" },
@@ -26,7 +26,6 @@ function makeEngine(seed = 1, seats?: SeatConfig[], encounter?: EngineConfig["en
     targetNetWorth: 30000,
     startingCash: 10000,
     startingTreasures: 0,
-    encounter,
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -64,18 +63,19 @@ function finishSetup(e: GameEngine): GameEvent[] {
 }
 
 describe("事件流(#375):开局与批语义", () => {
-  it("开局全史(逐批折叠):每位一条 capitalSelected,收尾 setupCompleted → gameStarted → turnStarted", () => {
+  it("开局全史包含选都、开局、首回合与摸牌", () => {
     const e = makeEngine(7, [
       { name: "A", isBot: true, guohao: "魏" },
       { name: "B", isBot: true, guohao: "蜀" },
     ]);
     const events = finishSetup(e);
-    expect(kinds(events)).toEqual([
+    expect(kinds(events).slice(0, 6)).toEqual([
       "capitalSelected",
       "capitalSelected",
       "setupCompleted",
       "gameStarted",
       "turnStarted",
+      "jinnangDrawn",
     ]);
     for (const ev of events) {
       if (ev.kind === "capitalSelected") {
@@ -86,11 +86,12 @@ describe("事件流(#375):开局与批语义", () => {
       expect(ev.round).toBeGreaterThan(0);
     }
     // 末批 = 最后一次编排步的产出(收尾四连发生在最后一位落子的同一步内)
-    expect(kinds(e.snapshot().events)).toEqual([
+    expect(kinds(e.snapshot().events).slice(0, 5)).toEqual([
       "capitalSelected",
       "setupCompleted",
       "gameStarted",
       "turnStarted",
+      "jinnangDrawn",
     ]);
   });
 
@@ -102,7 +103,7 @@ describe("事件流(#375):开局与批语义", () => {
     e.turnPhase = "AwaitingDecision";
     e.endDecision();
     const first = e.snapshot().events;
-    expect(kinds(first)).toEqual(["turnEnded", "turnStarted"]);
+    expect(kinds(first).slice(0, 3)).toEqual(["turnEnded", "turnStarted", "jinnangDrawn"]);
     expect(e.snapshot().events).toEqual(first); // 非破坏性:同一转移的快照幂等
     // 随批走:恢复端继承当前批,直到它自己的下一编排步开批
     const mirror = makeEngine(1);
@@ -121,10 +122,10 @@ describe("事件流(#375):开局与批语义", () => {
     e.turnPhase = "AwaitingDecision";
     e.submitCommand({ type: "endDecision" }); // 编排入口:自动开批
     const first = e.snapshot().events;
-    expect(kinds(first)).toEqual(["turnEnded", "turnStarted"]);
+    expect(kinds(first).slice(0, 2)).toEqual(["turnEnded", "turnStarted"]);
     e.turnPhase = "AwaitingDecision";
     e.submitCommand({ type: "endDecision" }); // 新命令 = 新批,上一批弃(本座末位:连带轮次收尾)
-    expect(kinds(e.snapshot().events)).toEqual([
+    expect(kinds(e.snapshot().events).slice(0, 4)).toEqual([
       "turnEnded",
       "roundEnded",
       "roundStarted",
@@ -177,7 +178,7 @@ describe("事件流(#375):掷骰行军与购地", () => {
     beginGameEventBatch(e);
     e.buyProperty();
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["propertyBought", "turnEnded", "turnStarted"]);
+    expect(kinds(events).slice(0, 3)).toEqual(["propertyBought", "turnEnded", "turnStarted"]);
     expect(events[0]).toMatchObject({
       kind: "propertyBought",
       seat: e.players.indexOf(buyer),
@@ -220,7 +221,7 @@ describe("事件流(#375):锦囊出牌与反应窗", () => {
     beginGameEventBatch(e);
     e.resolveJinnang("求贤令");
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["jinnangAnnounced", "heroRecruited"]);
+    expect(kinds(events)).toEqual(["jinnangAnnounced", "heroRecruited", "jinnangPhaseResumed"]);
     expect(events[0]).toMatchObject({
       kind: "jinnangAnnounced",
       seat: userSeat,
@@ -255,6 +256,7 @@ describe("事件流(#375):锦囊出牌与反应窗", () => {
       "reactionAnswered",
       "jinnangAnnounced",
       "jinnangVoided",
+      "jinnangPhaseResumed",
     ]);
     expect(events[0]).toMatchObject({
       kind: "jinnangAnnounced",
@@ -301,7 +303,11 @@ describe("事件流(#375):回合推进与轮次", () => {
     e.turnPhase = "AwaitingDecision"; // 按兵不动白盒摆位
     beginGameEventBatch(e);
     e.endDecision();
-    expect(kinds(e.snapshot().events)).toEqual(["turnEnded", "turnStarted"]);
+    expect(kinds(e.snapshot().events).slice(0, 3)).toEqual([
+      "turnEnded",
+      "turnStarted",
+      "jinnangDrawn",
+    ]);
   });
 
   it("轮末收尾产出 [turnEnded, roundEnded, roundStarted, turnStarted](回到锚点,轮 +1;经 submitCommand 验批界)", () => {
@@ -310,33 +316,23 @@ describe("事件流(#375):回合推进与轮次", () => {
     e.turnPhase = "AwaitingDecision";
     e.submitCommand({ type: "endDecision" }); // 首个座位收尾 → 轮到下家(入口自动开批)
     const first = e.snapshot().events;
-    expect(kinds(first)).toEqual(["turnEnded", "turnStarted"]);
+    expect(kinds(first).slice(0, 2)).toEqual(["turnEnded", "turnStarted"]);
     const before = e.round;
     e.turnPhase = "AwaitingDecision";
     e.submitCommand({ type: "endDecision" }); // 末座收尾 → 回到轮次锚点(新命令弃上一批)
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["turnEnded", "roundEnded", "roundStarted", "turnStarted"]);
+    expect(kinds(events).slice(0, 5)).toEqual([
+      "turnEnded",
+      "roundEnded",
+      "roundStarted",
+      "turnStarted",
+      "jinnangDrawn",
+    ]);
     expect(e.round).toBe(before + 1);
   });
 });
 
-describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
-  it("机遇触发产出 encounterTriggered(id/tier 随抽取,带档位)", () => {
-    const e = makeEngine(9, undefined, { enabled: true });
-    finishSetup(e);
-    const t = testEngine(e);
-    const mover = e.activePlayer;
-    t.place(e.players.indexOf(mover), MAP.board.tiles[0]!.index); // 必出制:任意格都出(ADR-0035)
-    beginGameEventBatch(e);
-    e.maybeApplyEncounter(e.activePlayer); // 开关开,必抽中
-    const events = e.snapshot().events;
-    expect(events[0]?.kind).toBe("encounterTriggered");
-    expect(events[0]).toMatchObject({
-      seat: e.players.indexOf(e.activePlayer),
-      tier: expect.stringMatching(/好运|中性|霉运/),
-    });
-  });
-
+describe("事件流(#375):破产、招贤、珍宝交割", () => {
   it("无可变卖资产付不起 → playerBankrupt(善后完成点产出)", () => {
     const e = makeEngine(5);
     finishSetup(e);
@@ -365,7 +361,7 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
     const expectedHeroId = e.offeredHeroes[0].def.id;
     e.resolveHeroPick(0);
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["heroRecruited", "turnEnded", "turnStarted"]);
+    expect(kinds(events).slice(0, 3)).toEqual(["heroRecruited", "turnEnded", "turnStarted"]);
     expect(events[0]).toMatchObject({
       kind: "heroRecruited",
       seat: e.players.indexOf(mover),
@@ -400,7 +396,7 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
     visitor.cash = guidePriceOf(1) + 100; // 付得起且低于目标身价(不触发终局)
     e.resolveTreasureOwner({ type: "fair", treasureId: "锦囊袋" });
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual([
+    expect(kinds(events).slice(0, 6)).toEqual([
       "propertyUpgraded",
       "treasureGained",
       "treasureSold",

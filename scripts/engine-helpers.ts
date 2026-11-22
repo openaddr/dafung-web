@@ -9,7 +9,6 @@ import { loadMap, type LoadedMap } from "../src/core/board-loader";
 import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
 import { GameEngine } from "../src/core/authority";
 import type { SeatConfig, EngineConfig } from "../src/core/authority";
-import type { EncounterSwitch } from "../src/core/encounters";
 import type { TurnPhase } from "../src/core/authority";
 import { createDice } from "../src/core/dice";
 
@@ -53,8 +52,6 @@ export interface GameConfig {
   seed?: number;
   /** 地图 id(ADR-0014:随引擎写入对局日志局头,重放要素)。 */
   mapId?: string;
-  /** 机遇开关(#135;#1090 只剩开关):缺省 = 机遇关;经局头行/持久化 config 复刻,重放要素。 */
-  encounter?: EncounterSwitch;
   /** 反应窗时长覆盖(#284):env E2E_REACTION_MS → registry → 引擎;缺省查 core 常量表。 */
   reactionWindowMs?: number;
 }
@@ -201,9 +198,7 @@ function promptFor(
     case "AwaitingDecision":
       return `${who} 落城:购地(buy)/扩军(upgrade)/跳过(skip)`;
     case "AwaitingHeroPick":
-      return `${who} 招贤纳士:选名将(cmd {"type":"resolveHeroPick","index":0..2})`;
-    case "AwaitingEncounter":
-      return `${who} 抉择机遇(cmd {"type":"resolveEncounterChoice","index":<choices 下标>},见 status.choices)`;
+      return `${who} 招贤纳士:resolveHeroPick 可选名将(index)、求书(action=seekBook)或跳过(action=skip)`;
     case "AwaitingJinnang": {
       const skill = pendingSkill
         ? `;待发动技:cmd {"type":"useHeroSkill","heroId":"${pendingSkill.heroId}","skillId":"${pendingSkill.skillId}"}(或其目标段/cancel 作罢)`

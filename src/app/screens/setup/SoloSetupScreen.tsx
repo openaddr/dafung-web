@@ -1,23 +1,16 @@
 import { Button } from "@base-ui/react/button";
 import { Input } from "@base-ui/react/input";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { SeatConfig } from "@core/authority";
-import type { EncounterSwitch } from "@core/encounters";
 import type { MapSource } from "@core/map-source";
 import { isSingleCjk } from "@core/constants";
 import { formatMoney } from "@core/money";
 import { playerColor, playerSealText, rgba } from "@core/theme";
-import { Switch } from "@app/components/ui/switch";
 import { getMapSource } from "@app/map-sources";
 import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
 import { Stepper } from "@app/screens/shared/Stepper";
 import { Sym } from "@app/screens/shared/Sym";
 import { cn } from "@app/utils/cn";
-import {
-  BUILTIN_ENCOUNTER_DEFAULTS,
-  fetchEncounterDefaults,
-  toEncounterConfig,
-} from "./encounterConfig";
 import { GuohaoPicker } from "./GuohaoPicker";
 import { MapSelectPanel } from "./MapSelectPanel";
 import {
@@ -36,7 +29,6 @@ export interface SetupConfig {
   mapId: string;
   /** 骰子种子由接线方解析后注入。 */
   seed?: number;
-  encounter: EncounterSwitch;
 }
 
 interface SoloSetupScreenProps {
@@ -72,8 +64,6 @@ export function SoloSetupScreen({
   const [currentMap, setCurrentMap] = useState(mapId);
   const [showMapSelect, setShowMapSelect] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [encounter, setEncounter] = useState(BUILTIN_ENCOUNTER_DEFAULTS);
-  const [encounterDefault, setEncounterDefault] = useState(BUILTIN_ENCOUNTER_DEFAULTS);
   const guohaoInputId = useId();
   // 打开字盘时收起输入法，让系统返回键交给字盘。
   const guohaoInputRef = useRef<HTMLInputElement>(null);
@@ -83,19 +73,6 @@ export function SoloSetupScreen({
   const guohaoInvalid = !isSingleCjk(trimmedGuohao);
   const seats = defaultSetupSeats(trimmedGuohao, seatCount);
 
-  useEffect(() => {
-    let alive = true;
-    fetchEncounterDefaults().then((enabled) => {
-      if (alive) {
-        setEncounter(enabled);
-        setEncounterDefault(enabled);
-      }
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   const start = async () => {
     setBusy(true);
     try {
@@ -103,7 +80,6 @@ export function SoloSetupScreen({
         seats,
         targetNetWorth: target,
         mapId: currentMap,
-        encounter: toEncounterConfig(encounter),
       });
       if (started) localStorage.setItem(GUOHAO_PREF_KEY, trimmedGuohao);
     } finally {
@@ -179,38 +155,6 @@ export function SoloSetupScreen({
                   }))}
                 />
               </div>
-
-              <details data-testid={TID.encounterToggle} className="su-encounter group">
-                <summary
-                  data-testid={TID.encounterSummary}
-                  className="su-config-row su-encounter-summary"
-                >
-                  <span className="font-brush">机遇</span>
-                  <span className="flex items-center justify-between gap-2 text-paper-dim">
-                    <span>{encounter ? "开启" : "关闭"}</span>
-                    <Sym
-                      name="expand"
-                      size={12}
-                      className="transition-transform duration-[var(--dur-fast)] group-open:rotate-180"
-                    />
-                  </span>
-                </summary>
-                <div className="su-encounter-body">
-                  <label data-testid={TID.encounterRow} className="su-encounter-option">
-                    <span className="font-brush">机遇必出</span>
-                    <Switch
-                      data-testid={TID.encounterEnabled}
-                      size="sm"
-                      checked={encounter}
-                      onCheckedChange={setEncounter}
-                    />
-                  </label>
-                  <p className="su-encounter-help text-paper-dim">
-                    开启后每次落格先触发一条机遇，运势概率随声望变化。
-                    {encounterDefault ? "默认开启" : "默认关闭"}，此处调整仅对本局生效。
-                  </p>
-                </div>
-              </details>
             </section>
 
             <section className="su-column" aria-label="国号与座次">

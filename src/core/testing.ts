@@ -54,7 +54,7 @@ class TestEngine {
     this.land();
   }
 
-  /** 对局日志扁平文本(机遇顺序断言用;#123)。 */
+  /** 对局日志扁平文本。 */
   logText(): string {
     return this.engine.log.map((l) => `${l.brief} ${l.detail}`).join("\n");
   }

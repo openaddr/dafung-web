@@ -15,21 +15,19 @@ import { RoundClose } from "@app/screens/shared/RoundClose";
 import { STAMINA_LOW } from "./SeatRail";
 import { CityLedgerModal } from "./CityLedgerModal";
 import { SeatDetailModal, type SeatDetailKind } from "./SeatAttrModals";
-import { RepProbBar } from "./RepProbBar";
 import { TESTIDS } from "./testids";
 import "./warlords-overview.css";
 
 type WarlordDetail = { seat: number; kind: "city" | SeatDetailKind };
 
 const OVERVIEW_COLUMNS = [
-  { label: "诸侯", width: "15%" },
-  { label: "银两", width: "11%" },
-  { label: "体力", width: "10%" },
-  { label: "手牌", width: "8%" },
-  { label: "城池", width: "15%" },
-  { label: "名将", width: "18%" },
-  { label: "珍宝", width: "8%" },
-  { label: "声望", width: "15%" },
+  { label: "诸侯", width: "17%" },
+  { label: "银两", width: "13%" },
+  { label: "体力", width: "12%" },
+  { label: "手牌", width: "9%" },
+  { label: "城池", width: "19%" },
+  { label: "名将", width: "21%" },
+  { label: "珍宝", width: "9%" },
 ];
 
 function OverviewRow({
@@ -122,20 +120,6 @@ function OverviewRow({
           onClick={() => onInspect({ seat, kind: "gem" })}
         >
           {player.treasures.length}
-        </Button>
-      </td>
-      <td>
-        <Button
-          className="zl-drill"
-          data-testid={TESTIDS.warlordsRepCell(seat)}
-          aria-label={`${player.guohao}声望 ${player.reputation}`}
-          aria-haspopup="dialog"
-          onClick={() => onInspect({ seat, kind: "rep" })}
-        >
-          <span data-testid={TESTIDS.warlordsRep(seat)}>{player.reputation}</span>
-          <span className="zl-preview">
-            <RepProbBar reputation={player.reputation} size="row" />
-          </span>
         </Button>
       </td>
     </tr>

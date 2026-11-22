@@ -40,8 +40,7 @@ export interface MapTile {
   tradeAdd: number[];
   /** 坐地起价乘数(per-level):与 PropertyDef 同义。城池格必配,长度 = maxLevel。 */
   tradeMult: number[];
-  /** 特殊城池固定事件(#823/#824,ADR-0037,可选):缺省=普通城(机遇必出照旧);
-   *  配了即特殊城池(招贤/锦囊/天命/商市/珍宝五城,#826 起盘面唯一的事件承载)。 */
+  /** 特殊城池固定事件(可选)：招贤、商市或珍宝。无此字段为普通城。 */
   event?: string;
 }
 

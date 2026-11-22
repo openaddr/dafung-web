@@ -21,7 +21,7 @@ export interface TileVisualState {
   /** X4(#23) 选都候选序号(1 基,引擎滚出顺序;null=非候选)。候选集全座位可见:
    *  静态低透明金圈(bv-candidate)是非决策席档,本地可点脉冲由 isSelectable 升档。 */
   capitalCandidateOrder: number | null;
-  /** 目标段选城候选(#1388 T2 立,#1389 锦囊城指向域同款复用):技/锦囊城目标段的可点
+  /** 目标段选城候选(#1388 T2、#1389):技能和锦囊指定城池时的可点
    *  候选格(金环呼吸在氛围层 crown,与选都同通路;本态挂 data-city-target 供
    *  e2e/选择器契约)。 */
   isCityTarget: boolean;

@@ -2,7 +2,7 @@
 // 构造器 + 公共薄委托 + submitCommand + 快照通道 + presentation getter;引擎自留职责
 // 仅回合状态机入口、时机派发器(dispatchMoment)与
 // 战报/落账底座(logEvent/pushFloater 级)。机制域流程在各域模块(reaction-window/
-// jinnang-execution/encounter-flow/bankruptcy/treasure-flow/movement-flow/setup-flow/recruitment(见下各 import 区段注释),壳内同名公共方法薄委托。#326 types.ts 解散(ADR-0019 类型随域走):回合状态机类型归本壳,其余各归域模块。
+// jinnang-execution/stamina-damage/bankruptcy/treasure-flow/movement-flow/setup-flow/recruitment(见下各 import 区段注释),壳内同名公共方法薄委托。#326 types.ts 解散(ADR-0019 类型随域走):回合状态机类型归本壳,其余各归域模块。
 import { tileIndexOfProperty, type Board, type MovePath } from "./board";
 import type { Dice, DiceRoll } from "./dice";
 import type { Player, LogEvent } from "./model";
@@ -21,7 +21,6 @@ import { endTurn } from "./turn-end";
 import { findHolding } from "./player";
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
-import { ENCOUNTERS, type EncounterDef, type EncounterSwitch } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
 // 反应窗域(#318,ADR-0019):开窗/应答/结算逻辑在 reaction-window.ts,壳内薄委托转发。
 // bot 即席应答策略(botReactionDecision)由域模块直接消费——bot 对 game 仅 type 依赖,无运行时环。
@@ -41,18 +40,7 @@ import {
   type PendingJinnang,
   type PendingHeroSkill,
 } from "./jinnang-execution";
-// 机遇主流程+体力耗竭域(#320,ADR-0019):机遇触发抽取/抉择机遇入相与选项结算/效果
-// 结算/体力接线与耗竭善后在 encounter-flow.ts,壳内同名方法薄委托;与数据表 encounters.ts
-// 分层(流程≠配置)。
-import {
-  damageStamina,
-  enterEncounterPhase,
-  exhaustIfDepleted,
-  maybeApplyEncounter,
-  resolveEncounterChoice,
-  settleEncounter,
-  type EncounterSettlement,
-} from "./encounter-flow";
+import { damageStamina, exhaustIfDepleted } from "./stamina-damage";
 // 破产清算+交割托管域(#321,ADR-0019):escrow 交割/退回、付款或清算、债务留痕结算、
 // 破产善后、整批出售并清偿与认破产在 bankruptcy.ts,壳内同名方法薄委托转发;
 // 与 economy.ts 分层(清算流程≠经济交易原语)。
@@ -75,7 +63,6 @@ import {
   buyProperty,
   capitalSupplyOf,
   endDecision,
-  finishCapitalHalt,
   marchTraverse,
   pendingLandDef,
   resolveLanding,
@@ -96,12 +83,10 @@ import {
   setGuohao,
 } from "./setup-flow";
 // 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
-import { tryRecruitHero, resolveHeroPick, type HeroOffer } from "./recruitment";
+import { tryRecruitHero, resolveHeroPick, type HeroOffer, type HeroPick } from "./recruitment";
 // 遣散域(#1147,ADR-0019 委托式拆分):免费主动遣散(槽移除/回池划名/已学技折书)在
 // hero-dismiss.ts,壳内薄委托;清算期间禁用。
 import { dismissHero } from "./hero-dismiss";
-// 声望域(#121,ADR-0019,#384 自壳迁入):声望落账唯一口在 reputation.ts。
-import { addReputation } from "./reputation";
 import {
   beginGameEventBatch,
   emitGameEvent,
@@ -118,7 +103,6 @@ export interface SeatConfig {
   name: string;
   isBot: boolean;
   guohao?: string; // 人类可预设;留空则在 Guohao 阶段填
-  reputation?: number; // 初始声望口子(#120:预留,MVP 不接 UI,缺省 0)
 }
 
 export interface EngineConfig {
@@ -132,9 +116,6 @@ export interface EngineConfig {
   seed?: number; // 注入骰子种子,便于确定性测试(?seed= URL 参数)
   /** 地图 id(ADR-0014 对局日志局头重放要素;编辑器试玩等非清单地图缺省为空串,重放脚本对空 id 显式报错) */
   mapId?: string;
-  /** 机遇系统(#123;#1090 只剩开关):缺省=关闭(测试隔离;产品默认 true 来自
-   *  jiyu.json/设置屏,经此传入) */
-  encounter?: EncounterSwitch;
   /** 反应窗时长覆盖(#284):联机权威侧 env E2E_REACTION_MS 经 registry 传入;缺省=查
    *  REACTION_WINDOW_MS 常量表。开窗时写入 view.windowMs 随快照下发,客户端横幅投影与
    *  权威侧定时器同读一份(两端同长自动成立)。 */
@@ -145,13 +126,11 @@ export type EnginePhase = "Setup" | "Playing" | "GameOver";
 export type SetupPhase = "Guohao" | "PickCapital" | "Done";
 
 // ── 回合状态机与命令协议类型(#326 types.ts 解散:壳 = 回合状态机之家,本文件拥有并导出)──
-/** 回合阶段。AwaitingEncounter(#124)= 抽中抉择机遇,等待玩家选选项(resolveEncounterChoice)。
- *  AwaitingReaction(#281,ADR-0017)= 反应窗:结算中段停相位(先例 AwaitingTreasureOwner),等被询问座位的 respondReaction 应答;全部应答后引擎续结算。 */
+/** 回合阶段。AwaitingReaction(#281,ADR-0017)= 反应窗:结算中段停相位(先例 AwaitingTreasureOwner),等被询问座位的 respondReaction 应答;全部应答后引擎续结算。 */
 export type TurnPhase =
   | "Roll"
   | "AwaitingDecision"
   | "AwaitingHeroPick"
-  | "AwaitingEncounter"
   | "AwaitingJinnang" // 出牌阶段(#122/T2 立,#256 正名):回合开始掷骰前,主动用牌或今不用
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
@@ -171,8 +150,7 @@ export type GameCommand =
   | { type: "buyProperty" }
   | { type: "upgradeProperty" }
   | { type: "endDecision" }
-  | { type: "resolveHeroPick"; index: number }
-  | { type: "resolveEncounterChoice"; index: number } // 抉择机遇选项(#124;index=def.choices 下标)
+  | ({ type: "resolveHeroPick" } & HeroPick)
   | {
       type: "resolveTreasureOwner";
       action:
@@ -270,8 +248,6 @@ export class GameEngine {
    *  公开字段(重放/快照/CLI 可读),可见性由传输层投影裁剪(ADR-0016)。 */
   jinnangDeck: string[] = [];
   jinnangDiscard: string[] = [];
-  /** 本回合已占用的锦囊标签(#122/T2):回合开始清空;每类限一张的名额账本。 */
-  jinnangUsedTags: string[] = [];
   /** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态;null=卡牌段。随快照走。 */
   pendingJinnang: PendingJinnang | null = null;
   /** 技能目标段载荷(#188 档 3):出牌阶段内选技后的选人子状态;null=无。与 pendingJinnang
@@ -299,9 +275,6 @@ export class GameEngine {
   /** 反应窗时长覆盖(#284):EngineConfig.reactionWindowMs(联机权威侧 env 注入);
    *  0 = 无覆盖,开窗时按窗种类查 REACTION_WINDOW_MS 常量表。 */
   readonly reactionWindowMsOverride: number;
-  // #320 去私有化(ADR-0019 条款 3):机遇域 encounter-flow.ts 经 g.encounter 直读开关
-  // (#1090 档位配比退役,概率改由 tierShares 声望 softmax 现算)
-  encounter: EncounterSwitch = { enabled: false }; // 缺省=关闭(测试隔离开关,ADR-0035)
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
   // 珍宝交涉交割托管:成交后买家付清价款前,珍宝暂存于此(序列化友好纯数据;买家不可变卖托管物抵债)。
@@ -358,23 +331,8 @@ export class GameEngine {
    *  restore 后决策上下文不再依赖表现态字段。 */
   pendingLand: PendingLand | null = null;
 
-  /** 待抉择机遇载荷(#124):抽中 choices 型机遇时置值(目录定义引用,不可变),
-   *  AwaitingEncounter 相位的决策上下文唯一出处;选项集计算(choices.ts)与
-   *  resolveEncounterChoice 消费,resolve/endTurn 清除。快照不单列序列化:机遇 id/文段
-   *  随派生 choices(选项携带 encounterId/encounterText)过网,restoreFromSnapshot 按
-   *  id 回链目录重建——与 pendingLand 的「id 句柄 + 目录现查」同一模式。 */
-  pendingEncounter: EncounterDef | null = null;
-
-  /** 机遇解完续跑驻跸尾(ADR-0035,#776):必停都城截断(marchTraverse)在机遇占用本落格
-   *  时置位,settleEncounterChoice 解完据此续跑 finishCapitalHalt(补给+结束回合)而非
-   *  resolveLanding;清算/破产/耗竭接管本落格时作废(人倒下了不领补给)。不变量:
-   *  true ⇔ AwaitingEncounter 相位挂着且落格是驻跸截断。随快照走(SNAPSHOT_FIELDS)。 */
-  pendingEncounterHalt = false;
-
-  /** 特殊城池固定事件待续跑(#824,ADR-0037):五类固定事件统一置位,续跑 resolveLanding
-   *  (直入交易链、不再触发固定事件);招贤(AwaitingHeroPick)跨命令持有,同步类
-   *  (锦囊/天命/商市/探宝)同命令内消费即清。
-   *  随快照走(SNAPSHOT_FIELDS)。 */
+  /** 固定事件待续跑：招贤跨命令持有，商市和探宝在同一命令内消费。
+   *  续跑 resolveLanding 时直入交易链，标记随快照保存。 */
   pendingCityEvent = false;
 
   log: LogEvent[] = [];
@@ -425,7 +383,6 @@ export class GameEngine {
     this.startingTreasures = config.startingTreasures;
     this.mapId = config.mapId ?? "";
     this.reactionWindowMsOverride = config.reactionWindowMs ?? 0;
-    this.encounter = { enabled: config.encounter?.enabled === true };
     this.seed = this.dice.getRngState(); // mulberry32 未滚前 getState = 种子本身
     // 对局 id(ADR-0014):毫秒时间戳 + 随机后缀的简版 uuid,作 data/logs/<gameId>.jsonl 文件名
     // 与 IndexedDB key;不走引擎 rng(不影响确定性,不随快照漂移)。内联于构造器
@@ -447,12 +404,9 @@ export class GameEngine {
       properties: [],
       heroes: [],
       treasures: [],
-      reputation: s.reputation ?? 0,
       stamina: STARTING_STAMINA,
       jinnangHand: [], // 锦囊手牌(#122):开局发牌在 finishSetup
       jinnangHandCount: 0,
-      encounterFlags: [], // 机遇章册(#1153):开局无章,结算写点经 grantEncounterFlags 落章
-      onceEncounterIds: [], // 奇遇已遇集(#1154):一局一遇按玩家,触发即记
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {
@@ -474,9 +428,6 @@ export class GameEngine {
         startingCash: this.startingCash,
         startingTreasures: this.startingTreasures,
         startedAt: Date.now(),
-        // 机遇原始配置(#135/#776):档位抽取消耗骰流,重放必须复刻同一配置(缺省=null=
-        // 机遇关);重建/恢复通路原样传回构造 config(原重放校验器已随 ADR-0021 退役)。
-        encounter: config.encounter ?? null,
         seats: config.seats.map((s, i) => ({
           seat: i,
           guohao: s.guohao ?? "",
@@ -533,9 +484,9 @@ export class GameEngine {
   // (pickCapital)、三候选滚换(rollOfferedCapitals)与入局收尾(finishSetup)均为
   // 自由函数,在 setup-flow.ts,首参接引擎实例;aiChooseCapital/pickCapitalInternal/
   // skipCurrentDraftPick 域内自洽不留壳。setup 期骰流顺序敏感(offeredCapitals 候选
-  // 随 rngState 序列化,联机/恢复必须一致),域内逐字保留消耗顺序;首回合锦囊发牌经
-  // 壳上 g.drawJinnang,出牌阶段入场由域直调 jinnang-execution.enterJinnangPhase 自由
-  // 函数(#319/#320 跨模块直调先例)。壳内仅留本 getter(选都进度派生查询)与同名
+  // 随 rngState 序列化,联机/恢复必须一致),域内逐字保留消耗顺序;起手发牌经
+  // g.drawJinnang，首回合摸牌及出牌阶段入场复用 jinnang-execution.beginTurnJinnang。
+  // 壳内仅留本 getter(选都进度派生查询)与同名
   // 公共方法薄委托(外部 importer 无感)。
 
   get currentSetupPlayerIndex(): number {
@@ -586,7 +537,7 @@ export class GameEngine {
   // enterDecisionPhase 域内自洽不留壳)与都城补给(capitalSupplyOf;applyResupply
   // 域内自洽不留壳)均为自由函数,在 movement-flow.ts,首参接引擎实例。
   // 壳内仅留同名公共方法薄委托:命令口经 submitCommand 分发、bot 直调;跨域往返走壳上
-  // 薄委托:reaction-window 续走经 g.marchTraverse/g.settleMarchLanding 回调;机遇/
+  // 薄委托:reaction-window 续走经 g.marchTraverse/g.settleMarchLanding 回调；
   // 探宝(珍宝城固定事件位)/escrow/锦囊抽牌/招贤经各自壳上方法消费;开拦检窗由域模块直调
   // reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
   // 迁出而删,见反应窗区段)。
@@ -609,7 +560,7 @@ export class GameEngine {
     return marchTraverse(this, mover, remaining, totalLen, landIndex, fromPos, steps);
   }
 
-  /** 落格收尾(机遇/落格结算):薄委托 → movement-flow.settleMarchLanding
+  /** 行军落格收尾:薄委托 → movement-flow.settleMarchLanding
    *  (reaction-window 拦检续走经此回调)。 */
   settleMarchLanding(mover: Player, landIndex: number): void {
     settleMarchLanding(this, mover, landIndex);
@@ -661,7 +612,7 @@ export class GameEngine {
   // ──────────────────────────── 落格处理 ────────────────────────────
 
   /** 落格结算(己都城/城池三分/事件城固定事件,#826 全城池制):薄委托 → movement-flow.resolveLanding
-   *  (reaction-window 拦停止步与 encounter-flow 机遇解毕续结算经此)。 */
+   *  (招贤与拦停止步续接经此)。 */
   resolveLanding(): void {
     resolveLanding(this);
   }
@@ -673,7 +624,7 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 回合结束 / 胜负 ────────────────────────────
-  // #320 去私有化(ADR-0019 条款 3):机遇/耗竭域 encounter-flow.ts 结算路径直调 g.endTurn 收尾回合
+  // #320 去私有化(ADR-0019 条款 3):体力耗竭结算直调 g.endTurn 收尾回合
   endTurn(): void {
     endTurn(this);
   }
@@ -716,9 +667,7 @@ export class GameEngine {
   // 付款或清算(payOrLiquidate)、破产资产留痕(seizeBankruptAssetsTraced)、
   // 破产善后(finalizeBankruptcy)、整批出售并清偿(confirmBankruptcySettle)与认破产
   // (declareBankruptcy)均为自由函数,首参接引擎实例;与 economy.ts 分层(清算
-  // 流程≠经济交易原语)。壳内仅留同名方法薄委托:公共五入口(UI/bot/联机 +
-  // encounter-flow 经 g.payOrLiquidate 消费)+ escrow 交割/退回两步(去私有化:
-  // resolveTreasureOwner 壳内消费、confirmBankruptcySettle 域内直调)。
+  // 流程≠经济交易原语)。壳内仅留同名方法薄委托。
 
   /** 交割托管:买家付清价款 → 珍宝交货给买家。薄委托 → bankruptcy.deliverEscrow
    *  (#321 去私有化 ADR-0019 条款 3:escrow 挂起后的交割/退还两步,壳与域双向消费)。 */
@@ -732,8 +681,7 @@ export class GameEngine {
   }
 
   /** 付款或触发清算:现金够即扣款("ok"),不足统一进入 AwaitingBankruptcySettle("liquidating")。
-   *  薄委托 → bankruptcy.payOrLiquidate(#320/#321 去私有化 ADR-0019 条款 3:机遇域
-   *  encounter-flow.ts 效果结算直调)。 */
+   *  薄委托 → bankruptcy.payOrLiquidate。 */
   payOrLiquidate(mover: Player, creditor: Player | null, amount: number): "ok" | "liquidating" {
     return payOrLiquidate(this, mover, creditor, amount);
   }
@@ -760,6 +708,7 @@ export class GameEngine {
   // network-client.ts(联机)都调用这一个方法。联机时服务器的消息处理器只需:
   //   socket.on("command", cmd => engine.submitCommand(cmd))
   submitCommand(cmd: GameCommand): void {
+    if (!Object.hasOwn(CMD_BRIEF, cmd.type)) throw new Error(`未知对局命令：${cmd.type}`);
     beginGameEventBatch(this); // 事件流(#375):命令=一次转移,入口开新批(弃上一命令的批)
     // 命令流(ADR-0014):每条玩家命令在统一入口记一行 cmd(detail=完整命令 JSON,重放的
     // 机读层)。bot 路径(botAct/aiSetupStepFor 直调引擎方法)不经此口 → 不产生 cmd 行:
@@ -795,9 +744,7 @@ export class GameEngine {
       case "endDecision":
         return this.endDecision();
       case "resolveHeroPick":
-        return this.resolveHeroPick(cmd.index);
-      case "resolveEncounterChoice":
-        return this.resolveEncounterChoice(cmd.index);
+        return this.resolveHeroPick(cmd);
       case "resolveTreasureOwner":
         return this.resolveTreasureOwner(cmd.action);
       case "declareBankruptcy":
@@ -850,17 +797,14 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 招贤纳士(#326,ADR-0019)────────────────────────────
-  /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。返回 "silent"=满额/无货事件沉默
-   *  (收尾归调用方:都城 endTurn,招贤城续交易链 #824)。
-   *  #323 去私有化(ADR-0019 条款 3):落格结算 movement-flow.resolveLanding 经 g.tryRecruitHero 直调;
-   *  #326 域本体迁 recruitment.ts,薄委托 → recruitment.tryRecruitHero。 */
-  tryRecruitHero(mover: Player): "offered" | "silent" {
-    return tryRecruitHero(this, mover);
+  /** 开启招贤机会,有空位时预掷至多三名候选的授技。 */
+  tryRecruitHero(mover: Player): void {
+    tryRecruitHero(this, mover);
   }
 
-  /** 玩家从招贤纳士候选中选一位(或跳过)。公开(供 UI/bot 调用);薄委托 → recruitment.resolveHeroPick。 */
-  resolveHeroPick(index: number): void {
-    resolveHeroPick(this, index);
+  /** 结算招贤机会:选将、求书或跳过。 */
+  resolveHeroPick(pick: number | HeroPick): void {
+    resolveHeroPick(this, typeof pick === "number" ? { index: pick } : pick);
   }
 
   // ──────────────────────────── 战报 / 浮动反馈 ────────────────────────────
@@ -909,12 +853,6 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
-  /** 声望增减(#121;#1090 去夹紧,无界累加):薄委托 → reputation.addReputation。
-   *  事件流(#384):声望变更本体(reputationChanged)由各结算点显式 emit(本签名不带 reason)。 */
-  addReputation(seat: number, delta: number): void {
-    addReputation(this, seat, delta);
-  }
-
   // ──────────────── 锦囊+主动技+效果执行(#122/#188 档 3,ADR-0019)────────────────
   // 域逻辑在 jinnang-execution.ts(ADR-0019 委托式拆分,#319):抽牌/出牌阶段用牌与出技
   // 决策/出牌宣布与反应窗挂点/效果执行/主动技结算/招贤共享单点均为自由函数,
@@ -970,11 +908,11 @@ export class GameEngine {
 
   /** 体力增减(#130):clamp 0~100,返回落账后的体力值。损失方向派发 StaminaLoss 时机
    *  (#1377,放逐攒怒挂点:任何来路的损失一律广播,含打空最后一笔;delta=夹紧后实际
-   *  损失额,恒负值;增益不派——温泉/赈济不攒)。 */
+   *  损失额，恒负值)。 */
   addStamina(
     seat: number,
     delta: number,
-    continuation?: Extract<MomentContinuation, { kind: "encounterStamina" | "staminaDamage" }>,
+    continuation?: Extract<MomentContinuation, { kind: "staminaDamage" }>,
   ): number {
     const p = this.players[seat];
     const before = p.stamina;
@@ -984,7 +922,7 @@ export class GameEngine {
       emitGameEvent(this, seat, {
         kind: "staminaChanged",
         delta: change,
-        reason: continuation.kind === "staminaDamage" ? "damage" : "encounter",
+        reason: "damage",
       });
     if (change < 0)
       this.dispatchMoment(
@@ -999,53 +937,9 @@ export class GameEngine {
     return damageStamina(this, seat, amount, sourceSeat);
   }
 
-  // ──────────────── 机遇主流程 + 体力耗竭(#123/#124/#130/#132,ADR-0019)────────────────
-  // 域逻辑在 encounter-flow.ts(#320):机遇触发/加权抽取、抉择机遇入相与选项结算、效果
-  // 结算(八种效果各归小函数)、机遇体力接线与耗竭善后均为自由函数,首参接引擎实例;
-  // 与数据表 encounters.ts 分层(流程≠配置)。壳内仅留同名方法薄委托:公共入口(UI/bot/
-  // 联机 + reaction-window 经 g.maybeApplyEncounter 消费)+ 入相/即时结算两步(去私有化:
-  // 域内经 g.enterEncounterPhase/g.settleEncounter 往返消费)。
-
-  /** 耗竭入口(#130):薄委托 → encounter-flow.exhaustIfDepleted(机遇体力接线归 0 时域内直调)。 */
+  /** 无来源耗竭入口，结算城损与休整。 */
   exhaustIfDepleted(seat: number): "none" | "resolved" {
     return exhaustIfDepleted(this, seat);
-  }
-
-  /** 机遇触发与抽取(#123;ADR-0035 机遇必出):薄委托 → encounter-flow.maybeApplyEncounter(reaction-window 续结算亦经此)。 */
-  maybeApplyEncounter(
-    mover: Player,
-  ): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" | "exhausted" {
-    return maybeApplyEncounter(this, mover);
-  }
-
-  /** 驻跸截断结算尾(ADR-0035):薄委托 → movement-flow.finishCapitalHalt
-   *  (settleEncounterChoice 机遇解完续跑用)。 */
-  finishCapitalHalt(mover: Player): void {
-    finishCapitalHalt(this, mover);
-  }
-
-  /** 抉择机遇入相(#124):薄委托 → encounter-flow.enterEncounterPhase(#320 去私有化:
-   *  域内经 g.enterEncounterPhase 往返)。 */
-  enterEncounterPhase(
-    mover: Player,
-    def: EncounterDef,
-  ): "deciding" | "liquidating" | "bankrupt" | "exhausted" {
-    return enterEncounterPhase(this, mover, def);
-  }
-
-  /** 抉择机遇选项(#124):薄委托 → encounter-flow.resolveEncounterChoice。 */
-  resolveEncounterChoice(index: number): void {
-    resolveEncounterChoice(this, index);
-  }
-
-  /** 即时机遇结算(#123):薄委托 → encounter-flow.settleEncounter(#320 去私有化:
-   *  域内经 g.settleEncounter 往返)。 */
-  settleEncounter(
-    mover: Player,
-    def: EncounterDef,
-    finishLandingOnResume = false,
-  ): EncounterSettlement {
-    return settleEncounter(this, mover, def, finishLandingOnResume);
   }
 
   /** 文案浮字入队(ADR-0013 唯一选项自动执行的轻提示,无金额):渲染为棋盘一行小字。 */
@@ -1089,19 +983,5 @@ export class GameEngine {
     this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
     this.propertyChanges = []; // 瞬时不序列化:恢复即清(ADR-0015 留痕同 floaters 口径)
-    // 抉择机遇载荷回链(#124):pendingEncounter 不单列序列化,机遇 id 随派生 choices
-    // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
-    // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)= 数据损坏,零兜底
-    // 直接抛错(不静默作废玩家机遇、不降级退回 Roll)。
-    if (this.turnPhase === "AwaitingEncounter") {
-      const encId = s.choices.find((o) => o.encounterId != null)?.encounterId;
-      const def = encId != null ? ENCOUNTERS.find((c) => c.id === encId) : undefined;
-      if (def) {
-        this.pendingEncounter = def;
-      } else {
-        // 零兜底:目录版本不符/外来快照属数据损坏,应崩出来而非静默作废玩家机遇
-        throw new Error(`快照恢复:抉择机遇上下文缺失(id=${encId ?? "-"})`);
-      }
-    }
   }
 }

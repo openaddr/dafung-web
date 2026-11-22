@@ -34,8 +34,6 @@ export async function openShotSession({
   port = 5300,
   viewport = MOBILE_CONTEXT_OPTIONS.viewport,
   deviceScaleFactor = 2,
-  /** true = 落格机遇关零(确定性无机遇卷轴;默认不 mock,读真实 public/config/jiyu.json)。 */
-  zeroEncounter = false,
   /** 建局后等待的卷轴 testid(如 "scroll-jinnang";不等待传 null)。 */
   waitScroll = null,
 } = {}) {
@@ -59,15 +57,6 @@ export async function openShotSession({
   // 调试桥门禁键(单源 src/app/fx/timings.ts E2E_DEBUG_BRIDGE_KEY;.mjs 无法 import TS,字面量随其注记同步):
   // preview 服务的是生产构建,无此键 window.__dafung 不注册,plant/seedSolo 依赖的钩子全哑。
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-debug-bridge", "1"));
-  if (zeroEncounter) {
-    await page.route("**/config/jiyu.json", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ enabled: false }),
-      }),
-    );
-  }
 
   return {
     page,

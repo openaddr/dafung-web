@@ -414,9 +414,9 @@ testMerge(
     const { root } = fixture();
     jj(root, "edit", "codex/fixture");
     mkdirSync(join(root, "src/core"), { recursive: true });
-    writeFileSync(join(root, "src/core/encounters.ts"), "export const rule = 1;\n");
+    writeFileSync(join(root, "src/core/stamina-damage.ts"), "export const rule = 1;\n");
     jj(root, "new");
-    const result = merge(root, {}, ["src/core/encounters.ts"]);
+    const result = merge(root, {}, ["src/core/stamina-damage.ts"]);
     expect(result.code, result.output).toBe(0);
     const checks = readFileSync(join(root, "tmp/checks.log"), "utf8").trim().split("\n");
     for (const name of ["check:core", "check:goldens", "check:sim-bench"])

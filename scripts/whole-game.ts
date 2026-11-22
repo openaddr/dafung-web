@@ -7,8 +7,6 @@
 // 摘要生产在引擎之外(vera20k ParityDigestSink 条款:sink 归驱动器所有,启用测量
 // 不得扰动被测的跑法)——引擎对摘要一事全然不知。
 import type { GameEngine, SeatConfig } from "../src/core/authority";
-import type { EncounterSwitch } from "../src/core/encounters";
-import { ENCOUNTER_PRODUCT_DEFAULTS } from "../src/core/encounters";
 import { GAME_EVENT_KINDS, type GameEvent } from "../src/core/game-events";
 import type { LoadedMap } from "../src/core/board-loader";
 import { BOT_ATTENDED_PHASES, botAct } from "../src/core/bot";
@@ -97,7 +95,7 @@ function assertVocabulary(events: GameEvent[], label: string): void {
 
 /** 驱动一局到终局或回合上限。守卫(发现即炸,零兜底):不可驱动相位 / 决策点无归属 /
  *  步进无进展 / 事件词表外 / 数值泄漏 / 连续 N 回合无事件。摘要序列逐位确定:
- *  同 (map, seed, seats, encounter) 恒同输出——确定性两跑门(test/whole-game/headless-whole-game)
+ *  同 (map, seed, seats) 恒同输出——确定性两跑门(test/whole-game/headless-whole-game)
  *  逐票守着。 */
 export function driveToEnd(e: GameEngine, opts: DriveOptions): DriveResult {
   if (e.phase !== "Playing")
@@ -180,7 +178,7 @@ export function driveToEnd(e: GameEngine, opts: DriveOptions): DriveResult {
   return { digests, finished: e.isOver, rounds: e.round };
 }
 
-/** 整局运行便利入口:构造(产品口径:机遇默认开,ADR-0035)→ autoSetup → driveToEnd。
+/** 整局运行便利入口:构造引擎→ autoSetup → driveToEnd。
  *  地图/种子/座位全必配(vera20k 前提条款:同图同种是对比有意义的前提,缺一不跑)。 */
 export interface WholeGameOptions {
   map: LoadedMap;
@@ -188,7 +186,6 @@ export interface WholeGameOptions {
   mapId: string;
   seed: number;
   seats: SeatConfig[];
-  encounter?: EncounterSwitch;
   turnCap?: number;
   hooks?: DriveHooks;
   /** 截断驱动(快照往返门用;语义见 DriveOptions)。 */
@@ -205,7 +202,6 @@ export function wholeGameConfig(opts: WholeGameOptions): GameConfig {
     startingTreasures: opts.map.startingTreasures,
     seed: opts.seed,
     mapId: opts.mapId,
-    encounter: opts.encounter ?? ENCOUNTER_PRODUCT_DEFAULTS,
   };
 }
 

@@ -66,7 +66,7 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
     setStamina(e, 0, 0);
     const r = e.exhaustIfDepleted(0);
     expect(r).toBe("resolved"); // 全自动,无相位
-    expect(e.turnPhase).toBe("Roll"); // endTurn 已收尾(空手牌 → 无出牌阶段)
+    expect(e.activeIndex).not.toBe(0); // 当前诸侯耗竭后，回合已经交给下一席。
     expect(e.players[0].properties.find((h) => h.propertyId === p1)!.level).toBe(2); // 3→2
     expect(e.players[0].properties.find((h) => h.propertyId === p2)!.level).toBe(1); // 2→1
     expect(capitalHolding(e, 0).level).toBe(3); // 都城 4→3

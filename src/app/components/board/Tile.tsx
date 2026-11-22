@@ -285,9 +285,8 @@ function CandidateSeal({ order }: { order: number }) {
 }
 
 // ── #823/#828 特殊城池两字徽标:右上角方印按 event 字段渲染奖励域 ──
-// 五类词表(奖励域,非城名):珍宝(拼点探宝)/名将(招贤三选一)/锦囊(落格抽签)/
-// 声望(天命 +20)/商市(行情赌局)。旧「宝」单字印升级两字印;印底金族统一
-// (goldBright 底+玄墨字,#842 饱和色收敛两通道——区分靠两字文本,不上五色);
+// 奖励域词表:珍宝(拼点探宝)/名将(招贤)/商市(行情赌局)。印底金族统一
+// (goldBright 底+玄墨字,#842 饱和色收敛两通道,靠印文区分);
 // 保留 -6° 手钤角与「印=特殊标记」的读法(与选都候选印同族,配色对偶:
 // 候选印玄墨底金字、事件印金底玄墨字)。
 // 尺寸:两字印 32×20/单字 11 号(逻辑单位,TILE_SCALE 2.6 屏上单字 ~29px,
@@ -299,8 +298,6 @@ function CandidateSeal({ order }: { order: number }) {
 export const TILE_EVENT_BADGES: Record<TileEvent, string> = {
   treasure: "珍宝",
   hero: "名将",
-  jinnang: "锦囊",
-  fate: "声望",
   market: "商市",
 };
 
@@ -506,7 +503,7 @@ export const Tile = memo(function Tile({ tile, tier, state, rasterSource = false
         </g>
       ) : null}
       {/* 特殊城池两字徽标(#823/#828,EventSeal):右上角方印按 event 字段渲染奖励域
-            五类词表(珍宝/名将/锦囊/声望/商市,印底金族统一)——旧「宝」单字印
+            珍宝/名将/商市统一用金底——旧「宝」单字印
             (ADR-0024 时代,#825 改读 event)升级两字印,普通城(无 event)无徽标。
             旧「都城化让位」条件(都印优先)已随都印退役删除——都城身份现由光晕+王旗
             承担,与本印不同锚不撞,都城化的特殊城仍可辨「此城有固定事件」。

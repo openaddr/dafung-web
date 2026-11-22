@@ -29,12 +29,9 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
     properties: [],
     heroes: [],
     treasures: [],
-    reputation: 0,
     stamina: STARTING_STAMINA,
     jinnangHand: [], // 锦囊手牌(#122):开局后经抽牌填充
     jinnangHandCount: 0,
-    encounterFlags: [], // 机遇章册(#1153):开局无章,结算写点经 grantEncounterFlags 落章
-    onceEncounterIds: [], // 奇遇已遇集(#1154):一局一遇按玩家,触发即记
   };
 }
 

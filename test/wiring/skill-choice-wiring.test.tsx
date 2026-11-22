@@ -51,7 +51,6 @@ function seedPlayingEngine(): GameEngine {
     startingTreasures: MAP.startingTreasures,
     seed: SEED,
     mapId: "guanzhong",
-    encounter: { enabled: false }, // 机遇硬关:测试隔离既有口径
   });
   e.doDraftRoll();
   while (e.phase === "Setup") {

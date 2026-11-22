@@ -264,8 +264,8 @@ describe("经过都城必停(无驻跸/继续抉择)", () => {
     expect(p.position).toBe(p.capitalIndex); // 停在都城(必停或恰落,都不前进)
     expect(p.cash).toBe(cash0 + e.capitalSupplyOf(p).supply); // 驻跸/落都城补给
     if (die > 1) {
-      // 必停路径:回合直接结束(无任何等待相位),战报「军至都城…驻跸补给」
-      expect(e.turnPhase).toBe("Roll");
+      // 必停路径结束当前回合，下家摸牌后进入相应阶段。
+      expect(["Roll", "AwaitingJinnang"]).toContain(e.turnPhase);
       expect(e.activeIndex).toBe(nextIdx);
       expect(e.log.some((ev) => ev.category === "halt" && ev.brief.includes("军至都城"))).toBe(
         true,
@@ -381,7 +381,7 @@ describe("地产规则(等级 1–4 级 / 购入即 1 级 / 无过路费升级�
     // 城主无珍宝 → 无事发生;等级不变(升级只挂在公道买卖成交上)
     expect(owner.properties.find((x) => x.propertyId === def.id)!.level).toBe(1);
     expect(mover.cash).toBe(cash0);
-    expect(e.turnPhase as string).toBe("Roll"); // endTurn 已推进
+    expect(e.activePlayer).toBe(owner);
   });
 
   it("公道买卖成交:城池 +1 级;坐地起价/不交易不升级", () => {

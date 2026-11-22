@@ -1,7 +1,7 @@
 // 麾下域(#785,ADR-0036):名将槽位 + 授技掷骰单点。玩家侧名将从内联整份 HeroDef 改为
 // 麾下槽位 {heroId, skillIds, lastFired}——「同一名将不同玩家持不同技」从此可表达;
 // 冷却账内嵌槽位(键=技 id、作用域限本槽),同名技跨玩家/跨槽互为独立实例,遣散整槽
-// 弃、无孤儿键。三送将路(招贤纳士/机遇义士来投·以宝换贤/锦囊求贤令)收敛到同一
+// 弃、无孤儿键。招贤与锦囊「求贤令」共用
 // 授技入麾下函数(本文件);skillIds 按池声明序存,派发确定性 = 座位序×槽位序×已授技序。
 import type { GameEngine } from "./authority";
 import type { Player } from "./model";
@@ -50,11 +50,10 @@ export function rollGrantedSkills(skillPool: string[], rng: () => number): strin
   return skillPool.filter((id) => picked.has(id));
 }
 
-/** 授技入麾下(三送将路唯一入槽口):建槽 + 招贤池占位 + HeroRecruited 时机(事件体
+/** 授技入麾下:建槽 + 招贤池占位 + HeroRecruited 时机(事件体
  *  skillIds=本次授技,客户端折叠不得自行重掷)。granted 必填:招贤路传候选行预掷结果
- *  (卡面亮的=实际入麾下的,#787 契约);机遇/锦囊盲盒路由 rollGrantedSkills 现掷
- *  (将身份落定一刻同掷,结果终身不改)。调用方先写战报再入槽(三路 log→dispatch 序
- *  保持);掷骰只走 g.dice.nextFloat。 */
+ *  (卡面亮的=实际入麾下的,#787 契约);锦囊「求贤令」由 rollGrantedSkills 现掷
+ *  (将身份落定一刻同掷,结果终身不改)。调用方先写战报再入槽;掷骰只走 g.dice.nextFloat。 */
 export function grantHeroSlot(
   g: GameEngine,
   player: Player,
@@ -134,26 +133,19 @@ export function learnSkillInSlot(player: Player, heroId: string, skillId: string
   return slot;
 }
 
-/** 折书入位单环(#1146 位满印书/#1147 遣散折书共用的机制环,评审 S1 归一):印一册
- *  (makeSkillBook 单源)→ push 珍宝位 → 战报一行 → TreasureGained 时机派发——得宝系
- *  联动技(得陇望蜀族)照常击发,零特判。战报文案随语境(位满/遣散措辞各异)由调用方
- *  以 bookName 组装;audit kind 位满=`skillBook`、遣散=`dismissBook`。 */
+/** 求书、印书与遣散共用的入位流程:造书、入珍宝位、记战报,派发 TreasureGained。 */
 export function foldSkillBookIntoTreasures(
   g: GameEngine,
   player: Player,
   skillId: string,
-  heroId: string,
+  heroId: string | null,
   logCopy: (bookName: string) => string,
-  auditKind: "skillBook" | "dismissBook",
+  auditKind: "skillBook" | "dismissBook" | "seekBook",
 ): void {
   const book = makeSkillBook(skillId);
   player.treasures.push(book);
-  g.logEvent(
-    "system",
-    player.guohao,
-    logCopy(book.name),
-    `${auditKind} player=${player.id} hero=${heroId} skill=${skillId} treasure=${book.id}`,
-  );
+  const detail = `${auditKind} player=${player.id}${heroId === null ? "" : ` hero=${heroId}`} skill=${skillId} treasure=${book.id}`;
+  g.logEvent("system", player.guohao, logCopy(book.name), detail);
   g.dispatchMoment("TreasureGained", {
     subject: g.players.indexOf(player),
     treasureId: book.id,

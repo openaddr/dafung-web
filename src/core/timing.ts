@@ -6,7 +6,7 @@
 // (engine.round,roundAnchor 锚定)。新增时机 = ① 此处 GameMoment 加一项 + MOMENTS 注册;
 // ② authority.ts 在正确点位挂一个 dispatchMoment 派发。仅此两步,再无散派。
 
-/** 时机类型(37 个,按七类分组,实数以 MOMENTS 注册表为准)。subject(时机主体座位)与 ctx 字段见各时机注释;
+/** 时机类型（完整清单见 MOMENTS）。subject(时机主体座位)与 ctx 字段见各时机注释;
  *  分类目录 + 技能灵感示例见 docs/explanation/时机框架.md。 */
 export type GameMoment =
   // ── 生命周期 ──
@@ -50,9 +50,6 @@ export type GameMoment =
   // ── 资产与交易 ──
   /** 购城后:buyProperty 成功尾。ctx.propertyId = 购入城。subject = 买家。 */
   | "PropertyBought"
-  /** 得城后(#457):机遇赐城入册处(与 PropertyBought「购」语义区分:无主城白得,不经购买)。
-   *  ctx.propertyId = 得到的城。subject = 得城者。 */
-  | "PropertyGained"
   /** 城池升级后:扩军 upgradeProperty 成功 + 公道买卖成交升级,两处(满级不触发)。
    *  ctx.propertyId = 升级城。subject = 城主。 */
   | "PropertyUpgraded"
@@ -64,21 +61,18 @@ export type GameMoment =
   | "PropertyLost"
   /** 招贤后:resolveHeroPick 选定名将(tryRecruitHero 只出三选一候选)。ctx.heroId。subject = 招贤者。 */
   | "HeroRecruited"
-  /** 得宝后:四处——拼点得宝(treasure-flow drawTreasureAt)/机遇授宝(encounter-flow)/
-   *  escrow 交割买家得宝(bankruptcy deliverEscrow)/窃玉偷香得宝(jinnang-execution,#455 A4)。
-   *  ctx.treasureId。subject = 得宝者。 */
+  /** 得宝后：探宝、技能书入册、交易交割或窃玉偷香。ctx.treasureId = 所得珍宝。subject = 得宝者。 */
   | "TreasureGained"
   /** 售宝后:交涉成交(escrow 交割,卖家视角;买家破产退宝不触发)+ 破产变卖珍宝,两处。
    *  ctx.treasureId/ctx.amount = 售价。subject = 卖家。 */
   | "TreasureSold"
-  /** 失宝后(#457):珍宝非售出流失——以宝换贤交出代价(每件一派)与窃玉偷香失窃方,
-   *  两写点,与 TreasureSold(售出)语义区分。ctx.treasureId。subject = 失宝者。 */
+  /** 窃玉偷香使珍宝易主后派发。ctx.treasureId = 失窃珍宝。subject = 失宝者。 */
   | "TreasureLost"
   /** 交涉成交:escrow 买家付清价款、交割完成(fair/premium 同;买家破产退宝不触发)。
    *  ctx.buyerSeat/ctx.sellerSeat/ctx.amount = 成交价。subject = 城主(= 卖家)。 */
   | "TradeSettled"
   /** 得锦囊进手(#456):drawJinnang 物理单点内部派发(每张入手后按次数派一次),
-   *  三路同覆盖——起手发牌/锦囊城/机遇授书。
+   *  起手发牌、回合摸牌和己城补给共用此口。
    *  ctx.count = 本次实际入手张数(牌库空落空不派,与 jinnangDrawn 事件「无转移不产」同口径)。
    *  暗牌不带牌 id(ADR-0016 保密口径)。subject = 得牌者。 */
   | "JinnangGained"
@@ -86,29 +80,18 @@ export type GameMoment =
    *  ctx.targetSeat = 被窥者。subject = 使用者(窥方)。被识破不派(窥探从未发生)。 */
   | "PeekApplied"
   // ── 玩家状态 ──
-  /** 被动得银:都城补给、机遇得款与折现、玩家间收款、城池奖励与持城收益。
+  /** 被动得银:都城补给、商市上涨、锦囊折现、玩家间收款、城池奖励与持城收益。
    *  ctx.amount = 得银额。subject = 得银者。
    *  **防连锁**:仅经济结算点派发——效果层收益(grantSkillCash)不触发 CashGained,技能链不递归放大。 */
   | "CashGained"
-  /** 玩家被动失去银两(细粒度):税/交涉付款等非自愿支出(主动买城不算)。subject = 失银者。 */
+  /** 被动失银：商市下跌、交涉付款等支出。subject = 失银者。 */
   | "CashLost"
   /** 被强加跳回合:缓兵之计、耗竭休整和曹丕技能按各自规则增加跳过回合数后派发。
    *  ctx.reason = 缘由。subject = 被跳者。 */
   | "TurnSkipImposed"
-  /** 体力变更(#456):**仅机遇路**派发(encounter-flow applyEncounterStamina 的 addStamina
-   *  结算处)。休整期满回满(系统复位非收益)与华佗赈济(主动技「结算内不派时机」既有口径)不派。
-   *  ctx.delta = 夹紧 0~100 后的实际增减(带符号)。subject = 体力变动者。 */
-  | "StaminaChanged"
-  /** 体力损耗(#1377,放逐攒怒挂点):挂体力唯一写口 addStamina(authority.ts)内部,
-   *  损失方向(delta<0)一律派发,含打空体力的最后一笔;增益方向不派(温泉/赈济不攒)。
-   *  与 StaminaChanged 的分工:彼处记「机遇路体力变更」事件面,此处是任何来路损失的
-   *  机制挂点。ctx.delta = 夹紧后实际
-   *  损失额(恒负值)。subject = 体力受损者。 */
+  /** 体力损耗：addStamina 实际扣减体力后派发，含归零的一击。
+   *  ctx.delta = 实际损失额（恒负值）。subject = 体力受损者。 */
   | "StaminaLoss"
-  /** 声望变更(#456):挂 addReputation 唯一写口(reputation.ts)单点广播,天命城与机遇
-   *  repDelta 两路天然全覆盖;事件流的 before/after 差值模式在调用点,与新时机并存不冲突。
-   *  ctx.delta = 实际增减(带符号,无界直加)。subject = 声望变动者。 */
-  | "ReputationChanged"
   // ── 破产与终局结算 ──
   /** 玩家破产出局:finalizeBankruptcy 尾(名将已释放、资产已转债主)。subject = 破产者。 */
   | "PlayerBankrupt"
@@ -124,9 +107,9 @@ export type GameMoment =
   /** 锦囊宣布:任何锦囊选定目标、结算前(识破诡计的反应窗挂点)。ctx.cardId = 牌 id,
    *  ctx.targetSeats = 目标座位集(全体域=受影响全员;自身域=[使用者])。subject = 使用者。 */
   | "JinnangAnnounced"
-  /** 途经他人城池:rollAndMove 途经遍历中每到城主存活的他人城池格(半路杀出的拦检窗挂点,
-   *  拦停成功即止、后续城不再问;行人本就停留的落点格不问)。ctx.ownerSeat = 城主,
-   *  ctx.tileIndex = 涉事格。subject = 行人。 */
+  /** 途经他人城池：行军者进入该城后继续前进并实际离开时派发。
+   *  拦检窗在进入途中城池时询问，拦停止步按到达结算。
+   *  ctx.ownerSeat = 城主，ctx.tileIndex = 涉事格。subject = 行军者。 */
   | "MarchPassedCity";
 
 /** 每个时机依次完成前、时、后三个阶段。 */
@@ -170,7 +153,7 @@ export interface MomentCtx {
   count?: number;
   /** 单一目标座位(PeekApplied 被窥者)。 */
   targetSeat?: number;
-  /** 变更量(带符号,落账实际值;StaminaChanged/ReputationChanged)。 */
+  /** 体力实际损失额（StaminaLoss，恒负值）。 */
   delta?: number;
   /** 被收走的城 id 列表(AssetsSeized:破产终局资产转移)。 */
   cities?: string[];
@@ -200,7 +183,6 @@ export const MOMENTS: readonly GameMoment[] = [
   "PassedPlayer",
   // 资产与交易
   "PropertyBought",
-  "PropertyGained",
   "PropertyUpgraded",
   "PropertyDemolished",
   "PropertyLost",
@@ -215,9 +197,7 @@ export const MOMENTS: readonly GameMoment[] = [
   "CashGained",
   "CashLost",
   "TurnSkipImposed",
-  "StaminaChanged",
   "StaminaLoss",
-  "ReputationChanged",
   // 破产与终局结算
   "PlayerBankrupt",
   "AssetsSeized",

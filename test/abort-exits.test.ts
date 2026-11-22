@@ -2,7 +2,7 @@
 // 守住什么——bot 驱动链三处死亡出口(链内抛异常 / no-progress 断链 / WorkerClock 挂死)
 // 都必须以「异常终局」响亮收场(引擎 abortGame:无胜者 + gameOver 事件 reason="aborted"
 // + 对局日志终局行含原因摘要),零无声停摆;附引擎语义基座:幂等、snapshot 水密往返。
-// 故障注入：①botAct 的相位与载荷失配，②模拟机遇结算方法无动作，
+// 故障注入：①招贤结算抛错，②招贤结算无动作，
 // ③注入假 WorkerClock 触发挂死。
 // 矩阵交叉钉(#643 终验):故障型×座位控制权两条交叉——失配注入落在托管座(人类+托管,
 // 非原生 bot)仍出口①响亮终局;断链指纹落在人类可决策座位(托管已收回)不武装任何
@@ -26,25 +26,14 @@ import { WORKER_SOURCE } from "../src/app/net/worker-clock";
 import type { WorkerClock } from "../src/app/net/worker-clock";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
-import type { EncounterDef } from "@core/encounters";
+import { armPhase } from "@core/planter";
 
 const LOCAL_MAP = loadMap(guanzhongData);
 
-/** 模拟 bot 已提交机遇选项，结算方法未推进状态。 */
-function stallEncounter(e: GameEngine): void {
-  const probe: EncounterDef = {
-    id: "stall-probe",
-    tier: "中性",
-    tags: [],
-    weight: 1,
-    text: "断链探针",
-    choices: [
-      { text: "甲", repDelta: 0 },
-      { text: "乙", repDelta: 0 },
-    ],
-  };
-  e.enterEncounterPhase(e.activePlayer, probe);
-  spyOn(e, "resolveEncounterChoice").mockImplementation(() => {});
+/** 在已打开的招贤窗注入驱动故障。 */
+function openRecruitment(e: GameEngine): void {
+  armPhase(e, { activeIndex: 0 });
+  e.tryRecruitHero(e.activePlayer);
 }
 
 const SEATS2: SeatConfig[] = [
@@ -197,15 +186,16 @@ async function autoPilotRoom(options?: { stallAbortMs?: number }) {
 describe("驱动链死亡出口(#642 三出口故障注入)", () => {
   it("出口① 链内抛异常:botAct 炸出 → 链捕获 → abortGame 响亮终局,摘要进对局日志", async () => {
     const { reg, roomId, clock, e, token } = await autoPilotRoom();
-    // 注入 #640 病灶态同款失配:相位挂着、载荷已空(botAct 读点当场炸,#649 零兜底)
-    e.turnPhase = "AwaitingHeroPick";
-    e.offeredHeroes = [];
+    openRecruitment(e);
+    using _broken = spyOn(e, "resolveHeroPick").mockImplementation(() => {
+      throw new Error("招贤故障探针");
+    });
     clock.fireAll(); // 泵停着的步进 await → 链下一拍 botAct → 抛
     await macroTick();
     expect(e.isOver).toBe(true);
     expect(e.winner).toBeNull();
     expect(e.winReason).toBe("aborted");
-    expectAbortedFinalRow(e, "offeredHeroes");
+    expectAbortedFinalRow(e, "招贤故障探针");
     expect(e.log[e.log.length - 1]!.detail).toContain("驱动链异常");
     expect(gameOverOf(e)?.reason).toBe("aborted");
     reg.dismissRoom(roomId, token);
@@ -213,7 +203,8 @@ describe("驱动链死亡出口(#642 三出口故障注入)", () => {
 
   it("出口② no-progress 断链:bot 相位断链武装停摆看门狗,到点 abortGame(相位/座位指纹进 reason)", async () => {
     const { reg, roomId, clock, e, token } = await autoPilotRoom({ stallAbortMs: 5000 });
-    stallEncounter(e);
+    openRecruitment(e);
+    using _stalled = spyOn(e, "resolveHeroPick").mockImplementation(() => {});
     clock.fireAll(); // 泵一步:botAct no-op → 链以 no-progress 断链 → 武装停摆看门狗
     await macroTick();
     expect(e.isOver).toBe(false); // 断链当场不炸:等窗口到点(响亮但不即时)
@@ -223,7 +214,7 @@ describe("驱动链死亡出口(#642 三出口故障注入)", () => {
     expect(e.isOver).toBe(true);
     expect(e.winReason).toBe("aborted");
     expectAbortedFinalRow(e, "驱动链停摆超时");
-    expect(e.log[e.log.length - 1]!.detail).toContain("AwaitingEncounter");
+    expect(e.log[e.log.length - 1]!.detail).toContain("AwaitingHeroPick");
     expect(e.log[e.log.length - 1]!.detail).toContain("座位 0");
     reg.dismissRoom(roomId, token);
   }, 20_000);
@@ -238,14 +229,15 @@ describe("驱动链死亡出口(#642 三出口故障注入)", () => {
     expect(e.players[0]!.isBot).toBe(false);
     expect(decisionSeatOf(e)).toBe(0);
     expect(seatControlled(room, 0)).toBe(true);
-    // #649 病灶式失配(与出口①既有例同款):相位挂着、载荷已空
-    e.turnPhase = "AwaitingHeroPick";
-    e.offeredHeroes = [];
+    openRecruitment(e);
+    using _broken = spyOn(e, "resolveHeroPick").mockImplementation(() => {
+      throw new Error("招贤故障探针");
+    });
     clock.fireAll(); // 泵停着的步进 await → 链下一拍 botAct(托管座)→ 抛
     await macroTick();
     expect(e.isOver).toBe(true);
     expect(e.winReason).toBe("aborted");
-    expectAbortedFinalRow(e, "offeredHeroes");
+    expectAbortedFinalRow(e, "招贤故障探针");
     expect(e.log[e.log.length - 1]!.detail).toContain("驱动链异常");
     expect(gameOverOf(e)?.reason).toBe("aborted");
     reg.dismissRoom(roomId, token);
@@ -256,7 +248,8 @@ describe("驱动链死亡出口(#642 三出口故障注入)", () => {
     // 人类经公开 API 收回托管(在途链持重入守卫,调度即返回;原链仍停在步进 await)
     await reg.setAutoPilot(roomId, 0, false);
     // 注入出口②同款断链指纹,与出口②既有例唯一差别:决策座位控制权已回到人类
-    stallEncounter(e);
+    openRecruitment(e);
+    using _stalled = spyOn(e, "resolveHeroPick").mockImplementation(() => {});
     const room = reg.get(roomId)!;
     expect(room.autoPilot.has(0)).toBe(false);
     expect(decisionSeatOf(e)).toBe(0);

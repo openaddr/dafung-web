@@ -1,13 +1,4 @@
-// 席位格列(#698 席位条重形:96×38 双行八项格,旧席位竖卡+仪表徽章行整体退役):
-// 右缘单列一人一格(自机入列),原型席位侧列(临时件已佚)
-// ①全屏语境/②席位格解剖/③状态一览 三节判决移植——行1=国号印(座位色,字符居中)
-// +托管微标(#770,托管中才有)+现金主数(无千分位省「两」)+体力色条(吃行1剩余
-// 宽度,濒耗竭转朱砂);行2=汉字五账式(#1128):「城/牌/将/宝/望」汉字当标识
-// (题字字体,纸色退后一档)+tabular 计数,单色淡纸——旧五枚彩色 SVG 图标
-// (城楼/牌背组/战盔/玉璧/墨竹)整线退役:9-10px 下战盔糊团、玉璧环与数字 0
-// 同形、4×6 牌背近隐形「城1 牌9+」连读成「19+」(844×390 实拍实锤);彩色图标
-// 制整线退役(末代放大场消费方诸侯详情/牌架相继改道,AttrIcon 件 2026-11-07
-// 废弃文件清扫批删除)。发丝线组分隔(#770)保留,预算判据见 layout.css .l2。
+// 席位格列：国号、银两和体力在首行，城池、手牌、名将和珍宝在次行。
 // 国号印旁的三角标指示回合方，席位格边框和勾表达目标状态。
 // 自机用左金条，出局降透明度；托管由国号印右侧齿轮标识。
 // 列几何(拍板口径):列宽 96 固定、格间距 2px、列 y8 起排;格高=clamp(30,(可用高−14)/8,38),
@@ -68,9 +59,7 @@ interface SeatTargetSlot extends SeatTargetState {
   onUnavailable: (seat: number, reason: string) => void;
 }
 
-/** 手牌计数封顶(#743 判词 A/#751 C 批):行 2 内宽预算容不下两位数——≥10 显示
- *  「9+」(示意口径,数值例外条款允许,非文字角标);负声望保留真实负值不在
- *  封顶族。 */
+/** 手牌计数封顶(#743 判词 A/#751 C 批):≥10 显示「9+」。 */
 const HAND_COUNT_CAP = 9;
 const handCountText = (count: number): string =>
   count > HAND_COUNT_CAP ? `${HAND_COUNT_CAP}+` : String(count);
@@ -211,10 +200,7 @@ const SeatCell = memo(function SeatCell({
           />
         </span>
       </div>
-      {/* 行2 汉字五账式(#1128):「城/牌/将/宝/望」+ tabular 计数,单色淡纸;
-          发丝线组分隔(#770)保留:高频读数(城/牌)|低频藏品(将/宝/望)。
-          名词在 aria-label,testid 契约不变(e2e 零改);负声望整项朱砂(#556,
-          样式 layout.css .ai.ai-rep.rep-neg)。 */}
+      {/* 发丝线分隔城池、手牌与藏品两组账目。 */}
       <div className="l2">
         <div className="l2hi">
           <span
@@ -231,7 +217,7 @@ const SeatCell = memo(function SeatCell({
             aria-label={`锦囊手牌 ${p.jinnangHandCount}`}
           >
             <i className="ai-tag">牌</i>
-            {/* 封顶态(#743 判词 A):≥10 只出「9+」,五账式下与常规态同形 */}
+            {/* 封顶态(#743 判词 A):≥10 只出「9+」,席位格内与常规态同形 */}
             {handCountText(p.jinnangHandCount)}
           </span>
         </div>
@@ -252,14 +238,6 @@ const SeatCell = memo(function SeatCell({
           >
             <i className="ai-tag">宝</i>
             {p.treasures.length}
-          </span>
-          <span
-            className={"ai ai-rep" + (p.reputation < 0 ? " rep-neg" : "")}
-            data-testid={TESTIDS.seatAttr(seat, "rep")}
-            aria-label={`声望 ${p.reputation}`}
-          >
-            <i className="ai-tag">望</i>
-            {p.reputation}
           </span>
         </div>
       </div>

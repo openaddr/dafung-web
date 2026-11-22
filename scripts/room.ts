@@ -14,7 +14,6 @@
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
 import type { GameCommand, GameEngine, SeatConfig, TurnPhase } from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
-import type { EncounterSwitch } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../src/core/guohao";
 import type { LoadedMap } from "../src/core/board-loader";
@@ -131,9 +130,6 @@ export interface RoomSession {
   hostConfig: HostConfig;
   /** 本房间所选地图 id(建房时 null;host setMap 后填;startGame 前 must 非 null)。 */
   mapId: string | null;
-  /** 本局机遇配置(#135):开局时由 registry 注入项定(服务器读 jiyu.json);
-   *  null=机遇关。随房间持久化——服务器重启重建引擎时复刻,否则联机局机遇静默丢失。 */
-  encounter: EncounterSwitch | null;
   engine: GameEngine | null; // null = Lobby
 }
 
@@ -165,8 +161,6 @@ export interface CreateRoomConfig {
 }
 
 /** Registry 注入项(server.ts 构造时传;ADR-0007:fs 读取归传输层,room.ts 只消费结果)。
- *  encounter(#135):联机机遇配置——服务器读 jiyu.json 后注入,
- *  startGame 透传进引擎 EngineConfig.encounter。缺省 = 机遇关(引擎缺省语义,历史行为)。
  *  decisionTimeoutMs(#118):决策停摆看门狗——引擎停在未被托管的真人座位的决策点超过
  *  该毫秒,看门狗代开该座位托管(ADR-0028;重连不清,本人点「收回」拿回)。0 = 关闭
  *  (缺省关,测试友好);server.ts 默认 120s(env DECISION_TIMEOUT_MS 可调)。
@@ -188,7 +182,6 @@ export interface CreateRoomConfig {
  *  setTimeout(服务器语义);浏览器进程内单机通路注入 Worker 时钟(后台节流免疫,
  *  见 src/app/net/worker-clock.ts)——「失焦照跑」,单机与联机同构的最后一环。 */
 export interface RoomRegistryOptions {
-  encounter?: EncounterSwitch;
   decisionTimeoutMs?: number;
   stallAbortMs?: number;
   reactionWindowMs?: number;
@@ -219,7 +212,6 @@ export class RoomRegistry {
   private readonly persistence: RoomPersistence;
   private readonly observer: RoomObserver | null;
   private readonly logSink: RoomLogSink | null;
-  private readonly encounter?: EncounterSwitch;
   private readonly decisionTimeoutMs: number;
   /** #642 驱动链停摆作废窗口(ms;缺省随 decisionTimeoutMs 同窗,见选项注)。 */
   private readonly stallAbortMs: number;
@@ -257,7 +249,6 @@ export class RoomRegistry {
     this.persistence = persistence;
     this.observer = observer ?? null;
     this.logSink = logSink ?? null;
-    this.encounter = options?.encounter;
     this.decisionTimeoutMs = options?.decisionTimeoutMs ?? 0;
     this.stallAbortMs = options?.stallAbortMs ?? options?.decisionTimeoutMs ?? 0;
     this.retentionWindowMs = options?.retentionWindowMs ?? 0;
@@ -353,7 +344,6 @@ export class RoomRegistry {
       autoPilot: new Set(rec.autoPilot),
       hostConfig: rec.hostConfig,
       mapId: rec.mapId ?? null,
-      encounter: rec.encounter ?? null,
       engine: engineFromRecord(rec, mapProvider, this.reactionWindowMsOverride),
     };
   }
@@ -406,7 +396,6 @@ export class RoomRegistry {
       autoPilot: new Set(),
       hostConfig,
       mapId: null,
-      encounter: null,
       engine: null,
     };
     this.rooms.set(roomId, room);
@@ -489,9 +478,6 @@ export class RoomRegistry {
         // 起手珍宝(件/人)同上,恒随地图顶层(#1100)。
         startingTreasures: map.startingTreasures,
         mapId: room.mapId!,
-        // 机遇接线(#135):registry 注入项(服务器读 jiyu.json)开局定稿,存房间记录——
-        // 开关直传引擎(#1090 起无归一/回退);undefined = 机遇关(缺省注入)。
-        encounter: this.encounter,
         // 反应窗时长接线(#284):registry env 覆盖注入引擎,开窗写入 view.windowMs
         // 随快照下发——客户端横幅投影与权威侧定时器同读一份,两端同长自动成立。
         reactionWindowMs:
@@ -500,7 +486,6 @@ export class RoomRegistry {
       true,
       map,
     );
-    room.encounter = this.encounter ?? null;
     room.engine = engine;
     this.observe(room, { ev: "start", mapId: room.mapId! });
     // 开局房间行(ADR-0014):座位构成随开局写入对局日志(大厅期的加入以此汇总呈现)
@@ -874,7 +859,6 @@ export class RoomRegistry {
       autoPilot: [...r.autoPilot],
       hostConfig: r.hostConfig,
       mapId: r.mapId,
-      encounter: r.encounter, // #135:机遇配置随房间落盘,重启重建引擎复刻(否则联机局机遇静默丢)
       snapshot: r.engine ? r.engine.snapshot() : null,
     };
     this.persistence.save(rec);
