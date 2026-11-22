@@ -48,7 +48,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
-const ASSETS = join(ROOT, "public/assets");
+const ASSETS = join(ROOT, "apps/client/public/assets");
 const MANIFEST = join(ASSETS, "manifest.json");
 const CREDITS = join(ASSETS, "CREDITS.md");
 const UA = "dafung-web/1.0 (asset-fetcher; contact: repo)"; // Wikimedia 政策要求描述性 UA

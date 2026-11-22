@@ -7,11 +7,11 @@
 // 即主题、无一两行确定性改造可根除;暂停闸语义由全线 e2e freezeClock 用例承担。
 // 节拍常量单源(core/timings)由 watchdogs/bot-driver 改引承担,此处不再重复数值断言。
 import { describe, it, expect } from "bun:test";
-import { createWorkerClock, latestWorkerClock } from "../../src/app/net/worker-clock";
-import type { RoomClock } from "../../scripts/room";
-import type { RoomPersistence } from "../../scripts/room-persistence";
-import type { RoomRecord } from "../../scripts/room-record";
-import { RoomRegistry } from "../../scripts/room";
+import { createWorkerClock, latestWorkerClock } from "../../apps/client/src/app/net/worker-clock";
+import type { RoomClock } from "@dafung/core/room/room";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
+import { RoomRegistry } from "@dafung/core/room/room";
 import { MAP } from "../../scripts/engine-helpers";
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));

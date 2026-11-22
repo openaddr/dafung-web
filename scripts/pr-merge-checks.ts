@@ -15,36 +15,50 @@ const slow: Record<string, string[]> = {
 
 const rules: Array<[RegExp, string[]]> = [
   [
-    /^(?:docs\/|.*\.md$|.*\/\.gitignore$|\.(?:gitignore|gitattributes|oxlintrc\.json|oxfmtrc\.json)$|test\/|src-tauri\/|proto\/|(?:package\.json|bun\.lock|bunfig\.toml|tsconfig[^/]*\.json|knip\.json|components\.json)$)/,
+    /^(?:docs\/|.*\.md$|.*\/\.gitignore$|\.(?:gitignore|gitattributes|oxlintrc\.json|oxfmtrc\.json)$|test\/|apps\/client\/src-tauri\/|(?:apps\/(?:client|server)|packages\/core)\/(?:package|tsconfig[^/]*)\.json$|proto\/|(?:package\.json|bun\.lock|bunfig\.toml|tsconfig[^/]*\.json|knip\.json|components\.json)$)/,
     [],
   ],
   [/^scripts\/.+\.(?:ts|mjs)$/, ["typecheck:scripts"]],
   [/^scripts\/build-sound-clips\.ts$/, []],
-  [/^scripts\/reaction-deadline\.ts$/, []],
+  [/^packages\/core\/src\//, ["check:core"]],
+  [/^packages\/core\/src\/(?:room|protocol)\//, ["typecheck:scripts"]],
+  [/^scripts\/check-core-purity\.ts$/, ["check:core"]],
   [
-    /^(?:src\/core\/|extensions\/(?!.*\.md$)|public\/(?:maps|config)\/|scripts\/(?:whole-game|state-digest|test-corpus|bot-driver|engine-helpers)\.ts$)/,
+    /^packages\/core\/src\/room\/bot-driver\.ts$/,
+    ["check:core", "check:goldens", "check:sim-bench"],
+  ],
+  [/^apps\/server\/src\//, ["typecheck:scripts", "test:protocol"]],
+  [/^scripts\/(?:build-server|deploy-server|server-release-archive|server-systemd)\.ts$/, []],
+  [
+    /^(?:packages\/core\/src\/engine\/|packages\/core\/extensions\/(?!.*\.md$)|packages\/core\/maps\/|scripts\/(?:whole-game|state-digest|test-corpus|engine-helpers)\.ts$)/,
     ["check:core"],
   ],
   [
-    /^(?:src\/core\/(?!timings\.ts$)|extensions\/(?!.*\.md$)|public\/(?:maps|config)\/|scripts\/(?:whole-game|state-digest|test-corpus|bot-driver|engine-helpers)\.ts$)/,
+    /^(?:packages\/core\/src\/engine\/(?!timings\.ts$)|packages\/core\/extensions\/(?!.*\.md$)|packages\/core\/maps\/|scripts\/(?:whole-game|state-digest|test-corpus|engine-helpers)\.ts$)/,
     ["check:goldens"],
   ],
   [
-    /^(?:src\/core\/(?!(?:theme|geometry|timings|planter|testing|game-events|event-tiers|guohao|model|snapshot|extension-contract)\.ts$)|extensions\/(?!.*\.md$)|public\/(?:maps|config)\/|scripts\/(?:whole-game|bot-driver|engine-helpers|sim-bench)\.ts$)/,
+    /^(?:packages\/core\/src\/engine\/(?!(?:theme|geometry|timings|planter|testing|game-events|event-tiers|guohao|model|snapshot|extension-contract)\.ts$)|packages\/core\/extensions\/(?!.*\.md$)|packages\/core\/maps\/|scripts\/(?:whole-game|engine-helpers|sim-bench)\.ts$)/,
     ["check:sim-bench"],
   ],
   [
-    /^(?:scripts\/(?:wire|server|room|seat-projection|event-batch|room-record|room-persistence|watchdogs|bot-driver|online-client|fault-proxy)\.ts$|src\/core\/(?:authority|model|snapshot|game-events|event-tiers)\.ts$)/,
+    /^(?:packages\/core\/src\/(?:room|protocol)\/(?:wire|room|seat-projection|event-batch|room-record|watchdogs|bot-driver)\.ts$|scripts\/(?:online-client|fault-proxy)\.ts$|packages\/core\/src\/engine\/(?:authority|model|snapshot|game-events|event-tiers)\.ts$)/,
     ["test:protocol"],
   ],
   [
-    /^(?:scripts\/(?:room|room-record|room-persistence)\.ts$|src\/core\/snapshot\.ts$)/,
+    /^(?:packages\/core\/src\/room\/(?:room|room-record|room-persistence)\.ts$|apps\/server\/src\/room-persistence\.ts$|packages\/core\/src\/engine\/snapshot\.ts$)/,
     ["test:recovery"],
   ],
-  [/^(?:src\/app\/components\/board\/|src\/core\/(?:geometry|theme)\.ts$)|\.css$/, ["check:board"]],
-  [/^(?:src\/app\/|src\/styles\/|public\/|index\.html$)/, []],
+  [
+    /^(?:apps\/client\/src\/app\/components\/board\/|packages\/core\/src\/engine\/(?:geometry|theme)\.ts$)|\.css$/,
+    ["check:board"],
+  ],
+  [/^apps\/client\/(?:src\/|public\/|index\.html$)/, []],
   [/^AGENTS\.md$/, ["check:agents-budget"]],
-  [/^(?:scripts\/(?:build-dist|dist-freshness)\.ts$|vite\.config\.[cm]?[jt]s$)/, ["test:build"]],
+  [
+    /^(?:scripts\/(?:build-dist|dist-freshness|packaged-maps)\.ts$|apps\/client\/vite\.config\.[cm]?[jt]s$)/,
+    ["test:build"],
+  ],
   [/^scripts\/(?:bun-release|test-lock)\.ts$/, ["test:release-guard"]],
   [/^scripts\/(?:pr-merge(?:-cleanup|-checks)?|change-classification)\.ts$/, ["test:merge"]],
 ];

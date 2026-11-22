@@ -1,12 +1,12 @@
 // 每个子进程只装配一个完整生产客户端;模块缓存、store、控制器、WS 与父端/另一端隔离。
-import { loadMap } from "@core/board-loader";
+import { loadMap } from "@dafung/core/engine/board-loader";
 import { OnlineController, type RoomJoinReply } from "@app/controllers/online";
 import { setController } from "@app/controllers/registry";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
-import { cmdMsg, type ServerMsg } from "../../scripts/wire";
-import guanzhongData from "../../public/maps/guanzhong.json" with { type: "json" };
+import { cmdMsg, type ServerMsg } from "@dafung/core/protocol/wire";
+import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
 import type {
   DualClientObservation,
   DualClientOperation,

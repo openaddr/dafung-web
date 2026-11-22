@@ -11,14 +11,14 @@
 //      flush 免 O(log) 白序列化);withSnapshot=true 恒有摘要。
 // 发送面接线(消息真实到达客户端)归 test/online/protocol-online.test.ts(ADR-0055)。
 import { describe, it, expect } from "bun:test";
-import { assembleDownlinkShot } from "../../scripts/seat-projection";
-import { RoomRegistry } from "../../scripts/room";
+import { assembleDownlinkShot } from "@dafung/core/room/seat-projection";
+import { RoomRegistry } from "@dafung/core/room/room";
 import { MAP } from "../../scripts/engine-helpers";
-import type { RoomPersistence } from "../../scripts/room-persistence";
-import type { RoomRecord } from "../../scripts/room-record";
-import type { LoadedMap } from "../../src/core/board-loader";
-import type { GameEvent, GameEventBody } from "../../src/core/game-events";
-import { EVENT_TIERS, type EventKind } from "../../src/core/event-tiers";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
+import type { GameEvent, GameEventBody } from "@dafung/core/engine/game-events";
+import { EVENT_TIERS, type EventKind } from "@dafung/core/engine/event-tiers";
 
 /** 事件首部三件套(同 seat-projection.test 口径)。 */
 function ev<B extends GameEventBody>(seat: number | null, body: B): GameEvent {

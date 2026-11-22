@@ -2,11 +2,11 @@
 // Bun 与客户端引擎路径的随机数消耗可能不同,结果仅供筛选,安卓实机为准。
 // 用法:bun scripts/sim-jinnang.ts [seed=63] [--seats 4]
 // seat 0 为人类,其余为 bot。
-import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
-import { loadMap } from "../src/core/board-loader";
-import { GameEngine } from "../src/core/authority";
-import type { SeatConfig, EngineConfig } from "../src/core/authority";
-import { createDice } from "../src/core/dice";
+import guanzhongData from "../packages/core/maps/guanzhong.json" with { type: "json" };
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { SeatConfig, EngineConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
 
 const seed = Number(process.argv[2] ?? 63);
 const seatsIdx = process.argv.indexOf("--seats");

@@ -21,9 +21,14 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@core/*": ["src/core/*"],
-      "@app/*": ["src/app/*"]
+      "@app/*": ["apps/client/src/app/*"]
     }
   },
-  "include": ["src", "test", "extensions", "*.config.ts"]
+  "include": [
+    "apps/*/src",
+    "apps/client/vite.config.ts",
+    "packages/core/src",
+    "packages/core/extensions",
+    "test"
+  ]
 }

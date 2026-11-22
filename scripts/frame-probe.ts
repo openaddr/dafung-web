@@ -118,7 +118,7 @@ try {
       }
     ).__dafung;
     return bridge?.frameDiag?.() ?? null;
-  })) as import("./../src/app/frameDiag.ts").FrameDiagDump | null;
+  })) as import("../apps/client/src/app/frameDiag.ts").FrameDiagDump | null;
   if (dump == null) throw new Error("frameDiag 桥无读数(桥键未生效或采样器未挂)");
 
   // 段 4:判读表报告

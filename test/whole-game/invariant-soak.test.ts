@@ -6,14 +6,14 @@
 // 决策方恒为 bot(AwaitingReaction 反应窗 bot 即席代答,相位不外显)。
 // 步数 guard 打满仍未终局 → isOver 断言当场失败(零兜底:僵局就是要炸出来的 bug)。
 import { describe, it, expect, afterAll } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { botAct } from "@core/bot";
-import { netWorth } from "@core/networth";
-import { JINNANG_CARDS } from "@core/jinnang";
-import { loadMap } from "@core/board-loader";
-import guanzhongData from "../../public/maps/guanzhong.json";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { botAct } from "@dafung/core/engine/bot";
+import { netWorth } from "@dafung/core/engine/networth";
+import { JINNANG_CARDS } from "@dafung/core/engine/jinnang";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
 
 const MAP = loadMap(guanzhongData);
 /** 速战目标(经济 v2):终局快但胜负判定/终局行都走真路径。 */

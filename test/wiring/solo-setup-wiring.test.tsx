@@ -3,10 +3,10 @@ import * as tauriApp from "@tauri-apps/api/app";
 import * as tauriCore from "@tauri-apps/api/core";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import type { MapSource } from "@core/map-source";
+import type { MapSource } from "@dafung/core/engine/map-source";
 import type { SetupConfig } from "@app/screens/setup/SoloSetupScreen";
 import { TID } from "@app/screens/setup/testids";
-import maps from "../../public/maps/index.json";
+import maps from "../../packages/core/maps/index.json";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 
 let setup: typeof import("@app/screens/setup/SoloSetupScreen");

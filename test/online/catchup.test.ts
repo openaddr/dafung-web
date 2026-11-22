@@ -9,19 +9,19 @@
 // 观测缝与既有 SnapshotEffects 用例同款:生产 sink 落店(浮字读 fxStore,会话读
 // marching 投影),不注入替身。
 import { describe, it, expect, beforeEach } from "bun:test";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { GameEngine } from "@core/authority";
-import { createDice } from "@core/dice";
-import type { GameEvent } from "@core/game-events";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { testEngine } from "@core/testing";
-import { LAG, setCatchupScale } from "../../src/app/fx/timings";
-import { catchupCounters, LagCalibrator } from "../../src/app/fx/catchup";
-import { SnapshotEffects } from "../../src/app/net/snapshot-effects";
-import { useFxStore } from "../../src/app/fx/fxStore";
-import { useNetStore } from "../../src/app/store/netStore";
-import { resetFxOrchestration } from "../../src/app/fx/orchestrator";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import type { GameEvent } from "@dafung/core/engine/game-events";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { testEngine } from "@dafung/core/engine/testing";
+import { LAG, setCatchupScale } from "../../apps/client/src/app/fx/timings";
+import { catchupCounters, LagCalibrator } from "../../apps/client/src/app/fx/catchup";
+import { SnapshotEffects } from "../../apps/client/src/app/net/snapshot-effects";
+import { useFxStore } from "../../apps/client/src/app/fx/fxStore";
+import { useNetStore } from "../../apps/client/src/app/store/netStore";
+import { resetFxOrchestration } from "../../apps/client/src/app/fx/orchestrator";
 
 const MAP = loadMap(guanzhongData);
 

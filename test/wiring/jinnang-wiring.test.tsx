@@ -9,11 +9,11 @@ import { useFxStore } from "@app/fx/fxStore";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
-import { GameEngine, type GameCommand, type SeatConfig } from "@core/authority";
-import { tileIndexOfProperty } from "@core/board";
-import { loadMap } from "@core/board-loader";
-import { createDice } from "@core/dice";
-import { JINNANG_DECK_LIST, jinnangCardOf } from "@core/jinnang";
+import { GameEngine, type GameCommand, type SeatConfig } from "@dafung/core/engine/authority";
+import { tileIndexOfProperty } from "@dafung/core/engine/board";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
+import { JINNANG_DECK_LIST, jinnangCardOf } from "@dafung/core/engine/jinnang";
 import {
   armBankrupt,
   armHero,
@@ -24,13 +24,13 @@ import {
   pinDice,
   placePlayer,
   setCash,
-} from "@core/planter";
-import { skillOptionId } from "@core/choices";
-import { makeSkillBook } from "@core/treasures";
+} from "@dafung/core/engine/planter";
+import { skillOptionId } from "@dafung/core/engine/choices";
+import { makeSkillBook } from "@dafung/core/engine/treasures";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
-import guanzhongData from "../../public/maps/guanzhong.json";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 import { installControlledClock } from "./controlled-clock";
 (globalThis as Record<string, unknown>).__APP_VERSION__ = pkg.version;

@@ -2,14 +2,14 @@
 // subject=轮次锚点)/ 池 3→4 招贤洗牌可抽 / 真实轮次驱动 cooldown 3 轮节奏(参照
 // timing.test.ts 的 RoundStart 冷却先例)/ clamp 溢出作废 / 回血只加不减、不触发耗竭。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import { createDice } from "@core/dice";
-import { HEROES } from "@core/heroes";
-import { isTriggerSkill, skillById } from "@core/skills";
-import { EFFECTS } from "@core/effects";
-import { armHero } from "@core/testing";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { isTriggerSkill, skillById } from "@dafung/core/engine/skills";
+import { EFFECTS } from "@dafung/core/engine/effects";
+import { armHero } from "@dafung/core/engine/testing";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
 function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(

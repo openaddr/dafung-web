@@ -2,7 +2,7 @@
 // (曾并列的 WsSeatTransport 真承载段随实现删除——联机侧不经本接口,OnlineController
 // 直用 ReconnectingSocket,其建连/断线语义由 reconnecting-socket.test 守。)
 import { describe, it, expect } from "bun:test";
-import { createMemorySocketPair } from "../../src/app/net/transport";
+import { createMemorySocketPair } from "../../apps/client/src/app/net/transport";
 
 describe("MemorySocket(内存双工,#397)", () => {
   it("收发序:双向各自保序,载荷字符串原样透传(JSON 契约)", () => {

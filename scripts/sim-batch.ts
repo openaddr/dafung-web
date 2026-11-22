@@ -18,12 +18,12 @@
 // 退出码:引擎抛错 = 发现 bug,逐 seed 报告且进程非零;回合上限未终局 = 平衡发现
 // (响亮上报,不算工具故障)。两者都看「终局率」行。
 import { resolve } from "node:path";
-import { loadExtensionPackages } from "../src/core/extension-loader";
-import { SKILLS, isTriggerSkill } from "../src/core/skills";
+import { loadExtensionPackages } from "../apps/server/src/extension-loader";
+import { SKILLS, isTriggerSkill } from "@dafung/core/engine/skills";
 import { driveToEnd } from "./whole-game";
-import { netWorth } from "../src/core/networth";
-import { formatMoney } from "../src/core/money";
-import type { SeatConfig } from "../src/core/authority";
+import { netWorth } from "@dafung/core/engine/networth";
+import { formatMoney } from "@dafung/core/engine/money";
+import type { SeatConfig } from "@dafung/core/engine/authority";
 import {
   autoSetup,
   builtinMapCatalog,
@@ -33,7 +33,7 @@ import {
 } from "./engine-helpers";
 
 // 扩展包装载(#412,与 cli.ts/server.ts 同口径):坏包当场炸;空目录 = 合法零包。
-await loadExtensionPackages(resolve(process.env.EXTENSIONS_DIR ?? "./extensions"));
+await loadExtensionPackages(resolve(process.env.EXTENSIONS_DIR ?? "./packages/core/extensions"));
 
 // ── 参数(严格解析:非法当场抛,零兜底)──
 function intValue(raw: string, label: string): number {

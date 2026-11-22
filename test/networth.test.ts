@@ -1,9 +1,9 @@
 import { describe, it, expect } from "bun:test";
-import { netWorth } from "@core/networth";
-import { buy, upgrade } from "@core/economy";
-import { createPlayer } from "@core/player";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { netWorth } from "@dafung/core/engine/networth";
+import { buy, upgrade } from "@dafung/core/engine/economy";
+import { createPlayer } from "@dafung/core/engine/player";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 const catalog = loadMap(guanzhongData).catalog;
 
 const changan = catalog.get("prop-changan")!; // 经济 v3 购入 4,800 两(名城 48 档),升级免费

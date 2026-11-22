@@ -5,14 +5,14 @@
 // (makeEngine/finishSetup/armJinnang 模式复制,不 import 测试文件;只测引擎公共面
 // + bot 纯决策出口 jinnangIntent——连环计/军情密探结算未接入,端到端到不了)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice, type Dice } from "@core/dice";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { botAct, jinnangIntent } from "@core/bot";
-import { jinnangCardOf } from "@core/jinnang";
-import { grantProperty, setDefense } from "@core/planter";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice, type Dice } from "@dafung/core/engine/dice";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { botAct, jinnangIntent } from "@dafung/core/engine/bot";
+import { jinnangCardOf } from "@dafung/core/engine/jinnang";
+import { grantProperty, setDefense } from "@dafung/core/engine/planter";
 
 const MAP = loadMap(guanzhongData);
 

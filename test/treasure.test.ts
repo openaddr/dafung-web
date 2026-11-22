@@ -1,13 +1,24 @@
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { TREASURE_PRICE, TREASURES, createTreasureDeck, premiumPriceOf } from "@core/treasures";
-import { beginGameEventBatch } from "@core/game-events";
-import { testEngine } from "@core/testing";
-import { armPhase, armVisitor, giveTreasure, grantProperty, setCash } from "@core/planter";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import {
+  TREASURE_PRICE,
+  TREASURES,
+  createTreasureDeck,
+  premiumPriceOf,
+} from "@dafung/core/engine/treasures";
+import { beginGameEventBatch } from "@dafung/core/engine/game-events";
+import { testEngine } from "@dafung/core/engine/testing";
+import {
+  armPhase,
+  armVisitor,
+  giveTreasure,
+  grantProperty,
+  setCash,
+} from "@dafung/core/engine/planter";
 
 const MAP = loadMap(guanzhongData);
 

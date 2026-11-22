@@ -1,0 +1,70 @@
+// 手牌区(#700 全浮层骨架,原型席位侧列(临时件已佚) ①handzone 判决移植):
+// 底缘透明浮置容器,签面驻左端 + 锦囊手牌架(漆木条随仪表条退役,架体透明化)。
+// GameScreen 按回合、决策窗、架上内容和手动开收决定显隐。
+// 收起手牌时，待决触发技仍驻手牌区上缘。
+// 签面(原仪表条「签」徽章平移,testid dice-face 不变):驻留上轮点数;待起摇
+// (#530)转「待」浅印 + 呼吸金边——UI 状态变化承载(DESIGN §4.6,不加文字标牌)。
+// 芯片提前剧透防线(审计 P2,#849 棒1 存续):lastRoll 在结算拍随快照入库,而掷骰
+// 签演出(#927,顶中胶囊侧旁)还在途——芯片订阅掷骰签揭示拍(DiceOverlay.onDiceSignReveal)
+// 才揭示新值,演出在途驻留上一掷点数。演出块被吸附/断线作废丢弃时揭示拍不发生,
+// 揭示顺延到下一掷现身(跳切语境,权威快照本身无损)。
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
+import { onDiceSignReveal } from "@app/fx/DiceOverlay";
+import { SIGN_FACES } from "@dafung/core/engine/constants";
+import { SIGN_TIP, Tip } from "./Tip";
+import { TESTIDS } from "./testids";
+import "./layout.css";
+
+interface HandZoneProps {
+  inert: boolean;
+  snapshot: GameSnapshot;
+  /** 本地视角玩家(对局屏挂载期恒在座)。 */
+  player: SnapshotPlayer;
+  /** 托管态(useAutopilotOn 单源;待起摇判定免误报)。 */
+  autopilotOn: boolean;
+  /** 牌架展开且有可展示内容时显示签面。 */
+  showDiceFace: boolean;
+  children: ReactNode;
+}
+
+/** 底缘透明手牌区:签面(左端)+ 手牌架。 */
+export function HandZone({
+  inert,
+  snapshot,
+  player,
+  autopilotOn,
+  showDiceFace,
+  children,
+}: HandZoneProps) {
+  // 待起摇(#530):本端座位轮到且停在 Roll 等待态(自动起摇在途,~1.8s)——签面
+  // 驻留的是上轮点数,静置即误导。托管中由 bot 代打(Roll 不经等待态),不提示。
+  const awaitingMyRoll =
+    !autopilotOn &&
+    snapshot.turnPhase === "Roll" &&
+    snapshot.players[snapshot.activeIndex]?.id === player.id;
+  // 已揭示点数(#849 棒1):挂载初值取快照现值(整局恢复/重连水合场景,无演出
+  // 在途);此后只在揭示拍推进(回调携带本次点数,积压串播下各掷各揭,
+  // 不会把在途的新签提前亮出)。
+  const [revealedRoll, setRevealedRoll] = useState(snapshot.lastRoll);
+  const latestRollRef = useRef(snapshot.lastRoll);
+  useEffect(() => {
+    latestRollRef.current = snapshot.lastRoll;
+  }, [snapshot.lastRoll]);
+  useEffect(() => onDiceSignReveal((die) => setRevealedRoll({ die })), []);
+  return (
+    <div className="handzone" data-testid={TESTIDS.handZone} inert={inert}>
+      {showDiceFace && (
+        <Tip
+          tip={SIGN_TIP}
+          testId={TESTIDS.diceFace}
+          className={"diceseal" + (awaitingMyRoll ? " await" : "")}
+        >
+          {awaitingMyRoll ? "待" : revealedRoll ? SIGN_FACES[revealedRoll.die - 1] : "签"}
+        </Tip>
+      )}
+      {children}
+    </div>
+  );
+}

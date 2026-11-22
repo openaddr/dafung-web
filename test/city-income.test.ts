@@ -1,10 +1,10 @@
 import { afterEach, expect, it } from "bun:test";
 import { foldEventBatch } from "@app/net/event-fold";
-import { GameEngine, type GameCommand } from "@core/authority";
-import { tileIndexOfProperty } from "@core/board";
-import { loadMap } from "@core/board-loader";
-import { createDice } from "@core/dice";
-import { defineChoiceEffect, EFFECTS, type EffectCtx } from "@core/effects";
+import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
+import { tileIndexOfProperty } from "@dafung/core/engine/board";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createDice } from "@dafung/core/engine/dice";
+import { defineChoiceEffect, EFFECTS, type EffectCtx } from "@dafung/core/engine/effects";
 import {
   armHero,
   armPhase,
@@ -14,9 +14,9 @@ import {
   placePlayer,
   setCash,
   setDefense,
-} from "@core/planter";
-import { SKILLS, type TriggerSkill } from "@core/skills";
-import guanzhong from "../public/maps/guanzhong.json";
+} from "@dafung/core/engine/planter";
+import { SKILLS, type TriggerSkill } from "@dafung/core/engine/skills";
+import guanzhong from "../packages/core/maps/guanzhong.json";
 
 const { board, catalog } = loadMap(guanzhong);
 const contestedCity = "prop-wujun"; // 吴郡 3000 两，轮末收入 90 两

@@ -8,25 +8,25 @@
 // 非原生 bot)仍出口①响亮终局;断链指纹落在人类可决策座位(托管已收回)不武装任何
 // 看门狗、不 abort,维持现状等玩家。
 import { describe, it, expect, spyOn } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig, VictoryReason } from "@core/authority";
-import type { GameEvent } from "@core/game-events";
-import { createDice } from "@core/dice";
-import { serializeGame, restoreGameSnapshot } from "@core/snapshot";
-import { STALL_ABORT_MS } from "@core/timings";
-import { RoomRegistry } from "../scripts/room";
-import type { RoomClock } from "../scripts/room";
-import { decisionSeatOf } from "../scripts/bot-driver";
-import { seatControlled } from "../scripts/seat-projection";
-import type { RoomPersistence } from "../scripts/room-persistence";
-import type { RoomRecord } from "../scripts/room-record";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig, VictoryReason } from "@dafung/core/engine/authority";
+import type { GameEvent } from "@dafung/core/engine/game-events";
+import { createDice } from "@dafung/core/engine/dice";
+import { serializeGame, restoreGameSnapshot } from "@dafung/core/engine/snapshot";
+import { STALL_ABORT_MS } from "@dafung/core/engine/timings";
+import { RoomRegistry } from "@dafung/core/room/room";
+import type { RoomClock } from "@dafung/core/room/room";
+import { decisionSeatOf } from "@dafung/core/room/bot-driver";
+import { seatControlled } from "@dafung/core/room/seat-projection";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
 import { MAP } from "../scripts/engine-helpers";
-import { LocalController } from "../src/app/controllers/local";
-import { WORKER_SOURCE } from "../src/app/net/worker-clock";
-import type { WorkerClock } from "../src/app/net/worker-clock";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { armPhase } from "@core/planter";
+import { LocalController } from "../apps/client/src/app/controllers/local";
+import { WORKER_SOURCE } from "../apps/client/src/app/net/worker-clock";
+import type { WorkerClock } from "../apps/client/src/app/net/worker-clock";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { armPhase } from "@dafung/core/engine/planter";
 
 const LOCAL_MAP = loadMap(guanzhongData);
 

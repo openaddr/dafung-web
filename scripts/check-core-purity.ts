@@ -1,8 +1,7 @@
 // core 纯度门禁(2026-09-25,学自 ZCode architecture-policy.yaml 的缩样版):
 // AGENTS.md 架构红线 #1(core 零 DOM/零 app 依赖)与 #2(player-agnostic)从
 // 「评审自觉」变「可执行检查」——CI check job 与本地随手跑,违规列文件行号退出 1。
-// 口径:先剥注释(块+行)再扫描——红线禁的是「使用」,文档/注释提及不算;
-// 字符串里恰好长成 document./window. 的概率为零兜底原则下的可接受噪声,出现再议。
+// TypeScript 提取公共源码与扩展的模块依赖、编译指令和宿主全局调用。
 //
 // Baseline 指纹机制(2026-09-26,学自 ZCode .architecture-baseline.json):
 // 给有历史的代码库上新规则时,存量违规按指纹登记进 .core-purity-baseline.json,
@@ -10,14 +9,35 @@
 // 行文本(不带行号,行号必漂移)。当前基线为零,文件尚不存在=空基线,需要时:
 //   bun run check:core:baseline:update   # 把当下全部违规登记为存量
 import { Glob } from "bun";
+import { isBuiltin } from "node:module";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
+import ts from "typescript";
 
-const ROOT = `${import.meta.dir}/../src/core`;
+const REPO = resolve(import.meta.dir, "..");
+const CORE = "packages/core";
+const ROOT = resolve(REPO, CORE);
 const BASELINE = `${import.meta.dir}/../.core-purity-baseline.json`;
-const FORBIDDEN_IMPORT = /from\s+["'](@app\/|\.\.\/app\/|\.\/\.\.\/app\/)/;
-const FORBIDDEN_GLOBAL =
-  /\b(document|window|localStorage|navigator|requestAnimationFrame|cancelAnimationFrame)\s*[.((]/;
-const FORBIDDEN_REACT = /from\s+["']react["']/;
+const HOST_MODULE =
+  /^(?:@app|@dafung\/(?:client|server)|@tauri-apps|react(?:-dom)?|node|bun|bun-types|vite|@types\/(?:node|bun|react(?:-dom)?))(?:\/|$)/;
+const DOM_GLOBALS = new Set([
+  "document",
+  "window",
+  "localStorage",
+  "navigator",
+  "requestAnimationFrame",
+  "cancelAnimationFrame",
+]);
+const RUNTIME_GLOBALS = new Set(["Bun", "process"]);
 const FORBIDDEN_IS_LOCAL = /\bisLocal\b/;
+
+function hostImport(specifier: string, importer: string): boolean {
+  if (/^(?:node|bun):/.test(specifier) || HOST_MODULE.test(specifier) || isBuiltin(specifier)) {
+    return true;
+  }
+  if (!specifier.startsWith(".") && !isAbsolute(specifier)) return false;
+  const path = relative(REPO, resolve(dirname(importer), specifier)).replaceAll("\\", "/");
+  return /^(?:apps|scripts)\//.test(path);
+}
 
 // ── 确定性源码闸(#1206,形制学 vera20k architecture_guards.rs「determinism guards
 // pin the engine files that read platform- or process-dependent values」):src/core 是
@@ -53,13 +73,10 @@ const DETERMINISM_FREEZE: Record<string, string[]> = {
   // gameId 生成(Date.now+Math.random:实例身份唯一性契约,种子化会让同 seed 房间撞名,
   // ADR-0052 判词)+ startedAt/log ts 墙钟展示戳——无头层 chainLogHash 剥 ts+header
   // (ADR-0052),均非引擎逻辑输入。
-  "src/core/authority.ts": ["Date.now", "Math.random"],
+  "packages/core/src/engine/authority.ts": ["Date.now", "Math.random"],
   // seed 缺省回退(Math.random)= 无种子本地起局的随机来源,产物记进局头 seed 字段
   // 可重放;联机路径必传 seed(ADR-0052 判词)。
-  "src/core/dice.ts": ["Math.random"],
-  // ADR-0022 权威侧扩展装载器,bun/node 启动期环境读取,非引擎逻辑面;目录序已显式
-  // 字典序排序钉死(消费方仅 scripts/server.ts 装载与 test/,浏览器禁入)。
-  "src/core/extension-loader.ts": ["readdirSync"],
+  "packages/core/src/engine/dice.ts": ["Math.random"],
 };
 
 interface Violation {
@@ -89,14 +106,14 @@ let files = 0;
 //     (含 export function/async function);数据常量(CMD_BRIEF 等)与 interface/type
 //     不受限(#326 types 解散另管)。#325 已把壳内最后一个自由函数 newGameId 内联进构造器。
 //     同 2,不走 baseline。
-const SHELL_REL = "src/core/authority.ts";
+const SHELL_REL = "packages/core/src/engine/authority.ts";
 const SHELL_LINE_CAP = 1350; // #325 定形锁(1349 → ceil50);只减不增,压回 900 后同步收紧
 
 const shellViolations: Violation[] = []; // 布尔型结构违规(single-class/no-free-fn):当场红,无存量形态
 let shellLineCapViolation: Violation | null = null; // 行数锁:唯一可登记存量的壳断言
 let shellLineCount = 0;
 {
-  const shellFull = await Bun.file(`${ROOT}/authority.ts`).text();
+  const shellFull = await Bun.file(resolve(REPO, SHELL_REL)).text();
   const rawLines = shellFull.split("\n");
   shellLineCount = shellFull.endsWith("\n") ? rawLines.length - 1 : rawLines.length;
   // 行数锁的存量基线(#858 实录:壳在治理票落地前早已超锁,门禁逐票假红逼人重审)。
@@ -144,14 +161,62 @@ let shellLineCount = 0;
   }
 }
 
-for (const path of new Glob("**/*.{ts,tsx}").scanSync({ cwd: ROOT })) {
+const publicSources = new Glob("{src,extensions}/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}");
+for (const path of publicSources.scanSync({ cwd: ROOT })) {
   files++;
   const full = `${ROOT}/${path}`;
   const src = await Bun.file(full).text();
-  // 剥注释:块注释(非贪婪,跨行)→ 行注释;不追求词法级精确,门禁够用即可。
+  const rel = `${CORE}/${path}`;
+  const source = ts.createSourceFile(full, src, ts.ScriptTarget.Latest);
+  // TypeScript 的预处理包含类型导入、重导出、动态导入和三斜线指令。
+  const refs = ts.preProcessFile(src, true, true);
+  const hostRefs = [
+    ...[...refs.importedFiles, ...refs.referencedFiles, ...refs.typeReferenceDirectives].filter(
+      (ref) => hostImport(ref.fileName, full),
+    ),
+    ...refs.libReferenceDirectives.filter((ref) => /^(?:dom|webworker)(?:\.|$)/.test(ref.fileName)),
+  ];
+  for (const ref of hostRefs) {
+    violations.push({
+      rule: "app-import",
+      rel,
+      line: source.getLineAndCharacterOfPosition(ref.pos).line + 1,
+      text: ref.fileName,
+      message: "公共包引入宿主依赖",
+    });
+  }
+  function checkGlobals(node: ts.Node): void {
+    const property = ts.isPropertyAccessExpression(node);
+    const element = ts.isElementAccessExpression(node);
+    if (property || element || ts.isCallExpression(node) || ts.isTypeOfExpression(node)) {
+      const receiver = node.expression;
+      if (ts.isIdentifier(receiver)) {
+        let name = receiver.text;
+        if (name === "globalThis") {
+          if (property) name = node.name.text;
+          else if (element && ts.isStringLiteral(node.argumentExpression))
+            name = node.argumentExpression.text;
+        }
+        const dom = DOM_GLOBALS.has(name);
+        if (dom || RUNTIME_GLOBALS.has(name)) {
+          const line = source.getLineAndCharacterOfPosition(receiver.getStart(source)).line;
+          violations.push({
+            rule: dom ? "dom-global" : "runtime-global",
+            rel,
+            line: line + 1,
+            text: name,
+            message: `core 使用宿主全局 ${name}`,
+          });
+        }
+      }
+    }
+    ts.forEachChild(node, checkGlobals);
+  }
+  checkGlobals(source);
+  if (!path.startsWith("src/engine/")) continue;
+  // 剥注释后扫描引擎的 player-agnostic 与确定性规则。
   const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   const lines = code.split("\n");
-  const rel = `src/core/${path}`;
   // 确定性闸扫描面不含测试文件(测试自身可吃时钟/随机造语料)。
   const detScan = !path.endsWith(".test.ts");
   const frozenLabels = DETERMINISM_FREEZE[rel];
@@ -160,11 +225,7 @@ for (const path of new Glob("**/*.{ts,tsx}").scanSync({ cwd: ROOT })) {
     const text = line.trim();
     const push = (rule: string, message: string) =>
       violations.push({ rule, rel, line: i + 1, text, message });
-    if (FORBIDDEN_IMPORT.test(line)) push("app-import", "core 引入 app 层");
-    if (FORBIDDEN_REACT.test(line)) push("react-import", "core 引入 react");
     if (FORBIDDEN_IS_LOCAL.test(line)) push("is-local", "player-agnostic 红线(isLocal)");
-    const g = FORBIDDEN_GLOBAL.exec(line);
-    if (g) push("dom-global", `core 使用 DOM 全局 ${g[1]}`);
     if (!detScan) return;
     for (const [re, label] of DETERMINISM_PATTERNS) {
       if (!re.test(line) || detSeen.has(`${i}:${label}`)) continue;

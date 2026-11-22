@@ -3,10 +3,10 @@
 // 工厂——此前三处复制,「台账与测试语料必须同套」的契约靠「两处同步维护」注释人肉
 // 保证;这里收口成单源后契约由 import 结构自证。种子区间各票自持不收编:票一/二语料
 // 3001-3010(逐位门+台账),基准 4001-4050(分布区间),语义不同册。
-import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
-import zhongyuanData from "../public/maps/zhongyuan.json" with { type: "json" };
+import guanzhongData from "../packages/core/maps/guanzhong.json" with { type: "json" };
+import zhongyuanData from "../packages/core/maps/zhongyuan.json" with { type: "json" };
 import yanzhouData from "../test/fixtures/maps/yanzhou.json" with { type: "json" };
-import type { SeatConfig } from "../src/core/authority";
+import type { SeatConfig } from "@dafung/core/engine/authority";
 
 /** 语料图清单(原始 JSON 数据,消费方各自 loadMap;内置图仅两张,夹具 yanzhou 补足第三图,判词见 ADR-0052)。 */
 export const CORPUS_MAPS = [

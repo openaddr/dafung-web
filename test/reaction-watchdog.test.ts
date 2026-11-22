@@ -8,12 +8,12 @@
 // 判定不区分在线/离线(离线冻结座位同样武装,断线者超时即「不用」,ADR-0017 后果节)
 // ——真 WS 关闭的传输面接线归 protocol-online(ADR-0055 场景),不在本文件重复。
 import { describe, it, expect } from "bun:test";
-import { RoomRegistry } from "../scripts/room";
-import type { RoomClock } from "../scripts/room";
-import type { ServerMsg } from "../scripts/wire";
-import type { RoomPersistence } from "../scripts/room-persistence";
-import type { RoomRecord } from "../scripts/room-record";
-import type { LoadedMap } from "../src/core/board-loader";
+import { RoomRegistry } from "@dafung/core/room/room";
+import type { RoomClock } from "@dafung/core/room/room";
+import type { ServerMsg } from "@dafung/core/protocol/wire";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
 import { MAP } from "../scripts/engine-helpers";
 
 /** 测试用最小地图清单与 provider(同 test/online/room.test.ts 口径:零 fs,所有 id 返同一图)。 */

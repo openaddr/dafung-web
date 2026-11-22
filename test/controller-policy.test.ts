@@ -11,14 +11,14 @@
 // test/online/local-room.test.ts 既有行为断言守住;OnlineController(热座=false、
 // mySeat=入座分配)参数面在本文件尾部薄测。
 import { describe, it, expect } from "bun:test";
-import type { EnginePhase, GameEngine, TurnPhase } from "@core/authority";
-import type { ReactionView } from "@core/reaction-window";
-import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
+import type { EnginePhase, GameEngine, TurnPhase } from "@dafung/core/engine/authority";
+import type { ReactionView } from "@dafung/core/engine/reaction-window";
+import { loadMap, type LoadedMap, type MapData } from "@dafung/core/engine/board-loader";
 import { GameController } from "@app/controllers/controller";
 import { OnlineController } from "@app/controllers/online";
-import { abandonAllMarches, abandonMarch, beginMarch } from "../src/app/fx/useMarch";
-import type { MarchSegmentFrames } from "../src/app/fx/presentation";
-import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
+import { abandonAllMarches, abandonMarch, beginMarch } from "../apps/client/src/app/fx/useMarch";
+import type { MarchSegmentFrames } from "../apps/client/src/app/fx/presentation";
+import guanzhongData from "../packages/core/maps/guanzhong.json" with { type: "json" };
 
 const GUANZHONG: { map: LoadedMap; data: MapData } = {
   map: loadMap(guanzhongData),

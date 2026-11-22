@@ -7,7 +7,10 @@ import { describe, it, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const SOURCE = readFileSync(resolve(import.meta.dir, "../../src/core/board-loader.ts"), "utf8");
+const SOURCE = readFileSync(
+  resolve(import.meta.dir, "../../packages/core/src/engine/board-loader.ts"),
+  "utf8",
+);
 
 /** 白名单 = 既有兜底的名目(片段 → 口径);新增兜底必须在此登记。 */
 const ALLOWED: [fragment: string, reason: string][] = [

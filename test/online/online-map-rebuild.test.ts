@@ -2,17 +2,17 @@
 // 后续事件按照原顺序折叠。更新换图指令到达时，过期取图作废。
 // 全程注入假取图(覆写 loadMapBundle 私有缝),零网络零浏览器。
 import { afterEach, describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import { createDice } from "@core/dice";
-import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { loadMap, type LoadedMap, type MapData } from "@dafung/core/engine/board-loader";
 import { OnlineController } from "@app/controllers/online";
 import { beginMarch, isMarching } from "@app/fx/useMarch";
 import { getControllerContext, setController } from "@app/controllers/registry";
 import { setSnapPin } from "@app/fx/catchup";
 import { useNetStore } from "@app/store/netStore";
-import type { ServerMsg, SnapshotMsg } from "../../scripts/wire";
-import guanzhongData from "../../public/maps/guanzhong.json" with { type: "json" };
-import zhongyuanData from "../../public/maps/zhongyuan.json" with { type: "json" };
+import type { ServerMsg, SnapshotMsg } from "@dafung/core/protocol/wire";
+import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
+import zhongyuanData from "../../packages/core/maps/zhongyuan.json" with { type: "json" };
 
 interface Bundle {
   map: LoadedMap;

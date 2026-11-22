@@ -1,5 +1,5 @@
-import { RoomRegistry } from "../../scripts/room";
-import { createEngine, type RoomRecord } from "../../scripts/room-record";
+import { RoomRegistry } from "@dafung/core/room/room";
+import { createEngine, type RoomRecord } from "@dafung/core/room/room-record";
 import {
   armHero,
   armPhase,
@@ -11,16 +11,21 @@ import {
   setCash,
   setDefense,
   setStamina,
-} from "../../src/core/planter";
-import type { GameCommand, GameEngine } from "../../src/core/authority";
-import { foldEventBatch } from "../../src/app/net/event-fold";
-import { assembleDownlinkShot } from "../../scripts/seat-projection";
-import { cmdMsg, dispatchInbound, type InboundMsg, type ServerMsg } from "../../scripts/wire";
+} from "@dafung/core/engine/planter";
+import type { GameCommand, GameEngine } from "@dafung/core/engine/authority";
+import { foldEventBatch } from "../../apps/client/src/app/net/event-fold";
+import { assembleDownlinkShot } from "@dafung/core/room/seat-projection";
+import {
+  cmdMsg,
+  dispatchInbound,
+  type InboundMsg,
+  type ServerMsg,
+} from "@dafung/core/protocol/wire";
 import { expect, it } from "bun:test";
 import { MAP } from "../../scripts/engine-helpers";
-import { LocalController } from "../../src/app/controllers/local";
-import { setEngine, useGameStore } from "../../src/app/store/gameStore";
-import { useNetStore } from "../../src/app/store/netStore";
+import { LocalController } from "../../apps/client/src/app/controllers/local";
+import { setEngine, useGameStore } from "../../apps/client/src/app/store/gameStore";
+import { useNetStore } from "../../apps/client/src/app/store/netStore";
 
 // 下行合并拍的宏任务屏障;只等已排定的 0ms flush,不等待演出或业务窗口。
 const downlinkTurn = () => new Promise<void>((resolve) => setTimeout(resolve, 0));

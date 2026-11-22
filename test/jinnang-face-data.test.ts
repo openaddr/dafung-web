@@ -3,8 +3,8 @@
 // 的映射(src/app/components/card/jinnang-face-data.ts)与单源对齐。
 import { describe, it, expect } from "bun:test";
 import { readFileSync, existsSync } from "node:fs";
-import { JINNANG_CARDS } from "@core/jinnang";
-import { makeSkillBook, TREASURES } from "@core/treasures";
+import { JINNANG_CARDS } from "@dafung/core/engine/jinnang";
+import { makeSkillBook, TREASURES } from "@dafung/core/engine/treasures";
 import { treasureArtOf } from "@app/components/card/treasure-art";
 import {
   jinnangAliasSplit,
@@ -77,7 +77,10 @@ describe("JINNANG_FAMILY(五标签映射:一标签一族)", () => {
   });
 
   it("族 token 全部存在于 tokens.css(与配色单源核对,防漂移)", () => {
-    const tokens = readFileSync(new URL("../src/app/styles/tokens.css", import.meta.url), "utf8");
+    const tokens = readFileSync(
+      new URL("../apps/client/src/app/styles/tokens.css", import.meta.url),
+      "utf8",
+    );
     for (const fam of Object.values(JINNANG_FAMILY)) {
       expect(tokens.includes(`\n  ${fam.token}: `)).toBe(true);
     }
@@ -111,7 +114,10 @@ describe("JINNANG_TARGET_LABEL(目标域中文)", () => {
 
 describe("牌面 ↔ CSS 镜像钉(格式鲁棒:规则体匹配,不看排版)", () => {
   const css = () =>
-    readFileSync(new URL("../src/app/components/card/jinnang-card.css", import.meta.url), "utf8");
+    readFileSync(
+      new URL("../apps/client/src/app/components/card/jinnang-card.css", import.meta.url),
+      "utf8",
+    );
 
   it("尺寸档:jinnang-card 基准 8px(→120×160)/ .lg 16px(→240×320)——数值唯一事实源在 CSS", () => {
     // 首个 .jinnang-card 基座规则块内 font-size:8px;.lg 档规则块内 16px(容任意空白)
@@ -154,7 +160,10 @@ describe("treasureFrameTone(珍宝品级 → 框色档,#234/#281)", () => {
   it("TONE CSS 镜像:.tone-tong/yin/gold 都在 jinnang-card.css,--tone 单通道(距条/角标取色)", () => {
     // #359 装裱化:旧内环框随品级大字退役,--tone 只供画心距条(color-mix)与角标底
     const css = () =>
-      readFileSync(new URL("../src/app/components/card/jinnang-card.css", import.meta.url), "utf8");
+      readFileSync(
+        new URL("../apps/client/src/app/components/card/jinnang-card.css", import.meta.url),
+        "utf8",
+      );
     for (const tone of ["tong", "yin", "gold"]) {
       const rule = css().match(new RegExp(`\\.jinnang-card\\.tone-${tone}\\s*\\{[^}]*\\}`, "s"));
       expect(rule, `.tone-${tone} 规则块缺失`).not.toBeNull();
@@ -174,14 +183,16 @@ describe("treasureArtOf(珍宝画心)", () => {
     for (const t of TREASURES) {
       const { image } = treasureArtOf(t);
       expect(image, t.id).toStartWith("/assets/treasures/");
-      expect(existsSync(new URL(`../public${image}`, import.meta.url)), t.id).toBe(true);
+      expect(existsSync(new URL(`../apps/client/public${image}`, import.meta.url)), t.id).toBe(
+        true,
+      );
     }
   });
 
   it("同一装订册承载不同技名", () => {
     const jixing = treasureArtOf(makeSkillBook("jixing"));
     expect(jixing.bookTitle).toBe("疾行");
-    expect(existsSync(new URL(`../public${jixing.image}`, import.meta.url))).toBe(true);
+    expect(existsSync(new URL(`../apps/client/public${jixing.image}`, import.meta.url))).toBe(true);
 
     const longTitle = treasureArtOf(makeSkillBook("taoguangyanghui"));
     expect(longTitle.bookTitle).toBe("韬光养晦");

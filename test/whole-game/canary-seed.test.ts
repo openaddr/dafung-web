@@ -1,9 +1,9 @@
 // 固定种子守住关中图选都、起手与首回合摸牌、首摇落格的开局链。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import { createDice } from "@core/dice";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 

@@ -1,0 +1,29 @@
+{
+  "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "群雄逐鹿",
+  "version": "../../../package.json",
+  "identifier": "com.dafung.web",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "bun run --cwd ../.. dev",
+    "beforeBuildCommand": "bun run --cwd ../.. build:client"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "群雄逐鹿"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": ["icons/32x32.png"],
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
+  }
+}

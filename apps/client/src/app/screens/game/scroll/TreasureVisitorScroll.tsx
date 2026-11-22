@@ -1,0 +1,164 @@
+// 珍宝使交涉卷轴:对照旧 showTreasureOwnerScroll / showTreasurePickerScroll 的两步流。
+// 城主(决策方)先选模式(不交易/公道/坐地,#362 起选定即弹选宝弹层:装裱卡点选+
+// 一次成交,TreasurePickModal;卷轴裸列表退役),「返回/Esc/X/关闭弹层」都回模式
+// 选择步、不发命令;访客(落城的活跃玩家)非决策方,只看到等待交涉的只读视角——可关
+// (X8 #27,关闭即回棋盘,等待反馈交还 WaitingBar 体系),关了本场合交涉不再重弹;
+// 相位离开组件卸载,状态随之复位,下一场交涉照常弹出。
+// 价格口径:公道 = guidePriceOf(level);坐地 = premiumPriceOf(指导价, 城定义, 城等级),
+// 与引擎结算同一函数(treasure-flow),UI 报价不写第二事实源。价签:未选=公道「指导价 N」
+// 单行 / 坐地双行「指导价 N + 要价 N」(要价=坐地成交价,GLOSSARY);选中统一转
+// 「成交 · 至 N」;结算行坐地给分解式「指导价 + 加价 = 入账」。
+// 协议零改:resolveTreasureOwner { action: { type: "fair"/"premium", treasureId } } 原样。
+import { useState } from "react";
+import type { GameCommand } from "@dafung/core/engine/authority";
+import type { PropertyDef } from "@dafung/core/engine/economy";
+import { guidePriceOf, premiumPriceOf } from "@dafung/core/engine/treasures";
+import { formatMoney } from "@dafung/core/engine/money";
+import type { SnapshotTreasure } from "@app/store/gameStore";
+import { TreasurePickModal } from "../TreasurePickModal";
+import { BannerShell, BannerButton } from "./BannerShell";
+import { SCROLL_TESTIDS as T } from "./testids";
+
+interface TreasureVisitorScrollProps {
+  /** 当前视角:owner = 城主(可决策);visitor = 访客(只读等待)。 */
+  role: "owner" | "visitor";
+  /** 城主国号。 */
+  ownerGuohao: string;
+  /** 访客(落城的活跃玩家)国号。 */
+  visitorGuohao: string;
+  /** 落脚城名。 */
+  tileName: string;
+  /** 城主持有的珍宝(快照展示子集;价格由 level 经 guidePriceOf/premiumPriceOf 推导)。 */
+  treasures: SnapshotTreasure[];
+  /** 交涉城的完整定义:premiumPriceOf 的定价输入(tradeAdd/tradeMult)整只随城走,
+   *  不挑字段——挑着传必以漏传收场,报价偏离引擎入账。 */
+  property: PropertyDef;
+  cityLevel: number;
+  onCommand: (cmd: GameCommand) => void;
+}
+
+type Mode = "fair" | "premium";
+
+const MODE_LABEL: Record<Mode, string> = { fair: "公道买卖", premium: "坐地起价" };
+
+export function TreasureVisitorScroll({
+  role,
+  ownerGuohao,
+  visitorGuohao,
+  tileName,
+  treasures,
+  property,
+  cityLevel,
+  onCommand,
+}: TreasureVisitorScrollProps) {
+  // owner 两步:mode=null 在 Step 1(选模式,ADR-0013 选项集);选定后进 Step 2 =
+  // 选宝弹层(拾取器是本地 UI 态,不是选项集;关层即回本步)。
+  const [mode, setMode] = useState<Mode | null>(null);
+  // X8(#27):访客只读面板可主动关掉(×/遮罩/Esc)——城主犹豫多久访客不再被困模态。
+  // 本地 UI 态(不进引擎/快照):关掉后本场合交涉不再重弹,卸载即复位(见文件头注释)。
+  const [visitorDismissed, setVisitorDismissed] = useState(false);
+
+  const title = !mode ? `${ownerGuohao}·珍宝抉择` : `${MODE_LABEL[mode]}·选珍宝`;
+
+  const guideOf = (t: SnapshotTreasure) => guidePriceOf(t.level);
+  const priceOf = (guide: number) =>
+    mode === "fair" ? guide : premiumPriceOf(guide, property, cityLevel);
+
+  // ── 访客视角:只读等待(决策权在城主),可关(X8 #27)──
+  if (role === "visitor") {
+    if (visitorDismissed) return null;
+    return (
+      <BannerShell
+        title={`${ownerGuohao}·珍宝抉择`}
+        testid={T.treasureScroll}
+        onClose={() => setVisitorDismissed(true)}
+      >
+        <p className="m-1 mb-3.5 text-center text-sm text-paper-dim">
+          {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length}{" "}
+          件珍宝,正在权衡是否出售…
+        </p>
+      </BannerShell>
+    );
+  }
+
+  return (
+    <>
+      <BannerShell title={title} testid={T.treasureScroll}>
+        {!mode ? (
+          <>
+            <p className="m-1 mb-3.5 text-center text-sm text-paper-dim">
+              {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length} 件珍宝。
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {/* W4b 逃生口:模式选择步随时可「暂不交易」退出(引擎 resolveTreasureOwner 已支持
+                  skip 分支,core/authority.ts),城主不必在公道/坐地里二选一。 */}
+              <BannerButton
+                primary
+                testid={T.treasureSkip}
+                onClick={() =>
+                  onCommand({ type: "resolveTreasureOwner", action: { type: "skip" } })
+                }
+              >
+                暂不交易
+              </BannerButton>
+              <BannerButton testid={T.treasureModeFair} onClick={() => setMode("fair")}>
+                {MODE_LABEL.fair}
+              </BannerButton>
+              <BannerButton testid={T.treasureModePremium} onClick={() => setMode("premium")}>
+                {MODE_LABEL.premium}
+              </BannerButton>
+            </div>
+          </>
+        ) : (
+          /* Step 2 本体在选宝弹层;卷轴只留语境(弹层盖住它,关层即回 Step 1)。 */
+          <p className="m-1 mb-3.5 text-center text-sm text-paper-dim">
+            {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length} 件珍宝。
+          </p>
+        )}
+      </BannerShell>
+      {mode !== null && (
+        <TreasurePickModal
+          title={`${MODE_LABEL[mode]} · 选珍宝`}
+          seal="交"
+          sub={`${ownerGuohao} · 卖出的珍宝离手入${visitorGuohao}`}
+          context={
+            mode === "fair" && cityLevel < property.maxLevel ? (
+              <p className="treasure-pick-context">成交后{tileName} +1 级</p>
+            ) : undefined
+          }
+          treasures={treasures}
+          tagOf={(t, selected) => {
+            const guide = guideOf(t);
+            const price = priceOf(guide);
+            if (selected) return `成交 · 至 ${formatMoney(price)}`;
+            if (mode === "fair") return `指导价 ${formatMoney(guide)}`;
+            return (
+              <span className="treasure-pick-ask">
+                <span>指导价 {formatMoney(guide)}</span>
+                <b>要价 {formatMoney(price)}</b>
+              </span>
+            );
+          }}
+          summaryOf={(t) => {
+            const guide = guideOf(t);
+            const price = priceOf(guide);
+            return mode === "fair"
+              ? `卖出 ${t.name} · 入账 ${formatMoney(guide)}`
+              : `卖出 ${t.name} · 指导价 ${formatMoney(guide)} + 加价 ${formatMoney(price - guide)} = 入账 ${formatMoney(price)}`;
+          }}
+          confirmLabel="成交"
+          testids={{
+            container: T.treasurePick,
+            item: T.treasureItem,
+            confirm: T.treasureConfirm,
+            back: T.treasureBack,
+          }}
+          onConfirm={(treasureId) =>
+            onCommand({ type: "resolveTreasureOwner", action: { type: mode, treasureId } })
+          }
+          onClose={() => setMode(null)}
+        />
+      )}
+    </>
+  );
+}

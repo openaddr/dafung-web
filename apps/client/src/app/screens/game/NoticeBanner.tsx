@@ -1,0 +1,74 @@
+// 顶中知会横幅槽(#732,spec #731 知会/响应分流铁律的知会侧):都城停条带、等待
+// 条共用顶中一条带——槽可排队、同槽互斥(排队与互斥的结构单源 = fxStore 知会槽泵,
+// 展示态经 notice 单字段吐出,同一时刻至多一条);瞬态知会(都城停)优先于等待条:
+// 展示期等待条让位,播完(时长到,槽空)自动回归。
+// #762 立常驻回合胶囊,#958 全幅横幅退役后它升为回合宣告唯一形制:.turn-capsule
+// (fxStore.turnCapsule 单源)每次宣告重挂重播入场过渡,常驻显示当前回合方;
+// 等待条与胶囊同槽融合(bare 变体落胶囊右侧,免重名派生)。槽渲染分层:胶囊(flex
+// 常驻件)在下、知会带件(absolute)在上。
+// 分流铁律的另一半不在本槽:响应件(ReactionBanner,限时应答带选项)留手牌架上缘、
+// 决策类全屏弹层(BannerShell 族)另论——两者零改动,不经过本槽。
+// 落点 top+8 safe-aware(与顶栏行同排,layout.css 同款 safe 口径);容器不吃事件
+// (知会件纯播报零点击),等待条药丸/胶囊自带 pointer-events-none。
+import { playerSealText, rgba } from "@dafung/core/engine/theme";
+import { useFxStore } from "@app/fx/fxStore";
+import { TESTIDS } from "./testids";
+import { WaitingBar, type WaitingBarProps } from "./WaitingBar";
+import "./notice-banner.css";
+
+export function NoticeBanner({ occupied, ...props }: WaitingBarProps & { occupied: boolean }) {
+  const notice = useFxStore((s) => s.notice);
+  const capsule = useFxStore((s) => s.turnCapsule);
+  return (
+    <div
+      className="notice-slot"
+      data-occupied={occupied || undefined}
+      data-testid={TESTIDS.noticeBanner}
+    >
+      {capsule != null && (
+        // 常驻回合胶囊(回合宣告唯一形制,#958):key=id 保证每次回合宣告都重挂重播
+        // 入场过渡;--pc-seal 印字亮档单源 core/theme playerSealText(同 SeatRail 注入式)。
+        <div
+          key={capsule.id}
+          className="turn-capsule pointer-events-none"
+          data-testid={TESTIDS.turnCapsule}
+          style={{
+            ["--player-color" as string]: capsule.color,
+            ["--pc-seal" as string]: rgba(playerSealText(capsule.colorIndex)),
+          }}
+        >
+          <span className="tc-seal">{capsule.guohao.charAt(0)}</span>
+          <span className="tc-name">{capsule.guohao}</span>
+          <span className="tc-round">第{capsule.round}轮</span>
+          {/* 等待附加信息与胶囊主体融合(#762):瞬态知会展示期让位(notice 非空不渲染);
+              免重名=等待对象是当前回合方时(胶囊主体已指名)。 */}
+          {notice == null && <WaitingBar {...props} variant="bare" hideOwnerName />}
+        </div>
+      )}
+      {notice == null && capsule == null && (
+        // 槽空且胶囊未立(选都期/开局前):常驻级知会(等待条)独立药丸回归;
+        // 派生逻辑口径不变(#732 只迁渲染宿主)
+        <WaitingBar {...props} />
+      )}
+      {notice?.kind === "halt" && (
+        // 都城停条带(#732 降格;#958 起槽内唯一瞬态带件):原全屏漆金宣告改条带级;
+        // 号角音保留(sink 侧),震屏/编排时长按条带级校准(timings.ts)
+        <div
+          key={notice.id}
+          className="fx-halt-banner"
+          style={{ ["--player-color" as string]: notice.color }}
+        >
+          <span className="fx-halt-title">驻跸</span>
+          <span className="fx-halt-sub">
+            【{notice.guohao}】入「{notice.cityName}」·补给入帐
+          </span>
+        </div>
+      )}
+      {/* 掷骰签锚点(#927,ADR-0043):常驻零宽件,几何恰在回合胶囊右缘(flex 顺位
+          紧随胶囊之后)——掷骰签定位读它,不读胶囊节点(bot 配速关 0 的批洪流下
+          宣告批可能作为过时批被吸附作废,胶囊节点合法地不物化,瞬态节点不可为锚;
+          本件随槽挂载、永不重挂,与槽同寿)。 */}
+      <div className="dice-sign-anchor" data-testid={TESTIDS.diceSignAnchor} />
+    </div>
+  );
+}

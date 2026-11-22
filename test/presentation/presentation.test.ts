@@ -5,26 +5,30 @@
 // 主线补事件后此处应随行改写。
 import { describe, it, expect, beforeEach } from "bun:test";
 import { withGlobal } from "@sinonjs/fake-timers";
-import { FX } from "../../src/app/fx/timings";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { beginGameEventBatch, type GameEvent } from "@core/game-events";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { anchorMarches, extractBatchEvents } from "../../src/app/fx/event-extract";
-import { finishPresentation, present, resetFxOrchestration } from "../../src/app/fx/orchestrator";
-import { createEngineSink, createMemorySink } from "../../src/app/fx/sinks";
-import { abandonMarch, animateMove, marchPos } from "../../src/app/fx/useMarch";
-import { useFxStore } from "../../src/app/fx/fxStore";
+import { FX } from "../../apps/client/src/app/fx/timings";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { beginGameEventBatch, type GameEvent } from "@dafung/core/engine/game-events";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { anchorMarches, extractBatchEvents } from "../../apps/client/src/app/fx/event-extract";
+import {
+  finishPresentation,
+  present,
+  resetFxOrchestration,
+} from "../../apps/client/src/app/fx/orchestrator";
+import { createEngineSink, createMemorySink } from "../../apps/client/src/app/fx/sinks";
+import { abandonMarch, animateMove, marchPos } from "../../apps/client/src/app/fx/useMarch";
+import { useFxStore } from "../../apps/client/src/app/fx/fxStore";
 import {
   isBlowout,
   type MarchSegmentFrames,
   type PresentationEvent,
-} from "../../src/app/fx/presentation";
-import { testEngine, armHero } from "@core/testing";
-import { HEROES } from "@core/heroes";
-import { giveTreasure, setCash } from "@core/planter";
+} from "../../apps/client/src/app/fx/presentation";
+import { testEngine, armHero } from "@dafung/core/engine/testing";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { giveTreasure, setCash } from "@dafung/core/engine/planter";
 
 const MAP = loadMap(guanzhongData);
 
@@ -1461,8 +1465,8 @@ describe("终局封场 finishPresentation(present 事件边界收队)", () => {
 });
 
 // ─────────────── 联机消费游标(SnapshotEffects × netStore lastEvents)───────────────
-import { SnapshotEffects } from "../../src/app/net/snapshot-effects";
-import { useNetStore } from "../../src/app/store/netStore";
+import { SnapshotEffects } from "../../apps/client/src/app/net/snapshot-effects";
+import { useNetStore } from "../../apps/client/src/app/store/netStore";
 
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
@@ -1636,8 +1640,8 @@ describe("fxStore 城池宣告记录(ADR-0015:nonce 单调,两维独立)", () =>
 });
 
 // ─────────────── remainingMarchPath(反应窗余段行军截短,#281 拦停/续走)───────────────
-import { remainingMarchPath } from "../../src/app/fx/orchestrator";
-import type { MovePath } from "@core/board";
+import { remainingMarchPath } from "../../apps/client/src/app/fx/orchestrator";
+import type { MovePath } from "@dafung/core/engine/board";
 
 describe("remainingMarchPath(反应窗余段行军截短,#281 拦停/续走)", () => {
   const fullPath: MovePath = {

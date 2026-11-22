@@ -1,0 +1,63 @@
+// 组件收口:快选沿用 shadcn/Base UI Dialog，选字按钮同时关闭弹层。
+import { useState } from "react";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@app/components/ui/dialog";
+import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
+import { RoundClose } from "@app/screens/shared/RoundClose";
+import { cn } from "@app/utils/cn";
+import { GUOHAO_POOL } from "@dafung/core/engine/theme";
+import { TID } from "./testids";
+
+const GUOHAO_CHOICES = GUOHAO_POOL.slice(0, 26);
+
+export function GuohaoPicker({
+  value,
+  onChoose,
+  onOpen,
+}: {
+  value: string;
+  onChoose: (ch: string) => void;
+  onOpen: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) onOpen();
+        setOpen(nextOpen);
+      }}
+    >
+      <DialogTrigger data-testid={TID.guohaoTrigger} className="su-secondary note-btn font-brush">
+        字盘
+      </DialogTrigger>
+      <DialogContent className="su-picker gap-3 pt-1" initialFocus={false}>
+        <DialogDragHandle className="flex min-h-(--touch-primary) shrink-0 items-center pr-(--touch-primary)">
+          <DialogTitle className="text-lg">字盘快选</DialogTitle>
+        </DialogDragHandle>
+        <div className="su-picker-scroll">
+          <div data-testid={TID.guohaoPool} role="group" aria-label="国号" className="su-pool">
+            {GUOHAO_CHOICES.map((ch) => (
+              <DialogClose
+                key={ch}
+                data-testid={TID.guohaoChar(ch)}
+                aria-pressed={value === ch}
+                onClick={() => onChoose(ch)}
+                className={cn("su-pool-key font-brush", value === ch && "seal-gold")}
+              >
+                {ch}
+              </DialogClose>
+            ))}
+          </div>
+        </div>
+        <RoundClose testid={TID.guohaoClose} />
+      </DialogContent>
+    </Dialog>
+  );
+}

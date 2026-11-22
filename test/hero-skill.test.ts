@@ -2,21 +2,21 @@
 // 三技结算、快照往返、bot 决策(策略/看门狗/托管)。缝约定同 test/bot-jinnang.test.ts
 // (makeEngine/finishSetup/armJinnang 模式复制,不 import 测试文件;只测引擎公共面)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { HEROES } from "@core/heroes";
-import { armHero, testEngine } from "@core/testing";
-import { rollGrantedSkills } from "@core/roster";
-import { heroById } from "@core/heroes";
-import { isActiveSkill, skillById } from "@core/skills";
-import { SKILLS } from "@core/skills";
-import { hasUsableJinnang, isSkillOption, skillOptionId } from "@core/choices";
-import { botAct, heroSkillIntent } from "@core/bot";
-import { fullDefenseOf } from "@core/defense";
-import { armPhase, grantProperty, placePlayer, setDefense } from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { armHero, testEngine } from "@dafung/core/engine/testing";
+import { rollGrantedSkills } from "@dafung/core/engine/roster";
+import { heroById } from "@dafung/core/engine/heroes";
+import { isActiveSkill, skillById } from "@dafung/core/engine/skills";
+import { SKILLS } from "@dafung/core/engine/skills";
+import { hasUsableJinnang, isSkillOption, skillOptionId } from "@dafung/core/engine/choices";
+import { botAct, heroSkillIntent } from "@dafung/core/engine/bot";
+import { fullDefenseOf } from "@dafung/core/engine/defense";
+import { armPhase, grantProperty, placePlayer, setDefense } from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 

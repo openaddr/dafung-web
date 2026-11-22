@@ -1,12 +1,12 @@
 // 曹丕放逐/行殇引擎结算单测：伤害标记、时机内应答、休整叠加、快照恢复和 bot 应答。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import { createDice } from "@core/dice";
-import { armHero, setStamina, setCash, setBot, armPhase } from "@core/planter";
-import { skillMarksOf, heroSlotOf } from "@core/roster";
-import { botAct, botSkillChoiceDecision } from "@core/bot";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { armHero, setStamina, setCash, setBot, armPhase } from "@dafung/core/engine/planter";
+import { skillMarksOf, heroSlotOf } from "@dafung/core/engine/roster";
+import { botAct, botSkillChoiceDecision } from "@dafung/core/engine/bot";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 

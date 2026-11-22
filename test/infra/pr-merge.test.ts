@@ -331,23 +331,22 @@ testMerge(
     const makeTest = (name: string) =>
       `import { test } from "bun:test"; import { appendFileSync } from "node:fs"; test("${name}", () => appendFileSync("tmp/checks.log", "${name}\\n"));`;
     const protocolTest = `${makeTest("protocol")}\n// DAFUNG_SLOW\n`;
+    const wire = "packages/core/src/protocol/wire.ts";
     for (const changeTest of [false, true]) {
       const { root } = fixture({
         "test/online/protocol-online.test.ts": protocolTest,
         "test/online/server-cmd-error.test.ts": makeTest("command-error"),
       });
       jj(root, "edit", "codex/fixture");
-      writeFileSync(join(root, "scripts/wire.ts"), "export const protocol = true;\n");
+      mkdirSync(dirname(join(root, wire)), { recursive: true });
+      writeFileSync(join(root, wire), "export const protocol = true;\n");
       if (changeTest)
         writeFileSync(
           join(root, "test/online/protocol-online.test.ts"),
           `${protocolTest}test("新增", () => {});\n`,
         );
       jj(root, "new");
-      const extraPaths = [
-        "scripts/wire.ts",
-        ...(changeTest ? ["test/online/protocol-online.test.ts"] : []),
-      ];
+      const extraPaths = [wire, ...(changeTest ? ["test/online/protocol-online.test.ts"] : [])];
       const result = merge(root, {}, extraPaths);
       expect(result.code, result.output).toBe(0);
       const checks = readFileSync(join(root, "tmp/checks.log"), "utf8").trim().split("\n");
@@ -368,10 +367,12 @@ testMerge(
       "test/online/protocol-online.test.ts": makeTest("protocol"),
       "test/online/server-cmd-error.test.ts": makeTest("command-error"),
     });
+    const deadline = "packages/core/src/room/reaction-deadline.ts";
     jj(root, "edit", "codex/fixture");
-    writeFileSync(join(root, "scripts/reaction-deadline.ts"), "export const deadline = 1;\n");
+    mkdirSync(dirname(join(root, deadline)), { recursive: true });
+    writeFileSync(join(root, deadline), "export const deadline = 1;\n");
     jj(root, "new");
-    const result = merge(root, {}, ["scripts/reaction-deadline.ts"]);
+    const result = merge(root, {}, [deadline]);
     expect(result.code, result.output).toBe(0);
     const checks = readFileSync(join(root, "tmp/checks.log"), "utf8").trim().split("\n");
     expect(checks).toContain("test");
@@ -413,10 +414,13 @@ testMerge(
   () => {
     const { root } = fixture();
     jj(root, "edit", "codex/fixture");
-    mkdirSync(join(root, "src/core"), { recursive: true });
-    writeFileSync(join(root, "src/core/stamina-damage.ts"), "export const rule = 1;\n");
+    mkdirSync(join(root, "packages/core/src/engine"), { recursive: true });
+    writeFileSync(
+      join(root, "packages/core/src/engine/stamina-damage.ts"),
+      "export const rule = 1;\n",
+    );
     jj(root, "new");
-    const result = merge(root, {}, ["src/core/stamina-damage.ts"]);
+    const result = merge(root, {}, ["packages/core/src/engine/stamina-damage.ts"]);
     expect(result.code, result.output).toBe(0);
     const checks = readFileSync(join(root, "tmp/checks.log"), "utf8").trim().split("\n");
     for (const name of ["check:core", "check:goldens", "check:sim-bench"])
@@ -431,25 +435,34 @@ testMerge(
     const makeTest = (name: string) =>
       `import { test } from "bun:test"; import { appendFileSync } from "node:fs"; test("${name}", () => appendFileSync("tmp/checks.log", "${name}\\n"));`;
     const { root } = fixture({
-      "src/core/timings.ts": "export const delay = 1;\n",
-      "src/app/controllers/registry.ts": "export const registry = 1;\n",
-      "src/app/store/gameStore.ts": "export const state = 1;\n",
-      "src/app/net/reconnecting-socket.ts": "export const socket = 1;\n",
+      "packages/core/src/engine/timings.ts": "export const delay = 1;\n",
+      "apps/client/src/app/controllers/registry.ts": "export const registry = 1;\n",
+      "apps/client/src/app/store/gameStore.ts": "export const state = 1;\n",
+      "apps/client/src/app/net/reconnecting-socket.ts": "export const socket = 1;\n",
       "test/online/protocol-online.test.ts": makeTest("protocol"),
       "test/online/server-cmd-error.test.ts": makeTest("command-error"),
       "test/online/room-recovery.test.ts": makeTest("recovery"),
     });
     jj(root, "edit", "codex/fixture");
-    writeFileSync(join(root, "src/core/timings.ts"), "export const delay = 2;\n");
-    writeFileSync(join(root, "src/app/controllers/registry.ts"), "export const registry = 2;\n");
-    writeFileSync(join(root, "src/app/store/gameStore.ts"), "export const state = 2;\n");
-    writeFileSync(join(root, "src/app/net/reconnecting-socket.ts"), "export const socket = 2;\n");
+    writeFileSync(join(root, "packages/core/src/engine/timings.ts"), "export const delay = 2;\n");
+    writeFileSync(
+      join(root, "apps/client/src/app/controllers/registry.ts"),
+      "export const registry = 2;\n",
+    );
+    writeFileSync(
+      join(root, "apps/client/src/app/store/gameStore.ts"),
+      "export const state = 2;\n",
+    );
+    writeFileSync(
+      join(root, "apps/client/src/app/net/reconnecting-socket.ts"),
+      "export const socket = 2;\n",
+    );
     jj(root, "new");
     const result = merge(root, {}, [
-      "src/core/timings.ts",
-      "src/app/controllers/registry.ts",
-      "src/app/store/gameStore.ts",
-      "src/app/net/reconnecting-socket.ts",
+      "packages/core/src/engine/timings.ts",
+      "apps/client/src/app/controllers/registry.ts",
+      "apps/client/src/app/store/gameStore.ts",
+      "apps/client/src/app/net/reconnecting-socket.ts",
     ]);
     expect(result.code, result.output).toBe(0);
     const checks = readFileSync(join(root, "tmp/checks.log"), "utf8").trim().split("\n");

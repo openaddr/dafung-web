@@ -5,13 +5,18 @@
 // 定义、无主座位/事件序违反当场炸)与快照对账(折叠漂移被水合无条件校正,快照=校准锚)。
 // 真实命令与 JSON 下行的决策续行接缝见同目录 local-hydration.test.ts。
 import { describe, it, expect, spyOn } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, GameCommand, SeatConfig, TurnPhase } from "@core/authority";
-import { createDice } from "@core/dice";
-import { applyCityDamage } from "@core/defense";
-import type { MovePath } from "@core/board";
-import { HEROES } from "@core/heroes";
-import { TREASURES, makeSkillBook } from "@core/treasures";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type {
+  EngineConfig,
+  GameCommand,
+  SeatConfig,
+  TurnPhase,
+} from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { applyCityDamage } from "@dafung/core/engine/defense";
+import type { MovePath } from "@dafung/core/engine/board";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { TREASURES, makeSkillBook } from "@dafung/core/engine/treasures";
 import {
   armPhase,
   armVisitor,
@@ -23,16 +28,20 @@ import {
   setCash,
   setDefense,
   setJinnangPiles,
-} from "@core/planter";
-import { cmdMsg, eventsMsg, type InboundMsg, type ServerMsg } from "../../scripts/wire";
-import { REACTION_WINDOW_MS } from "@core/constants";
-import { beginGameEventBatch, type GameEvent, type GameEventBody } from "@core/game-events";
-import { armHero } from "@core/testing";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+} from "@dafung/core/engine/planter";
+import { cmdMsg, eventsMsg, type InboundMsg, type ServerMsg } from "@dafung/core/protocol/wire";
+import { REACTION_WINDOW_MS } from "@dafung/core/engine/constants";
+import {
+  beginGameEventBatch,
+  type GameEvent,
+  type GameEventBody,
+} from "@dafung/core/engine/game-events";
+import { armHero } from "@dafung/core/engine/testing";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 import { extractBatchEvents } from "@app/fx/event-extract";
 import { foldEventBatch } from "@app/net/event-fold";
-import { redactEvents, redactSnapshotForSeat } from "../../scripts/seat-projection";
+import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 
 const MAP = loadMap(guanzhongData);
 

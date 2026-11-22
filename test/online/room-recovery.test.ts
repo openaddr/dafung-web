@@ -11,15 +11,15 @@
 import { describe, it, expect, spyOn } from "bun:test";
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { RoomRegistry } from "../../scripts/room";
-import type { RoomClock, RoomSession } from "../../scripts/room";
-import { FileRoomPersistence } from "../../scripts/room-persistence";
-import type { RoomPersistence } from "../../scripts/room-persistence";
-import type { RoomRecord } from "../../scripts/room-record";
-import type { GameEvent } from "../../src/core/game-events";
-import type { GameSnapshot } from "../../src/core/snapshot";
+import { RoomRegistry } from "@dafung/core/room/room";
+import type { RoomClock, RoomSession } from "@dafung/core/room/room";
+import { FileRoomPersistence } from "../../apps/server/src/room-persistence";
+import type { RoomPersistence } from "@dafung/core/room/room-persistence";
+import type { RoomRecord } from "@dafung/core/room/room-record";
+import type { GameEvent } from "@dafung/core/engine/game-events";
+import type { GameSnapshot } from "@dafung/core/engine/snapshot";
 import { MAP } from "../../scripts/engine-helpers";
-import type { LoadedMap } from "../../src/core/board-loader";
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
 
 // 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);判据与实测耗时见文件头注。
 const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);

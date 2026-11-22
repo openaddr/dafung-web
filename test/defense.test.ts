@@ -3,18 +3,18 @@
 // 即停+免疫、无主城抛错)/ 快照往返 / 种植件 setDefense / 外敌乘虚共用城池伤害结算。
 // 只测外部行为(返回值+引擎状态),不镜像实现;布景一律走种植件(#1295)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { applyCityDamage, fullDefenseOf, resetToFull } from "@core/defense";
-import { buy, upgrade, settleDebt } from "@core/economy";
-import { createPlayer } from "@core/player";
-import { serializeGame, restoreGameSnapshot } from "@core/snapshot";
-import { applyPlant, grantProperty, setDefense } from "@core/planter";
-import { testEngine } from "@core/testing";
-import { tileIndexOfProperty } from "@core/board";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { applyCityDamage, fullDefenseOf, resetToFull } from "@dafung/core/engine/defense";
+import { buy, upgrade, settleDebt } from "@dafung/core/engine/economy";
+import { createPlayer } from "@dafung/core/engine/player";
+import { serializeGame, restoreGameSnapshot } from "@dafung/core/engine/snapshot";
+import { applyPlant, grantProperty, setDefense } from "@dafung/core/engine/planter";
+import { testEngine } from "@dafung/core/engine/testing";
+import { tileIndexOfProperty } from "@dafung/core/engine/board";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 

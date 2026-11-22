@@ -7,13 +7,13 @@
 // 污染 ADR-0036 数据完整性钉(实锤过);确定性语料只要求自洽,产品池口径属
 // sim-batch/cli/server 各入口自载的职责。
 import { describe, it, expect } from "bun:test";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import zhongyuanData from "../../public/maps/zhongyuan.json";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import zhongyuanData from "../../packages/core/maps/zhongyuan.json";
 import yanzhouData from "../fixtures/maps/yanzhou.json";
-import { loadMap, type LoadedMap } from "@core/board-loader";
-import { GameEngine, type SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { botAct } from "@core/bot";
+import { loadMap, type LoadedMap } from "@dafung/core/engine/board-loader";
+import { GameEngine, type SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { botAct } from "@dafung/core/engine/bot";
 import { canonicalize, hashCanonical, turnDigestOf } from "../../scripts/state-digest";
 import {
   decisionSeatOf,

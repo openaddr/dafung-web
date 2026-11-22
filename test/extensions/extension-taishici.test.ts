@@ -7,15 +7,15 @@
 // 引擎布场模式复制 test/hero-skill.test.ts(makeEngine/finishSetup,不 import 测试文件);
 // 装载的全局注册态在 afterAll 精确卸载,不向同进程其他测试文件泄漏。
 import { describe, it, expect, afterAll } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { HEROES } from "@core/heroes";
-import { loadExtensionPackages } from "@core/extension-loader";
-import { unregisterExtensionPackage } from "@core/extension-registry";
-import { armHero, heroOffer } from "@core/testing";
-import guanzhongData from "../../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { loadExtensionPackages } from "../../apps/server/src/extension-loader";
+import { unregisterExtensionPackage } from "@dafung/core/engine/extension-registry";
+import { armHero, heroOffer } from "@dafung/core/engine/testing";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 import { resolve } from "node:path";
 
 const MAP = loadMap(guanzhongData);
@@ -61,7 +61,9 @@ function prepared(seed?: number, seats?: SeatConfig[]) {
 }
 
 // ── 装载示例包(真实 fs 通路;afterAll 卸载防泄漏)──
-const loaded = await loadExtensionPackages(resolve(import.meta.dir, "../../extensions"));
+const loaded = await loadExtensionPackages(
+  resolve(import.meta.dir, "../../packages/core/extensions"),
+);
 expect(loaded.map((m) => m.id)).toContain("hero-taishici");
 afterAll(() => {
   unregisterExtensionPackage("hero-taishici");

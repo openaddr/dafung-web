@@ -1,0 +1,13 @@
+{
+  "name": "@dafung/core",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./engine/*": "./src/engine/*.ts",
+    "./room/*": "./src/room/*.ts",
+    "./protocol/*": "./src/protocol/*.ts",
+    "./maps/*": "./maps/*",
+    "./extensions/*": "./extensions/*",
+    "./package.json": "./package.json"
+  }
+}

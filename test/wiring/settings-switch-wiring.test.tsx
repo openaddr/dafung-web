@@ -7,12 +7,12 @@ import { createWorkerClock } from "@app/net/worker-clock";
 import { TESTIDS } from "@app/screens/game/testids";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
-import { loadMap, type MapData } from "@core/board-loader";
+import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
 import { IDBFactory } from "fake-indexeddb";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import pkg from "../../package.json";
-import rawMap from "../../public/maps/guanzhong.json";
+import rawMap from "../../packages/core/maps/guanzhong.json";
 import { installControlledClock } from "./controlled-clock";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 

@@ -8,7 +8,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import { runWholeGame } from "./whole-game";
-import type { SeatConfig } from "../src/core/authority";
+import type { SeatConfig } from "@dafung/core/engine/authority";
 
 // ── 参数(严格解析:非法当场抛,零兜底)──
 function intValue(raw: string, label: string): number {

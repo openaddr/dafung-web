@@ -1,8 +1,8 @@
 import { describe, it, expect } from "bun:test";
-import { buy, upgrade, settleDebt, sellValueOf } from "@core/economy";
-import { createPlayer } from "@core/player";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { buy, upgrade, settleDebt, sellValueOf } from "@dafung/core/engine/economy";
+import { createPlayer } from "@dafung/core/engine/player";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 const catalog = loadMap(guanzhongData).catalog;
 
 const changan = catalog.get("prop-changan")!; // a 组,购入 4800 两(名城 48 档),变卖价 [2400,3360,4320,5280]

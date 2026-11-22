@@ -23,8 +23,8 @@
 // 退出码:0 = 全绿/已刷新;1 = 台账漂移(校验模式)
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { loadMap, type LoadedMap } from "../src/core/board-loader";
-import type { SeatConfig } from "../src/core/authority";
+import { loadMap, type LoadedMap } from "@dafung/core/engine/board-loader";
+import type { SeatConfig } from "@dafung/core/engine/authority";
 import { canonicalize } from "./state-digest";
 import type { TurnDigest } from "./state-digest";
 import { runWholeGame } from "./whole-game";

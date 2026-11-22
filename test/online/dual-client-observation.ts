@@ -2,9 +2,9 @@
 // 对局传输仍经 OnlineController → ReconnectingSocket → 真实 WebSocket。
 import type { useGameStore } from "@app/store/gameStore";
 import type { useNetStore } from "@app/store/netStore";
-import type { GameSnapshot } from "@core/snapshot";
-import type { GameCommand } from "@core/authority";
-import type { GameEvent } from "@core/game-events";
+import type { GameSnapshot } from "@dafung/core/engine/snapshot";
+import type { GameCommand } from "@dafung/core/engine/authority";
+import type { GameEvent } from "@dafung/core/engine/game-events";
 
 export type DualClientRetryMode = "automatic" | "held" | "exhausted";
 

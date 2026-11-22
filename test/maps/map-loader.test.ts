@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
-import { loadMap } from "@core/board-loader";
-import guanzhongData from "../../public/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import guanzhongData from "../../packages/core/maps/guanzhong.json";
 
 describe("地图加载器(合法)", () => {
   it("内置三国地图加载成功", () => {

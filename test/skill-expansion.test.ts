@@ -1,15 +1,15 @@
 // 技能扩展包现役名将技能池、效果注册与引擎结算。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice, type Dice } from "@core/dice";
-import { HEROES } from "@core/heroes";
-import { isTriggerSkill, skillById } from "@core/skills";
-import { EFFECTS } from "@core/effects";
-import { MOMENTS } from "@core/timing";
-import { armHero } from "@core/testing";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice, type Dice } from "@dafung/core/engine/dice";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { isTriggerSkill, skillById } from "@dafung/core/engine/skills";
+import { EFFECTS } from "@dafung/core/engine/effects";
+import { MOMENTS } from "@dafung/core/engine/timing";
+import { armHero } from "@dafung/core/engine/testing";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 

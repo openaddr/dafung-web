@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
-import { createBoard, tileIndexOfProperty, type TileDef } from "@core/board";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { createBoard, tileIndexOfProperty, type TileDef } from "@dafung/core/engine/board";
 
 const loaded = loadMap(guanzhongData);
 const board = loaded.board;

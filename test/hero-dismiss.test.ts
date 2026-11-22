@@ -7,15 +7,15 @@
 //  ④ 零特判实证:TreasureGained 监听技(得陇望蜀)随折书逐册击发——折书走珍宝现通路。
 //  ⑤ 快照契约:遣散后状态随快照往返保真(零 schema 变更,纯命令+事件流转)。
 import { describe, it, expect, afterEach } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { loadMap } from "@core/board-loader";
-import { HEROES } from "@core/heroes";
-import { makeSkillBook, SKILL_BOOK_ID_PREFIX } from "@core/treasures";
-import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
-import { dismissHero } from "@core/hero-dismiss";
-import { armHero as plantHero, setCash } from "@core/planter";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { makeSkillBook, SKILL_BOOK_ID_PREFIX } from "@dafung/core/engine/treasures";
+import { armHero, sweepTestHeroes, testEngine } from "@dafung/core/engine/testing";
+import { dismissHero } from "@dafung/core/engine/hero-dismiss";
+import { armHero as plantHero, setCash } from "@dafung/core/engine/planter";
 
 // ── fixture 图:20 城全城池(同 skill-book.test 制式)──
 function cityTile(i: number, name: string, extra: Record<string, unknown> = {}) {

@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { cmdErrorTestPort } from "../../scripts/dev-ports";
 import { OnlineClient } from "../../scripts/online-client";
-import type { GameLogMsg } from "../../scripts/wire";
+import type { GameLogMsg } from "@dafung/core/protocol/wire";
 
 // 慢例池开关:describe 级 skip 连钩子一起跳(默认池不白起服务器);DAFUNG_SLOW=1 才跑,判据见文件头注。
 const describeSlow = describe.skipIf(!process.env.DAFUNG_SLOW);
@@ -125,7 +125,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
           `处置:netstat -ano | grep :${PORT} 查 PID → tasklist 验名为 bun.exe → taskkill //PID <pid> //F`,
       );
     }
-    proc = Bun.spawn([process.execPath, "scripts/server.ts"], {
+    proc = Bun.spawn([process.execPath, "apps/server/src/server.ts"], {
       cwd: join(import.meta.dir, "..", ".."), // 仓库根:地图清单 ./public/maps 相对 cwd 解析(缺失即抛)
       env: {
         ...process.env,
@@ -133,7 +133,6 @@ describeSlow("server WS 命令回报与对局日志", () => {
         HOST: "127.0.0.1",
         ROOMS_DIR,
         LOGS_DIR: ROOMS_DIR, // 对局日志一并落临时目录,不污染仓库 data/
-        STATIC_DIR: ROOMS_DIR, // 无静态托管需求(静态只按请求读,目录缺失本就 404)
         DECISION_TIMEOUT_MS: "0",
         RETENTION_WINDOW_MS: "0",
       },

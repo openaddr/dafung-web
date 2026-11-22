@@ -4,7 +4,10 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 import { readFileSync } from "node:fs";
 
-const fxStyles = readFileSync(new URL("../../src/app/fx/fx.css", import.meta.url), "utf8");
+const fxStyles = readFileSync(
+  new URL("../../apps/client/src/app/fx/fx.css", import.meta.url),
+  "utf8",
+);
 
 /** 本文件运行时装上 happy-dom 全局(document/window/navigator/…,幂等):
  *  在 beforeAll 调;IS_REACT_ACT_ENVIRONMENT 供 react act() 驱动渲染。 */

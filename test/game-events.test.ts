@@ -3,17 +3,17 @@
 // 入口开批(submitCommand/botAct/开局驱动);测试对白盒触达的转移用 beginGameEventBatch
 // 显式开批(与编排入口同纪律),逐转移断言本批 kind 序列与关键字段。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { loadMap } from "@core/board-loader";
-import { testEngine } from "@core/testing";
-import { guidePriceOf } from "@core/treasures";
-import { HEROES } from "@core/heroes";
-import { jinnangCardOf } from "@core/jinnang";
-import { beginGameEventBatch, type GameEvent } from "@core/game-events";
-import type { TurnPhase } from "@core/authority";
-import guanzhongData from "../public/maps/guanzhong.json";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { testEngine } from "@dafung/core/engine/testing";
+import { guidePriceOf } from "@dafung/core/engine/treasures";
+import { HEROES } from "@dafung/core/engine/heroes";
+import { jinnangCardOf } from "@dafung/core/engine/jinnang";
+import { beginGameEventBatch, type GameEvent } from "@dafung/core/engine/game-events";
+import type { TurnPhase } from "@dafung/core/engine/authority";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
 
 const MAP = loadMap(guanzhongData);
 

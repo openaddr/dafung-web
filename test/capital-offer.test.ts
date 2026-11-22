@@ -1,12 +1,12 @@
 // 选都三选一(capital offer)单测:候选生成算法 / pickCapital 校验 / bot 限定候选 /
 // 快照恢复 / 8 人局不耗尽 / zhongyuan 小地图退化。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import guanzhongData from "../public/maps/guanzhong.json";
-import zhongyuanData from "../public/maps/zhongyuan.json";
-import { loadMap } from "@core/board-loader";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import zhongyuanData from "../packages/core/maps/zhongyuan.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const GUANZHONG = loadMap(guanzhongData);
 const ZHONGYUAN = loadMap(zhongyuanData);

@@ -1,23 +1,23 @@
 import { describe, it, expect, afterEach } from "bun:test";
-import { GameEngine } from "@core/authority";
-import type { BankruptcyAsset } from "@core/bankruptcy";
-import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
-import { botAct } from "@core/bot";
-import type { Player } from "@core/model";
-import { sellValueOf } from "@core/economy";
-import { HEROES } from "@core/heroes";
-import type { GameMoment, MomentCtx } from "@core/timing";
-import { armHero, sweepTestHeroes } from "@core/testing";
+import { GameEngine } from "@dafung/core/engine/authority";
+import type { BankruptcyAsset } from "@dafung/core/engine/bankruptcy";
+import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { createDice } from "@dafung/core/engine/dice";
+import { botAct } from "@dafung/core/engine/bot";
+import type { Player } from "@dafung/core/engine/model";
+import { sellValueOf } from "@dafung/core/engine/economy";
+import { HEROES } from "@dafung/core/engine/heroes";
+import type { GameMoment, MomentCtx } from "@dafung/core/engine/timing";
+import { armHero, sweepTestHeroes } from "@dafung/core/engine/testing";
 import {
   armHero as plantHero,
   armPhase,
   giveTreasure,
   grantProperty,
   setCash,
-} from "@core/planter";
-import guanzhongData from "../public/maps/guanzhong.json";
-import { loadMap } from "@core/board-loader";
+} from "@dafung/core/engine/planter";
+import guanzhongData from "../packages/core/maps/guanzhong.json";
+import { loadMap } from "@dafung/core/engine/board-loader";
 
 const MAP = loadMap(guanzhongData);
 
