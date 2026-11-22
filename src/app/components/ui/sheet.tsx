@@ -28,6 +28,7 @@ function SheetOverlay({
 }: React.ComponentProps<typeof SheetPrimitive.Backdrop> & { stacked?: boolean }) {
   return (
     <SheetPrimitive.Backdrop
+      forceRender
       data-slot="sheet-overlay"
       // 遮罩同 ui/dialog 水墨墨影(不沿用 shadcn 的 bg-black/10+毛玻璃,纸卷世界无玻璃);
       // 色值单源 = use-dialog-drag 的 OVERLAY_TINT(#845 深底重定标后两系仍同值同拍)
@@ -63,7 +64,11 @@ function SheetContent({
   const peek = useDialogMinimize();
   const hidden = peek?.hidden === true;
   const minimize = peek?.minimize;
-  const { stacked } = useDialogStackSlot(!hidden);
+  const { stacked } = useDialogStackSlot(
+    peek?.active === true && !hidden,
+    true,
+    peek?.closeFromBack,
+  );
   return (
     <SheetPortal keepMounted={hidden || minimize !== undefined} hidden={hidden}>
       <SheetOverlay

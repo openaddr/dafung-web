@@ -33,19 +33,8 @@ interface TipText {
   detail: string;
 }
 
-/** 属性浮签文案单源(#253)，与规则页口径一致。 */
-export const ATTR_TIPS = {
-  cash: { name: "现金", detail: "身价=仅现金;攒够目标身价即胜" },
-  city: { name: "城池", detail: "名下城池数;到达己城可免费扩军" },
-  hand: { name: "锦囊手牌", detail: "暗置,只有本人可见" },
-  gem: { name: "珍宝", detail: "可交易变卖;破产时按指导价抵债" },
-  hero: { name: "名将", detail: "上限 3 名;被动技能常驻生效" },
-  stamina: {
-    name: "体力",
-    detail: "归零时耗竭，休整两回合后回满。抵达己方都城恢复一半已损失体力。",
-  },
-  sign: { name: "签面", detail: "本回合掷骰点数(一~七;持英姿者七面)" },
-} as const satisfies Record<string, TipText>;
+/** 签面浮签文案。 */
+export const SIGN_TIP: TipText = { name: "签面", detail: "本回合掷骰点数(一~七;持英姿者七面)" };
 
 interface TipProps {
   /** 浮签文案(名词+一句话;复合文案在调用方拼 detail,本件不做字符串解析)。 */

@@ -380,7 +380,11 @@ function GameScreenLive({
   const openSettings = useCallback(() => {
     if (!peeking) setSettingsOpen(true);
   }, [peeking]);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
+    setWarReportOpen(false);
+  }, []);
+  const closeWarReport = useCallback(() => setWarReportOpen(false), []);
   const openWarReport = useCallback(() => {
     // 打开抽屉即清账:条数取点击拍当下快照(getState 读,不闭包捕获渲染拍)。
     setWarReadCount(warEntriesOf(useGameStore.getState().snapshot!).length);
@@ -1029,6 +1033,9 @@ function GameScreenLive({
           <SettingsDialog
             onClose={closeSettings}
             onOpenWarReport={openWarReport}
+            warReport={
+              warReportOpen && <WarReportDrawer snapshot={snapshot} onClose={closeWarReport} />
+            }
             onGoHome={goHome}
             onCaptureDiagnostic={checkpointGameDiagnostics}
           />
@@ -1086,10 +1093,6 @@ function GameScreenLive({
               reactRespond(false);
             }}
           />
-        )}
-        {/* 战报抽屉(入口在设置内):条件挂载,常收零占位。 */}
-        {!gameOver && warReportOpen && (
-          <WarReportDrawer snapshot={snapshot} onClose={() => setWarReportOpen(false)} />
         )}
         {/* 窥探弹层:军情密探即时窥探的 viewer-only 演出——开关态单源 fxStore
           (peekApplied 表现事件驱动,关闭即清),组件按 viewerSeat===本座自门。 */}

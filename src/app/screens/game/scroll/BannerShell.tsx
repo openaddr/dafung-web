@@ -174,7 +174,11 @@ export function BannerShell({
   // 叠层开栈(#767):活横幅入栈、幽灵帧不入栈(纯视觉重放);栈深>1 且本层为上层时
   // 遮罩消费减淡档 --mask-dim-stacked(alpha 单源 app.css,rgb 三元组与两档同族)。
   const peek = useDialogPeekSurface(!exiting);
-  const { stacked, frontmost } = useDialogStackSlot(!exiting && !peek.hidden, false);
+  const { stacked, frontmost } = useDialogStackSlot(
+    !exiting && !peek.hidden,
+    false,
+    onClose === undefined ? undefined : requestClose,
+  );
 
   // 壳体本体(横幅带 + 金印题行 + 正文井):活横幅与退场帧两条渲染路径共用同一份 JSX。
   // role=dialog/aria-modal 挂壳体(可达名称用 aria-label=题名);退场帧的父层已

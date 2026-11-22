@@ -69,7 +69,7 @@
   white-space: nowrap;
 }
 .zl-row > * {
-  height: 36px;
+  height: var(--touch-target);
   border-bottom: 1px solid var(--hairline);
 }
 .zl-row.self > * {
@@ -78,7 +78,6 @@
 .zl-row.self th {
   box-shadow: inset 2px 0 var(--color-gold);
 }
-.zl-identity,
 .zl-stamina {
   display: flex;
   align-items: center;
@@ -95,7 +94,6 @@
   color: var(--pc-seal);
   font: 15px/1 var(--font-brush);
 }
-.zl-name,
 .zl-preview {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -113,8 +111,8 @@
   overflow-wrap: anywhere;
 }
 .zl-track {
-  width: 26px;
-  height: 4px;
+  width: clamp(17px, 5dvw, 36px);
+  height: 5px;
   border-radius: 4px;
   background: var(--hairline);
   overflow: hidden;
@@ -133,7 +131,7 @@
 .zl-drill {
   display: flex;
   width: 100%;
-  min-height: 35px;
+  min-height: var(--touch-target);
   align-items: center;
   gap: 5px;
   padding: 0 6px;
@@ -176,11 +174,6 @@
   .zl-drill {
     padding-inline: 3px;
   }
-  .zl-row.is-active .zl-name {
-    color: var(--color-gold-bright);
-  }
-  .zl-seal,
-  .zl-track,
   .zl-preview {
     display: none;
   }

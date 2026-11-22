@@ -1,7 +1,7 @@
 // 名下城池清单弹层(#622,规格 #621):诸侯详情城池 chips 钻入的只读清单(#1097 起
 // 唯一入口)——
 // 一城一行按棋盘 index 序(行军顺序,合上弹窗扫视方向一致),行首真实格缩略图
-// (#623,TileThumb 与棋盘逐像素同源)+ 五列 = 城名 / 等级 / 购入价 / 变卖价 /
+// (#623,TileThumb 与棋盘逐像素同源)+ 五列 = 城名 / 等级和防御 / 购入价 / 变卖价 /
 // 交易加成;城池档位两字名(ADR-0042 决策 6,读数场合口径)小字缀在城名格内,
 // 不设第六列。壳复用 PileShell(朱印「城」,题名「○○名下城池」/自看
 // 「本方名下城池」;挂载不夺焦、Esc/点外/X 三路关闭全由底件白拿),零操作项;
@@ -13,6 +13,7 @@
 // 见「要价」词条与 rules 05-珍宝)。名下无城 = 「名下暂无城池」空态(真业务态:
 // 未购地/破产清场均可达)。
 import { memo } from "react";
+import { fullDefenseOf } from "@core/defense";
 import { formatMoney } from "@core/money";
 import { cityTradeTermsOf, sellValueOf } from "@core/economy";
 import { tileIndexOfProperty } from "@core/board";
@@ -89,7 +90,7 @@ export const CityLedgerModal = memo(function CityLedgerModal({
             {/* 行首列:缩略图列头(图形列,无文字头) */}
             <span aria-hidden="true" />
             <span>城名</span>
-            <span>等级</span>
+            <span>等级 / 防御</span>
             <span className="text-right">购入价</span>
             <span className="text-right">变卖价</span>
             <span className="text-right">交易加成</span>
@@ -117,8 +118,11 @@ export const CityLedgerModal = memo(function CityLedgerModal({
                     {Theme.cityTierNames[def.tier]}
                   </span>
                 </span>
-                <span className="text-paper-dim tabular-nums">
-                  Lv.{h.level}/{def.maxLevel}
+                <span className="tabular-nums">
+                  {h.level} 级
+                  <span className="block text-sm text-defense-shield">
+                    {h.defense}/{fullDefenseOf(h.level)}
+                  </span>
                 </span>
                 <span className="text-right text-paper tabular-nums">
                   {formatMoney(def.purchasePrice)}

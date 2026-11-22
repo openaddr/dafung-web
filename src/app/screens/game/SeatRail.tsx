@@ -1,4 +1,4 @@
-// 席位格列：国号、银两和体力在首行，城池、手牌、名将和珍宝在次行。
+// 席位格首行显示国号和银两，次行显示体力、城池和锦囊张数。
 // 国号印旁的三角标指示回合方，席位格边框和勾表达目标状态。
 // 自机用左金条，出局降透明度；托管由国号印右侧齿轮标识。
 // 列几何(拍板口径):列宽 96 固定、格间距 2px、列 y8 起排;格高=clamp(30,(可用高−14)/8,38),
@@ -11,6 +11,7 @@
 // 旧「#700 前双挂浮两遍」随仪表条本体不复存在)。
 import { memo } from "react";
 import { Button } from "@base-ui/react/button";
+import { STAMINA_MAX } from "@core/constants";
 import { formatMoney } from "@core/money";
 import { skillMarksOf } from "@core/roster";
 import { isTriggerSkill, skillById } from "@core/skills";
@@ -19,7 +20,6 @@ import { useStablePlayers, type GameSnapshot, type SnapshotPlayer } from "@app/s
 import { useAutopilotOn, useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import { useDeltaFloat, DeltaFloats } from "./useDeltaFloat";
-import { ATTR_TIPS } from "./Tip";
 import { TESTIDS } from "./testids";
 import "./layout.css";
 import "./seat-target.css";
@@ -154,7 +154,7 @@ const SeatCell = memo(function SeatCell({
         ["--pc-seal" as string]: rgba(playerSealText(p.colorIndex)),
       }}
     >
-      {/* 行1:国号印(座位色) + 托管微标(#770,托管中才有) + 现金主数 + 体力色条 */}
+      {/* 首行保留国号、托管状态与银两。 */}
       <div className="l1">
         <span className="pseal">{p.guohao.charAt(0)}</span>
         {/* 托管常驻微标(#770):AI 代打是持续状态,齿轮=代打隐喻(§4.6 撤文字
@@ -184,62 +184,41 @@ const SeatCell = memo(function SeatCell({
             fmt={(d) => (d > 0 ? "+" : "−") + formatMoney(Math.abs(d))}
           />
         </span>
-        {/* 体力色条(纯展示,濒耗竭转朱砂):数值不入格(#698 口径),名词在
-            aria-label(原浮签触发元退化为 span,e2e 的 aria-label 契约不变)。 */}
+      </div>
+      <div className="l2">
         <span
-          className="strack-tip relative"
-          data-testid={TESTIDS.seatStamina(seat)}
-          aria-label={ATTR_TIPS.stamina.name}
+          className="seat-stamina relative"
+          role="meter"
+          aria-label="体力"
+          aria-valuemin={0}
+          aria-valuemax={STAMINA_MAX}
+          aria-valuenow={p.stamina}
         >
-          <span className={"strack" + (p.stamina < STAMINA_LOW ? " low" : "")}>
-            <i style={{ width: `${p.stamina}%` }} />
+          <span className={"strack" + (p.stamina < STAMINA_LOW ? " low" : "")} aria-hidden="true">
+            <i style={{ width: `${(p.stamina / STAMINA_MAX) * 100}%` }} />
           </span>
+          <span data-testid={TESTIDS.seatStamina(seat)}>{p.stamina}</span>
           <DeltaFloats
             floats={staminaFloats}
             fmt={(d) => (d > 0 ? "+" : "−") + String(Math.abs(d))}
           />
         </span>
-      </div>
-      {/* 发丝线分隔城池、手牌与藏品两组账目。 */}
-      <div className="l2">
-        <div className="l2hi">
-          <span
-            className="ai ai-city"
-            data-testid={TESTIDS.seatAttr(seat, "city")}
-            aria-label={`城池 ${p.properties.length}`}
-          >
-            <i className="ai-tag">城</i>
-            {p.properties.length}
-          </span>
-          <span
-            className="ai ai-hand"
-            data-testid={TESTIDS.seatAttr(seat, "hand")}
-            aria-label={`锦囊手牌 ${p.jinnangHandCount}`}
-          >
-            <i className="ai-tag">牌</i>
-            {/* 封顶态(#743 判词 A):≥10 只出「9+」,席位格内与常规态同形 */}
-            {handCountText(p.jinnangHandCount)}
-          </span>
-        </div>
-        <span className="l2sep" aria-hidden="true" />
-        <div className="l2lo">
-          <span
-            className="ai ai-hero"
-            data-testid={TESTIDS.seatAttr(seat, "hero")}
-            aria-label={`名将 ${p.heroes.length}`}
-          >
-            <i className="ai-tag">将</i>
-            {p.heroes.length}
-          </span>
-          <span
-            className="ai ai-gem"
-            data-testid={TESTIDS.seatAttr(seat, "gem")}
-            aria-label={`珍宝 ${p.treasures.length}`}
-          >
-            <i className="ai-tag">宝</i>
-            {p.treasures.length}
-          </span>
-        </div>
+        <span
+          className="ai ai-city"
+          data-testid={TESTIDS.seatAttr(seat, "city")}
+          aria-label={`城池 ${p.properties.length}`}
+        >
+          <i className="ai-tag">城</i>
+          {p.properties.length}
+        </span>
+        <span
+          className="ai"
+          data-testid={TESTIDS.seatAttr(seat, "hand")}
+          aria-label={`锦囊手牌 ${p.jinnangHandCount}`}
+        >
+          <i className="ai-tag">牌</i>
+          {handCountText(p.jinnangHandCount)}
+        </span>
       </div>
       {/* 放逐标记进度(#1378):格底缘 2px 金色进度轨(攒怒中在场,满档呼吸),
           状态表达 §4.6——进度即状态,格上零文字标牌;数值与名词进 aria-label。
