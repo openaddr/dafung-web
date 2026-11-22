@@ -13,6 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { homedir } from "node:os";
 
 export interface ApkConfig {
   buildRoot: string;
@@ -84,6 +85,10 @@ export function readApkConfig(file: string): ApkConfig {
   if (!/^[a-f0-9]{64}$/.test(config.certificateSha256))
     throw new Error("certificateSha256 必须是既有发布证书的 SHA256");
   return config;
+}
+
+export function readLocalApkConfig(): ApkConfig {
+  return readApkConfig(join(homedir(), ".config", "dafung-web", "apk.json"));
 }
 
 export async function withApkBuildLock<T>(

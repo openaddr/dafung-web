@@ -10,7 +10,7 @@ const slow: Record<string, string[]> = {
   "test:recovery": ["test/online/room-recovery.test.ts"],
   "test:build": ["test/infra/build-dist.test.ts"],
   "test:release-guard": ["test/infra/test-release.test.ts"],
-  "test:merge": ["test/infra/pr-merge.test.ts"],
+  "test:merge": ["test/infra/pr-merge.test.ts", "test/infra/pr-release.test.ts"],
 };
 
 const rules: Array<[RegExp, string[]]> = [
@@ -47,6 +47,7 @@ const rules: Array<[RegExp, string[]]> = [
   [/^(?:scripts\/(?:build-dist|dist-freshness)\.ts$|vite\.config\.[cm]?[jt]s$)/, ["test:build"]],
   [/^scripts\/(?:bun-release|test-lock)\.ts$/, ["test:release-guard"]],
   [/^scripts\/(?:pr-merge(?:-cleanup|-checks)?|change-classification)\.ts$/, ["test:merge"]],
+  [/^scripts\/(?:pr-release|release|android-apk)\.ts$/, ["test:merge"]],
 ];
 
 const behavior = new Set(["check:goldens", "check:sim-bench", ...Object.keys(slow)]);

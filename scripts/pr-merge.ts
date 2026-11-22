@@ -55,7 +55,7 @@ function gh(...args: string[]): string {
 }
 
 const usage =
-  "用法: bun scripts/pr-merge.ts <书签名> [--title 标题] [--body-file 路径] [--create-only] --expect 路径 [--expect 路径 ...]";
+  "用法: bun scripts/pr-merge.ts <书签名> [--title 标题] [--body-file 路径] [--create-only | --release] --expect 路径 [--expect 路径 ...]";
 const parsed = (() => {
   try {
     return parseArgs({
@@ -64,6 +64,7 @@ const parsed = (() => {
         title: { type: "string" },
         "body-file": { type: "string" },
         "create-only": { type: "boolean" },
+        release: { type: "boolean" },
         expect: { type: "string", multiple: true },
       },
       allowPositionals: true,
@@ -87,6 +88,20 @@ if (realpathSync(path.dirname(import.meta.dir)) !== realpathSync(process.cwd()))
   process.exit(1);
 }
 const createOnly = parsed.values["create-only"] ?? false;
+const releaseRequested = parsed.values.release ?? false;
+if (createOnly && releaseRequested) {
+  console.error("[pr-merge] --create-only 与 --release 互斥。");
+  process.exit(2);
+}
+const releasePlan = await (async () => {
+  if (!releaseRequested) return undefined;
+  try {
+    return (await import("./pr-release")).preparePrRelease();
+  } catch (error) {
+    console.error(`[pr-release] 预检失败 ${String(error)}`);
+    process.exit(1);
+  }
+})();
 const expectPaths = [...new Set((parsed.values.expect ?? []).map((p) => p.replaceAll("\\", "/")))];
 let bodyFile = parsed.values["body-file"];
 
@@ -506,5 +521,18 @@ if (!prNumber) {
   }
 }
 
+const mergedCommit = releasePlan
+  ? gh("pr", "view", prNumber, "--json", "mergeCommit", "-q", ".mergeCommit.oid")
+  : undefined;
 cleanupMerged(bookmark, jj);
 console.log(`[pr-merge] #${prNumber} 合并已验证。`);
+if (releasePlan && mergedCommit !== undefined) {
+  try {
+    releasePlan(mergedCommit);
+  } catch (error) {
+    console.error(
+      `[pr-release] PR #${prNumber} 已合入。${String(error)}\n修复报错后使用同一条 --release 命令续跑。`,
+    );
+    process.exitCode = 1;
+  }
+}
