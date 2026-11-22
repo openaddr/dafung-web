@@ -306,7 +306,7 @@ try {
   await waitServer(URL);
 
   // 段 2:N 遍冷 context 测量。桥键 = 生产构建双门禁(timings.ts E2E_DEBUG_BRIDGE_KEY
-  // 单源字面);种局走 seedSolo 快路径(机遇硬关是 seedSolo 内建语义),seed 经
+  // 单源字面);种局走 seedSolo 快路径,seed 经
   // evaluate 参数传入。
   browser = await chromium.launch({
     ...(win && { channel: "msedge" }),

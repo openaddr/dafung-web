@@ -2,8 +2,8 @@
 // 引擎既有注册面(skills.ts 的 SKILLS 技表 / heroes.ts 的 HEROES 名将池 / effects.ts 的
 // EFFECTS 效果注册表)。
 // 设计口径:
-//  - **注册进既有表,不另立平行表**:招贤三选一(recruitment)/机遇与锦囊送将
-//    (encounter-flow / jinnang-execution)/快照回链(snapshot)/事件消费面
+//  - **注册进既有表,不另立平行表**:招贤(recruitment)、锦囊送将
+//    (jinnang-execution)、快照恢复(snapshot)与事件消费
 //    (event-fold/event-extract)/卡面(HeroCardFace)全部直读 SKILLS·HEROES·EFFECTS——
 //    注册即全链生效,消费方零改动;skills.ts / heroes.ts / effects.ts 本体仍是纯数据/纯注册表。
 //  - **冲突即炸(零兜底)**:包 id、技能 id、名将 id、效果 id 任一与内置表或已装包冲突,

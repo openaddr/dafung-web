@@ -169,7 +169,7 @@ function presentableBatch(
     testEngine(e).place(seat, path.landIndex);
     events.push({ kind: "marchArrived", seat, round: 1, turn: 1, tileIndex: path.landIndex, path });
   }
-  events.push({ kind: "cashChanged", seat, round: 1, turn: 1, delta, reason: "encounter" });
+  events.push({ kind: "cashChanged", seat, round: 1, turn: 1, delta, reason: "stock" });
   return { events, pre };
 }
 

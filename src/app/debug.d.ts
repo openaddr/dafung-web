@@ -31,7 +31,7 @@ declare global {
       /** 当前控制器(交互入口)。 */
       controller: () => GameController | null;
       /** 加载地图、创建 LocalController、注册并切屏,再经 setupPickCapital 选都。
-       *  默认值共用 setup-defaults.ts,机遇关闭;显式 seats 须为 2–8 整数。 */
+       *  默认值共用 setup-defaults.ts;显式 seats 须为 2–8 整数。 */
       seedSolo: (opts?: { seed?: number; mapId?: string; seats?: number }) => Promise<void>;
       /** seedSolo 开局后冻结房间时钟,经公共命令推进到目标回合的稳定停靠态后解冻。
        *  afterFirstRoll 要求首掷已发生;应答/停靠规则见 registry.ts answerAtHumanStop/driveToRound。

@@ -11,16 +11,12 @@
 //     总线」——回合相位/掷骰/驻跸/购地/升级/招贤/得宝/售宝/破产/出牌宣布在派发点同步
 //     产出事件。词汇表未登记的时机(BeforeMarch/PassedPlayer 等前置钩子与高频途经点)
 //     不产出;新增事件种类优先在此表加一行(加时机三步的最后一步顺带落地)。
-//  2. 显式产出(emitGameEvent):无时机挂点的转移(行军落格/反应窗开合与识破/机遇
-//     触发/选都建城/两类变卖/交割/金钱结算,以及 #384 的名将被动技击发/主动技发动/
-//     抽锦囊进手/声望变更/体力变更/跳过回合)在各域
-//     模块结算点直呼,reason 用领域词
-//     短横 slug(供应/税/行情/机遇/横征/连环/天命/耗竭……开放词表,新来源即新 slug)。
+//  2. 显式产出(emitGameEvent):行军落格、反应窗开合、名将技能、抽锦囊、体力变更、
+//     清算交割等由各领域在结算点直接产出事件。reason 记录对应的结算来源。
 import type { GameEngine, GameCommand, TurnPhase, VictoryReason } from "./authority";
 import type { PendingSkillChoice } from "./choices";
 import type { LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
-import type { EncounterTier } from "./encounters";
 import type { ReactionCardSpend, ReactionView } from "./reaction-window";
 import type { MovePath } from "./board";
 import type { CityDamageEntry } from "./city-damage";
@@ -38,7 +34,6 @@ export const CMD_BRIEF: Record<GameCommand["type"], string> = {
   upgradeProperty: "扩军",
   endDecision: "按兵不动",
   resolveHeroPick: "招贤",
-  resolveEncounterChoice: "机遇抉择",
   resolveTreasureOwner: "珍宝交涉",
   declareBankruptcy: "认破产",
   confirmBankruptcySettle: "出售并清偿",
@@ -107,7 +102,7 @@ export interface MarchArrivedBody {
   tileIndex: number;
   path: MovePath;
 }
-/** 落格结算落定:机遇与固定事件效果落账后,权威宣告最终相位及决策载荷。
+/** 落格结算落定:城池及固定事件效果落账后,权威宣告最终相位及决策载荷。
  *  行军到达只负责落位,客户端不得在效果落账前推演购地/扩军/珍宝交涉。
  *  招贤候选仍由既有 AwaitingHeroPick 校准同步,本事件只携落格公开事实。 */
 export interface LandingResolvedBody {
@@ -170,14 +165,6 @@ export interface PropertyRejectedBody {
   kind: "propertyRejected";
   propertyId: string;
   reason: "insufficient-cash" | "maxed";
-}
-/** 机遇赐城(#719,传檄而定):无主城随机赐予的易主宣告——PropertyGained 时机派发点
- *  同步产出(与 PropertyBought 同表模式);效果名与「购」语义区分(#457)。折面=得城者
- *  Lv.1 入册(机遇赐城此前是折叠器已知无事件转移的级联缺口,本事件将其闭合);
- *  表现=城池易主宣告(fx 面派生,与购地/破产易主同通路)。 */
-export interface PropertyGrantedBody {
-  kind: "propertyGranted";
-  propertyId: string;
 }
 /** 金钱变更(被动经济结算点;delta 带符号,reason=领域词 slug,counterpartSeat=
  *  玩家间转移的对手座)。主动支出(购地/交涉付款)不产本事件——金额已在
@@ -323,18 +310,20 @@ export interface WarDrumSkillBody {
   skillKind: "warDrum";
 }
 export type HeroSkillActivatedBody = FireBlastSkillBody | ReliefSkillBody | WarDrumSkillBody;
-/** 抽锦囊进手(#384):座位+张数口径,不写牌名——暗牌内容不过事件,与对局日志
- *  「抽了一张锦囊」同隐私口径(ADR-0016)。开局发牌不发(开局校准点覆盖,与初始
- *  现金/体力同口径);游戏时进手(机遇/锦囊城)经 drawJinnangTraced 产出,
- *  count=实际入手张数(牌库空落空无转移,不产事件)。 */
-export interface JinnangDrawnBody {
+/** 城池摸牌锚定实际离开或停下的城格。 */
+export type JinnangDrawSource =
+  | { reason: "turnStart" }
+  | { reason: "cityPassed" | "cityArrived"; tileIndex: number };
+
+/** 游戏中摸锦囊入手。座位、张数和来源公开，牌面只投影给该座位。起手由开局校准同步。 */
+export type JinnangDrawnBody = JinnangDrawSource & {
   kind: "jinnangDrawn";
   count: number;
-  reason: string;
-}
+  cardIds?: string[];
+};
 /** 弃牌堆洗回牌库:抽牌遇牌库空且弃牌非空,弃牌堆骰序洗成新牌库(正式机制,非防御
  *  逻辑)。count=洗回张数(=洗回前弃堆全量);洗后牌序是暗信息,严禁携带牌 id
- *  (ADR-0016,与 jinnangDrawn 同口径且只少不多)。牌库与弃堆双空不产本事件
+ *  (ADR-0016)。牌库与弃堆双空不产本事件
  *  (落空=无转移,#384 口径),改产 jinnangExhausted 落空宣告。 */
 export interface JinnangReshuffledBody {
   kind: "jinnangReshuffled";
@@ -346,15 +335,7 @@ export interface JinnangReshuffledBody {
 export interface JinnangExhaustedBody {
   kind: "jinnangExhausted";
 }
-/** 声望变更(#384):delta=实际增减(无界直加,#1090),reason=领域词 slug(机遇抉择=
- *  encounter/天命城=fate,开放词表)。 */
-export interface ReputationChangedBody {
-  kind: "reputationChanged";
-  delta: number;
-  reason: string;
-}
-/** 体力变更(#384):delta=夹紧 0~100 后的实际增减,reason=领域词 slug(机遇=
- *  encounter/体力伤害=damage/被动技=skill/主动技赈济=heroRelief/休整期满回满=rest,开放词表)。 */
+/** 体力变更：delta 为夹紧后的实际增减，reason 记录伤害、技能、补给或休整等来源。 */
 export interface StaminaChangedBody {
   kind: "staminaChanged";
   delta: number;
@@ -363,20 +344,6 @@ export interface StaminaChangedBody {
 /** 跳过回合(#384):skipTurns 消费点产出，seat 为被跳过者，消费完即结束休整。 */
 export interface TurnSkippedBody {
   kind: "turnSkipped";
-}
-/** 机遇触发(掷骰命中且已抽中具体机遇;encounterId/tier=目录条目)。 */
-export interface EncounterTriggeredBody {
-  kind: "encounterTriggered";
-  encounterId: string;
-  tier: EncounterTier;
-}
-/** 机遇抉择落定(#385 缺口 6):auto 执行与 resolve 两路共用的结算点产出——
- *  choiceIndex 对应目录下标，末项之后是「无事发生」。位满换技能书携实际收益标记。 */
-export interface EncounterChosenBody {
-  kind: "encounterChoice";
-  encounterId: string;
-  choiceIndex: number;
-  grantsSkillBooks?: true;
 }
 /** 体力耗竭开始休整。归零伤害来源、实际降级及失城清单供演出宣告；城损及易主分别由
  *  propertyDamaged、assetTransferred 同步，休整按 restTurns 累加。 */
@@ -393,7 +360,7 @@ export interface JinnangAnnouncedBody {
   cardId: string;
   targetSeats: number[];
 }
-/** 城损技能应答后，整次出牌或出技结束时的权威相位。 */
+/** 回合摸牌后进入出牌阶段，或城损技能应答后收尾时的权威相位。 */
 export interface JinnangPhaseResumedBody {
   kind: "jinnangPhaseResumed";
   turnPhase: "AwaitingJinnang" | "Roll";
@@ -475,7 +442,6 @@ export type GameEventBody =
   | PropertyBurningChangedBody
   | PropertyBurningTickedBody
   | PropertyRejectedBody
-  | PropertyGrantedBody
   | CashChangedBody
   | TreasureGainedBody
   | TreasureSoldBody
@@ -496,11 +462,8 @@ export type GameEventBody =
   | JinnangDrawnBody
   | JinnangReshuffledBody
   | JinnangExhaustedBody
-  | ReputationChangedBody
   | StaminaChangedBody
   | TurnSkippedBody
-  | EncounterTriggeredBody
-  | EncounterChosenBody
   | ExhaustionResolvedBody
   | JinnangAnnouncedBody
   | JinnangPhaseResumedBody
@@ -537,7 +500,6 @@ export const GAME_EVENT_KINDS = [
   "propertyBurningChanged",
   "propertyBurningTicked",
   "propertyRejected",
-  "propertyGranted",
   "cashChanged",
   "treasureGained",
   "treasureSold",
@@ -557,11 +519,8 @@ export const GAME_EVENT_KINDS = [
   "jinnangDrawn",
   "jinnangReshuffled",
   "jinnangExhausted",
-  "reputationChanged",
   "staminaChanged",
   "turnSkipped",
-  "encounterTriggered",
-  "encounterChoice",
   "exhaustionResolved",
   "jinnangAnnounced",
   "jinnangPhaseResumed",
@@ -638,10 +597,6 @@ const MOMENT_EVENT_FACTORIES: Partial<Record<GameMoment, MomentEventFactory>> = 
     if (holding == null) throw new Error(`事件产出:城 ${propertyId} 无归属持有(数据 bug)`);
     return { kind: "propertyUpgraded", propertyId, newLevel: holding.level };
   },
-  PropertyGained: (_g, ctx) => ({
-    kind: "propertyGranted",
-    propertyId: requireMomentField(ctx.propertyId, "PropertyGained.propertyId"),
-  }), // 机遇赐城(#719):传檄而定易主宣告(#457 与「购」语义区分的时机挂点)
   TreasureGained: (_g, ctx) => ({
     kind: "treasureGained",
     treasureId: requireMomentField(ctx.treasureId, "TreasureGained.treasureId"),

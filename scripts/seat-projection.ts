@@ -115,9 +115,11 @@ function projectLogCommand(cmd: LoggedCommand): Record<string, unknown> {
       return { type };
     case "pickCapital":
       return { type, seat: logNumber(cmd.seat), tileIndex: logNumber(cmd.tileIndex) };
-    case "resolveHeroPick":
-    case "resolveEncounterChoice":
-      return { type, index: logNumber(cmd.index) };
+    case "resolveHeroPick": {
+      if (!("action" in cmd)) return { type, index: logNumber(cmd.index) };
+      if (cmd.action === "seekBook" || cmd.action === "skip") return { type, action: cmd.action };
+      return { type };
+    }
     case "resolveTreasureOwner": {
       const action = cmd.action;
       if (action?.type === "skip") return { type, action: { type: action.type } };
@@ -302,16 +304,15 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *    · 名将族 heroRecruited/playerBankrupt/heroDismissed(#1147 遣散:遣散者/名将/
  *      折书明细皆公开面)/skillFired/heroSkillActivated(麾下名将
  *      是公开信息);
- *    · 锦囊族 jinnangDrawn(count-only 设计,#384:座位+张数口径不写牌名,核实无需改)/
- *      jinnangReshuffled(座位+洗回张数:弃堆本明置、洗回张数公开,洗后牌序不外传——
+ *    · 锦囊族 jinnangReshuffled(座位+洗回张数:弃堆本明置、洗回张数公开,洗后牌序不外传——
  *      比 ADR-0016 保密口径只少不多)/
  *      jinnangAnnounced(出牌本就公开宣布)/jinnangVoided/jinnangInflicted/
  *      reactionAnswered(应答逐条公开记入战报——ADR-0016「应答记录不裁」,use=false
  *      无手牌信息,use=true 的牌已面明打出)/reactionFailed/
  *      duelResolved(#636/ADR-0030:拼点本就公开信息,座位/点数/胜者全员同见);
- *    · 机遇族 encounterTriggered/encounterChoice;声望/体力/跳过族 reputationChanged/
- *      staminaChanged/turnSkipped。
- *  - 裁剪(2 kind):
+ *    · 体力与回合状态 staminaChanged/turnSkipped。
+ *  - 裁剪:
+ *    · jinnangDrawn 仅摸牌座位可见 cardIds，座位、张数和来源（含城格）公开。
  *    · reactionOpened 的 jinnang 窗——view.queriedBySeat 是 per-seat private 档(god-view
  *      全集 = 谁持识破诡计,#281/ADR-0016 同案)。裁剪口径=**身份匿名、数量保留**:
  *      接收座位在列保留自己座位,其余一律置换 ANON_SEAT。数量必须保留:折叠器
@@ -331,6 +332,11 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
         return { ...ev, view: redactReactionView(ev.view, seat) };
       case "peekApplied":
         return ev.viewerSeat === seat ? ev : { ...ev, hand: [] }; // 仅窥方保留手牌内容
+      case "jinnangDrawn": {
+        if (ev.seat === seat) return ev;
+        const { cardIds: _cardIds, ...publicDraw } = ev;
+        return publicDraw;
+      }
       // ── 透传族(全桌公开,原样)──
       case "gameStarted":
       case "setupCompleted":
@@ -350,7 +356,6 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "propertyBurningChanged":
       case "propertyBurningTicked":
       case "propertyRejected":
-      case "propertyGranted": // #719:机遇赐城易主宣告(赐城本就公开——城池归属棋盘可见)
       case "cashChanged":
       case "treasureGained":
       case "treasureSold":
@@ -368,14 +373,10 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "skillMarksChanged":
       case "skillLearned": // #1146 用书学技:习得者/技/消耗书皆公开面(麾下与珍宝列表不裁,ADR-0016)
       case "heroSkillActivated":
-      case "jinnangDrawn":
       case "jinnangReshuffled":
       case "jinnangExhausted": // #588:双空落空宣告(零转移纯宣告,无座位外隐私字段)
-      case "reputationChanged":
       case "staminaChanged":
       case "turnSkipped":
-      case "encounterTriggered":
-      case "encounterChoice":
       case "exhaustionResolved":
       case "jinnangAnnounced":
       case "jinnangPhaseResumed":
@@ -469,7 +470,6 @@ export function assembleDownlinkShot(
 export const CALIBRATION_WINDOWS: ReadonlySet<TurnPhase> = new Set([
   "AwaitingJinnang",
   "AwaitingHeroPick",
-  "AwaitingEncounter",
   "AwaitingBankruptcySettle",
 ]);
 /** 节点事件校准(#388):批内出现即全量。牌库洗牌两处:开局 finishSetup(buildJinnangDeck)

@@ -52,18 +52,14 @@ const RETIRED: { phrase: string; note: string }[] = [
     phrase: "技卡",
     note: "#818 术语收官:「技能卡」正典(GLOSSARY Avoid 登记; Avoid 行本身带已废标记豁免)",
   },
-  {
-    phrase: "锦囊格",
-    note: '#826 全城池制:正典承载「锦囊城」(event:"jinnang";GLOSSARY 词条已废标记豁免)',
-  },
+  { phrase: "锦囊格", note: "#1595 固定抽牌城退役，按普通城结算" },
+  { phrase: "锦囊城", note: "#1595 己城按实际经过或到达补给锦囊" },
   {
     phrase: "宝物城",
     note: "#825 定名:「珍宝城」正典(GLOSSARY Avoid 行已带已废标记;ADR/dogfood 档案行行级豁免)",
   },
-  {
-    phrase: "天命格",
-    note: '#826 全城池制:正典承载「天命城」(event:"fate")',
-  },
+  { phrase: "天命格", note: "#1595 固定声望城退役，按普通城结算" },
+  { phrase: "天命城", note: "#1595 固定声望城退役，按普通城结算" },
   {
     phrase: "商市格",
     note: '#826 全城池制:正典承载「商市城」(event:"market")',
@@ -100,14 +96,10 @@ const RETIRED: { phrase: string; note: string }[] = [
     phrase: "定性放行",
     note: "#987 同上:「复验绿=放行」翻面为「复验绿=不可靠例,删」(2026-11-02)",
   },
-  {
-    phrase: "四成概率",
-    note: "ADR-0035 机遇必出:出现与否不掷概率(落在哪一档才归声望调制);教程旧句 2026-11-06 实锤",
-  },
-  {
-    phrase: "概率触发",
-    note: "ADR-0035:触发概率退役(GLOSSARY Avoid/ADR 标题行带翻面标记豁免)",
-  },
+  { phrase: "机遇必出", note: "#1595 普通落格直接进入城池结算" },
+  { phrase: "AwaitingEncounter", note: "#1595 旧落格抉择相位退役" },
+  { phrase: "jiyu.json", note: "#1595 旧机遇配置退役" },
+  { phrase: "JIYU_CONFIG", note: "#1595 服务端不再读取旧机遇配置" },
   {
     phrase: "force 判词",
     note: "#1295 种植件体系:判词归一为每族一处头注(单源 src/core/planter.ts),逐站 force 判词随 #1303 force 退役翻面(2026-11-08)",

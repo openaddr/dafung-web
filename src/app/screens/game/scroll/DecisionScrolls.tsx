@@ -1,11 +1,11 @@
-// 常规决策弹层(购地/扩军/机遇/耗竭):从旧侧栏 ActionInline 迁入弹层体系(S9 起壳为
+// 城池决策弹层(购地/扩军):从旧侧栏 ActionInline 迁入弹层体系(S9 起壳为
 // 全屏宣告横幅,卷轴壳退役)。
 // 交互重构原则:所有需要玩家权衡的选择一律走弹层,侧栏手牌区不再有决策按钮;
 // 弹层轮到即自动弹出(DecisionScrollLayer 按相位路由),且无可关 ×——决策相位必须选择。
 // 按钮 testid 沿用旧 action-* 命名(action-buy/…),文案与语义不变,
 // 只是位置从侧栏搬进弹层,e2e 断言零语义变化。
 // (经过都城必停后「驻跸或行进」卷轴已删:引擎直接结算,无玩家抉择。)
-// spec #107 C1(UI 半边选项集消费缝):三个弹层的可用性/不可用原因一律从快照
+// spec #107 C1(UI 半边选项集消费缝):购地与扩军的可用性/不可用原因一律从快照
 // choices(choices.ts 注册表产出,ADR-0013)读取,UI 不再重推 canBuy/maxed/reason
 // ——全游戏不可购原因只有引擎一处口径。
 import { useState } from "react";
@@ -14,103 +14,12 @@ import type { ChoiceOption } from "@core/choices";
 import { cityIncomeOf } from "@core/city-income";
 import { INITIAL_CITY_LEVEL } from "@core/constants";
 import { cityTradeTermsOf, sellValueOf, type PropertyDef } from "@core/economy";
-import { isOncePerGameEncounter, type EncounterTier } from "@core/encounters";
 import { formatMoney } from "@core/money";
-import { encounterArt } from "@app/components/card/encounter-art";
-import "@app/components/card/encounter-art.css";
 import { BannerShell, BannerButton } from "./BannerShell";
-import { EncounterGoldSprays } from "./EncounterSpray";
 import { AffordRow } from "./AffordRow";
 import { ValueTable, type ValueTableProperty } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
-
-// ── 抉择机遇(AwaitingEncounter,#124):画心 + 机遇文段 + 目录选项按钮 ──
-// 数据单源快照 choices(choices.ts 注册表产出):encounterId/encounterText 随选项携带,
-// label=选项原文,available/reason=引擎口径(如以宝换贤的「珍宝不足」),UI 不自行判定。
-// 选项下标 = snapshot.choices 数组下标，末尾可能附引擎提供的「无事发生」。
-// 三档视觉分档(#847,报告 P1-C2「机遇三档零视觉分档,霉运穿金戴银」):题印底色与
-// 题名 4px 侧饰条按档换色——好运=亮金(壳默认金渐变原样)/中性=黛青/霉运=朱砂;
-// 色变即状态(DESIGN §4.6),不加文字标牌。霉运档首选项从金色 primary 降笺钮——
-// 两害相权的损失不上金、不以庆祝相呈现;其余两档首选项仍 primary(目录序即推荐序)。
-// 实现注:题印 span 与题名 h2 是 BannerShell 题行的内置结构,皮肤经 display:contents
-// 包裹层 + 任意变体后代选择器下探,全部类名落字面量(Tailwind 静态抽取)。选择器契约 =
-// 壳体(.banner-shell)首子为题行、题行首子为题印 span、次子为题名 h2——壳题行结构若有变,
-// 此处皮肤随之失明(改壳时同步本表;#1155 侧饰槽渲染在题行末位,契约两位不变)。
-// 奇遇专属演出(#1155,#1111 收口决议):奇遇条目(ONCE_PER_GAME_ENCOUNTER_IDS 成员,
-// id 集合单源 core/encounters.ts,不建新数据通道)的机遇卷轴比普通卷轴宽一号 + 题行
-// 两端金穗纹饰——奇遇身份全靠形制传达,不立文字牌(ADR-0051);纯视觉零新增音效
-// (scrollOpen 照旧)、human/bot 同一套(统一原则 #927)。
-const TIER_SKIN: Record<EncounterTier, string> = {
-  好运: "[&_.banner-shell>div:first-child>h2]:border-gold-bright",
-  中性: "[&_.banner-shell>div:first-child>span:first-child]:bg-none [&_.banner-shell>div:first-child>span:first-child]:bg-seal-qing [&_.banner-shell>div:first-child>h2]:border-seal-qing",
-  霉运: "[&_.banner-shell>div:first-child>span:first-child]:bg-none [&_.banner-shell>div:first-child>span:first-child]:bg-danger [&_.banner-shell>div:first-child>h2]:border-danger",
-};
-// 侧饰条宽度/留白三档共用(只换 border 色,见上表)。
-const TITLE_BAR_SHAPE =
-  "[&_.banner-shell>div:first-child>h2]:border-l-4 [&_.banner-shell>div:first-child>h2]:pl-2";
-
-export function EncounterChoiceScroll({
-  encounterId,
-  encounterText,
-  choices,
-  onCommand,
-}: {
-  encounterId: string;
-  encounterText: string;
-  /** 当前相位选项集(快照透出):顺序即机遇目录选项序,含不可用项(禁用 + reason)。 */
-  choices: ChoiceOption[];
-  onCommand: (cmd: GameCommand) => void;
-}) {
-  // 三档皮肤:encounterTier 由注册表随选项盖章(choices.ts 单通道透出 def.tier),
-  // 本层不再查目录回链——章缺失或表缺档 = 数据 bug,当场炸出不静默回退(零兜底)。
-  const skin = TIER_SKIN[choices[0]!.encounterTier!];
-  if (skin == null)
-    throw new Error(
-      `机遇卷轴:档位「${String(choices[0]!.encounterTier)}」查无分档皮肤(choices 章 encounterTier 与 TIER_SKIN 不同步)`,
-    );
-  const isBadTier = choices[0]!.encounterTier === "霉运";
-  // 奇遇身份(#1155):id 派生(isOncePerGameEncounter 单源),与档位正交
-  //(奇遇三档皆有,分档皮肤照旧);宽卷+金穗只认身份,不认 human/bot。
-  const isOncePerGame = isOncePerGameEncounter(encounterId);
-  const art = encounterArt(encounterId);
-  return (
-    // display:contents 包裹层只作皮肤选择器宿主,不改排版(SeatRail 同法先例);
-    // 横幅 overlay 的 absolute 定位仍解析到原包含块,布局零位移。
-    <div className={`contents ${TITLE_BAR_SHAPE} ${skin}`}>
-      <BannerShell
-        title={`机遇 · ${encounterId}`}
-        testid={T.encounterScroll}
-        wide={isOncePerGame}
-        sideOrnament={isOncePerGame ? <EncounterGoldSprays /> : undefined}
-      >
-        <div className="encounter-story-layout">
-          <img className="encounter-story-art" src={art.src} alt={art.alt} decoding="async" />
-          <div>
-            <p className="mb-3.5 font-wenkai text-sm text-paper-dim">{encounterText}</p>
-            <div className="flex flex-col gap-2.5">
-              {choices.map((o, i) => (
-                <BannerButton
-                  key={o.id}
-                  primary={i === 0 && !isBadTier && o.available}
-                  disabled={!o.available}
-                  accessibleLabel={o.reason == null ? undefined : `${o.label} · ${o.reason}`}
-                  testid={T.encounterOption(i)}
-                  onClick={() => onCommand({ type: "resolveEncounterChoice", index: i })}
-                >
-                  {o.label}
-                </BannerButton>
-              ))}
-            </div>
-          </div>
-        </div>
-      </BannerShell>
-    </div>
-  );
-}
-
-// ── 体力耗竭卷轴(AwaitingExhaustion,#130)已退役:耗竭改全自动结算(外敌乘虚+休整,
-// encounter-flow exhaustIfDepleted),无选项相位即无卷轴;耗竭演出走浮字(event-extract)。──
 
 // ── 购地抉择(AwaitingDecision + PropertyAvailable)──
 export function BuyDecisionScroll({

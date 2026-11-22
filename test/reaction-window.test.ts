@@ -7,7 +7,7 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import type { TurnPhase } from "@core/authority";
-import { HEROES } from "@core/heroes";
+import { HEROES, heroById } from "@core/heroes";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import { botReactionDecision } from "@core/bot";
 import { armHero } from "@core/testing";
@@ -555,8 +555,31 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     expect(mover.position).toBe(PASSED); // 止步第一座拦检城
     expect(e.log.filter((l) => l.detail.includes("reactionWindow")).length).toBe(1);
     // 止步落格结算:途经城城主无珍宝 → 无事发生收尾
-    expect(e.turnPhase).toBe("Roll");
+    expect(e.activePlayer).not.toBe(mover);
   });
+});
+
+it.each([
+  { route: "原定落点", steps: 1, stop: false, destination: PASSED, payout: 0 },
+  { route: "拦停落点", steps: 2, stop: true, destination: PASSED, payout: 0 },
+  { route: "拦检后通过", steps: 2, stop: false, destination: LAND, payout: 20 },
+])("$route 只在真正离开敌城时结算深沟高垒", ({ steps, stop, destination, payout }) => {
+  const { e, mover, ownerSeat, owner } = marchUp({ ownerCards: ["半路杀出"] });
+  armHero(e, owner, heroById("caoren"));
+  pinDice(e, "march", [steps]);
+  const cash = owner.cash;
+
+  e.rollAndMove();
+
+  if (steps > 1) {
+    expect(e.turnPhase).toBe("AwaitingReaction");
+    expect(owner.cash).toBe(cash);
+    pinDice(e, "duel", [6, 1]);
+    e.respondReaction(ownerSeat, stop, stop ? "半路杀出" : undefined);
+  }
+  expect(e.pendingReaction).toBeNull();
+  expect(mover.position).toBe(destination);
+  expect(owner.cash).toBe(cash + payout);
 });
 
 describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () => {

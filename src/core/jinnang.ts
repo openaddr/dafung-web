@@ -2,16 +2,13 @@
 // 设计定稿见 docs/explanation/锦囊设计.md;术语见 GLOSSARY.md「锦囊与暗牌」。
 // 红线:拿到即用、无需思考的牌不配当锦囊——每张牌必须在「用不用/对谁用/
 // 这回合用哪张」上至少一问有真实权衡(设计拷问会定,2026-09-09)。
-// id 用中文且自带因果(名字与效果互证),与机遇目录同口径。
+// id 用中文且自带因果(名字与效果互证)。
 // 牌面用语规范(2026-09-24 归一,与 docs/reference/rules/06-锦囊.md 同一口径):
 //   目标句「指定一名/两名其他诸侯」「其余所有诸侯」;回指用「其」;数额用阿拉伯数字
 //   (300 两);城池(非城防)、现金(非家资)、名将(非武将);text 首段四字计名前缀
-//   仅入详情浮层,牌面笺脚渲染时剥离。(#575:时窗口径随军情密探即时化退役,现存
-//   九牌无持续时窗,新牌如带时窗再归一口径。)
+//   仅入详情浮层,牌面笺脚渲染时剥离。
 
-/** 锦囊标签(GLOSSARY.md):功能类别,每回合每类限用一张;一张牌可有多枚,
- *  使用即同时占用其全部标签的本回合名额。「即时」(#281)标记反应锦囊:不经出牌阶段,
- *  在反应窗打出——名额账本(jinnangUsedTags)只记活跃玩家的出牌阶段额度,反应牌不入账。 */
+/** 锦囊标签是供规则引用的功能类别，一张牌可有多枚。使用时机由目标域声明。 */
 export type JinnangTag = "谋" | "攻" | "守" | "援" | "即时";
 
 /** 目标域:由牌面固定(GLOSSARY.md 锦囊条)。two-others=两步目标段(语义见下
@@ -76,6 +73,7 @@ export type JinnangEffect =
   | { kind: "grantHero"; fallbackCash: number } // 求贤令:招贤一枚,名将尽折现
   | { kind: "levyAll"; amount: number } // 横征暴敛:全体其他玩家各付(上限=现金,不清算)
   | { kind: "stealTreasure" } // 窃玉偷香:随机夺目标一张珍宝
+  | { kind: "staminaDamage"; damage: number; range: number } // 袭扰:近距离对手损失体力
   | { kind: "fireWall"; damage: number } // 火烧连营(#1389 溅射化):以指定城为火源,对此城及前方距离 1、2 格上的城各 damage 点火焰伤害(结算单点 defense.applyCityDamage;识破按城拆份)
   | { kind: "skipTurn" } // 缓兵之计:目标下回合被跳过
   | { kind: "peek" } // 军情密探:即时窥探目标锦囊手牌一次(#575,窥探弹层 viewer-only 演出)
@@ -91,7 +89,10 @@ interface JinnangCardDef {
   effect: JinnangEffect;
 }
 
-/** 目录 v1(#281 起 9 种):设计拷问会定稿,变更须过「无博弈不锦囊」红线评审。
+const XIRAO_DAMAGE = 10;
+const XIRAO_RANGE = 3;
+
+/** 锦囊目录。变更须过「无博弈不锦囊」红线评审。
  *  反应牌两张(识破诡计/半路杀出,「即时」标记)不经出牌阶段,只在反应窗打出。 */
 export const JINNANG_CARDS: JinnangCardDef[] = [
   {
@@ -143,6 +144,14 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     effect: { kind: "fireWall", damage: 8 },
   },
   {
+    id: "袭扰",
+    copies: 2,
+    tags: ["攻"],
+    targetDomain: "one",
+    text: `短兵袭扰:指定双向 ${XIRAO_RANGE} 格内一名未休整的其他诸侯，使其损失 ${XIRAO_DAMAGE} 点体力。`,
+    effect: { kind: "staminaDamage", damage: XIRAO_DAMAGE, range: XIRAO_RANGE },
+  },
+  {
     id: "识破诡计",
     copies: 2,
     tags: ["即时"],
@@ -163,7 +172,7 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     copies: 2,
     tags: ["援"],
     targetDomain: "self",
-    text: "张榜求贤:招揽一名名将来投;帐下已满或名将已尽则折现 300 两。",
+    text: "张榜求贤:随机招来一名名将。麾下满编时将其授技印成书，名将已尽时折现 300 两。",
     effect: { kind: "grantHero", fallbackCash: 300 },
   },
 ];
@@ -177,8 +186,9 @@ export function isReactionCard(def: JinnangCardDef): boolean {
 
 /** 起手发牌张数:进 Playing 前座位序各发。 */
 export const JINNANG_STARTING_HAND = 1;
+export const JINNANG_TURN_DRAW = 1;
 
-/** 牌库构成:目录 copies 展平(#281 起 9 种 18 张:原 8 种 15 张 + 半路杀出×3)。 */
+/** 牌库构成由锦囊目录的 copies 展平。 */
 export const JINNANG_DECK_LIST: string[] = JINNANG_CARDS.flatMap((c) =>
   Array.from({ length: c.copies }, () => c.id),
 );

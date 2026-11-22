@@ -1,5 +1,5 @@
 // 特殊城池事件字段与落格链序(#823/#824/#826,ADR-0037):引擎缝单测。
-// fixture 图定种子自证整条落格链:事件城免掷随机机遇、固定事件先于交易链、
+// fixture 图定种子自证整条落格链:固定事件先于交易链、
 // 访客/城主触发语义、池空/满员沉默(#826 起功能格退役,盘面只剩城池)。
 // 测试只走外部行为(装载器产出 / 引擎相位·日志·公共状态),不碰内部实现。
 import { describe, it, expect, afterEach } from "bun:test";
@@ -9,9 +9,11 @@ import { createDice } from "@core/dice";
 import { loadMap } from "@core/board-loader";
 import { HEROES } from "@core/heroes";
 import { HERO_CAPACITY } from "@core/constants";
+import { giveJinnang, grantProperty, pinDice, placePlayer, setStamina } from "@core/planter";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
+import guanzhongData from "../public/maps/guanzhong.json";
 
-// ── fixture 图:20 城全城池(普通×1 + 事件城×5 + 填充城×14,#826 起无第三种格子)──
+// ── fixture 图:20 城全城池(普通×3 + 事件城×3 + 填充城×14)──
 function cityTile(i: number, name: string, extra: Record<string, unknown> = {}) {
   return {
     id: `tile-${i}`,
@@ -28,14 +30,14 @@ function cityTile(i: number, name: string, extra: Record<string, unknown> = {}) 
   };
 }
 
-// 格位:0 普通 / 1 招贤 / 2 锦囊 / 3 天命 / 4 商市 / 5 宝藏(event:treasure);
+// 格位:0 普通 / 1 招贤 / 2 普通 / 3 普通 / 4 商市 / 5 宝藏(event:treasure);
 // 6–19 填充城(都城席位与掷骰路径由此远离落格目标,任何 die 1–6 × 目标 0–5 组合
 // 都不撞都城通路)。
 const FULL_TILES = [
   cityTile(0, "陈留"),
   cityTile(1, "招贤城", { event: "hero" }),
-  cityTile(2, "锦囊城", { event: "jinnang" }),
-  cityTile(3, "天命城", { event: "fate" }),
+  cityTile(2, "南徐"),
+  cityTile(3, "受禅台"),
   cityTile(4, "商市城", { event: "market" }),
   cityTile(5, "宝藏城", { event: "treasure" }),
   ...Array.from({ length: 14 }, (_, i) => cityTile(6 + i, `填城${i + 1}`)),
@@ -60,13 +62,12 @@ const SEATS: SeatConfig[] = [
   { name: "B", isBot: false, guohao: "蜀" },
 ];
 
-function makeEngine(seed = 7, encounter?: { enabled?: boolean }): GameEngine {
+function makeEngine(seed = 7): GameEngine {
   const cfg: EngineConfig = {
     seats: SEATS,
     targetNetWorth: 30000,
     startingCash: 10000,
     startingTreasures: 0,
-    ...(encounter ? { encounter: { enabled: true } } : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -118,7 +119,7 @@ function peekDie(e: GameEngine): number {
   return probe.roll().die;
 }
 
-/** 挪位后掷骰,恰好落在 targetTile(真掷骰路径:过 settleMarchLanding 机遇挂点)。
+/** 挪位后掷骰,恰好落在 targetTile(通过真实掷骰和行军命令)。
  *  落点/途经不得是自己都城——都城通路(补给+招贤/驻跸)是另一条分流,不属本票落格链。 */
 function landActiveOn(e: GameEngine, targetTile: number): void {
   const p = e.activePlayer;
@@ -134,13 +135,69 @@ function landActiveOn(e: GameEngine, targetTile: number): void {
   passJinnang(e).rollAndMove();
 }
 
+describe("行军直接结算城池(#1593)", () => {
+  it("普通落格直接开放购城决策", () => {
+    const e = makeEngine(11);
+    finishSetup(e);
+    landActiveOn(e, 0);
+
+    expect(e.turnPhase).toBe("AwaitingDecision");
+    expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "tile-0" });
+  });
+
+  it("拦停止步后在实际落点结算，城主无珍宝时结束回合", () => {
+    const e = makeEngine(11);
+    finishSetup(e);
+    const moverSeat = e.activeIndex;
+    const ownerSeat = 1 - moverSeat;
+    grantProperty(e, ownerSeat, "tile-0", 1);
+    giveJinnang(e, ownerSeat, ["半路杀出"]);
+    placePlayer(e, moverSeat, e.board.count - 1);
+    pinDice(e, "march", [2]);
+    passJinnang(e).rollAndMove();
+    expect(e.turnPhase).toBe("AwaitingReaction");
+
+    pinDice(e, "duel", [6, 1]);
+    e.respondReaction(ownerSeat, true, "半路杀出");
+
+    expect(e.players[moverSeat].position).toBe(0);
+    expect(e.activeIndex).toBe(ownerSeat);
+  });
+
+  it("都城必停结清补给后进入下一席回合", () => {
+    const e = makeEngine(11);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.activeIndex;
+    const cash = mover.cash;
+    const handSize = mover.jinnangHandCount;
+    placePlayer(e, seat, mover.capitalIndex - 1);
+    setStamina(e, seat, 40);
+    pinDice(e, "march", [2]);
+    passJinnang(e).rollAndMove();
+
+    expect(mover).toMatchObject({
+      position: mover.capitalIndex,
+      cash: cash + 1000,
+      stamina: 70,
+      jinnangHandCount: handSize + 1,
+    });
+    expect(e.activeIndex).toBe(1 - seat);
+  });
+});
+
 // ────────────────────────── 装载缝(#824 AC1)──────────────────────────
 describe("装载器 event 字段(#824)", () => {
-  it("五类合法 event 全接受并落到 TileDef;普通城无 event 合法", () => {
+  it("关中受禅台按普通城装载", () => {
+    const m = loadMap(guanzhongData);
+    const tile = m.tiles.find(({ name }) => name === "受禅台");
+    expect(tile).toBeDefined();
+    expect(tile!.event).toBeUndefined();
+  });
+
+  it("三类合法 event 全接受并落到 TileDef;普通城无 event 合法", () => {
     const m = loadMap(fixtureData(FULL_TILES));
     expect(m.tiles[1].event).toBe("hero");
-    expect(m.tiles[2].event).toBe("jinnang");
-    expect(m.tiles[3].event).toBe("fate");
     expect(m.tiles[4].event).toBe("market");
     expect(m.tiles[5].event).toBe("treasure");
     expect(m.tiles[0].event).toBeUndefined(); // 可选字段的语义:这块地有没有固定事件
@@ -148,9 +205,9 @@ describe("装载器 event 字段(#824)", () => {
     for (const t of m.tiles) expect(t.propertyId).toBe(`tile-${t.index}`); // propertyId = tile id(全城池制恒在)
   });
 
-  it("非法 event 值响亮报错", () => {
+  it.each(["blessing", "jinnang", "fate"])("拒绝非法 event %s", (event) => {
     const d = fixtureData(FULL_TILES);
-    (d.tiles[0] as Record<string, unknown>).event = "blessing";
+    (d.tiles[0] as Record<string, unknown>).event = event;
     expect(() => loadMap(d)).toThrow(/event/);
   });
 
@@ -161,21 +218,8 @@ describe("装载器 event 字段(#824)", () => {
   });
 });
 
-// ──────────────── 落格链缝:机遇门 + 触发语义(#824 AC2/AC3)────────────────
+// ──────────────── 落格链缝:固定事件与交易链(#824 AC2/AC3)────────────────
 describe("事件城落格链(#824)", () => {
-  it("机遇总开关开:普通城掷出机遇,事件城不掷(固定事件照常触发)", () => {
-    const a = makeEngine(11, { enabled: true });
-    finishSetup(a);
-    landActiveOn(a, 0); // 普通城:机遇必出照旧
-    expect(testEngine(a).logText()).toMatch(/机遇/);
-
-    const b = makeEngine(11, { enabled: true });
-    finishSetup(b);
-    landActiveOn(b, 1); // 招贤城:免掷随机机遇,固定事件接管
-    expect(testEngine(b).logText()).not.toMatch(/机遇/);
-    expect(b.turnPhase).toBe("AwaitingHeroPick");
-  });
-
   it("固定事件先于交易链:招贤解完才进可购决策", () => {
     const e = makeEngine(13);
     finishSetup(e);
@@ -236,32 +280,41 @@ describe("事件城落格链(#824)", () => {
     expect(p.cash).toBe(cash0); // 无租:除事件效果外零现金变动
   });
 
-  it("招贤池空:事件沉默、交易链照常", () => {
+  it("招贤池空仍可求书，随后继续交易链", () => {
     const e = makeEngine(41);
     finishSetup(e);
     for (const h of HEROES) e.recruitedHeroIds.add(h.id);
     landActiveOn(e, 1);
-    expect(e.turnPhase).toBe("AwaitingDecision"); // 直入交易链
-    expect(testEngine(e).logText()).not.toMatch(/招贤纳士/); // 事件沉默
+    expect(e.turnPhase).toBe("AwaitingHeroPick");
+    expect(e.offeredHeroes).toEqual([]);
+    const before = e.activePlayer.treasures.length;
+    e.submitCommand({ type: "resolveHeroPick", action: "seekBook" });
+    expect(e.activePlayer.treasures).toHaveLength(before + 1);
+    expect(e.turnPhase).toBe("AwaitingDecision");
   });
 
-  it("麾下满员:事件沉默、交易链照常", () => {
+  it("麾下满员可跳过招贤并继续交易链", () => {
     const e = makeEngine(43);
     finishSetup(e);
     const p = e.activePlayer;
-    for (let i = 0; i < HERO_CAPACITY; i++) armHero(e, p, HEROES[i]!);
+    const cohort = HEROES.filter(({ id }) => id !== "zhouyu" && id !== "zhangxingcai").slice(
+      0,
+      HERO_CAPACITY,
+    );
+    for (const hero of cohort) armHero(e, p, hero);
     landActiveOn(e, 1);
+    expect(e.turnPhase).toBe("AwaitingHeroPick");
+    expect(e.offeredHeroes).toEqual([]);
+    e.submitCommand({ type: "resolveHeroPick", action: "skip" });
     expect(e.turnPhase).toBe("AwaitingDecision");
-    expect(testEngine(e).logText()).not.toMatch(/招贤纳士/);
   });
 
-  it("event:'treasure' 珍宝城(#825 接线):免掷机遇、探宝先行、续进交易链", () => {
-    const e = makeEngine(47, { enabled: true });
+  it("event:'treasure' 珍宝城(#825 接线):探宝先行、续进交易链", () => {
+    const e = makeEngine(47);
     finishSetup(e);
     const mover = e.activePlayer;
     e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     landActiveOn(e, 5);
-    expect(testEngine(e).logText()).not.toMatch(/机遇/); // 事件城免掷(分流按 event 字段)
     expect(mover.treasures.map((t) => t.id)).toEqual(["probe-t"]); // 探宝已在落格先行(#825)
     expect(e.turnPhase).toBe("AwaitingDecision"); // 探宝毕续进交易链(tile-5 无主 → 可购决策)
   });
@@ -280,8 +333,8 @@ describe("事件城落格链(#824)", () => {
   });
 });
 
-// ──────────── 四类固定事件各自结算(#824 AC4;#826 起事件城是唯一承载)────────────
-describe("四类固定事件各自结算(#826)", () => {
+// ──────────── 固定事件各自结算(#824 AC4;#826 起事件城是唯一承载)────────────
+describe("固定事件各自结算(#826)", () => {
   afterEach(() => sweepTestHeroes());
 
   it("招贤城:三选一明牌流(候选生成定种子可复现)", () => {
@@ -298,35 +351,6 @@ describe("四类固定事件各自结算(#826)", () => {
     expect(h2.offeredHeroes.map((o) => o.skillIds)).toEqual(
       h1.offeredHeroes.map((o) => o.skillIds),
     );
-  });
-
-  it("锦囊城:落格必抽 1 张(牌序同种子可复现),续进交易链", () => {
-    const j = makeEngine(29);
-    finishSetup(j);
-    const jMover = j.activePlayer;
-    const jhand0 = jMover.jinnangHand.length;
-    landActiveOn(j, 2); // 锦囊城
-    expect(jMover.jinnangHand.length).toBe(jhand0 + 1); // 落格必抽 1
-    const j2 = makeEngine(29);
-    finishSetup(j2);
-    landActiveOn(j2, 2);
-    expect(j2.jinnangDeck).toEqual(j.jinnangDeck); // 同种子同牌序消耗
-    expect(j.turnPhase).toBe("AwaitingDecision"); // 抽完续交易链
-    expect(testEngine(j).logText()).toMatch(/抽一张锦囊/);
-  });
-
-  it("天命城:+20 声望,无夹紧越界累加(#1090)", () => {
-    const f2 = makeEngine(31);
-    finishSetup(f2);
-    const m2 = f2.activePlayer;
-    landActiveOn(f2, 3); // 天命城
-    expect(m2.reputation).toBe(20);
-    const f3 = makeEngine(31);
-    finishSetup(f3);
-    const m3 = f3.activePlayer;
-    m3.reputation = 95;
-    landActiveOn(f3, 3);
-    expect(m3.reputation).toBe(115); // 95+20=115,越界继续
   });
 
   it("商市城:随机行情 ±100–200,行情落账后续进交易链", () => {

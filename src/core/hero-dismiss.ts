@@ -1,5 +1,5 @@
 // 遣散域(#1147,spec #1144 拆票 C/五):免费主动遣散的机制单点——名册遣散命令
-// (dismissHero)的校验与结算。玩家主动「遣散回池+折书」免费、无声望代价;
+// (dismissHero)的校验与结算。玩家主动遣散名将回池并折书，免收费用。
 // 清算期间禁止遣散,名将只能在实际破产后回池,不参与筹款。
 // 机制三件:槽移除(整槽弃,#785 同款——已授技与冷却账随槽俱弃,无孤儿键)+
 // recruitedHeroIds 划名回池(finalizeBankruptcy 同口径,再招=全新实例重掷授技)+
@@ -7,7 +7,6 @@
 // 派发,printSkillBooks 同构零特判——TreasureGained 监听技白得照走珍宝通路)。
 // 事件:heroDismissed 显式 emit(非触发时机——不进 MOMENTS、无 scope/冷却语义),
 // skillIds=折书明细随事件走;折书入位本身随同批 treasureGained 事件各自折叠。
-// 独立 mini 机制自成模块的先例与机遇域同构(玩家命令两段式:引擎校验域内自洽,壳上薄委托);
 // 不入 roster.ts 的理由:game-events 已 import roster(heroSlotOf),本域再反向依赖
 // game-events(emitGameEvent)会成环——遣散是麾下生命周期出账侧,独立成域最薄。
 import type { GameEngine } from "./authority";

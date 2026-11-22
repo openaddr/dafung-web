@@ -1,6 +1,5 @@
-// 招贤纳士卷轴:三选一,无「不取」——旧版同款:AwaitingHeroPick 相位引擎不接受
-// endDecision(submitCommand 守卫 assertPhase("AwaitingDecision","EndDecision")),
-// 必须三选其一。
+// 组件收口:BannerShell 壳与底部 BannerButton,候选复用 SelectableFaceButton。
+// 招贤纳士卷轴:看卡后招将,或用底部按钮求书、跳过。
 // #360:三张 HeroCardFace 紧凑档(pick 档 7.6px 基 114×152,与手牌槽位同档)并排
 // 替换旧横排列表——归一后招贤/出牌阶段确认/府库同一张名将卡面(「选将是收将的第一
 // 眼」= 日后在府库摩挲的同一张)。
@@ -13,11 +12,13 @@
 // 后再发 resolveHeroPick——卷轴随相位收场,「入麾下」落印即落定。
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { GameCommand } from "@core/authority";
+import type { ChoiceOption } from "@core/choices";
 import { HeroCardFace, heroDefOf, skillIdFromClick } from "@app/components/card/HeroCardFace";
 import { SelectableFaceButton } from "@app/components/card/SelectableFaceButton";
 import { FX, UI } from "@app/fx/timings";
-import { BannerShell } from "./BannerShell";
+import { BannerButton, BannerShell } from "./BannerShell";
 import { SkillGlossaryDialog, type SkillGlossaryTarget } from "../SkillGlossaryDialog";
+import { TESTIDS } from "../testids";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 /** 候选名将的最小展示形状(snapshot.offeredHeroes 行:展示字段 + 预掷授技,#787);
@@ -32,10 +33,11 @@ interface HeroOfferInfo {
 interface HeroPickScrollProps {
   /** 候选名将(通常 3 个)。 */
   offered: HeroOfferInfo[];
+  choices: ChoiceOption[];
   onCommand: (cmd: GameCommand) => void;
 }
 
-export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
+export function HeroPickScroll({ offered, choices, onCommand }: HeroPickScrollProps) {
   // 先看后选(2026-11-01 用户拍板:点卡不再直选):点卡与点技名 chip 都开技能全览
   // 详情弹框,弹框内「收为麾下」拍板——技名不知道是啥、想点开看看却直接定将的误选
   // 通路就此断掉。#605 chip 分流保留:点技名仍弹框,只是额外高亮被点技;弹框记候选
@@ -47,6 +49,15 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
     null,
   );
   const [confirming, setConfirming] = useState<number | null>(null);
+  const picks = choices.map(({ heroPick, ...option }) => {
+    if (heroPick == null) throw new Error(`招贤选项 ${option.id} 缺少命令载荷`);
+    return { ...option, pick: heroPick };
+  });
+  const canConfirm =
+    confirming === null &&
+    picks.some(
+      ({ available, pick }) => available && "index" in pick && pick.index === glossary?.index,
+    );
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -54,15 +65,13 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
     },
     [],
   );
-  if (!offered.length) return null; // 与旧 showHeroPickScroll 一致:无候选不弹
-  const pick = (e: ReactMouseEvent<HTMLButtonElement>, i: number) => {
-    if (confirming != null) return; // 钤印节拍在途,吞掉重复点击
+  const preview = (e: ReactMouseEvent<HTMLButtonElement>, index: number, hero: HeroOfferInfo) => {
     setGlossary({
-      index: i,
+      index,
       target: {
-        heroId: offered[i]!.id,
-        poolSkillIds: heroDefOf(offered[i]!.id).skillPool,
-        skillIds: offered[i]!.skillIds,
+        heroId: hero.id,
+        poolSkillIds: heroDefOf(hero.id).skillPool,
+        skillIds: hero.skillIds,
         skillId: skillIdFromClick(e),
       },
     });
@@ -80,22 +89,54 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
   let chipSkip = 0;
   return (
     <>
-      <BannerShell title="招贤纳士" testid={T.heroPickScroll}>
+      <BannerShell
+        title="招贤纳士"
+        testid={T.heroPickScroll}
+        footer={
+          <div className="flex items-center justify-center gap-3">
+            {picks.map(({ id, pick, label, available }) =>
+              "action" in pick ? (
+                <BannerButton
+                  key={id}
+                  primary={pick.action === "seekBook"}
+                  disabled={confirming !== null || !available}
+                  testid={
+                    pick.action === "seekBook"
+                      ? TESTIDS.actionButton("seek-book")
+                      : T.heroPickDecline
+                  }
+                  onClick={() => onCommand({ type: "resolveHeroPick", ...pick })}
+                >
+                  {label}
+                </BannerButton>
+              ) : null,
+            )}
+          </div>
+        }
+      >
+        {!picks.some(({ pick }) => "index" in pick) && (
+          <p className="m-0 py-2 text-center">本次无可招名将</p>
+        )}
         <div className="flex justify-center gap-5">
-          {offered.map((h, i) => {
+          {picks.map(({ id, pick, available }) => {
+            if (!("index" in pick)) return null;
+            const { index } = pick;
+            const hero = offered[index];
+            if (hero == null) throw new Error(`招贤选项 ${id} 缺少名将候选 ${index}`);
             const skip = chipSkip;
-            chipSkip += h.skillIds.length;
+            chipSkip += hero.skillIds.length;
             return (
               // 位点类 relative:confirming 钤印 span 的锚位根(#850);壳单源 #1188
               <SelectableFaceButton
-                key={h.id}
-                data-testid={T.heroPickOption(i)}
-                onClick={(e) => pick(e, i)}
+                key={id}
+                data-testid={T.heroPickOption(index)}
+                disabled={confirming !== null || !available}
+                onClick={(e) => preview(e, index, hero)}
                 style={{ ["--chip-skip" as string]: String(skip) }}
                 className="relative"
               >
-                <HeroCardFace heroId={h.id} skillIds={h.skillIds} size="pick" />
-                {confirming === i && (
+                <HeroCardFace heroId={hero.id} skillIds={hero.skillIds} size="pick" />
+                {confirming === index && (
                   <span
                     className="pick-seal-gold"
                     aria-hidden="true"
@@ -113,7 +154,7 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
       </BannerShell>
       <SkillGlossaryDialog
         target={glossary?.target ?? null}
-        onPick={glossary != null ? () => confirmPick(glossary.index) : undefined}
+        onPick={canConfirm && glossary != null ? () => confirmPick(glossary.index) : undefined}
         onClose={() => setGlossary(null)}
       />
     </>

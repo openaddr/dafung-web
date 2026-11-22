@@ -1,7 +1,6 @@
 /* 卡面画材与基座单源(C5 瘦身收口):.jinnang-card / .hface 曾两文件同值镜像
    (各文件头注自认「改一处必改另一处」,#556 改色已被迫双改一次)。经 @import 由
-   jinnang-card.css / hero-card.css 引入,消费面(含 manual EncounterCardFace 复用
-   .jinnang-card 类)自动覆盖。
+   jinnang-card.css / hero-card.css 引入。
    画材色 = 物理宣纸器物色(#511 B 案,豁免登记:随器物不随主题,玄墨鎏金后 theme
    纸系 token 已整阶反转成深底阶,故落本地变量不升 theme token)。
    基座 = 3:4 竖笺(15em×20em)+ 漆金描边 + 宣纸渐变 + 双影 + isolate 层叠上下文

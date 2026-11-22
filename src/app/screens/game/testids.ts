@@ -16,7 +16,7 @@ export const TESTIDS = {
   seatCash: (seat: number) => `seat-cash-${seat}` as const,
   /** 体力色条,濒耗竭时 low 类转朱砂。 */
   seatStamina: (seat: number) => `seat-stamina-${seat}` as const,
-  /** 属性计数(attr ∈ city|hand|rep|gem|hero;值裸排,名词在 aria-label)。 */
+  /** 属性计数(attr ∈ city|hand|gem|hero;值裸排,名词在 aria-label)。 */
   seatAttr: (seat: number, attr: string) => `seat-attr-${attr}-${seat}` as const,
   /** 托管席位的常驻展示标记;开关入口为设置弹层 settingsAutopilot(ADR-0028)。 */
   seatHosted: (seat: number) => `seat-hosted-${seat}` as const,
@@ -69,13 +69,15 @@ export const TESTIDS = {
   heroInspectionSkills: "hero-inspection-skills",
   heroInspectionSkill: (skillId: string) => `hero-inspection-skill-${skillId}` as const,
   heroInspectionActions: "hero-inspection-actions",
-  /** 技能书格(treasureId=书实例 id):己方出牌阶段且可学时为 button。 */
+  /** 手牌架上的可研读技能书。 */
   bookUse: (treasureId: string) => `book-use-${treasureId}` as const,
   /** 名将遣散钮(heroId=麾下将 id):己方回合可用,二段确认。 */
   heroDismiss: (heroId: string) => `hero-dismiss-${heroId}` as const,
-  /** 多名可学时的弹窗容器与可学者按钮(heroId=麾下将 id)。 */
+  /** 研读弹窗容器与可学者按钮(heroId=麾下将 id)。 */
   bookLearnModal: "book-learn-modal",
   bookLearnItem: (heroId: string) => `book-learn-${heroId}` as const,
+  bookLearnConfirm: "book-learn-confirm",
+  bookLearnCancel: "book-learn-cancel",
   modalClose: "modal-close",
   modalMinimize: "modal-minimize",
   modalBackdrop: "modal-backdrop",
@@ -227,30 +229,26 @@ export const TESTIDS = {
   notStartedBack: "not-started-back",
 
   // ── 诸侯详情钻入明细 ──
-  /** 明细弹层容器(战盔→名录 / 玉璧→珍宝列表 / 墨竹→声望;PileShell 壳)。 */
+  /** 名将与珍宝明细弹层容器。 */
   seatHeroModal: "seat-hero-modal",
   seatGemModal: "seat-gem-modal",
-  seatRepModal: "seat-rep-modal",
 
-  // ── 诸侯详情:城池/名将/珍宝/声望列可点开明细 ──
+  // ── 诸侯详情:城池/名将/珍宝列可点开明细 ──
   /** 弹层容器(ui/dialog 底件,题名可拖;打开不暂停对局,行随快照实时重渲)。 */
   warlordsOverview: "warlords-overview",
   /** 总览行(seat = 座位号,座序即行序，一人一行)。状态类挂点:
    *  自机行 .self 金描边 / 破产行 .dead 灰化 / 活跃方 .is-active(印金圈)。 */
   warlordsRow: (seat: number) => `warlords-row-${seat}` as const,
-  /** 行内数值本体(cash/stamina/hand/rep),仅含数值文本。 */
+  /** 行内数值本体(cash/stamina/hand),仅含数值文本。 */
   warlordsCash: (seat: number) => `warlords-cash-${seat}` as const,
   warlordsStamina: (seat: number) => `warlords-stamina-${seat}` as const,
   warlordsHand: (seat: number) => `warlords-hand-${seat}` as const,
-  warlordsRep: (seat: number) => `warlords-rep-${seat}` as const,
   /** 城池列,点击打开名下城池清单。 */
   warlordsCities: (seat: number) => `warlords-cities-${seat}` as const,
   /** 名将列(可点钻入件):公开名将数和名字，点击开名将名录。 */
   warlordsHeroes: (seat: number) => `warlords-heroes-${seat}` as const,
   /** 珍宝计数，点击开珍宝列表。 */
   warlordsGems: (seat: number) => `warlords-gems-${seat}` as const,
-  /** 声望详情钻入钮;纯数值另挂 warlordsRep,与按钮分开定位。 */
-  warlordsRepCell: (seat: number) => `warlords-rep-cell-${seat}` as const,
 
   // ── 联机连接横幅(shared/ConnectionBanner)──
   connectionBanner: "connection-banner",

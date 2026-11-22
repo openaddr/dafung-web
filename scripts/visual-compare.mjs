@@ -7,7 +7,7 @@
 // 场景:主页、单机设置、对局静帧、终局。对局经 UI 开局,parkMyTurn 停靠后冻结时钟;
 // 冻结不拦同步命令链,因此须复核停靠态。终局经 armGameOver 布置暂停的客户端副本,
 // 造态失败报告 exit 3 并保留前三场景。
-// 确定性输入:固定 seed、route 关闭机遇、clockPause、reducedMotion、禁用截图动画、
+// 确定性输入:固定 seed、clockPause、reducedMotion、禁用截图动画、
 // fonts.ready 与双 rAF;两侧各用独立 context,避免 localStorage 残留。
 // 左为 tag、右为工作树,版本号取各侧 package.json;差异由人工判读。
 // 产出:tmp/visual-compare/<tag>/NN-<场景名>.png 与控制台 sha256。
@@ -34,7 +34,6 @@ const TID = {
   homeScreen: "home-screen",
   homeSolo: "home-solo",
   setupScreen: "solo-setup-screen",
-  encounterEnabled: "setup-encounter-enabled",
   startGame: "start-game",
   confirmCapitalOk: "confirm-capital-ok",
   treasureSkip: "scroll-treasure-skip",
@@ -193,16 +192,9 @@ async function captureSide(port, sideDir) {
   });
   const page = await ctx.newPage();
   // 演出加速 + 调试桥门禁键(单源 src/app/fx/timings.ts;字面量
-  // 随 shot.mjs 注记同步)。route 关闭机遇以固定场景输入。
+  // 随 shot.mjs 注记同步)。
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.25"));
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-debug-bridge", "1"));
-  await page.route("**/config/jiyu.json", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ enabled: false }),
-    }),
-  );
   const url = `http://localhost:${port}/`;
 
   // ① 主页
@@ -211,20 +203,9 @@ async function captureSide(port, sideDir) {
   await page.waitForLoadState("networkidle");
   await shot(page, join(sideDir, "01-home.png"));
 
-  // ② 单机设置屏(等机遇开关落到 aria-checked=false:挂载初值内置「开」,fetch 竞速
-  // 窗口内可能为真,等收敛——同 react-helpers.openSoloSetup 口径)
+  // ② 单机设置屏
   await page.getByTestId(TID.homeSolo).click();
   await page.getByTestId(TID.setupScreen).waitFor({ timeout: 15_000 });
-  await page
-    .waitForFunction(
-      (tid) =>
-        document.querySelector(`[data-testid="${tid}"]`)?.getAttribute("aria-checked") === "false",
-      TID.encounterEnabled,
-      { timeout: 15_000, polling: 100 },
-    )
-    .catch(() => {
-      throw new Error("设置屏机遇开关未落到 aria-checked=false(机遇隔离失效?)");
-    });
   await page.waitForLoadState("networkidle");
   await shot(page, join(sideDir, "02-setup.png"));
 

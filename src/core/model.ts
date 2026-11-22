@@ -1,7 +1,6 @@
 // 核心领域模型(#326 types.ts 解散,ADR-0019 类型随域走):跨域共用的基础数据形状。
 // 判定标准:谁拥有概念,类型住谁的文件;唯有多域共用、不属于任何单一机制域的
 // 基础记录(Player/PropertyHolding/LogEvent)集中于此。纯数据,无 DOM 依赖。
-import type { EncounterFlagId } from "./encounters";
 import type { CityDamageEntry } from "./city-damage";
 import type { HeroSlot } from "./roster";
 import type { TreasureDef } from "./treasures";
@@ -46,20 +45,12 @@ export interface Player {
   properties: PropertyHolding[];
   heroes: HeroSlot[]; // 麾下槽位(#785,ADR-0036):{heroId, 已授技(池序), 按技冷却账};上限 HERO_CAPACITY
   treasures: TreasureDef[]; // 持有的珍宝
-  reputation: number; // 声望无界,开局 0(#1090 去夹紧):机遇档位 softmax 调制的唯一输入(见 GLOSSARY.md;#121)
-  stamina: number; // 体力 0~100:机遇/技能增减,归 0 触发耗竭惩罚(见 GLOSSARY.md;#130)
+  stamina: number; // 体力 0~100:补给、技能和伤害增减，归 0 触发耗竭(见 GLOSSARY.md;#130)
   jinnangHand: string[]; // 锦囊手牌(#122):暗置牌 id,内容仅本人可见(联机经投影,ADR-0016)
   /** 锦囊手牌数(公开信息,引擎状态):与 jinnangHand.length 同步维护于唯一改动点
    *  (抽牌/打牌)。为什么独立成字段:联机客户端经「restore→重新 snapshot」hydrate,
    *  投影层注入的视图字段会在重生成时丢失——数量是全员可见的游戏状态,必须由引擎持有。 */
   jinnangHandCount: number;
-  /** 机遇章册(#1153):跨事件标记(ENCOUNTER_FLAGS 封闭枚举)的 per-player 经历记录
-   *  (#1126 拍板①)——链式典故前编凭证,后编条目以 requiresFlags 认章;破产不清章
-   *  (拍板⑥:章是经历记录,非资产)。 */
-  encounterFlags: EncounterFlagId[];
-  /** 奇遇已遇集(#1154):本局已触发过的奇遇条目 id(ONCE_PER_GAME_ENCOUNTER_IDS 成员,
-   *  #1110 一局一遇按玩家)——抽取过滤消费,触发即记(中断路照记,同 #1126 拍板③口径)。 */
-  onceEncounterIds: string[];
 }
 
 /** 对局日志事件(ADR-0014,原「战报」):每行 = 中文自然语言 brief + 机读 detail(英文键值),

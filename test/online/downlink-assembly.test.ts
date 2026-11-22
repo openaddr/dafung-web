@@ -207,7 +207,6 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "propertyBought", propertyId: "changangan", price: 4000 },
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "insufficient-cash" },
-  { kind: "propertyGranted", propertyId: "xuchang" }, // #719 机遇赐城
   {
     kind: "propertyDamaged",
     propertyId: "xuchang",
@@ -256,14 +255,11 @@ const ALL_KIND_BODIES: GameEventBody[] = [
     skillId: "warDrumZhangfei",
     skillKind: "warDrum",
   },
-  { kind: "jinnangDrawn", count: 1, reason: "encounter" },
+  { kind: "jinnangDrawn", count: 1, reason: "turnStart" },
   { kind: "jinnangReshuffled", count: 3 },
   { kind: "jinnangExhausted" },
-  { kind: "reputationChanged", delta: 10, reason: "encounter" },
-  { kind: "staminaChanged", delta: -15, reason: "encounter" },
+  { kind: "staminaChanged", delta: -15, reason: "damage" },
   { kind: "turnSkipped" },
-  { kind: "encounterTriggered", encounterId: "shibei", tier: "中性" },
-  { kind: "encounterChoice", encounterId: "shibei", choiceIndex: 0 },
   {
     kind: "exhaustionResolved",
     sourceSeat: 1,

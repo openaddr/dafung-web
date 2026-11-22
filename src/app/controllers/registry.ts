@@ -73,7 +73,7 @@ export function installDebugHooks(): void {
   const gated = import.meta.env.DEV || localStorage.getItem(E2E_DEBUG_BRIDGE_KEY) != null;
   if (!gated) return;
   // 快路径开局复用地图加载、LocalController 与 setController/sync/切屏,再经公共命令选都。
-  // 默认值共用 setup-defaults.ts,地图/国号读取偏好;为确定性关闭机遇。
+  // 默认值共用 setup-defaults.ts,地图/国号读取偏好。
   // seedSoloToRound 复用此链,开局后必须停在座位 0 选都门。
   const seedSolo = async (opts: { seed?: number; mapId?: string; seats?: number } = {}) => {
     // 显式席位数须与设置屏/引擎同界,先拒绝非整数,避免 defaultSetupSeats 截断。
@@ -95,7 +95,6 @@ export function installDebugHooks(): void {
       targetNetWorth: DEFAULT_TARGET_NET_WORTH,
       seed: opts.seed,
       mapId,
-      encounter: { enabled: false }, // 快路径关闭机遇,固定场景输入
     });
     performance.measure("df.seed.ctor", { start: tCtor, end: performance.now() });
     const tSet = performance.now();
@@ -143,17 +142,9 @@ export function installDebugHooks(): void {
         throw new Error(`seedSoloToRound:AwaitingDecision 选项异常(${JSON.stringify(opt)})`);
       }
       case "AwaitingHeroPick":
-      case "AwaitingEncounter": {
-        // index = 选项集下标(resolveEncounterChoice 的 index 即 snapshot.choices 顺序
-        // 下标,encounter-flow 注释单源)。
-        const idx = e.choicesFor().findIndex((o) => o.available);
-        if (idx < 0)
-          throw new Error(
-            `seedSoloToRound:${e.turnPhase} 无可用选项(进相位门槛应保证 ≥1,状态机 bug)`,
-          );
-        if (e.turnPhase === "AwaitingHeroPick") return { type: "resolveHeroPick", index: idx };
-        return { type: "resolveEncounterChoice", index: idx };
-      }
+        return e.offeredHeroes.length > 0
+          ? { type: "resolveHeroPick", index: 0 }
+          : { type: "resolveHeroPick", action: "seekBook" };
       case "AwaitingTreasureOwner":
         return { type: "resolveTreasureOwner", action: { type: "skip" } }; // 不交易
       case "AwaitingReaction":

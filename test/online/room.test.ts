@@ -20,7 +20,7 @@ import {
 import { resolveGuohaoClash } from "../../src/core/guohao";
 import { JINNANG_CARDS } from "../../src/core/jinnang";
 import { GameEngine } from "../../src/core/authority";
-import { armHero, setStamina } from "../../src/core/planter";
+import { armHero, armPhase, giveJinnang, setStamina } from "../../src/core/planter";
 import { heroSlotOf, skillMarksOf } from "../../src/core/roster";
 import { createDice } from "../../src/core/dice";
 import { foldEventBatch } from "../../src/app/net/event-fold";
@@ -1075,54 +1075,6 @@ describe("RoomRegistry · 持久化恢复(restoreAll)", () => {
   });
 });
 
-describe("RoomRegistry · 联机机遇接线(#135)", () => {
-  /** 读引擎运行时机遇开关(engine.encounter 为 private,测试侧经类型断言读取)。 */
-  function encounterOf(reg: RoomRegistry, roomId: string): { enabled: boolean } {
-    return (
-      reg.get(roomId)!.engine as unknown as {
-        encounter: { enabled: boolean };
-      }
-    ).encounter;
-  }
-
-  it("注入 encounter → startGame 透传引擎(开关直传,#1090 起无档位配置)", async () => {
-    const persistence = new InMemoryPersistence();
-    const reg = new RoomRegistry(persistence, undefined, undefined, {
-      encounter: { enabled: true },
-    });
-    const created = reg.createRoom({
-      seatCount: 2,
-      botIdx: new Set([1]),
-      hostConfig: { seed: 42 },
-    });
-    reg.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
-    await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
-    expect(encounterOf(reg, created.room.roomId)).toEqual({ enabled: true });
-  });
-
-  it("未注入(缺省)→ 机遇关(引擎缺省 enabled=false,测试隔离口径)", async () => {
-    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [1] });
-    expect(encounterOf(reg, roomId).enabled).toBe(false);
-  });
-
-  it("机遇开关随房间持久化:重启 restoreAll 后引擎复刻同一配置", async () => {
-    const persistence = new InMemoryPersistence();
-    const reg1 = new RoomRegistry(persistence, undefined, undefined, {
-      encounter: { enabled: true },
-    });
-    const created = reg1.createRoom({
-      seatCount: 2,
-      botIdx: new Set([1]),
-      hostConfig: { seed: 9 },
-    });
-    reg1.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
-    await reg1.startGame(created.room.roomId, created.token, undefined, testMapProvider);
-    const reg2 = new RoomRegistry(persistence);
-    reg2.restoreAll(testMapProvider);
-    expect(encounterOf(reg2, created.room.roomId)).toEqual({ enabled: true });
-  });
-});
-
 describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
   /** 收集型观察者(同「观测事件」describe)。 */
   function observedWith(opts?: { decisionTimeoutMs?: number }) {
@@ -1335,25 +1287,12 @@ describe("锦囊暗牌投影(ADR-0016 · redactSnapshotForSeat)", () => {
 
 describe("窥探投影(ADR-0016 · #575 即时窥探)", () => {
   it("阅览权随 peekApplied 事件走:viewer 座位保留手牌内容,他人裁空;快照恒无窥探放行", async () => {
-    const { reg, roomId } = await (async () => {
-      const r = await setupStartedRoom({ seats: 3, bot: [2] });
-      r.reg.get(r.roomId)!.engine!.drawJinnang(0, 2);
-      return r;
-    })();
+    const { reg, roomId } = await setupStartedRoom({ seats: 3, bot: [2] });
     const e = reg.get(roomId)!.engine!;
-    e.resolveJinnang(null);
-    e.activePlayer.jinnangHand = ["军情密探"];
-    e.activePlayer.jinnangHandCount = 1;
-    // 清走他座识破诡计(不开反应窗)并钉死被窥手牌:事件 hand 内容确定非空
-    for (const other of [1, 2]) {
-      e.players[other].jinnangHand = e.players[other].jinnangHand.filter(
-        (id) => id !== "识破诡计" && id !== "半路杀出",
-      );
-      e.players[other].jinnangHandCount = e.players[other].jinnangHand.length;
-    }
-    e.players[1].jinnangHand = ["连环计"];
-    e.players[1].jinnangHandCount = 1;
-    e.turnPhase = "AwaitingJinnang";
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    giveJinnang(e, 0, ["军情密探"]);
+    giveJinnang(e, 1, ["连环计"]);
+    giveJinnang(e, 2, []);
     e.resolveJinnang("军情密探");
     e.resolveJinnang("军情密探", [1]);
     // 事件=窥探的唯一载体:viewer 手牌内容随行,redact 逐座位裁(ADR-0016)
@@ -1377,7 +1316,7 @@ describe("窥探投影(ADR-0016 · #575 即时窥探)", () => {
     const view2 = redactSnapshotForSeat(snap, 2);
     expect(view0.players[1].jinnangHand).toEqual([]); // 被窥者内容不再随快照放行
     expect(view0.players[2].jinnangHand).toEqual([]);
-    expect(view2.players[0].jinnangHand).toEqual(snap.players[0].jinnangHand); // 自己恒全量
+    expect(view2.players[0].jinnangHand).toEqual([]); // 阅览事件未开放第三方手牌
     expect(view2.players[1].jinnangHand).toEqual([]);
   });
 });

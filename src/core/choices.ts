@@ -10,9 +10,8 @@ import { tileIndexOfProperty } from "./board";
 import type { ActiveSkillDef, TriggerSkill } from "./skills";
 import { isActiveSkill, isTriggerSkill, skillById } from "./skills";
 import { findHolding } from "./player";
-import { HERO_CAPACITY, INITIAL_CITY_LEVEL, STAMINA_MAX } from "./constants";
+import { INITIAL_CITY_LEVEL } from "./constants";
 import { heroById } from "./heroes";
-import { HEROES } from "./heroes";
 import {
   heroSlotOf,
   resetSkillMarks,
@@ -22,13 +21,8 @@ import {
 } from "./roster";
 import { emitGameEvent } from "./game-events";
 import { resumePendingMoment } from "./moment-stages";
+import type { HeroPick } from "./recruitment";
 import { guidePriceOf, isSkillBook } from "./treasures";
-import {
-  ENCOUNTER_NO_EFFECT,
-  encounterChoiceLabel,
-  type EncounterChoiceOption,
-  type EncounterTier,
-} from "./encounters";
 import { jinnangCardOf, isReactionCard, TARGET_DOMAIN_STAGES, type JinnangEffect } from "./jinnang";
 
 /** 已接入结算的锦囊效果种类(#122/T2 起逐票点亮;#281 反应牌 counter/ambush 经反应窗结算,
@@ -39,6 +33,7 @@ export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set(
   "grantHero",
   "levyAll", // T3:指向他人四牌
   "stealTreasure",
+  "staminaDamage",
   "fireWall", // #1389 T3 棒1:火烧连营溅射化(城指向/前方溅射/识破按城拆份)
   "skipTurn",
   "duel", // T4:连环计二虎竞食
@@ -51,15 +46,7 @@ export interface ChoiceOption {
   label: string; // 玩家可读
   available: boolean;
   reason?: string; // 不可用原因
-  /** 抉择机遇选项专属(#124):机遇 id/文段随选项经 snapshot.choices 派生透出——机遇上下文
-   *  过网的唯一通道(UI 卷轴渲染文段、restoreFromSnapshot 按 id 回链目录);其余相位不携带。 */
-  encounterId?: string;
-  encounterText?: string;
-  /** 抉择机遇选项专属(#847):机遇档位随选项出快照(单通道透出 def.tier,纯表现数据,
-   *  引擎裁决零改动)——UI 三档视觉分档(机遇卷轴题印/题名侧饰条色)唯一数据源;
-   *  消费方查无此章 = 注册表盖章缺失,当场炸出不静默回退。其余相位不携带。 */
-  encounterTier?: EncounterTier;
-  /** 出牌阶段专属(#122/T2):牌名/标签/牌面文案随选项派生透出(同 encounterId 通道口径);
+  /** 出牌阶段专属(#122/T2):牌名/标签/牌面文案随选项派生透出;
    *  id 即 cardId(pass=今不用)。 */
   cardText?: string;
   cardTags?: string[];
@@ -67,7 +54,7 @@ export interface ChoiceOption {
   /** 目标段选项(#122/T3):候选座位(id=`t${seat}`,label=国号)。 */
   targetSeat?: number;
   /** 名将主动技选项专属(#188 档 3;#817 选项携实例):id=`skill:<heroId>:<skillId>`
-   *  (拼接单源 skillOptionId);出牌阶段文案随选项派生透出(同 encounterId 通道口径);
+   *  (拼接单源 skillOptionId);出牌阶段文案随选项派生透出;
    *  skillId+skillHeroId=麾下实例定位对(判定单源 isSkillOption),skillHero=名将名
    *  (卷轴组合显示)。 */
   skillId?: string;
@@ -83,6 +70,8 @@ export interface ChoiceOption {
   targetOwnerSeat?: number;
   targetDistance?: number;
   targetTileIndex?: number;
+  /** 招贤命令载荷。名将下标对应同一快照里的 offeredHeroes。 */
+  heroPick?: HeroPick;
 }
 
 /** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
@@ -129,83 +118,19 @@ function treasureOwnerChoices(): ChoiceOption[] {
   ];
 }
 
-/** AwaitingHeroPick(候选三选一,永不自动执行)。 */
+/** 招贤候选可能为空，求书和跳过均可选。 */
 function heroPickChoices(e: GameEngine): ChoiceOption[] {
-  return e.offeredHeroes.map((h) => ({
-    id: `hero:${h.def.id}`,
-    label: h.def.name,
-    available: true,
-  }));
-}
-
-/** 抉择选项现金代价推导(#1153 自动现金闸,kind 推导非逐条数据):负 cash 效果的支出额
- *  与 levy 输币额(输币=定向资敌,疫病入营式「隐忍输币」同受闸),加选项级 cashCost
- *  (#1154 太平要术式「付费+得物分离」代价,语义与负 cash 同款);其余效果不计现金
- *  (grantHero 的珍宝代价 treasureCost 另走珍宝闸)。 */
-function optionCashCost(c: EncounterChoiceOption): number {
-  let cost = 0;
-  if (c.effect != null) {
-    if (c.effect.kind === "cash") cost = c.effect.delta < 0 ? -c.effect.delta : 0;
-    else if (c.effect.kind === "levy") cost = c.effect.amount;
-  }
-  return cost + (c.cashCost ?? 0);
-}
-
-/** 选项可用性由引擎核对机遇章、代价及可兑现的收益。 */
-function encounterOptionReason(e: GameEngine, c: EncounterChoiceOption): string | undefined {
-  const p = e.activePlayer;
-  if (c.requiresFlags != null && !c.requiresFlags.every((f) => p.encounterFlags.includes(f)))
-    return `需持机遇章〔${c.requiresFlags.join("〕〔")}〕`;
-  if (c.effect?.kind === "grantHero") {
-    if (p.treasures.length < c.treasureCost!) return "珍宝不足";
-    if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id))) return "名将已尽";
-    if (c.effect.heroId != null && e.recruitedHeroIds.has(c.effect.heroId))
-      return "指定名将已被招揽";
-  }
-  if (p.cash < optionCashCost(c)) return "银两不足";
-  if (c.effect?.kind === "grantCard" && e.jinnangDeckCount === 0 && e.jinnangDiscard.length === 0)
-    return "锦囊已空";
-  if (
-    c.effect?.kind === "cash" &&
-    c.effect.delta < 0 &&
-    c.repDelta === 0 &&
-    (c.staminaDelta ?? 0) > 0 &&
-    p.stamina === STAMINA_MAX
-  )
-    return "体力已满";
-  return undefined;
-}
-
-/** 保留全部目录选项和下标，全灰时追加可提交的「无事发生」。 */
-function encounterChoices(e: GameEngine): ChoiceOption[] {
-  const def = e.pendingEncounter;
-  if (!def?.choices) return [];
-  if (def.choices.length === 0) throw new Error(`抉择机遇「${def.id}」目录缺少选项`);
-  const context = { encounterId: def.id, encounterText: def.text, encounterTier: def.tier };
-  const rosterFull = e.activePlayer.heroes.length >= HERO_CAPACITY;
-  const options: ChoiceOption[] = def.choices.map((c, index) => {
-    const reason = encounterOptionReason(e, c);
-    return {
-      ...context,
-      id: `choice:${index}`,
-      label: encounterChoiceLabel(c, rosterFull && c.effect?.kind === "grantHero"),
-      available: reason === undefined,
-      reason,
-    };
-  });
-  if (!options.some((option) => option.available)) {
-    options.push({
-      ...context,
-      id: `choice:${options.length}`,
-      label: ENCOUNTER_NO_EFFECT.text,
+  return [
+    ...e.offeredHeroes.map((h, index) => ({
+      id: `hero:${h.def.id}`,
+      label: h.def.name,
       available: true,
-    });
-  }
-  return options;
+      heroPick: { index },
+    })),
+    { id: "seekBook", label: "求书", available: true, heroPick: { action: "seekBook" } },
+    { id: "skip", label: "跳过", available: true, heroPick: { action: "skip" } },
+  ];
 }
-
-/** AwaitingExhaustion 已随耗竭全自动结算退役(外敌乘虚+休整,无抉择):归 0 不再进
- *  任何相位,处置与休整一律引擎内完成(encounter-flow.ts exhaustIfDepleted)。 */
 
 /** 清算仅有整批出售并清偿与认破产;重大不可逆事件不自动执行。 */
 function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
@@ -229,19 +154,24 @@ function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
 }
 
 /** 目标有效性(#122/T3):非己、存活(#281:免战庇护已随免战金牌退役,目标排除逻辑删除);
- *  卡面附加条件由 effectKind 分派。反应域牌不经目标段,永不走此校验。 */
+ *  卡面附加条件由效果分派。反应域牌不经目标段,永不走此校验。 */
 export function jinnangTargetOk(
   e: GameEngine,
   user: number,
   target: number,
-  effectKind: JinnangEffect["kind"],
+  effect: JinnangEffect,
 ): { ok: boolean; reason?: string } {
   const t = e.players[target];
   if (target === user) return { ok: false, reason: "不能指定自己" };
   if (t.isBankrupt) return { ok: false, reason: "已出局" };
-  switch (effectKind) {
+  switch (effect.kind) {
     case "stealTreasure":
       if (t.treasures.length === 0) return { ok: false, reason: "无珍宝" };
+      break;
+    case "staminaDamage":
+      if (t.resting) return { ok: false, reason: "正在休整" };
+      if (e.board.distance(e.players[user].position, t.position) > effect.range)
+        return { ok: false, reason: `超出 ${effect.range} 格射程` };
       break;
     case "fireWall":
       // 城指向域(#1389):不走席位校验(合法性单源 fireWallCenterTargets 候选集,
@@ -441,7 +371,7 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     const exclude = flow.excludeFirstFromSecond && pending.stage === "two-b" ? pending.picked : [];
     const targets: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
       const excluded = exclude.includes(seat);
-      const verdict = jinnangTargetOk(e, userSeat, seat, def.effect.kind);
+      const verdict = jinnangTargetOk(e, userSeat, seat, def.effect);
       const ok = !excluded && verdict.ok;
       return {
         id: `t${seat}`,
@@ -487,10 +417,8 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     });
     return [...targets, { id: "cancel", label: "作罢", available: true }];
   }
-  const used = new Set(e.jinnangUsedTags);
   const cards = p.jinnangHand.map((cardId): ChoiceOption => {
     const def = jinnangCardOf(cardId);
-    const quotaBlocked = def.tags.some((t) => used.has(t));
     const implemented = JINNANG_LIVE_EFFECTS.has(def.effect.kind);
     // 纯反应牌(#281):不经出牌阶段,恒灰置「唯反应」——持唯反应牌不进「出牌阶段」
     // (hasUsableJinnang 由此不计纯反应牌);只在反应窗(snapshot.reaction)打出。
@@ -504,7 +432,7 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     const isCityDomain = def.targetDomain === "one-city";
     const validTargets =
       needTwo || needOne
-        ? e.players.filter((_, i) => jinnangTargetOk(e, userSeat, i, def.effect.kind).ok).length
+        ? e.players.filter((_, i) => jinnangTargetOk(e, userSeat, i, def.effect).ok).length
         : 0;
     const targetsShort =
       (needTwo && validTargets < 2) ||
@@ -518,20 +446,14 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
           ? "无可指向之城"
           : def.effect.kind === "stealTreasure"
             ? "无珍宝"
-            : "对手不足";
+            : def.effect.kind === "staminaDamage"
+              ? `${def.effect.range} 格内无可袭扰对手`
+              : "对手不足";
     return {
       id: cardId,
       label: def.id,
-      available: !reactionOnly && !quotaBlocked && implemented && !targetsShort,
-      reason: reactionOnly
-        ? "唯反应(反应窗打出)"
-        : !implemented
-          ? "此计暂未启用"
-          : targetsShort
-            ? targetsReason
-            : quotaBlocked
-              ? `本回合已用过〔${def.tags.filter((t) => used.has(t)).join("〕〔")}〕`
-              : undefined,
+      available: !reactionOnly && implemented && !targetsShort,
+      reason: reactionOnly ? "唯反应(反应窗打出)" : !implemented ? "此计暂未启用" : targetsReason,
       cardText: def.text,
       cardTags: def.tags,
       ...(def.effect.kind === "levyAll"
@@ -639,8 +561,7 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
 /** 出牌阶段「仍有可用项」单源判定(#122/T2 → #188 档 3 扩义 → #1146 再扩):锦囊可用牌、
  *  就绪主动技、可学技能书三者任一存在即 true——相位进入与用牌/出技/用书收尾共用,防
  *  两处漂移。纯反应牌(#281)经「唯反应」灰置 available=false,天然不计入:持唯反应牌
- *  不进「出牌阶段」。技能书不经出牌窗选项集(入口=珍宝弹层,PileModal 一族书可点态),
- *  可学性判定单源 skillBookLearners——窗口零可用而书可用时,窗内空架+书从珍宝位走。 */
+ *  不进「出牌阶段」。技能书在手牌区按 skillBookLearners 判定是否可研读。 */
 export function hasUsableJinnang(e: GameEngine): boolean {
   const p = e.activePlayer;
   return (
@@ -655,7 +576,6 @@ export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceO
   AwaitingDecision: decisionChoices,
   AwaitingTreasureOwner: treasureOwnerChoices,
   AwaitingHeroPick: heroPickChoices,
-  AwaitingEncounter: encounterChoices,
   AwaitingJinnang: jinnangChoices,
   AwaitingBankruptcySettle: bankruptcyChoices,
   AwaitingSkillChoice: skillChoiceChoices,

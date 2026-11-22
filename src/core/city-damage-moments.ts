@@ -2,8 +2,8 @@ import type { GameEngine } from "./authority";
 import type { CityBurningContinuation } from "./city-burning";
 import { awardCityReward } from "./city-damage";
 import type { CityDamageOutcome, CityDamageSettlement } from "./defense";
-import type { ExhaustionCityDamageContinuation } from "./encounter-flow";
 import type { FireWallContinuation } from "./jinnang-execution";
+import type { ExhaustionCityDamageContinuation } from "./stamina-damage";
 
 type CityDamageSuccessor =
   | CityBurningContinuation

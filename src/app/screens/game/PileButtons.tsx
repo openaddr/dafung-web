@@ -36,13 +36,6 @@ interface PileButtonsProps {
   nudgePulse?: number;
   /** 锦囊开关回传(GameScreen 写会话内临时态 rackHidden,不落盘,#1006)。 */
   onToggleRack: () => void;
-  /** 用书学技通路(#1146):treasureId+heroId 直落 useBookSkill 命令(GameScreen 包装
-   *  dispatchCommand);缺省=珍宝弹层书恒不可点态(无命令通路的挂载语境)。 */
-  onUseBook?: (treasureId: string, heroId: string) => void;
-  /** 本次可研读的出牌阶段，进入目标段后关闭。 */
-  bookPlayScope: string | null;
-  /** 当前可提交用书命令。 */
-  bookPlayReady?: boolean;
   /** 遣散可点窗口(#1147):己方回合(GameScreen 计算);缺省=false——遣散钮恒禁用态。 */
   dismissReady?: boolean;
   /** 遣散命令通路(#1147,dismissHero 直落):缺省=无通路,遣散钮恒禁用态。 */
@@ -60,9 +53,6 @@ export const PileButtons = memo(function PileButtons({
   breathe = false,
   nudgePulse,
   onToggleRack,
-  onUseBook,
-  bookPlayScope,
-  bookPlayReady = false,
   dismissReady = false,
   onDismiss,
 }: PileButtonsProps) {
@@ -134,16 +124,11 @@ export const PileButtons = memo(function PileButtons({
           )}
         </button>
       </div>
-      {/* 藏品弹层(#361 接替):壳与陈列归 PileModal,标题随入口;用书通路(#1146)
-          仅对局屏挂载语境传入,书在己方出牌阶段可点;遣散通路(#1147)同语境传入,
-          遣散钮在己方回合可点 */}
+      {/* 藏品弹层的壳与陈列归 PileModal，遣散钮在己方回合可点。 */}
       {pileModal !== null && (
         <PileModal
           kind={pileModal}
           player={player}
-          bookPlayScope={bookPlayScope}
-          bookPlayReady={bookPlayReady}
-          onUseBook={onUseBook}
           dismissReady={dismissReady}
           onDismiss={onDismiss}
           onClose={() => setPileModal(null)}

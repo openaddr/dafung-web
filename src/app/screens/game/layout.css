@@ -1,7 +1,7 @@
 /* 对局屏全浮层布局(#700 骨架)——从原型席位侧列(临时件已佚) ①全屏语境/④顶钮
    左移对账/⑥设置弹层 三节判决忠实移植:顶部浮层(顶左两钮;「N 轮」chip 已退役
    #853,轮次归回合胶囊)/
-   右缘席位格列(#698 重形:96×38 双行八项格)/ 底缘透明手牌区(签面驻左端)/
+   右缘席位格列(#698 重形:96×38 双行席位格)/ 底缘透明手牌区(签面驻左端)/
    右下三圆钮;旧顶部条与底部仪表条(.dash)退役。
    所有规则作用域在 .game-layout 下防全局串扰(设置弹层经 Portal 挂 body,
    .setrow 系裸排前缀防串扰,同 war-* 先例);
@@ -252,10 +252,10 @@
 /* 「N 轮」chip 样式已随元素退役(#853):#731 拍板时 #762 回合胶囊尚未诞生,
    胶囊上线后双通道同屏说一件事——轮次唯一落 .turn-capsule(notice-banner.css)。 */
 
-/* ── 席位格列(#698 席位条重形):右缘单列 96×38 双行八项格,一人一格(自机入列)──
+/* ── 席位格列(#698 席位条重形):右缘单列 96×38 双行席位格,一人一格(自机入列)──
    原型席位侧列(临时件已佚) ①②③ 判决移植:几何/字号/间距以原型为准,色一律现役
    token(原型 --g* 对射:gbg→bg、gink→ink、ginkdim→ink-dim、ggold→gold、gsuccess→
-   success、gdanger→danger、gcash/gcity/gem/rep→attr-*;格底 rgba(36,29,19,.92)=
+   success、gdanger→danger、gcash/gcity/gem→attr-*;格底 rgba(36,29,19,.92)=
    paper-lo)。列层几何=视觉列(#743 判词 H:#751 C 批收成与 .seatcol 同几何,自身
    透明不吃事件),格/浮签触发元自持 pointer-events。 */
 /* 列层几何=视觉列(#743 判词 H/#751 C 批):原 inset:0 全视口包围盒是工程卫生
@@ -404,20 +404,7 @@
   --breath-lo: 0.55;
   animation: fx-breathe calc(var(--dur-med) * 2) var(--ease-sine) infinite;
 }
-/* 行2 汉字五账式(#1128):「城/牌/将/宝/望」+ tabular 计数,单色淡纸,
-   space-between 把行2 余量分到发丝线两侧成组间隙;发丝线组分隔(#770)保留
-   (高频读数|低频藏品)。旧五枚彩色 SVG(城楼/牌背组/战盔/玉璧/墨竹)整线
-   退役——9-10px 下战盔糊团、玉璧环与数字 0 同形、4×6 迷你牌背近隐形致
-   「城1 牌9+」连读成「19+」(844×390 实拍实锤);彩色图标制整线退役(AttrIcon
-   件 2026-11-07 废弃文件清扫批删除)。
-   可用宽=94(l2 两侧各吃满 5px 内衬直达边框内沿,口径沿 #751 C 批)。声望无界
-   (#1090 起 ±不夹紧)后三位数是常态——探针实测(探针件已佚,#1128):
-   账项实宽=汉字 9+数字 6(tabular)、牌9+ 20.5、望130 27、望-12 26;行2 定重
-   =组内气口 2×3+发丝线 1=7(scrollWidth 实证父级 gap 不计入),判据 itemSum≤87:
-     2 位声望典型档(城1 牌9 将0 宝0 望42)84,余 3;3 位声望典型档(望130)87
-   贴额容下;「牌9+×望-12」「牌9+×望130」双极端 98.5/99.5 越界 4.5/5.5——旧
-   图标制同席极端 103.7 越界 9.7(#770 登记),本制收敛,按极端如实登记、
-   不另设防(.seat overflow:hidden 下末项裁切,不出格侵邻)。 */
+/* 席位格次行：两组账目各保留自身间距，组间用发丝线分隔。 */
 .game-layout .seat .l2 {
   display: flex;
   align-items: center;
@@ -446,7 +433,7 @@
 .game-layout .seat .ai {
   display: inline-flex;
   align-items: center;
-  gap: 0; /* 账内气口归零(#1128):声望无界后 3 位数是常态,预算给数字 */
+  gap: 0;
   font-size: 10px;
   line-height: 1;
   color: var(--color-paper);
@@ -460,12 +447,6 @@
   font-family: var(--font-title);
   font-size: 9px;
   color: color-mix(in srgb, var(--color-paper) 72%, transparent);
-}
-/* 负声望警示(#556):值 <0 挂 .rep-neg(SeatRail 侧),整项(标识+值)改朱砂
-   ——数值即信息,色变即状态(§4.6,不加标牌)。 */
-.game-layout .seat .ai.ai-rep.rep-neg,
-.game-layout .seat .ai.ai-rep.rep-neg .ai-tag {
-  color: var(--color-danger);
 }
 /* 破产:整格降透明+印灰(原型 .is-bankrupt;旧划名随国号名行退役——格上已无名) */
 .game-layout .seat.bankrupt {

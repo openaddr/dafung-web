@@ -14,7 +14,6 @@ import {
   grantProperty,
   placePlayer,
   setDefense,
-  setJinnangUsedTags,
   setStamina,
 } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
@@ -38,7 +37,6 @@ function makeEngine(): GameEngine {
 
 function burnCity(e: GameEngine, seat: number): void {
   armPhase(e, { phase: "Playing", activeIndex: seat, turnPhase: "AwaitingJinnang" });
-  setJinnangUsedTags(e, []);
   giveJinnang(e, seat, ["火烧连营"]);
   e.submitCommand({ type: "useJinnang", cardId: "火烧连营" });
   e.submitCommand({ type: "useJinnang", cardId: "火烧连营", targets: [TILE] });

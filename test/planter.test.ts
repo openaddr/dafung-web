@@ -30,8 +30,6 @@ import {
   placePlayer,
   setBot,
   setCash,
-  setJinnangUsedTags,
-  setReputation,
   setStamina,
   type PlantOp,
 } from "@core/planter";
@@ -113,13 +111,9 @@ describe("setCash(改现金,裸写形)", () => {
   });
 });
 
-describe("setReputation/setStamina(声望/体力,薄包公共方法)", () => {
-  it("对外绝对值语义=终态精确可达:内部 delta 换算走 addReputation/addStamina 唯一写口(声望无夹紧 #1090;体力夹紧 0~100 随公共口,超界种值落夹紧终态)", () => {
+describe("setStamina(体力,薄包公共方法)", () => {
+  it("对外绝对值语义=终态精确可达:内部 delta 换算走 addStamina 唯一写口(体力夹紧 0~100 随公共口,超界种值落夹紧终态)", () => {
     const e = makeEngine();
-    setReputation(e, 1, 210); // warlords 概率条极端形
-    expect(e.players[1].reputation).toBe(210);
-    setReputation(e, 0, 0); // 自机钉零(自机声望非零后归零同样精确)
-    expect(e.players[0].reputation).toBe(0);
     setStamina(e, 0, 50); // self-target 半体力形(满 100 起)
     expect(e.players[0].stamina).toBe(50);
     setStamina(e, 0, 20); // 中途改钉(非零起点 delta 换算)
@@ -132,7 +126,6 @@ describe("setReputation/setStamina(声望/体力,薄包公共方法)", () => {
 
   it("越界座位当场炸(零兜底:种错的场要响)", () => {
     const e = makeEngine();
-    expect(() => setReputation(e, 9, 1)).toThrow();
     expect(() => setStamina(e, 9, 1)).toThrow();
   });
 });
@@ -508,12 +501,11 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     expect(b.players[0].jinnangHandCount).toBe(a.players[0].jinnangHandCount);
   });
 
-  it("数值族指令(giveTreasure/setCash/setReputation/setStamina)与直呼同一实现", () => {
+  it("数值族指令(giveTreasure/setCash/setStamina)与直呼同一实现", () => {
     const a = makeEngine();
     const b = makeEngine();
     giveTreasure(a, 1, [{ id: "gem-1", name: "夜明珠", level: 5 }]);
     setCash(a, 0, 20000);
-    setReputation(a, 1, 210);
     setStamina(a, 0, 50);
     applyPlant(b, {
       kind: "giveTreasure",
@@ -521,11 +513,9 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
       treasures: [{ id: "gem-1", name: "夜明珠", level: 5 }],
     });
     applyPlant(b, { kind: "setCash", seat: 0, cash: 20000 });
-    applyPlant(b, { kind: "setReputation", seat: 1, reputation: 210 });
     applyPlant(b, { kind: "setStamina", seat: 0, stamina: 50 });
     expect(b.players[1].treasures).toEqual(a.players[1].treasures);
     expect(b.players[0].cash).toBe(a.players[0].cash);
-    expect(b.players[1].reputation).toBe(a.players[1].reputation);
     expect(b.players[0].stamina).toBe(a.players[0].stamina);
   });
 
@@ -625,7 +615,7 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     expect(lb.round).toBe(la.round);
   });
 
-  it("残块收编族指令(armLanding/armVisitor/setBot/setJinnangUsedTags)与直呼同一实现(#1303)", () => {
+  it("armLanding、armVisitor 和 setBot 指令与直呼同一实现(#1303)", () => {
     const a = makeEngine();
     const b = makeEngine();
     const pid = a.board.tiles.find(
@@ -636,16 +626,13 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     armLanding(a, { kind: "OwnProperty", propertyId: pid });
     armVisitor(a, a.board.at(3).propertyId!, 0);
     setBot(a, 1, true);
-    setJinnangUsedTags(a, ["谋", "攻"]);
     applyPlant(b, { kind: "armLanding", landing: { kind: "OwnProperty", propertyId: pid } });
     applyPlant(b, { kind: "armVisitor", propertyId: b.board.at(3).propertyId!, ownerSeat: 0 });
     applyPlant(b, { kind: "setBot", seat: 1, bot: true });
-    applyPlant(b, { kind: "setJinnangUsedTags", tags: ["谋", "攻"] });
     expect(b.pendingLand).toEqual(a.pendingLand);
     expect(b.lastLandOutcome).toEqual(a.lastLandOutcome);
     expect(b.treasureVisitor).toEqual(a.treasureVisitor);
     expect(b.players[1].isBot).toBe(true);
-    expect(b.jinnangUsedTags).toEqual(a.jinnangUsedTags);
   });
 
   it("未知 kind 当场炸(分发口不吞错)", () => {

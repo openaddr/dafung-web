@@ -225,7 +225,8 @@ describe("行殇(#1377 AC4):耗竭可选 +1,缓兵之计不触发", () => {
     expect(e.decisionOwner).toBe(1);
     e.respondSkillChoice(1, true); // 发动:目标=被跳者(载荷既定,免选人)
     expect(e.players[0].skipTurns).toBe(3);
-    expect(e.turnPhase).toBe("Roll");
+    expect(e.activeIndex).toBe(1);
+    expect(e.turnPhase).toBe("AwaitingJinnang");
     // 消费三段跳,期满才回满(2 会提前回满——+1 顺延了休整)
     e.endTurn(); // 座位 0 跳 1(3→2)
     expect(e.players[0].stamina).toBe(0);
@@ -328,7 +329,8 @@ describe("bot 两策略(#1377 AC7):行殇恒发,放逐满发目标=身价领跑�
     expect(e.turnPhase).toBe("AwaitingSkillChoice");
     botAct(e); // 驱动器泵(bot/托管同口)
     expect(e.players[0].skipTurns).toBe(3); // 恒发动
-    expect(e.turnPhase).toBe("Roll");
+    expect(e.activeIndex).toBe(1);
+    expect(e.turnPhase).toBe("AwaitingJinnang");
   });
 
   it("bot 放逐:满发,目标=净身价领跑者;无合法目标才放弃", () => {

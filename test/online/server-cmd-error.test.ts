@@ -134,7 +134,6 @@ describeSlow("server WS 命令回报与对局日志", () => {
         ROOMS_DIR,
         LOGS_DIR: ROOMS_DIR, // 对局日志一并落临时目录,不污染仓库 data/
         STATIC_DIR: ROOMS_DIR, // 无静态托管需求(静态只按请求读,目录缺失本就 404)
-        JIYU_CONFIG: join(import.meta.dir, "..", "fixtures", "jiyu-off.json"),
         DECISION_TIMEOUT_MS: "0",
         RETENTION_WINDOW_MS: "0",
       },

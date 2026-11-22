@@ -114,47 +114,6 @@
   white-space: nowrap;
 }
 
-.su-encounter {
-  margin-block-start: 8px;
-  border-block-start: 1px solid var(--hairline);
-}
-
-.su-encounter-summary {
-  list-style: none;
-}
-
-.su-encounter-summary::-webkit-details-marker {
-  display: none;
-}
-
-.su-encounter-body {
-  padding-block-start: 4px;
-}
-
-.su-encounter-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: var(--touch-target);
-  padding-inline: 10px;
-  border: 1px solid var(--hairline);
-  border-radius: 3px;
-  background: var(--color-bg);
-  font-size: 14px;
-}
-
-/* 整行标签已接管触区，开关的扩区不再延伸到摘要与说明。 */
-.su-encounter-option [data-slot="switch"]::after {
-  content: none;
-}
-
-.su-encounter-help {
-  margin-block-start: 6px;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .su-identity {
   display: flex;
   align-items: center;

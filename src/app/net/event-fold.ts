@@ -9,7 +9,7 @@
 //    机器可查判定数据单源 core/event-tiers.ts EVENT_TIERS,#430——本文件头保留字段级
 //    折叠明细,档位决策以表为准,两处失同步时改表)──
 //   回合/胜负族   gameStarted → phase=Playing + activeIndex/roundAnchor(=首动者);
-//                 turnStarted → activeIndex + turnPhase=Roll + 回合开账(usedTags 清零/
+//                 turnStarted → activeIndex + turnPhase=Roll + 回合清场(
 //                 窗口与落格决策载荷清场);roundStarted/roundEnded → roundAnchor
 //                 (=轮次锚点主体);gameOver → isOver/winner/winReason/phase/turnPhase。
 //                 round/turnNumber 逐事件摸事件首部(turnStarted 特殊:引擎派发后才
@@ -20,11 +20,8 @@
 //                 lastLandOutcome/treasureVisitor 与固定事件续接载荷
 //   城池族        capitalSelected → takenCapitalIndices/capitalIndex/position/地产 Lv1 入册
 //                 (Setup 期现金不入折叠,#386 注记保持);propertyBought → 现金-价/
-//                 地产入册;propertyUpgraded → 持有等级对齐 newLevel(副本无
-//                 持有则按事件补册,历史赐城缺口级联已随 propertyGranted 闭合,见下);
-//                 propertyRejected → 无状态转移
-//                 (声明性;自动按兵不动由同批 turnStarted 收场);propertyGranted →
-//                 机遇赐城得城者 Lv.1 入册(#719,原级联缺口闭合);
+//                 地产入册;propertyUpgraded → 等级对齐 newLevel，防御重置；
+//                 propertyRejected → 无状态转移，自动按兵不动由同批 turnStarted 收场；
 //                 propertyDamaged/propertyBurningChanged → 城池等级、防御值、燃烧与伤害排行榜
 //                 assetTransferred → 逐城易主(接手者入册/回无主)
 //   金钱族        cashChanged → 现金逐条累加(delta 带符号)+ 落格表现态相邻回填
@@ -39,9 +36,9 @@
 //                 键=skillId,#785 实例化);主动技按技表(skills.ts)参数落账:
 //                 warDrum → heroDiceBonus、relief → 现金-费(目标体力随 staminaChanged 折)、
 //                 fireBlast → 城损随 propertyDamaged 折叠
-//   锦囊族        jinnangDrawn → 手牌数+count/牌库数-count(内容=暗牌与牌序不折,
+//   锦囊族        jinnangDrawn → 手牌数+count/牌库数-count(牌面仅本人折入手牌,
 //                 ADR-0016);jinnangReshuffled → 牌库数+count/弃堆清零(洗后牌序不折);
-//                 jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额);
+//                 jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1);
 //                 peekApplied → 零折(窥探即时一次性 #575,无任何客户端状态);
 //                 (反应锦囊 id 出自同批应答,按座位配对;shareSeat 不参与折叠);
 //                 reactionOpened → pendingReaction
@@ -50,8 +47,7 @@
 //                 应答同批);reactionFailed → 无状态转移(声明性);
 //                 duelResolved → 无状态转移(声明性 #636/ADR-0030:拼点结算宣告,胜负
 //                 后果由调用点既有事件折——拦停=marchArrived、银两=cashChanged·duel)
-//   声望/体力族   reputationChanged → 声望 += 实际增减(无界直加,#1090);
-//                 staminaChanged → 体力 += 夹紧后实际增减;
+//   体力族        staminaChanged → 体力 += 夹紧后实际增减;
 //                 exhaustionResolved → 开始休整，按 restTurns 累加 skipTurns
 //   破产族        playerBankrupt → isBankrupt/capitalIndex=-1/名将释放回池/锦囊清手入弃堆
 //                 (现金清零/债主收款/珍宝转债主 = 破产清算强制全量节点,不折);
@@ -59,10 +55,6 @@
 //                 bankruptcySettled → 清债/交涉 + 双方现金置为技能结算后的最终余额
 //   跳过族        turnSkipped → skipTurns-1，归零结束休整;jinnangInflicted → 目标 skipTurns+1
 //                 (缓兵之计标记侧)
-//   机遇族        encounterTriggered → lastLandOutcome=Noop + 抉择型置 AwaitingEncounter +
-//                 即时路 def.setsFlags 折章(#1153 静态目录派生);encounterChoice →
-//                 相位回 Land + 按 id+choiceIndex 回查 option.setsFlags 折章(#1153;
-//                 效果本体经现金/声望/体力/得宝/招贤折)
 //   纯派生字段    netWorth(=cash)/choices/decisionOwner/
 //                 lastLandOutcomeKind/lastLandOutcomeProperty/logCount/
 //                 currentSetupPlayerIndex/
@@ -83,8 +75,7 @@
 //
 // ── 已知无事件转移的级联口径(移除类折叠查无目标 = 略过,非吞错)──
 //   判定表之外存在无事件的转移:
-//   行军窗拦停成功时的拦检牌扣账(本器折于闭窗应答点,批序等效)。「机遇天赐城池入册」
-//   已随 propertyGranted(#719)迁入词汇表闭合。剩余无事件转移使副本在批窗口内
+//   行军窗拦停成功时的拦检牌扣账折于闭窗应答点，批序等效。其他无事件转移使副本在批窗口内
 //   与引擎分歧,后续「移除类」折叠(出册/降级)可能查无目标——这是已接受缺口的级联,
 //   略过待下一帧水合纠正;「新增类」折叠恒精确落账。per-kind 档位与漂移窗见 EVENT_TIERS
 //   (core/event-tiers.ts):词汇表内 kind 的 default 归属由档位表穷尽守卫(FoldHandledKind),
@@ -92,7 +83,7 @@
 //
 // ── 零兜底 ──
 //   折叠族事件产出恒带具体座位(见 game-events.ts 各产出点,行动者=座位主),seat=null
-//   = 产出契约违反,当场炸出不静默跳过;事件引用的静态数据(名将/锦囊/机遇/地产目录)
+//   = 产出契约违反,当场炸出不静默跳过;事件引用的静态数据(名将/锦囊/地产目录)
 //   查无 = 数据 bug,当场炸出;事件序违反(应答无窗)当场炸出;delta/数量
 //   等字段缺失由类型系统在编译期兜住(线上形状以 core GameEvent 为准)。
 import type { GameEngine } from "@core/authority";
@@ -105,12 +96,6 @@ import type { ReactionPayload, ReactionView } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/skills";
 import { jinnangCardOf } from "@core/jinnang";
 import {
-  encounterChoiceAt,
-  grantEncounterFlags,
-  isOncePerGameEncounter,
-  markOnceEncounter,
-} from "@core/encounters";
-import {
   TREASURES,
   isSkillBook,
   makeSkillBook,
@@ -119,7 +104,6 @@ import {
 } from "@core/treasures";
 import {
   activeSkillDefOf,
-  encounterDefOfId,
   eventSeat,
   eventSeatPlayer,
   heroDefOf,
@@ -175,8 +159,7 @@ function queriedOf(view: ReactionView): number[] {
 }
 
 /** 出牌扣账(consumeJinnangCard/consumeReactionCard 的副本侧镜像):离手(暗牌,查无即略)
- *  + 手牌数 -1 + 入弃堆。手牌内容是暗牌:数组为水合赠品(god-view),以数组为准删、以
- *  事件为准记账——redact 接通后数组恒空,数量账仍自洽(ADR-0016)。 */
+ *  + 手牌数 -1 + 入弃堆。事件可见的牌面从手牌数组移除，其他座位只扣数量。 */
 function consumeCard(engine: GameEngine, p: Player, cardId: string): void {
   const idx = p.jinnangHand.indexOf(cardId);
   if (idx >= 0) p.jinnangHand.splice(idx, 1);
@@ -219,18 +202,18 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "turnStarted": {
         const active = foldTarget(engine, ev); // subject=新活跃玩家
         engine.activeIndex = seatNo(engine, active);
-        engine.turnPhase = "Roll"; // endTurn 收尾置 Roll;出牌阶段挂起(AwaitingJinnang)不可知,水合纠正
+        engine.turnPhase = "Roll"; // 摸牌后若有可用项，后续事件会同步出牌阶段。
         engine.pendingLand = null; // endTurn 回合收口清场
         engine.lastLandOutcome = null;
         engine.treasureVisitor = null; // 交涉窗口必在本回合内收口(成交/不交易/破产清算三路)
         engine.pendingReaction = null; // endTurn 不留悬窗
-        engine.jinnangUsedTags = []; // 锦囊回合开账:标签名额清零
         break;
       }
       case "turnEnded":
         // 交涉窗口收口(判定表 treasureVisitor「收口=turnEnded」):endTurn 入口前窗口
         // 必已 resolution(引擎三路均先清 visitor 再收回合)
         engine.treasureVisitor = null;
+        engine.offeredHeroes = [];
         break;
       case "roundStarted":
       case "roundEnded": {
@@ -267,8 +250,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         engine.turnPhase = ev.turnPhase;
         engine.pendingLand = ev.pendingLand;
         engine.pendingCityEvent = ev.pendingCityEvent;
-        engine.pendingEncounter = null;
-        engine.pendingEncounterHalt = false;
         if (ev.turnPhase !== "AwaitingHeroPick") engine.offeredHeroes = [];
         engine.treasureVisitor =
           ev.treasureVisitor == null
@@ -326,26 +307,13 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         buyer.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
         break;
       }
-      case "propertyGranted": {
-        // 机遇赐城(#719,传檄而定):得城者 Lv.1 入册——此前是「已知无事件转移的级联
-        // 口径」之一,本事件闭合(赐城后的移除类折叠不再查无目标)
-        const grantee = foldTarget(engine, ev);
-        const def = propertyDefOf(engine, ev.propertyId);
-        grantee.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
-        break;
-      }
       case "propertyUpgraded": {
         const owner = foldTarget(engine, ev); // subject=城主(扩军/公道买卖成交两挂点)
-        const def = propertyDefOf(engine, ev.propertyId);
         const holding = owner.properties.find((h) => h.propertyId === ev.propertyId);
-        if (holding != null) {
-          holding.level = ev.newLevel;
-          resetToFull(holding); // 等级一变防御即重置满值(#1386;与引擎升级两挂点同口径)
-        } else {
-          // 副本无持有仍入册(机遇「天赐城池」无事件获城的缺口级联,见文件头):按事件面
-          // 补册(等级=事件声明的变更后等级),其余漂移由水合纠正
-          owner.properties.push(createPropertyHolding(def, ev.newLevel));
-        }
+        if (holding === undefined)
+          throw new Error(`折叠投影:升级的城 ${ev.propertyId} 不在 ${owner.guohao} 名下`);
+        holding.level = ev.newLevel;
+        resetToFull(holding);
         break;
       }
       case "propertyDamaged": {
@@ -524,8 +492,11 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       }
       // ── 锦囊族 ──
       case "jinnangDrawn": {
+        // 开局批的发牌基线与首回合摸牌一并从随批校准获得。
+        if (ctx.sawGameStart && ev.turn === 1) break;
         const p = foldTarget(engine, ev);
-        p.jinnangHandCount += ev.count; // 内容=暗牌不折(ADR-0016);牌序=校准档
+        p.jinnangHandCount += ev.count;
+        if (ev.cardIds !== undefined) p.jinnangHand.push(...ev.cardIds);
         engine.jinnangDeckCount -= ev.count;
         break;
       }
@@ -538,11 +509,9 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       }
       case "jinnangAnnounced": {
         const user = foldTarget(engine, ev);
-        const card = jinnangCardOf(ev.cardId);
-        if (card.targetDomain === "reaction") break; // 反应锦囊在收窗事件中已扣账。
+        if (jinnangCardOf(ev.cardId).targetDomain === "reaction") break; // 反应锦囊在收窗事件中已扣账。
         engine.pendingJinnang = null;
         consumeCard(engine, user, ev.cardId);
-        engine.jinnangUsedTags.push(...card.tags);
         break;
       }
       case "jinnangPhaseResumed":
@@ -595,12 +564,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         }
         break;
       }
-      // ── 声望/体力族 ──
-      case "reputationChanged": {
-        const p = foldTarget(engine, ev);
-        p.reputation += ev.delta; // delta=实际增减(声望无界直加)
-        break;
-      }
+      // ── 体力族 ──
       case "staminaChanged": {
         const p = foldTarget(engine, ev);
         p.stamina += ev.delta; // delta=夹紧后实际增减,直加不二次夹紧(休整期满回满=reason:rest,纯体力账)
@@ -616,36 +580,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "jinnangInflicted":
         eventSeatPlayer(engine, ev.targetSeat, "jinnangInflicted.targetSeat").skipTurns += 1; // 缓兵之计标记侧
         break;
-      // ── 机遇族 ──
-      case "encounterTriggered": {
-        const mover = foldTarget(engine, ev); // 机遇主体=行动者,座位契约校验
-        const def = encounterDefOfId(ev.encounterId); // 目录回查单源 core/event-tiers
-        // 奇遇已遇集(#1154):一局一遇按玩家,与引擎 maybeApplyEncounter 写点同位——
-        // 判定/落账单源 encounters.ts(isOncePerGameEncounter/markOnceEncounter),
-        // 事件本体零改动(#1126 拍板②)
-        if (isOncePerGameEncounter(ev.encounterId)) markOnceEncounter(mover, ev.encounterId);
-        if (def.choices != null) {
-          // 抉择机遇入相(引擎 enterEncounterPhase):置 Noop + 挂起相位;≤1 可用的自动
-          // 执行由同批 encounterChoice/turnStarted 覆盖。即时机遇不碰落格表现态——引擎
-          // 即时结算后由 landingResolved 宣告落格结果
-          engine.lastLandOutcome = { kind: "Noop" };
-          engine.turnPhase = "AwaitingEncounter";
-        } else {
-          // 即时路折章(#1153):def.setsFlags 与引擎 settleEncounter 写点同位(#1126
-          // 拍板② 静态目录派生,事件本体零改动)
-          grantEncounterFlags(mover, def.setsFlags);
-        }
-        break;
-      }
-      case "encounterChoice": {
-        // 选项结算点:settleEncounterChoice 效果落账后继续本落格结算(settled 路)——
-        // 相位先回 Land,最终落格结果归同批后续 landingResolved(选项效果 liquidating/exhausted
-        // 路的挂起相位无专属事件 = 校准档)
-        engine.turnPhase = "Land";
-        const option = encounterChoiceAt(encounterDefOfId(ev.encounterId), ev.choiceIndex);
-        grantEncounterFlags(foldTarget(engine, ev), option.setsFlags);
-        break;
-      }
       // ── 破产族 ──
       case "playerBankrupt": {
         const p = foldTarget(engine, ev);
@@ -667,7 +601,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         // 同一笔售宝已有 treasureSold 出册,此处再删会多消费同标识技能书。
         if (ev.asset.kind === "property") {
           const idx = p.properties.findIndex((h) => h.propertyId === ev.asset.id);
-          if (idx >= 0) p.properties.splice(idx, 1); // 查无 = 缺口级联略过(文件头;赐城缺口已随 propertyGranted 闭合)
+          if (idx >= 0) p.properties.splice(idx, 1); // 查无时等待清算校准。
         }
         break;
       }

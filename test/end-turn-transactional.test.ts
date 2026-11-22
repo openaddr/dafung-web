@@ -2,13 +2,11 @@
 // 同步抛错点。守住什么——域收口范式「清载荷 → endTurn」(宝物交涉 skip / 招贤选定,
 // 三相位同构)遇入口同步抛错时,引擎不得滞留「已清载荷未拨相位」失配态(#640 病灶态
 // 的结构性残余,驱动链下一拍连环崩=无声软锁);异常必须照炸(零兜底)。
-// 附(#649 附带项):bot 对 AwaitingHeroPick「相位挂着、载荷已空」失配态当场炸,不静默驱过。
 // (延期问询排空抛错点已随问询线退役,#1065。)
 import { describe, it, expect, afterEach } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig, TurnPhase } from "@core/authority";
 import { createDice } from "@core/dice";
-import { botAct } from "@core/bot";
 import type { HeroDef } from "@core/heroes";
 import { SKILLS, type TriggerSkill } from "@core/skills";
 import { armHero, sweepTestHeroes } from "@core/testing";
@@ -101,13 +99,5 @@ describe("endTurn 收口边界事务性(#649)", () => {
     expect(() => e.resolveTreasureOwner({ type: "skip" })).toThrow(/未知效果/);
     expect(e.treasureVisitor).toBeNull(); // 载荷已清(域收口范式原样发生)
     expect(phaseOf(e)).toBe("EndTurn"); // 相位已离场:任一 Awaiting* 均不滞留
-  });
-
-  it("bot 遇 AwaitingHeroPick 空候选失配态:当场炸,不静默驱过(#649 附带项)", () => {
-    const e = prepared();
-    e.offeredHeroes = [];
-    e.turnPhase = "AwaitingHeroPick";
-    expect(() => botAct(e)).toThrow(/状态机不一致/);
-    expect(e.turnPhase).toBe("AwaitingHeroPick"); // 炸在读取点,失配态原地暴露
   });
 });

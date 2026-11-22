@@ -1,7 +1,7 @@
 // 事件消费档位表(#430,ADR-0020 事件流):每个事件 kind 的消费档位登记——判定决策
 // 从注释散文(net/event-fold.ts 文件头判定表、fx/event-extract.ts 尾注)升为机器可查
 // 数据,折叠面与表现面两消费器对表穷尽(缺档位=编译期红);同表单源双消费器共享的
-// 批上下文取数(宣布游标型 + 名将/主动技/机遇目录回查 + 座位契约校验,原 fold/extract
+// 批上下文取数(宣布游标型 + 名将和主动技目录回查 + 座位契约校验,原 fold/extract
 // 成对 helper 的单源化,错误文案不再分叉)。
 //
 // ── 消费档位词汇(#430 票面五档的坐标化:fold 面 × fx 面两格)──
@@ -30,7 +30,6 @@ import type { Player } from "./model";
 import type { GameEvent, GameEventBody } from "./game-events";
 import { heroById, type HeroDef } from "./heroes";
 import { activeSkillById, type ActiveSkillDef } from "./skills";
-import { ENCOUNTERS, type EncounterDef } from "./encounters";
 
 // ─────────────────────── 档位与条目型 ───────────────────────
 /** 折叠面档位(net/event-fold.ts 对表消费)。 */
@@ -90,7 +89,7 @@ export const EVENT_TIERS = {
   marchArrived: {
     fold: "must-fold",
     fx: "presented",
-    why: "行军落位+路径;机遇与固定事件结算后的决策由 landingResolved 宣告",
+    why: "行军落位与路径；落格结算后的决策由 landingResolved 宣告",
   },
   landingResolved: {
     fold: "must-fold",
@@ -116,7 +115,7 @@ export const EVENT_TIERS = {
   propertyUpgraded: {
     fold: "fold+calibration",
     fx: "presented",
-    why: "持有等级对齐 newLevel;副本无持有按事件面补册(机遇「天赐城池」缺口级联),等级漂移水合纠正",
+    why: "将城池等级对齐 newLevel 并重置防御值",
   },
   propertyDamaged: {
     fold: "must-fold",
@@ -137,11 +136,6 @@ export const EVENT_TIERS = {
     fold: "declarative",
     fx: "presented",
     why: "ADR-0013 自动按兵不动的宣告:零状态转移,相位由同批 turnStarted 收场;表现=按 reason 派生文案浮字",
-  },
-  propertyGranted: {
-    fold: "must-fold",
-    fx: "presented",
-    why: "机遇赐城入册(#719,传檄而定):得城者 Lv.1 持有入册——此前是折叠器已知无事件转移的级联缺口,本事件闭合;表现=城池易主宣告(与购地/破产易主同通路)",
   },
   exhaustionResolved: {
     fold: "must-fold",
@@ -288,12 +282,7 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "窥探生效宣告(#575 即时一次性):窥探零客户端状态(账本已删,弹层纯演出、关闭即逝),fold 面零转移;表现=viewer-only 窥探弹层(hand 随事件走,redact 逐座位裁)",
   },
-  // ── 声望/体力/跳过族 ──
-  reputationChanged: {
-    fold: "must-fold",
-    fx: "presented",
-    why: "声望直加实际增减(delta=实际值)",
-  },
+  // ── 体力与跳过回合 ──
   staminaChanged: {
     fold: "must-fold",
     fx: "presented",
@@ -303,17 +292,6 @@ export const EVENT_TIERS = {
     fold: "must-fold",
     fx: "presented",
     why: "跳过消费侧 skipTurns-1(endTurn 跳过环);表现=被跳过浮字",
-  },
-  // ── 机遇族 ──
-  encounterTriggered: {
-    fold: "must-fold",
-    fx: "silent",
-    why: "抉择型置 Noop+AwaitingEncounter(即时型不动落格表现态,与推演值一致);即时路 def.setsFlags 折章(#1153,章名按 encounterId 回查目录派生,事件本体零改动——#1126 拍板②,flags 确定性可折故 must-fold 不变);奇遇 id∈ONCE_PER_GAME_ENCOUNTER_IDS 折入已遇集(#1154 一局一遇按玩家,同静态派生确定性折);表现面=机遇卷轴 UI 直读副本态",
-  },
-  encounterChoice: {
-    fold: "fold+calibration",
-    fx: "presented",
-    why: "选项结算点相位回 Land(续跑落格由同批后续事件/水合精修);按 encounterId+choiceIndex 回查目录折 option.setsFlags 章册(#1153,flags 覆盖=静态目录派生确定性折,fold 档位不变);选项效果 liquidating/exhausted 路挂起相位无专属事件=校准档;表现=选项文案浮字",
   },
   // ── 破产族 ──
   assetLiquidated: {
@@ -382,11 +360,4 @@ export function heroDefOf(heroId: string): HeroDef {
 /** 主动技静态回查(技表 skills.ts SKILLS;skillId 同时是冷却键)。查无=数据 bug,炸出。 */
 export function activeSkillDefOf(skillId: string): ActiveSkillDef {
   return activeSkillById(skillId);
-}
-
-/** 机遇目录条目按 id 查:缺目录=数据 bug,炸出(fold 相位判定/extract 选项文案共用)。 */
-export function encounterDefOfId(encounterId: string): EncounterDef {
-  const def = ENCOUNTERS.find((c) => c.id === encounterId);
-  if (def == null) throw new Error(`事件消费:机遇 ${encounterId} 不在 ENCOUNTERS 表(数据 bug)`);
-  return def;
 }

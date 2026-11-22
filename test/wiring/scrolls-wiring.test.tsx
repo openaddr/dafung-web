@@ -59,7 +59,6 @@ function seedEngine(pickCapitals = true): GameEngine {
     startingTreasures: MAP.startingTreasures,
     seed: SEED,
     mapId: "guanzhong",
-    encounter: { enabled: false }, // 机遇硬关:与 e2e quickStart/单测既有口径同
   });
   e.doDraftRoll();
   while (pickCapitals && e.phase === "Setup") {
@@ -314,7 +313,7 @@ describe("城池待决策卷轴", () => {
 describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
   // ── ①先看后选拍板(react-scrolls 招贤例迁入)──
   // 断言面:tryRecruitHero 公共方法真掷候选(候选行=引擎真产物,非伪造 offeredHeroes,
-  // e2e callEngine 同语义)→三选一卷轴(无「不取」:引擎相位不接受 endDecision)→
+  // e2e callEngine 同语义)→招贤卷轴同时提供求书和跳过→
   // 预掷明牌 chips≥1 →点候选技名 chip=开技能全览(池全貌逐技在列+未授灰置+看将不发
   // 命令)→关框→点卡体=开详情弹框(拍板唯一入口,「收为麾下」在场)→拍板→钤印节拍
   // 后卷轴收场、候选清空。钤印与幽灵退场各按生产时长推进,不轮询真实业务延时。
@@ -322,13 +321,26 @@ describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     const { el, engine, writeEngine, snap } = startGame([
       { kind: "armPhase", activeIndex: 0 }, // 候选拍板归活跃方(resolveHeroPick 授 activePlayer)
     ]);
-    writeEngine((e) => {
-      const r = e.tryRecruitHero(e.players[0]);
-      if (r !== "offered") throw new Error(`接线测试:tryRecruitHero=${r}(招贤候选未开)`);
-    });
+    writeEngine((e) => e.tryRecruitHero(e.players[0]));
     const scroll = () => docQ(T.heroPickScroll);
     expect(scroll()).not.toBeNull();
-    expect(docQ(T.heroPickDecline)).toBeNull(); // 无「不取」:引擎相位不接受 endDecision
+    expect(docQ(T.heroPickDecline)?.textContent).toBe("跳过");
+    const seekBookButton = () => docQ(TESTIDS.actionButton("seek-book"));
+    expect(seekBookButton()?.textContent).toBe("求书");
+    const snapshot = snap();
+    act(() => {
+      useGameStore.setState({
+        snapshot: {
+          ...snapshot,
+          choices: snapshot.choices.map((option) =>
+            option.id === "seekBook" ? { ...option, label: "暂歇求书", available: false } : option,
+          ),
+        },
+      });
+    });
+    expect(seekBookButton()?.hasAttribute("disabled")).toBe(true);
+    expect(seekBookButton()?.textContent).toBe("暂歇求书");
+    act(() => useGameStore.setState({ snapshot }));
     const rows = snap().offeredHeroes;
     expect(rows).toHaveLength(3);
     for (let i = 0; i < rows.length; i++) {
@@ -713,7 +725,7 @@ it("看局面时换到下一座位，手牌架自动收起后仍能返回牌面�
   expect(detail.closest("[hidden]") === null).toBe(true);
 });
 
-it("用书选将在临时锁定后可恢复，结束出牌阶段后只恢复珍宝", async () => {
+it("研读选将在临时锁定后可恢复，出牌阶段结束时撤下恢复入口", async () => {
   const book = makeSkillBook("huogong");
   const { el, engine, plant } = startGame([
     { kind: "armHero", seat: 0, heroId: "zhouyu", skillIds: ["yingzi"] },
@@ -721,12 +733,14 @@ it("用书选将在临时锁定后可恢复，结束出牌阶段后只恢复珍�
     { kind: "giveTreasure", seat: 0, treasures: [book] },
     { kind: "armPhase", activeIndex: 0, turnPhase: "AwaitingJinnang" },
   ]);
-  click(q(el, TESTIDS.pileTreasures)!);
-  await settle();
-  click(docQ(TESTIDS.bookUse(book.id))!);
+  click(q(el, TESTIDS.bookUse(book.id))!);
   await settle();
   const learn = () => docQ(TESTIDS.bookLearnModal);
   const sheet = learn()!;
+  const pick = q(sheet, TESTIDS.bookLearnItem("zhouyu")) as HTMLButtonElement;
+  const confirm = q(sheet, TESTIDS.bookLearnConfirm) as HTMLButtonElement;
+  click(pick);
+  expect(confirm.disabled).toBe(false);
   const minimize = () => click(q(sheet, TESTIDS.modalMinimize)!);
   minimize();
   await settle();
@@ -735,9 +749,10 @@ it("用书选将在临时锁定后可恢复，结束出牌阶段后只恢复珍�
   click(docQ(TESTIDS.modalRestore)!);
   await settle();
   expect(learn() === sheet).toBe(true);
-  const pick = q(sheet, TESTIDS.bookLearnItem("zhouyu")) as HTMLButtonElement;
   expect(pick.disabled).toBe(true);
-  click(pick);
+  expect(pick.getAttribute("aria-pressed")).toBe("true");
+  expect(confirm.disabled).toBe(true);
+  click(confirm);
   expect(engine.players[0].heroes[0].skillIds).toEqual(["yingzi"]);
 
   minimize();
@@ -745,9 +760,7 @@ it("用书选将在临时锁定后可恢复，结束出牌阶段后只恢复珍�
 
   plant({ kind: "armPhase", activeIndex: 1, turnPhase: "Roll" });
   await settle();
-  click(docQ(TESTIDS.modalRestore)!);
-  await settle();
-  expect(docQ(TESTIDS.treasureModal)?.closest("[hidden]") === null).toBe(true);
+  expect(docQ(TESTIDS.modalRestore)).toBeNull();
   expect(learn() === null).toBe(true);
   expect(engine.players[0].treasures.map((treasure) => treasure.id)).toContain(book.id);
 });

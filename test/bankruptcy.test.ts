@@ -7,7 +7,6 @@ import { botAct } from "@core/bot";
 import type { Player } from "@core/model";
 import { sellValueOf } from "@core/economy";
 import { HEROES } from "@core/heroes";
-import type { EncounterDef } from "@core/encounters";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import { armHero, sweepTestHeroes } from "@core/testing";
 import {
@@ -286,10 +285,11 @@ describe("破产清算", () => {
     expect(p.isBankrupt).toBe(false);
   });
 
-  it("清算自救走完后状态干净(pendingDebt/托管/访客态复位,回到 Roll)", () => {
+  it("清算自救后清掉债务、托管和访客态，并开始下一席回合", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
+    const nextSeat = (e.activeIndex + 1) % e.players.length;
     p.cash = 100;
     p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" });
     e.payOrLiquidate(p, null, 200);
@@ -297,7 +297,8 @@ describe("破产清算", () => {
     expect(e.pendingDebt).toBeNull();
     expect(e.escrowTreasure).toBeNull();
     expect(e.treasureVisitor).toBeNull();
-    expect(e.turnPhase).toBe("Roll"); // endTurn 后轮到下一玩家
+    expect(e.activeIndex).toBe(nextSeat);
+    expect(e.turnPhase).toBe("AwaitingJinnang");
     expect(p.isBankrupt).toBe(false);
     expect(p.treasures.length).toBe(0); // 卖掉的珍宝不在手中
   });
@@ -310,13 +311,15 @@ describe("破产清算", () => {
     ]);
     finishSetup(e);
     const p = e.activePlayer;
+    const nextSeat = (e.activeIndex + 1) % e.players.length;
     p.cash = 0;
     armHero(e, p, hero("zhouyu", "周瑜"));
     e.payOrLiquidate(p, null, 500); // 仅有名将,无可卖资产仍进入清算
     e.declareBankruptcy();
     expect(p.isBankrupt).toBe(true);
     expect(e.pendingDebt).toBeNull();
-    expect(e.turnPhase).toBe("Roll"); // 3 人在局,游戏未结束
+    expect(e.activeIndex).toBe(nextSeat);
+    expect(e.turnPhase).toBe("AwaitingJinnang");
     expect(e.recruitedHeroIds.has("zhouyu")).toBe(false); // 名将释放回招贤池
   });
 });
@@ -360,37 +363,6 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
     expect(p.cash).toBe(500);
     expect(p.isBankrupt).toBe(false);
     expect(caopi.cash).toBe(caopiCash0 + 50); // 与现金直付同口径:渔利恰一次
-  });
-
-  it("征粮归一:直付派发(渔利 +50);封顶实付以现有银两为限,不送清算(#1153)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    const caopi = e.players.find((q) => q !== p)!;
-    // 池收窄到受试技(#1378 曹丕池换血={放逐,行殇}:整池直授会连带挂可选技待决、
-    // 损失过阈再入待决队列,干扰渔利精确断言;收窄布场同 test/hero-skill.test.ts
-    // armSkill 先例)
-    armHero(e, caopi, CAOPI, ["yuli"]);
-    const caopiCash0 = caopi.cash;
-    const levy: EncounterDef = {
-      id: "假道征粮",
-      tier: "霉运",
-      tags: ["银两", "玩家"],
-      weight: 1,
-      text: "t",
-      effect: { kind: "levy", amount: 150 },
-    };
-    // 直付腿:现金充足 → 实付 150 派发;对手收 150 转移 + 曹丕(持牌者=对手)渔利 50
-    e.settleEncounter(p, levy);
-    const afterDirect = caopi.cash;
-    expect(afterDirect).toBe(caopiCash0 + 150 + 50);
-    // 封顶腿(#1153 红线「机遇不送清算」):现金不足 → 实付以其现有银两为限,派发实付额
-    p.cash = 10;
-    const r = e.settleEncounter(p, levy);
-    expect(r).toBe("settled");
-    expect(p.cash).toBe(0);
-    expect(p.isBankrupt).toBe(false);
-    expect(caopi.cash).toBe(afterDirect + 10 + 50); // 实付 10 照派转移 + 渔利 50
   });
 });
 

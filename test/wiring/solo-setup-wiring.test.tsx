@@ -12,7 +12,6 @@ import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 let setup: typeof import("@app/screens/setup/SoloSetupScreen");
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
-let fetchDefaults: { mockRestore(): void };
 
 const mapSource: MapSource = {
   listMaps: async () => maps,
@@ -30,17 +29,12 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  const fetchHost: Pick<Window, "fetch"> = globalThis;
-  fetchDefaults = spyOn(fetchHost, "fetch").mockImplementation(async () =>
-    Response.json({ enabled: false }),
-  );
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
   localStorage.removeItem(setup.GUOHAO_PREF_KEY);
-  fetchDefaults.mockRestore();
 });
 
 afterAll(async () => {
@@ -99,9 +93,6 @@ it("关闭字盘保留手写国号，快选回填并在起兵成功后记为预�
 
   await click(`${TID.seatCount}-minus`);
   await click(`${TID.target}-60000`);
-  await click(TID.encounterSummary);
-  expect(find(TID.encounterToggle)?.hasAttribute("open")).toBe(true);
-  await click(TID.encounterRow);
   await click(TID.startGame);
   expect(onStart).toHaveBeenCalledTimes(1);
   expect(onStart).toHaveBeenCalledWith({
@@ -112,7 +103,6 @@ it("关闭字盘保留手写国号，快选回填并在起兵成功后记为预�
     ],
     targetNetWorth: 60000,
     mapId: "guanzhong",
-    encounter: { enabled: true },
   });
   expect(localStorage.getItem(GUOHAO_PREF_KEY)).toBe("楚");
   expect(find(TID.startGame)?.hasAttribute("disabled")).toBe(false);

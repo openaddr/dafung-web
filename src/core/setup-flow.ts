@@ -11,7 +11,7 @@ import type { GameEngine } from "./authority";
 import { shuffle } from "./dice"; // Fisher-Yates 单源(#787 起随授技掷骰落骰子域,叶子模块)
 import { GUOHAO_POOL } from "./theme";
 import { JINNANG_STARTING_HAND, buildJinnangDeck } from "./jinnang";
-import { enterJinnangPhase } from "./jinnang-execution"; // 跨模块直调自由函数(#319 预案,同 #320 抽牌直调)
+import { beginTurnJinnang } from "./jinnang-execution";
 import { createTreasureDeck } from "./treasures";
 import { isSingleCjk } from "./constants";
 import { formatMoney } from "./money";
@@ -311,7 +311,7 @@ function finishSetup(g: GameEngine): void {
       `startingTreasures perSeat=${JSON.stringify(perSeat)}`,
     );
   }
-  enterJinnangPhase(g); // 首回合掷骰前即可用锦囊(#122/T2)
   g.dispatchMoment("GameStart", { subject: g.roundAnchor }); // 时机·GameStart:对局开始(主体=首动者),先于首个 TurnStart
   g.dispatchMoment("TurnStart", { subject: g.activeIndex }); // 时机·TurnStart:开局首个回合(进 Playing 时)
+  beginTurnJinnang(g);
 }

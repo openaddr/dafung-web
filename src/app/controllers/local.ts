@@ -16,7 +16,6 @@
 import type { LoadedMap } from "@core/board-loader";
 import { GameEngine } from "@core/authority";
 import type { GameCommand, SeatConfig } from "@core/authority";
-import type { EncounterSwitch } from "@core/encounters";
 import { createDice } from "@core/dice";
 import { setEngine, useGameStore, type GameSnapshotCore } from "@app/store/gameStore";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
@@ -53,8 +52,6 @@ export interface SoloRoomConfig {
   seed?: number;
   /** 地图 id(ADR-0014 局头要素;编辑器试玩不经图库,如实空串)。 */
   mapId?: string;
-  /** 机遇开关(#125;#1090 只剩开关):设置屏透传;缺省 = 机遇关(引擎缺省语义,与联机同)。 */
-  encounter?: EncounterSwitch;
   /** bot 步进配速覆盖(#730,ADR-0034):生产缺省链 = e2e localStorage 键 → core
    *  BOT_STEP_MS;bun 单测直接构造时显式传 0(测试预算按 0ms bot 连锁书写)。 */
   botStepMs?: number;
@@ -130,7 +127,6 @@ export class LocalController extends GameController {
         if (room.engine) archiveEngineLog(room.engine);
       },
       {
-        encounter: config.encounter,
         clock: this.clock,
         // #642 出口②:驱动链停摆作废窗口(单机 30s,core/timings 单源)。不经
         // decisionTimeoutMs——后者单机保持缺省关,#118 human-turn 既有 stall 零变化。

@@ -2,30 +2,18 @@ import type { GameEngine, TurnPhase } from "./authority";
 import { settleCityDamageMoments, type CityDamageContinuation } from "./city-damage-moments";
 import { openSkillChoice, type PendingSkillChoice } from "./choices";
 import { EFFECTS } from "./effects";
-import {
-  resumeEncounterStamina,
-  resumeExhaustion,
-  resumeExhaustionCityDamage,
-  resumeStaminaDamage,
-  type EncounterStaminaContinuation,
-  type ExhaustionCityDamageContinuation,
-  type ExhaustionContinuation,
-  type StaminaDamageContinuation,
-} from "./encounter-flow";
 import { emitGameEvent, noteMomentEvent } from "./game-events";
 import { heroById } from "./heroes";
 import { resumeFireWall, settleJinnangExit, type FireWallContinuation } from "./jinnang-execution";
 import type { HeroSlot } from "./roster";
 import { isTriggerSkill, skillById, type TriggerSkill } from "./skills";
+import { resumeStaminaDamageMoment, type StaminaDamageMoment } from "./stamina-damage";
 import { MOMENT_STAGES, type GameMoment, type MomentCtx, type MomentStage } from "./timing";
 import { resumeTurnEnd, type TurnEndContinuation } from "./turn-end";
 
 export type MomentContinuation =
   | CityDamageContinuation
-  | EncounterStaminaContinuation
-  | ExhaustionContinuation
-  | ExhaustionCityDamageContinuation
-  | StaminaDamageContinuation
+  | StaminaDamageMoment
   | TurnEndContinuation
   | FireWallContinuation
   | { kind: "jinnangExit" }
@@ -88,20 +76,14 @@ export function resumePendingMoment(g: GameEngine): void {
   }
   const continuation = cursor.kind === "cityDamage" ? cursor.after : cursor;
   switch (continuation.kind) {
-    case "encounterStamina":
-      resumeEncounterStamina(g, ctx, continuation);
-      break;
     case "exhaustion":
-      resumeExhaustion(g, ctx.subject, continuation);
-      break;
     case "exhaustionCityDamage":
-      resumeExhaustionCityDamage(g, continuation);
-      break;
     case "staminaDamage":
-      resumeStaminaDamage(g, ctx, continuation);
+      resumeStaminaDamageMoment(g, ctx, continuation);
+      if (continuation.after === "jinnangExit") settleJinnangExit(g);
       break;
     case "jinnangExit":
-      settleJinnangExit(g, true);
+      settleJinnangExit(g);
       break;
     case "fireWall":
       resumeFireWall(g, continuation);

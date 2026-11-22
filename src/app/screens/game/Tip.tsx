@@ -10,7 +10,7 @@
 //      focus,不代表要显示浮签,照单全收会把残签复挂在触发元上吃相邻点击。
 // (#361:onClick/ariaExpanded 随 expandPile 退役移除——浮签触发元回归纯展示,
 // 点击无动作。#622 城池徽章局部翻案:触发元可选装回轻点通道(onTap=开名下城池
-// 清单)+ aria-expanded 随弹层开合同步;不传 = 现状纯展示,珍宝/名将/声望
+// 清单)+ aria-expanded 随弹层开合同步;不传 = 现状纯展示,珍宝/名将
 // 徽章行为零变化。轻点/长按不打架由 useTapOrLongPress 单源保证:长按触发后吞掉
 // 随后的合成 click,触屏轻点=弹层、长按=浮签并存。)
 // tip 文案:结构化 { name, detail }(2026-09-25 评审去重:撤「名词|一句话」打包串的
@@ -33,16 +33,17 @@ interface TipText {
   detail: string;
 }
 
-/** 属性浮签文案单源(#253):口径对齐 docs/reference/rules/ 规则页
- *  (城=04 地产经济,手牌=06 锦囊,声望/体力=07 声望与机遇,名将=08,现金=01 总览)。
- *  席位格与仪表条两处共用,勿散落组件。 */
+/** 属性浮签文案单源(#253)，与规则页口径一致。 */
 export const ATTR_TIPS = {
   cash: { name: "现金", detail: "身价=仅现金;攒够目标身价即胜" },
   city: { name: "城池", detail: "名下城池数;到达己城可免费扩军" },
   hand: { name: "锦囊手牌", detail: "暗置,只有本人可见" },
   gem: { name: "珍宝", detail: "可交易变卖;破产时按指导价抵债" },
   hero: { name: "名将", detail: "上限 3 名;被动技能常驻生效" },
-  stamina: { name: "体力", detail: "机遇增减;归 0 耗竭:诸城降级,休整两回合后回满" },
+  stamina: {
+    name: "体力",
+    detail: "归零时耗竭，休整两回合后回满。抵达己方都城恢复一半已损失体力。",
+  },
   sign: { name: "签面", detail: "本回合掷骰点数(一~七;持英姿者七面)" },
 } as const satisfies Record<string, TipText>;
 
@@ -55,7 +56,7 @@ interface TipProps {
   className?: string;
   /** 触发元挂点(e2e 断言用;挂 trigger 本体,不嵌套)。 */
   testId?: string;
-  /** 触发元可达名(默认 = 名词;徽章在此带上数值,如「声望 2」)。 */
+  /** 触发元可达名(默认 = 名词;徽章在此带上数值)。 */
   ariaLabel?: string;
   /** 轻点动作(#622:城池徽章轻点=开名下城池清单)。
    *  不传 = 纯展示现状(click 空转,珍宝/名将等行为零变化);长按仍开浮签。 */

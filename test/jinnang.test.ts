@@ -10,7 +10,6 @@ import { loadMap } from "@core/board-loader";
 import {
   JINNANG_CARDS,
   JINNANG_DECK_LIST,
-  JINNANG_STARTING_HAND,
   TARGET_DOMAIN_STAGES,
   buildJinnangDeck,
   jinnangCardOf,
@@ -49,9 +48,8 @@ function finishSetup(e: GameEngine) {
 }
 
 describe("锦囊目录(数据校验)", () => {
-  it("9 种牌,id 唯一且中文自带因果(文案非空)", () => {
-    expect(JINNANG_CARDS.length).toBe(9);
-    expect(new Set(JINNANG_CARDS.map((c) => c.id)).size).toBe(9);
+  it("锦囊 id 唯一且文案非空", () => {
+    expect(new Set(JINNANG_CARDS.map((c) => c.id)).size).toBe(JINNANG_CARDS.length);
     for (const c of JINNANG_CARDS) {
       expect(c.text.length).toBeGreaterThan(6);
       expect(c.tags.length).toBeGreaterThanOrEqual(1);
@@ -80,8 +78,8 @@ describe("锦囊目录(数据校验)", () => {
     expect(JINNANG_CARDS.some((c) => c.tags.includes("守"))).toBe(false); // 守类清零,枚举保留
   });
 
-  it("牌库构成 18 张:按目录 copies 展平(缓兵之计 1、半路杀出 3,其余 2)", () => {
-    expect(JINNANG_DECK_LIST.length).toBe(18);
+  it("牌库构成 20 张，按目录 copies 展平", () => {
+    expect(JINNANG_DECK_LIST.length).toBe(20);
     const counts = new Map(JINNANG_CARDS.map((c) => [c.id, 0]));
     for (const id of JINNANG_DECK_LIST) counts.set(id, (counts.get(id) ?? 0) + 1);
     for (const c of JINNANG_CARDS) {
@@ -89,9 +87,10 @@ describe("锦囊目录(数据校验)", () => {
     }
     expect(JINNANG_CARDS.find((c) => c.id === "缓兵之计")?.copies).toBe(1);
     expect(JINNANG_CARDS.find((c) => c.id === "半路杀出")?.copies).toBe(3);
+    expect(JINNANG_CARDS.find((c) => c.id === "袭扰")?.copies).toBe(2);
   });
 
-  it("buildJinnangDeck 同 seed 同牌序;是 18 张的同一多重集", () => {
+  it("buildJinnangDeck 同 seed 同牌序，配置的牌无遗漏", () => {
     const a = buildJinnangDeck(createDice(7));
     const b = buildJinnangDeck(createDice(7));
     expect(a).toEqual(b);
@@ -104,7 +103,7 @@ describe("锦囊目录(数据校验)", () => {
 });
 
 describe("锦囊发牌(引擎缝)", () => {
-  it("选都完成进 Playing:每人起手 1 张(座位序),牌库相应减少", () => {
+  it("每人发 1 张起手锦囊，首个回合在出牌前再摸 1 张", () => {
     const e = makeEngine(42, [
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: true },
@@ -112,13 +111,14 @@ describe("锦囊发牌(引擎缝)", () => {
     ]);
     finishSetup(e);
     expect(e.phase).toBe("Playing");
-    const total = e.players.reduce((n, p) => n + p.jinnangHand.length, 0);
-    expect(total).toBe(3 * JINNANG_STARTING_HAND);
-    expect(e.jinnangDeck.length).toBe(18 - 3);
-    for (const p of e.players) {
-      expect(p.jinnangHand.length).toBe(1);
-      expect(() => jinnangCardOf(p.jinnangHand[0])).not.toThrow();
-    }
+    expect(e.activePlayer.jinnangHandCount).toBe(2);
+    expect(e.players.filter((p) => p !== e.activePlayer).map((p) => p.jinnangHandCount)).toEqual([
+      1, 1,
+    ]);
+    expect(e.jinnangDeckCount).toBe(JINNANG_DECK_LIST.length - 4);
+    expect(e.gameEvents.filter((event) => event.kind === "jinnangDrawn")).toEqual([
+      expect.objectContaining({ seat: e.activeIndex, turn: 1, count: 1, reason: "turnStart" }),
+    ]);
   });
 
   it("同 seed 同发牌(牌序确定性贯穿到手上)", () => {
@@ -134,19 +134,18 @@ describe("锦囊发牌(引擎缝)", () => {
     expect(e1.jinnangDeck).toEqual(e2.jinnangDeck);
   });
 
-  it("手牌无上限(#250):循环抽到牌库空,单人可持整副 18 张,不作废不报错", () => {
+  it("手牌无上限(#250)，单人可持整副牌", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const p = e.players[0];
-    // 守恒口径(牌只在这三处):把对手起手那张收回牌库,凑回整副 18 张
+    // 把对手起手牌收回牌库，供同一人抽完整副。
     const other = e.players[1];
     e.jinnangDeck.unshift(...other.jinnangHand.splice(0));
     other.jinnangHandCount = 0;
     e.jinnangDeckCount = e.jinnangDeck.length;
-    expect(e.jinnangDeck.length).toBe(17); // 整副 18 张:p 手上 1 张 + 牌库 17 张
     e.drawJinnang(0, 99); // 超发远超牌库:抽到空即止,张张入手
-    expect(p.jinnangHand.length).toBe(18); // 理论上限=整副牌库
-    expect(p.jinnangHandCount).toBe(18);
+    expect(p.jinnangHand.length).toBe(JINNANG_DECK_LIST.length);
+    expect(p.jinnangHandCount).toBe(JINNANG_DECK_LIST.length);
     expect(e.jinnangDeck).toEqual([]);
     expect(e.jinnangDeckCount).toBe(0);
     expect(e.jinnangDiscard).toEqual([]); // 无作废:满手作废已废除
@@ -203,15 +202,15 @@ describe("弃牌堆洗回(牌库耗尽)", () => {
     );
   }
 
-  it("守恒:洗回前后 18 = 牌库+各座位手牌+弃堆 恒成立", () => {
+  it("洗回前后牌库、各座位手牌及弃堆的总数守恒", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    expect(circulation(e)).toBe(18);
+    expect(circulation(e)).toBe(JINNANG_DECK_LIST.length);
     e.jinnangDiscard.push(...e.jinnangDeck.splice(0)); // 牌库耗尽的真实面貌:全数经手牌/弃堆流转
     e.jinnangDeckCount = 0;
-    expect(circulation(e)).toBe(18);
-    e.drawJinnang(0, 2); // 牌库空、弃堆 16 张 → 洗回 → 抽 2
-    expect(circulation(e)).toBe(18);
+    expect(circulation(e)).toBe(JINNANG_DECK_LIST.length);
+    e.drawJinnang(0, 2);
+    expect(circulation(e)).toBe(JINNANG_DECK_LIST.length);
   });
 
   it("触发:牌库空+弃牌非空 → 洗回并入手;战报/事件宣告(浮字归 fx 面),计数同步", () => {
@@ -308,7 +307,7 @@ describe("锦囊使用回路(T2)", () => {
   it("回合开始有可用牌 → 相位入 AwaitingJinnang;今不用 → Roll", () => {
     const e = makeEngine(42);
     finishSetup(e);
-    armJinnang(e, ["横征暴敛"]); // 已启用种类:摆位进卷轴(自然入相路径由 enterJinnangPhase 走)
+    armJinnang(e, ["横征暴敛"]);
     expect(e.turnPhase).toBe("AwaitingJinnang");
     e.resolveJinnang(null);
     expect(e.turnPhase).toBe("Roll");
@@ -361,17 +360,24 @@ describe("锦囊使用回路(T2)", () => {
     expect(["Roll", "AwaitingJinnang"]).toContain(e.turnPhase);
   });
 
-  it("每回合每类标签一张:同回合用谋后再持谋牌则灰置,重算收卷", () => {
+  it("同一出牌阶段可以连续打出同标签锦囊，直至无牌可出", () => {
     const e = makeEngine(42);
     finishSetup(e);
-    armJinnang(e, ["军情密探", "军情密探"]);
-    e.resolveJinnang("军情密探"); // 第一张谋(入目标段选人)
-    e.resolveJinnang("军情密探", [1]);
-    expect(e.turnPhase).toBe("Roll"); // 第二张同标签 → 灰置 → 重算无可用 → 收卷
-    // 硬闯第二张:相位已走,引擎相位守卫拒绝
-    const discardBefore = e.jinnangDiscard.length;
-    e.resolveJinnang("军情密探");
-    expect(e.jinnangDiscard.length).toBe(discardBefore); // 未消耗
+    const user = armJinnang(e, ["军情密探", "军情密探"]);
+    const target = e.players.indexOf(user) === 0 ? 1 : 0;
+    giveJinnang(e, target, []);
+    e.submitCommand({ type: "useJinnang", cardId: "军情密探" });
+    e.submitCommand({ type: "useJinnang", cardId: "军情密探", targets: [target] });
+    expect(e.turnPhase).toBe("AwaitingJinnang");
+    expect(e.choicesFor().find((option) => option.id === "军情密探")).toMatchObject({
+      available: true,
+      cardTags: ["谋"],
+    });
+    e.submitCommand({ type: "useJinnang", cardId: "军情密探" });
+    e.submitCommand({ type: "useJinnang", cardId: "军情密探", targets: [target] });
+    expect(user.jinnangHand).toEqual([]);
+    expect(e.jinnangDiscard).toEqual(["军情密探", "军情密探"]);
+    expect(e.turnPhase).toBe("Roll");
   });
 
   it("异类标签同回合可用:用攻(横征)后援(求贤)仍可再出", () => {
@@ -379,7 +385,7 @@ describe("锦囊使用回路(T2)", () => {
     finishSetup(e);
     armJinnang(e, ["横征暴敛", "求贤令"]);
     e.resolveJinnang("横征暴敛");
-    expect(e.turnPhase).toBe("AwaitingJinnang"); // 求贤(援)名额未占 → 停留卷轴
+    expect(e.turnPhase).toBe("AwaitingJinnang");
     expect(e.choicesFor().find((o) => o.id === "求贤令")?.available).toBe(true);
     e.resolveJinnang("求贤令");
     // #188 档 3:新招名将的主动技即就绪 → 出牌阶段重算后停留(合并窗语义);今不用收卷
@@ -389,7 +395,7 @@ describe("锦囊使用回路(T2)", () => {
       e.resolveJinnang(null);
     }
     expect(e.turnPhase).toBe("Roll");
-    expect(e.jinnangUsedTags.sort()).toEqual(["攻", "援"].sort());
+    expect(e.jinnangDiscard).toEqual(["横征暴敛", "求贤令"]);
   });
 
   it("bot 在锦囊相位对策略不济的牌恒今不用(不掷骰,手牌原样)", () => {
@@ -414,62 +420,9 @@ describe("锦囊使用回路(T2)", () => {
     e.submitCommand({ type: "useJinnang", cardId: "求贤令" });
     expect(e.players[1].jinnangHand.length).toBe(handBefore); // 未消耗
   });
-
-  it("快照往返:usedTags 保真", () => {
-    const e = makeEngine(42);
-    finishSetup(e);
-    armJinnang(e, ["横征暴敛"]);
-    e.resolveJinnang("横征暴敛");
-    const e2 = makeEngine(1);
-    e2.restoreFromSnapshot(e.snapshot());
-    expect(e2.jinnangUsedTags).toEqual(e.jinnangUsedTags);
-    expect(e2.jinnangUsedTags).toEqual(["攻"]);
-  });
 });
 
-// ──────────────────────────── 渠道(T5)────────────────────────────
-import { testEngine } from "@core/testing";
-import { grantProperty, setDefense } from "@core/planter";
-import { ENCOUNTERS } from "@core/encounters";
-
-describe("锦囊渠道(T5)", () => {
-  it("落锦囊城必抽一张(prop-jinnang-1 锦囊城)", () => {
-    const e = makeEngine(42);
-    finishSetup(e);
-    const handBefore = e.players[0].jinnangHand.length;
-    const chance = MAP.board.tiles.find((t) => t.event === "jinnang")!.index;
-    testEngine(e).landActiveAt(chance); // prop-jinnang-1(#827 环位 P11)
-    expect(e.players[0].jinnangHand.length).toBe(handBefore + 1);
-    expect(e.log.some((l) => l.detail.includes("jinnangTile"))).toBe(true);
-  });
-
-  it("声望跨档不献牌(#1098 否定断言):加声望只累加数值,锦囊渠道只剩锦囊城/机遇授书", () => {
-    const e = makeEngine(42);
-    finishSetup(e);
-    e.players.forEach((p) => {
-      p.jinnangHand = [];
-      p.jinnangHandCount = 0;
-    });
-    const handOf = () => e.players[0].jinnangHand.length;
-    const h0 = handOf();
-    e.addReputation(0, 30); // 跨 30:不献
-    expect(handOf()).toBe(h0);
-    e.addReputation(0, 30); // 跨 60:不献
-    expect(handOf()).toBe(h0);
-    e.addReputation(0, 30); // 跨 90:不献
-    expect(handOf()).toBe(h0);
-    expect(e.players[0].reputation).toBe(90);
-  });
-
-  it("机遇目录:圯上授书(好运/grantCard/锦囊标签)存在且权重合法", () => {
-    const entry = ENCOUNTERS.find((c) => c.id === "圯上授书");
-    expect(entry).toBeDefined();
-    expect(entry!.tier).toBe("好运");
-    expect(entry!.tags).toContain("锦囊");
-    expect(entry!.effect?.kind).toBe("grantCard");
-    expect(entry!.weight).toBeGreaterThan(0);
-  });
-});
+import { giveJinnang, grantProperty, setDefense } from "@core/planter";
 
 // ──────────────────────────── 目标段与指向他人(T3)────────────────────────────
 describe("锦囊目标段(T3)", () => {

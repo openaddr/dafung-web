@@ -101,7 +101,7 @@ describe("遣散主链(#1147)", () => {
 
     expect(me.heroes.length).toBe(0); // 槽移除(冷却账随槽俱弃,无孤儿键)
     expect(e.recruitedHeroIds.has("zhouyu")).toBe(false); // 回池划名(破产释放同口径)
-    expect(me.cash).toBe(cash0); // 免费(无声望/银两代价)
+    expect(me.cash).toBe(cash0); // 无银两代价
     // 已学技逐册折书:两技两册,id=skillbook-<skillId>(同 id 复用,无流水号)
     const books = me.treasures.slice(treasures0);
     expect(books.map((b) => b.id)).toEqual([
@@ -187,8 +187,8 @@ describe("遣散回池再招(#1147)", () => {
     expect(e.recruitedHeroIds.has("zhouyu")).toBe(false);
 
     // 招贤:候选恰含周瑜(回池划名生效),预掷=rollGrantedSkills 现掷
-    const r = e.tryRecruitHero(me);
-    expect(r).toBe("offered");
+    e.tryRecruitHero(me);
+    expect(e.turnPhase).toBe("AwaitingHeroPick");
     expect(e.offeredHeroes.map((o) => o.def.id)).toEqual(["zhouyu"]);
     e.resolveHeroPick(0);
     const slot = me.heroes.find((s) => s.heroId === "zhouyu");

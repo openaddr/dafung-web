@@ -3,7 +3,7 @@ import { resumeCityBurning, type CityBurningContinuation } from "./city-burning"
 import { awardCityIncome, planCityIncome } from "./city-income";
 import { STAMINA_MAX } from "./constants";
 import { emitGameEvent } from "./game-events";
-import { enterJinnangPhase } from "./jinnang-execution";
+import { beginTurnJinnang } from "./jinnang-execution";
 import { formatMoney } from "./money";
 import { netWorth } from "./networth";
 import { checkVictory } from "./victory";
@@ -170,13 +170,11 @@ function startTurn(g: GameEngine): void {
   g.dispatchMoment("TurnStart", { subject: g.activeIndex });
   g.turnPhase = "Roll";
   g.turnNumber += 1;
-  g.jinnangUsedTags = [];
-  enterJinnangPhase(g);
   // 行军骰面与路径仍供当前命令的演出消费，下一次行军会覆盖它们。
   g.lastLandOutcome = null;
   g.pendingLand = null;
-  g.pendingEncounter = null;
   g.pendingJinnang = null;
   g.pendingReaction = null;
   g.lastTransaction = null;
+  beginTurnJinnang(g);
 }

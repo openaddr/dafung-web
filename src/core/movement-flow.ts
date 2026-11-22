@@ -6,24 +6,22 @@
 // 域内自洽不留壳)。
 // 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;GameEngine 侧保留同名公共
 // 方法薄委托(外部 importer 无感),src/core/authority.ts「回合状态机」区段。
-// 跨域往返统一经壳上薄委托(与既有票一致):机遇 g.maybeApplyEncounter、抽宝拼点
-// g.drawTreasureAt(珍宝城落格固定事件位,#825)、escrow 清算
-// g.payOrLiquidate、锦囊抽牌 g.drawJinnang、招贤 g.tryRecruitHero;唯一例外是开拦检窗
-// 直调 reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
-// 迁出而删);reaction-window 续走则经壳上 g.marchTraverse/g.settleMarchLanding 回调。
+// 跨域往返统一经壳上薄委托:抽宝拼点 g.drawTreasureAt(珍宝城落格固定事件位,#825)、escrow 清算
+// g.payOrLiquidate、招贤 g.tryRecruitHero。抽牌经 drawJinnangTraced、开拦检窗经
+// openReactionWindow；拦检结算通过 g.marchTraverse/g.settleMarchLanding 续走和落格。
 import type { GameEngine } from "./authority";
 import { computeChoices } from "./choices";
 import { buy, upgrade } from "./economy";
 import { findHolding } from "./player";
 import { jinnangCardOf } from "./jinnang";
+import { drawJinnangTraced } from "./jinnang-execution";
 import { openReactionWindow, REACTION_EXPECT } from "./reaction-window";
 import { formatMoney } from "./money";
 import { emitGameEvent, requireMovePath, type LandingResolvedBody } from "./game-events";
-import { SIGN_FACES } from "./constants";
+import { CAPITAL_STAMINA_RECOVERY_RATE, SIGN_FACES, STAMINA_MAX } from "./constants";
 import { heroDieFaces } from "./skills";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
-import { isEventCity } from "./board";
 import type { TileDef } from "./board";
 
 // ── 落格结果类型(#326 types.ts 解散,ADR-0019 类型随域走)──
@@ -127,10 +125,9 @@ export function rollAndMove(g: GameEngine): void {
 }
 
 /** 途经遍历(#281):逐格走 remaining(原 traversed 的未走切片,不含起点含落点),
- *  每格依次:① PassedPlayer(途经非破产他人棋子,座位序);② 己都城——落点不在都城则
- *  必停截断(放弃剩余步数,机遇→补给→结束回合,ADR-0035);③ 他人城主城池
- *  (城主存活)——派发 MarchPassedCity,城主持半路杀出则开拦检窗(挂停返回 "suspended",
- *  respondReaction 续走),拦停成功即止、后续城不再问。
+ *  每步先结算实际离开的城池，再处理:① PassedPlayer(途经非破产他人棋子,座位序);
+ *  ② 己都城——尚有余步则必停截断(补给→结束回合);③ 仍有余步且他人城主能拦检时开窗。
+ *  拦停止步算到达，只有继续离开才算经过。
  *  返回:"suspended"=拦检窗挂起、"halted"=必停都城已结算(调用方直接返回)、
  *  "landed"=走完无停,由调用方 settleMarchLanding 落格。 */
 export function marchTraverse(
@@ -143,7 +140,13 @@ export function marchTraverse(
   steps: number,
 ): "landed" | "halted" | "suspended" {
   const moverSeat = g.players.indexOf(mover);
+  const path = requireMovePath(g, "marchTraverse");
   while (remaining.length > 0) {
+    const walkedCount = totalLen - remaining.length;
+    // 离开已进入的上一格才算经过；拦检放行后从原路径的进度续算。
+    if (walkedCount > 0) {
+      settlePassedCity(g, mover, moverSeat, path.traversed[walkedCount - 1]);
+    }
     const tIdx = remaining[0];
     // ① 途经他人棋子(座位序,确定性;主体=行军者,ctx.passedSeat=被途经者)
     for (let seat = 0; seat < g.players.length; seat++) {
@@ -155,45 +158,29 @@ export function marchTraverse(
         tileIndex: tIdx,
       });
     }
-    // ② 己都城:若落点不在都城 → 必停截断(lastMove 只走到都城)
-    if (tIdx === mover.capitalIndex) {
-      if (landIndex !== mover.capitalIndex) {
-        const walkedCount = totalLen - remaining.length;
-        g.lastMove = g.board.computePath(fromPos, walkedCount + 1, mover.capitalIndex);
-        mover.position = mover.capitalIndex;
-        g.dispatchMoment("AfterMarch", { subject: moverSeat }); // 时机·AfterMarch:移动完成(必停都城)、落格结算前
-        g.dispatchMoment("CapitalHalt", {
-          subject: moverSeat,
-          tileIndex: mover.capitalIndex,
-        }); // 时机·CapitalHalt:必停都城(AfterMarch 后、落格结算处)
-        // 机遇必出(ADR-0035,#776):驻跸截断同走「机遇先于落格结算」单链,零豁免;
-        // 抉择机遇占用本落格时置 pendingEncounterHalt,解完由 settleEncounterChoice 续跑
-        // finishCapitalHalt;清算/破产/耗竭接管本落格,驻跸尾不再续跑(人倒下了不领补给)。
-        g.turnPhase = "Land";
-        g.pendingEncounterHalt = true;
-        const enc = g.maybeApplyEncounter(mover);
-        if (enc === "deciding") return "halted"; // 抉择机遇解完续跑驻跸尾(标记保持)
-        g.pendingEncounterHalt = false; // 直落/中断占用:标记作废
-        if (enc === "none" || enc === "settled") finishCapitalHalt(g, mover);
-        return "halted"; // 必停已完整结算或已移交接管方:调用方不得再走落格收尾
-      }
+    // ② 己都城:尚有余步时必停截断(lastMove 只走到都城)
+    if (tIdx === mover.capitalIndex && remaining.length > 1) {
+      g.lastMove = g.board.computePath(fromPos, walkedCount + 1, mover.capitalIndex);
+      mover.position = mover.capitalIndex;
+      g.dispatchMoment("AfterMarch", { subject: moverSeat }); // 时机·AfterMarch:移动完成(必停都城)、落格结算前
+      g.dispatchMoment("CapitalHalt", {
+        subject: moverSeat,
+        tileIndex: mover.capitalIndex,
+      }); // 时机·CapitalHalt:必停都城(AfterMarch 后、落格结算处)
+      drawOwnCityArrivalSupply(g, mover, tIdx);
+      finishCapitalHalt(g, mover);
+      return "halted";
     }
-    // ③ 他人城主城池(城主存活):MarchPassedCity 挂点 → 半路杀出拦检窗
+    // ③ 半路杀出只拦检将要经过的他人城池。
     const tile = g.board.at(tIdx);
-    if (tile.propertyId != null) {
+    if (remaining.length > 1 && tile.propertyId != null) {
       const owner = g.findOwner(tile.propertyId);
       if (owner != null && owner !== mover && !owner.isBankrupt) {
         const ownerSeat = g.players.indexOf(owner);
-        g.dispatchMoment("MarchPassedCity", {
-          subject: moverSeat,
-          ownerSeat,
-          tileIndex: tIdx,
-        }); // 时机·MarchPassedCity:途经他人城主城池(反应窗挂点)
         const ambushId = owner.jinnangHand.find(
           (id) => jinnangCardOf(id).effect.kind === REACTION_EXPECT.march,
         );
         if (ambushId != null) {
-          const walkedCount = totalLen - remaining.length;
           openReactionWindow(
             g,
             { kind: "march", cardId: ambushId, userSeat: moverSeat, ownerSeat, tileIndex: tIdx },
@@ -218,16 +205,43 @@ export function marchTraverse(
   return "landed";
 }
 
-/** 驻跸截断结算尾(ADR-0035):补给(cause=halt 战报)+ 结束回合。直落(marchTraverse)
- *  与机遇解完续跑(settleEncounterChoice 经壳上 g.finishCapitalHalt 委托)两路共用。 */
-export function finishCapitalHalt(g: GameEngine, mover: Player): void {
+function settlePassedCity(
+  g: GameEngine,
+  mover: Player,
+  moverSeat: number,
+  tileIndex: number,
+): void {
+  const { propertyId } = g.board.at(tileIndex);
+  if (propertyId == null) return;
+  const owner = g.findOwner(propertyId);
+  if (owner == null || owner.isBankrupt) return;
+  if (owner === mover) {
+    drawJinnangTraced(g, moverSeat, 1, { reason: "cityPassed", tileIndex });
+  } else {
+    g.dispatchMoment("MarchPassedCity", {
+      subject: moverSeat,
+      ownerSeat: g.players.indexOf(owner),
+      tileIndex,
+    });
+  }
+}
+
+function drawOwnCityArrivalSupply(g: GameEngine, mover: Player, tileIndex: number): void {
+  const { propertyId } = g.board.at(tileIndex);
+  if (propertyId != null && g.findOwner(propertyId) === mover) {
+    drawJinnangTraced(g, g.players.indexOf(mover), 1, { reason: "cityArrived", tileIndex });
+  }
+}
+
+/** 驻跸截断结算：补给后结束回合。 */
+function finishCapitalHalt(g: GameEngine, mover: Player): void {
+  g.turnPhase = "Land";
   const supply = applyResupply(g, mover, "halt");
   g.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
-  g.turnPhase = "Land";
   g.endTurn();
 }
 
-/** 落格收尾(走完遍历无拦停):落位、AfterMarch、落格结算(机遇/城池)。 */
+/** 掷骰落点和拦停止步共用落格收尾：落位、到达摸牌和城池结算。 */
 export function settleMarchLanding(g: GameEngine, mover: Player, landIndex: number): void {
   mover.position = landIndex;
   emitGameEvent(g, g.players.indexOf(mover), {
@@ -235,19 +249,9 @@ export function settleMarchLanding(g: GameEngine, mover: Player, landIndex: numb
     tileIndex: landIndex,
     path: requireMovePath(g, "marchArrived"), // #385:路径随事件走(合并批多段行军各播各段)
   }); // 事件流(#375):行军落格
+  drawOwnCityArrivalSupply(g, mover, landIndex);
   g.dispatchMoment("AfterMarch", { subject: g.players.indexOf(mover) }); // 时机·AfterMarch:移动完成(落位)、落格结算(resolveLanding)前
   g.turnPhase = "Land";
-  // 机遇必出(ADR-0035,#776):早于落格结算,零豁免(驻跸截断同链);清算/破产
-  // 则中断落格结算。enabled=false 为系统总开关(引擎缺省关,测试隔离)。
-  // 特殊城池免掷(#823/#824,ADR-0037):落点是事件城 → 固定事件即此地固定机遇,随机
-  // 机遇不掷(驻跸截断不落格、不走此门,机遇必出零豁免照旧)。
-  // 抉择机遇(#124)返回 deciding:机遇占用本落格——含 ≤1 可用选项自动执行已收尾的场合,
-  // 机遇早于城池结算:即时机遇 settled → 继续本落格结算;抉择机遇 deciding → 待解,
-  // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断;
-  // 耗竭 exhausted(#132):体力归 0 → 耗竭相位/自动惩罚占用本落格——人倒下了不买地。
-  const enc = isEventCity(g.board.at(mover.position)) ? "none" : g.maybeApplyEncounter(mover);
-  if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
-    return;
   resolveLanding(g);
 }
 
@@ -331,12 +335,8 @@ export function endDecision(g: GameEngine): void {
   g.endTurn();
 }
 
-/** 落格结算(#826 全城池制):己都城(补给+招贤)/ 普通城掷机遇后的城池交易链 /
- *  特殊城池(固定事件 → 交易链,#824 ADR-0037)。落格结算顺序正典(ADR-0024 链序随
- *  #825 迁移):**机遇必出(事件城免掷,ADR-0035/0037)→ [固定事件 →] 城池交易链
- *  (购地/扩军/按兵不动/珍宝交涉,含自动拒绝;一次落格至多一段)→ 结束回合**。珍宝城的
- *  探宝是固定事件本身(movement-flow resolveCityEvent 经壳上 g.drawTreasureAt 消费),
- *  **先于交易链**:链中清算/破产不再抑制探宝(已结算),交易链收口零探宝(链尾钩子已拆)。 */
+/** 正落己都城时补给并招贤；其他城池先结算固定事件(若有)，再走城池交易链。
+ *  购地、扩军、按兵不动或珍宝交涉各自收完后结束回合。珍宝城的探宝先于交易链(#825)。 */
 export function resolveLanding(g: GameEngine): void {
   const mover = g.activePlayer;
   // 落点恰为自己都城:补给 + 招贤纳士(都城特化先于固定事件与城池结算:事件化的
@@ -345,18 +345,15 @@ export function resolveLanding(g: GameEngine): void {
     const supply = applyResupply(g, mover);
     g.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
     g.turnPhase = "Land";
-    if (g.tryRecruitHero(mover) === "silent") g.endTurn(); // 招贤纳士:三选一(或无货→直接 endTurn)
-    else emitLandingResolved(g, "AwaitingHeroPick");
+    g.tryRecruitHero(mover);
+    emitLandingResolved(g, "AwaitingHeroPick");
     return;
   }
   const tile = g.board.at(mover.position);
-  // 特殊城池固定事件(#823/#824,ADR-0037;珍宝城随 #825 迁移入列):落格分流「普通城
-  // 掷机遇 / 特殊城走固定事件」的结算半边——固定事件先于交易链(链序对镜普通城的
-  // 「机遇必出 → 交易链」)。pendingCityEvent=固定事件已解(招贤经 AwaitingHeroPick、
-  // 探宝/锦囊/天命/商市解毕直置)续跑至此:消费即清、直入交易链不再触发。
+  // 固定事件解毕重入时消费 pendingCityEvent，直接进入城池交易链。
   if (g.pendingCityEvent) {
     g.pendingCityEvent = false;
-  } else if (isEventCity(tile)) {
+  } else if (tile.event != null) {
     resolveCityEvent(g, mover, tile);
     return;
   }
@@ -364,31 +361,20 @@ export function resolveLanding(g: GameEngine): void {
 }
 
 /** 特殊城池固定事件结算(#823/#824/#825,ADR-0037;#826 起盘面唯一事件承载):
- *  招贤/锦囊/天命/商市四体 + 探宝抽宝拼点(treasure-flow drawTreasureAt 域),解毕续跑
- *  交易链(continueCityEvent)。招贤池空或麾下满员、牌堆空事件沉默、交易链照常;商市行情
- *  致清算/破产则中断落格(与机遇同规则,人倒下了不买地);探宝已先行结算,交易链中
+ *  招贤/商市与探宝抽宝拼点(treasure-flow drawTreasureAt 域),解毕续跑
+ *  交易链(continueCityEvent)。招贤池空或麾下满员时交易链照常;商市行情
+ *  致清算/破产则中断落格;探宝已先行结算,交易链中
  *  清算/破产不再抑制它(#825 语义位移)。 */
 function resolveCityEvent(g: GameEngine, mover: Player, tile: TileDef): void {
   switch (tile.event) {
     case "hero": {
       g.lastLandOutcome = { kind: "Noop" };
       g.turnPhase = "Land";
-      if (g.tryRecruitHero(mover) === "silent") {
-        continueCityEvent(g); // 池空/满员:事件沉默,交易链照常
-      } else {
-        g.pendingCityEvent = true; // 三选一解完(resolveHeroPick)续跑交易链
-        emitLandingResolved(g, "AwaitingHeroPick");
-      }
+      g.tryRecruitHero(mover);
+      g.pendingCityEvent = true;
+      emitLandingResolved(g, "AwaitingHeroPick");
       return;
     }
-    case "jinnang":
-      applyJinnangDraw(g, mover, tile);
-      continueCityEvent(g);
-      return;
-    case "fate":
-      applyFateReputation(g, mover, tile);
-      continueCityEvent(g);
-      return;
     case "market":
       if (applyMarketSwing(g, mover, tile) !== "settled") return; // 清算/破产中断落格
       continueCityEvent(g);
@@ -400,53 +386,11 @@ function resolveCityEvent(g: GameEngine, mover: Player, tile: TileDef): void {
   }
 }
 
-/** 固定事件解毕续跑交易链(#824):置待续跑标记 → resolveLanding 重入(标记消费即清、
- *  跳过固定事件直入城池结算)。与 pendingEncounterHalt 的「机遇解完续跑」同构。 */
+/** 固定事件解毕续跑交易链(#824):置待续跑标记 → resolveLanding 重入。 */
 function continueCityEvent(g: GameEngine): void {
   g.pendingCityEvent = true;
   g.turnPhase = "Land";
   g.resolveLanding();
-}
-
-/** 天命城固定事件体(#824/#826):落格固定 +20 声望(声望泉,#121;无界直加
- *  经 addReputation),落账 + 事件宣告 + 战报;解毕由调用方续跑交易链。 */
-function applyFateReputation(g: GameEngine, mover: Player, tile: TileDef): void {
-  const repBefore = mover.reputation;
-  g.addReputation(g.players.indexOf(mover), 20);
-  emitGameEvent(g, g.players.indexOf(mover), {
-    kind: "reputationChanged",
-    delta: mover.reputation - repBefore,
-    reason: "fate",
-  }); // 事件流(#384):声望变更(天命泉,实际增减;浮字由 fx 面按 reason=fate 派生「天命眷顾」)
-  g.lastLandOutcome = { kind: "Noop" };
-  g.logEvent(
-    "system",
-    mover.guohao,
-    `${mover.guohao} 落 ${tile.name}:天命眷顾,声望 +20`,
-    `fate player=${mover.id} reputation=${mover.reputation}`,
-    0,
-  );
-}
-
-/** 锦囊城固定事件体(#824/#826):落格必抽一张锦囊(#147 的 drawJinnang;牌库空落空
- *  语义同起手),宣告 + 抽牌 + 进手事件;解毕由调用方续跑交易链。 */
-function applyJinnangDraw(g: GameEngine, mover: Player, tile: TileDef): void {
-  g.lastLandOutcome = { kind: "Noop" };
-  g.turnPhase = "Land";
-  // 抽牌宣告由 jinnangDrawn(reason=jinnangTile)/jinnangExhausted 事件在 fx 面派生
-  g.logEvent(
-    "system",
-    mover.guohao,
-    `${mover.guohao} 落 ${tile.name}:抽一张锦囊`,
-    `jinnangTile player=${mover.id} tile=#${tile.index}`,
-  );
-  const drawn = g.drawJinnang(g.players.indexOf(mover), 1);
-  if (drawn > 0)
-    emitGameEvent(g, g.players.indexOf(mover), {
-      kind: "jinnangDrawn",
-      count: drawn,
-      reason: "jinnangTile",
-    }); // 事件流(#384):抽锦囊进手(牌库空落空=无转移,不产)
 }
 
 /** 商市城固定事件体(#824/#826):随机行情波动 ±100~200(简化版;完整买/卖/持股系统留
@@ -613,18 +557,25 @@ export function capitalSupplyOf(g: GameEngine, player: Player): { supply: number
   return { supply: def.resupply, level: h.level };
 }
 
-/** 都城补给 = 地图 resupply(固定值,不随城池等级);结算(+现金/浮动/战报),查找走 capitalSupplyOf(单次)。
+/** 都城补给 = 地图 resupply(固定值,不随城池等级) + 恢复已损失体力。
  *  cause="halt"(经过必停)战报写「军至都城 X,驻跸补给(+N)」;"land"(落点恰为都城)维持原补给文案。 */
 function applyResupply(g: GameEngine, mover: Player, cause: "land" | "halt" = "land"): number {
   const { supply, level } = capitalSupplyOf(g, mover);
+  const seat = g.players.indexOf(mover);
   if (supply > 0) {
     mover.cash += supply;
-    emitGameEvent(g, g.players.indexOf(mover), {
+    emitGameEvent(g, seat, {
       kind: "cashChanged",
       delta: supply,
       reason: "supply",
     }); // 事件流(#375):金钱变更(补给铜钱雨由 fx 面按 reason=supply 派生,S7)
-    g.dispatchMoment("CashGained", { subject: g.players.indexOf(mover), amount: supply }); // 时机·CashGained:被动得银(都城补给,驻跸/落都城同挂)
+    g.dispatchMoment("CashGained", { subject: seat, amount: supply }); // 时机·CashGained:被动得银(都城补给,驻跸/落都城同挂)
+  }
+  const before = mover.stamina;
+  const recovery = Math.round((STAMINA_MAX - before) * CAPITAL_STAMINA_RECOVERY_RATE);
+  if (recovery > 0) {
+    const after = g.addStamina(seat, recovery);
+    emitGameEvent(g, seat, { kind: "staminaChanged", delta: after - before, reason: "supply" });
   }
   if (cause === "halt") {
     g.logEvent(

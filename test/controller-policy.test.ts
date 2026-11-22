@@ -76,7 +76,6 @@ const TURN_PHASES: TurnPhase[] = [
   "Roll",
   "AwaitingDecision",
   "AwaitingHeroPick",
-  "AwaitingEncounter",
   "AwaitingJinnang",
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",

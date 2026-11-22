@@ -28,7 +28,6 @@ TypeScript + Vite + React 三国大富翁:**权威引擎** `src/core/`(纯逻辑
 - 部署:[部署服务器](./docs/how-to/部署服务器.md)
 - 对局日志:[对局日志](./docs/reference/对局日志.md)
 - 联机框架工作前查:[参考仓索引](./docs/reference/参考仓索引.md)
-- 机遇系统配置(`public/config/jiyu.json`):rules 第 07 页[声望与机遇](./docs/reference/rules/07-声望与机遇.md)
 
 ## 零兜底原则(全项目贯穿)
 
@@ -66,7 +65,7 @@ TypeScript + Vite + React 三国大富翁:**权威引擎** `src/core/`(纯逻辑
 
 各文件职责速查见 [代码地图](./docs/reference/代码地图.md)。三条高频路由:
 
-- 加名将/珍宝/机遇 = 只改 `core/` 三张数据表(`heroes.ts` / `treasures.ts` / `encounters.ts`);
+- 名将、技能与珍宝的数据声明在 `core/heroes.ts` / `core/skills.ts` / `core/treasures.ts`;
 - 改配色 = 单源 `core/theme.ts`,改后跑 `bun run gen:theme`,不手改 tokens.css;
 - 测试与单次辅助的选择器 = 各屏 `testids.ts` 单源,勿硬编码字符串。
 
@@ -76,7 +75,6 @@ TypeScript + Vite + React 三国大富翁:**权威引擎** `src/core/`(纯逻辑
 
 - 选都即迁城:**起点=各人自己的都城**,tile 0 仅选都期临时落位,勿当共同起点;`offeredCapitals` 随 rngState 序列化,联机/恢复一致。
 - `AwaitingCapitalHalt` 相位已删勿复活:都城路过必停、结束回合,无「驻跸/继续」抉择。
-- 机遇档位归一/回退**单源在 `core/encounters.ts`**;机遇必出(ADR-0035):引擎缺省 `enabled=false`,产品默认来自 jiyu.json。
 
 ## 验证纪律
 

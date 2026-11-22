@@ -27,19 +27,10 @@
 // 设计见 docs/explanation/联机架构.md + docs/adr/0001..0007。
 //
 // 运行时:Bun 原生(Bun.serve + 内置 WebSocket,2026-08 自 node:http+ws 迁移,行为语义不变)。
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  statSync,
-  unlinkSync,
-} from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import type { GameEngine, TurnPhase } from "../src/core/authority";
 import { BOT_STEP_MS } from "../src/core/timings";
-import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import { EventBatchChannel } from "./event-batch";
 // wire 协议编解码单源(#429):上行 parse+dispatch、下行构造全部收口 wire.ts
@@ -66,26 +57,6 @@ const HOST = process.env.HOST ?? "0.0.0.0"; // 默认监听所有网卡:局域�
 const ROOMS_DIR = resolve(process.env.ROOMS_DIR ?? "./data/rooms");
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "./dist");
 const startedAt = Date.now();
-
-// ──────────────────────────── 机遇配置(#135:单机联机同规则)────────────────────────────
-// 服务器启动时读一次 jiyu.json 作为联机房间引擎的机遇配置(单机设置屏 fetch 同一文件);
-// 缺文件/坏结构回退产品默认(core ENCOUNTER_PRODUCT_DEFAULTS,与单机内置回退同值)。
-// 路径可 env 覆盖:无头协议测试用它注入归零配置(test/fixtures/jiyu-off.json),
-// 先隔离后开启,机遇节奏不进联机用例(#118 教训:节奏类变更必须可隔离)。
-const JIYU_CONFIG = resolve(process.env.JIYU_CONFIG ?? "./public/config/jiyu.json");
-function loadEncounterConfig() {
-  try {
-    const parsed = parseEncounterFile(JSON.parse(readFileSync(JIYU_CONFIG, "utf-8")));
-    if (parsed) return parsed;
-    console.warn(`[server] 机遇配置结构不符,回退产品默认:${JIYU_CONFIG}`);
-  } catch (err) {
-    console.warn(
-      `[server] 机遇配置读取失败(${(err as Error).message}),回退产品默认:${JIYU_CONFIG}`,
-    );
-  }
-  return ENCOUNTER_PRODUCT_DEFAULTS;
-}
-const ENCOUNTER = loadEncounterConfig();
 
 // 决策停摆看门狗(#118):等待某真人座位决策超过该毫秒 → 看门狗代开托管(ADR-0028,
 // 重连不清,本人点「收回」拿回)。0 = 关闭。默认 120s:正常思考远够用,真停摆(页面
@@ -217,10 +188,8 @@ function recordEvent(roomId: string, ev: Record<string, unknown>): void {
 //      seat-projection),每座位各发
 //      各的 per-seat 投影(同 ①):开局(Setup 三段式全程 + finishSetup 批:开局发牌/
 //      牌库洗序/Setup 字段只发生在此)、破产清算批(playerBankrupt:现金清零/债主收款/
-//      珍宝转债主不折)、决策窗五相位(AwaitingJinnang/HeroPick/Encounter/Exhaustion/
-//      BankruptcySettle)的进入/停留/退出——窗口进出无专属事件或上下文(offeredHeroes/
-//      pendingEncounter/pendingJinnang 等)不随事件走,折叠器不可推导(event-fold.ts
-//      「校准兜底」同族);
+//      珍宝转债主不折)、决策窗(出牌、招贤和破产清算)的进入、停留和退出。
+//      招贤候选及出牌目标草稿等字段由校准摘要补齐。
 //   ③ 房间生命周期消息 —— lobby 形状的房间元数据(座位在线/房主/托管),指纹变化
 //      才发(对局中掉线/托管开关等不再搭逐步快照车);dismissed 不变(元数据全公开,
 //      无 per-seat 面)。
@@ -242,7 +211,6 @@ const registry = new RoomRegistry(
   (roomId, ev: RoomEvent) => recordEvent(roomId, ev as Record<string, unknown>),
   flushGameLog,
   {
-    encounter: ENCOUNTER,
     decisionTimeoutMs: DECISION_TIMEOUT_MS,
     reactionWindowMs: REACTION_WINDOW_MS_OVERRIDE,
     retentionWindowMs: RETENTION_WINDOW_MS,
@@ -545,7 +513,6 @@ const HELP = {
     LOGS_DIR,
     LOG_TTL_DAYS,
     STATIC_DIR,
-    JIYU_CONFIG,
     DECISION_TIMEOUT_MS,
     E2E_REACTION_MS: REACTION_WINDOW_MS_OVERRIDE,
     E2E_BOT_STEP_MS: BOT_STEP_MS_EFFECTIVE,
@@ -691,7 +658,7 @@ async function handle(req: Request): Promise<Response> {
 // 状态被 broadcast/flushRoom/handle/WS 处理器闭包共享,改成「可多次调用的装配函数」要整体
 // 重排数百行闭包链,而双端对跑层同进程一实例即够(多实例零需求);故缝取最小=把已存在的
 // serve 结果导出成句柄。端口与路径复用既有 env 面:PORT=0 即随机临时端口(句柄 .port 取
-// 实际口),ROOMS_DIR/LOGS_DIR/STATIC_DIR/JIYU_CONFIG/EXTENSIONS_DIR 本就可注入——测试在
+// 实际口),ROOMS_DIR/LOGS_DIR/STATIC_DIR/EXTENSIONS_DIR 本就可注入——测试在
 // import 前设 env 即完成隔离,生产启动路径(`bun run serve`)零变化。约定:import 本模块即
 // 起服(单例,进程内重复 import 走模块缓存;不要在未设 env 时于测试内 import)。
 export const engineServer = Bun.serve<WsSeat>({
@@ -804,7 +771,7 @@ console.log(
   `[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`,
 );
 console.log(
-  `[server] 机遇(#135;ADR-0035 必出制):${ENCOUNTER.enabled ? "开" : "关"}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"};掉线保留窗(#380):${RETENTION_WINDOW_MS > 0 ? `${RETENTION_WINDOW_MS / 1000} 秒` : "关"};bot 配速(#730):${BOT_STEP_MS_EFFECTIVE > 0 ? `${BOT_STEP_MS_EFFECTIVE}ms/步` : "关"}`,
+  `[server] 停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"};掉线保留窗(#380):${RETENTION_WINDOW_MS > 0 ? `${RETENTION_WINDOW_MS / 1000} 秒` : "关"};bot 配速(#730):${BOT_STEP_MS_EFFECTIVE > 0 ? `${BOT_STEP_MS_EFFECTIVE}ms/步` : "关"}`,
 );
 console.log(
   "[server] 大厅 /room/new|join|start|dismiss;掉线冻结+房主解散出口(ADR-0002/0028);WS /ws",

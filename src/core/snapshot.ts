@@ -11,7 +11,6 @@
 import type { GameEngine, EnginePhase, SetupPhase, TurnPhase, VictoryReason } from "./authority";
 import type { ChoiceOption } from "./choices";
 import type { DiceRoll } from "./dice";
-import type { EncounterFlagId } from "./encounters";
 import type { CityBurning, LogEvent } from "./model";
 import type { MovePath } from "./board";
 import type { LandOutcomeKind, LandOutcomeSnapshot, PendingLand } from "./movement-flow";
@@ -88,19 +87,12 @@ export interface SnapshotPlayer {
   }[];
   heroes: HeroSlotRow[];
   treasures: TreasureRow[];
-  reputation: number; // 声望无界,开局 0(#121;#1090 去夹紧)
   stamina: number; // 体力 0~100(#130)
   /** 锦囊手牌(#122):暗置牌 id。god-view 快照含全员,可见性由传输层投影裁剪(ADR-0016):
    *  联机经 clientView 后,非本人座位此字段恒为空数组,数量走 jinnangHandCount。 */
   jinnangHand: string[];
   /** 锦囊手牌数(公开信息,引擎态):内容被投影裁掉后,数量经本字段照传。 */
   jinnangHandCount: number;
-  /** 机遇章册(#1153):跨事件标记的 per-player 经历记录(#1126 拍板①;明置信息,
-   *  投影不裁——可用性本就经 choices 公开);破产不清章(拍板⑥)。 */
-  encounterFlags: EncounterFlagId[];
-  /** 奇遇已遇集(#1154):一局一遇按玩家(ONCE_PER_GAME_ENCOUNTER_IDS 成员);明置信息,
-   *  投影不裁(抽取可见性同源)。 */
-  onceEncounterIds: string[];
 }
 
 /** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
@@ -171,17 +163,13 @@ export interface GameSnapshot {
   // 待决策落格(决策上下文单点,spec #107 C2):决策命令消费与恢复重建的唯一出处;
   // 只存 kind + propertyId 句柄,定义由 catalog 现查。
   pendingLand: PendingLand | null;
-  // 机遇解完续跑驻跸尾(ADR-0035,#776):必停都城截断遇抉择机遇占用时置位。
-  pendingEncounterHalt: boolean;
-  // 特殊城池固定事件待续跑(#824,ADR-0037):五类固定事件统一置位,招贤跨命令持有。
+  // 特殊城池固定事件待续跑(#824,ADR-0037):固定事件统一置位,招贤跨命令持有。
   pendingCityEvent: boolean;
   // 纯派生(log 长度)
   logCount: number;
   // 锦囊牌库/弃牌堆(#122):god-view 含牌序,联机投影只给数量(牌序决定未来抽牌,
   // 不可泄——ADR-0016 count-only 档);弃牌堆内容公开(打出的牌本就明置)。
   jinnangDeck: string[];
-  /** 本回合已占用的锦囊标签(#122/T2):每回合开始清空。 */
-  jinnangUsedTags: string[];
   /** 锦囊目标段载荷(#122/T3):选牌后的选人子状态;null=卡牌段。 */
   pendingJinnang: import("./jinnang-execution").PendingJinnang | null;
   /** 技能目标段载荷(#188 档 3):出牌阶段选技后的选人子状态;null=无。 */
@@ -460,14 +448,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // 本回合已用锦囊标签(#122/T2):回合开始清空
-    key: "jinnangUsedTags",
-    read: (e) => [...e.jinnangUsedTags],
-    write: (e, s) => {
-      e.jinnangUsedTags = [...s.jinnangUsedTags];
-    },
-  },
-  {
     // 锦囊目标段(#122/T3):选人子状态随快照走(目标段中途恢复不丢)
     key: "pendingJinnang",
     read: (e) =>
@@ -701,12 +681,9 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           ...(t.kind != null ? { kind: t.kind } : {}), // #1146 技能书实例标识(普通珍宝缺席=存量形状)
           ...(t.skillId != null ? { skillId: t.skillId } : {}),
         })),
-        reputation: p.reputation,
         stamina: p.stamina,
         jinnangHand: [...p.jinnangHand], // 锦囊手牌(#122;投影层裁剪,ADR-0016)
         jinnangHandCount: p.jinnangHandCount,
-        encounterFlags: [...p.encounterFlags], // 机遇章册(#1153):成对清单读写同点
-        onceEncounterIds: [...p.onceEncounterIds], // 奇遇已遇集(#1154):成对清单读写同点
       })),
     write: (e, s) => {
       // 玩家状态(覆盖构造时设的初值)
@@ -731,15 +708,9 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           lastFired: { ...row.lastFired },
           marks: { ...row.marks },
         }));
-        p.reputation = ps.reputation;
         p.stamina = ps.stamina;
         p.jinnangHand = [...ps.jinnangHand];
         p.jinnangHandCount = ps.jinnangHandCount;
-        // 机遇章册(#1153,#1126 拍板④):旧落盘记录缺此键不兜底——undefined 直灌让
-        // 问题暴露(项目零兼容口径,同「零兜底」对 ?? 链的审视口径)
-        p.encounterFlags = [...ps.encounterFlags];
-        // 奇遇已遇集(#1154,同拍板④):旧落盘记录缺此键不兜底,undefined 直灌让问题暴露
-        p.onceEncounterIds = [...ps.onceEncounterIds];
         p.treasures = ps.treasures.map((t) => ({
           id: t.id,
           name: t.name,
@@ -758,7 +729,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
             level: h.level,
             maxLevel: def.maxLevel,
             // 防御值(#1386):旧落盘记录缺此键不兜底——undefined 直灌让问题暴露
-            // (项目零兼容口径,同上方 encounterFlags 的直灌口径)
             defense: h.defense,
             burning: h.burning,
             damageRanking: h.damageRanking,
@@ -875,16 +845,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // 机遇解完续跑驻跸尾(ADR-0035,#776):必停都城截断遇抉择机遇占用时置位,
-    // 恢复后 settleEncounterChoice 据此续跑驻跸尾而非 resolveLanding(补给+结束回合)。
-    key: "pendingEncounterHalt",
-    read: (e) => e.pendingEncounterHalt,
-    write: (e, s) => {
-      e.pendingEncounterHalt = s.pendingEncounterHalt;
-    },
-  },
-  {
-    // 特殊城池固定事件待续跑(#824,ADR-0037):五类固定事件统一置位(招贤跨命令持有),
+    // 特殊城池固定事件待续跑(#824,ADR-0037):固定事件统一置位(招贤跨命令持有),
     // 恢复后据此续跑 resolveLanding(直入交易链、不再触发固定事件)。
     key: "pendingCityEvent",
     read: (e) => e.pendingCityEvent,

@@ -231,5 +231,7 @@ it("轮末与首笔得银各自应答后续发，跨过跳行动的轮次锚点�
     "roundStarted",
     "turnSkipped",
     "turnStarted",
+    "jinnangDrawn",
+    "jinnangPhaseResumed",
   ]);
 });

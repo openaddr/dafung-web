@@ -18,9 +18,7 @@
 // 双模式(check-goldens 同款心智):
 //   bun scripts/sim-bench.ts [update] [--verbose]  # --verbose 显示逐局进度
 //
-// 语料口径:3 图同票一语料源(guanzhong/zhongyuan 内置 + yanzhou 夹具),机遇 = 产品
-// 默认(ENCOUNTER_PRODUCT_DEFAULTS,ADR-0035),不装扩展包——与票一/票二同口径,
-// 区间只依赖仓内内容,扩展目录变动不进基准。seed 段 4001-4050 与票一/二语料
+// 语料口径：关中、中原内置地图与兖州夹具。不装扩展包，区间只依赖仓内内容。seed 段 4001-4050 与票一/二语料
 // 3001-3010 分开,两门互不踩。统计口径沿 sim-batch 先例:分位数 q(arr,p) =
 // arr[floor(p·(n-1))],破产率 = 局均破产人次(isBankrupt 旗为单源)。
 // 带宽口径:首跑中位 ±25%;轮数(整数量纲)四舍五入取整,破产率(小数量纲)保留

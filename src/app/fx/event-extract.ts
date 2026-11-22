@@ -4,14 +4,13 @@
 // 印章/音效/城池宣告/横幅),单机(engine.gameEvents)与联机(netStore lastEvents)共用
 // 同一函数——diff 启发式随本模块落地退役(lastJinnangPlay 留痕旁路已随 #412 移除)。
 //
-// 坐标口径:提取期按当时引擎态解析棋盘逻辑坐标并烤进事件——浮字锚定依赖提取时刻
-// 的玩家位置;行军/印章/落格脉冲的播放几何同样在提取拍算死(不变量①提取即定格,
+// 坐标口径:提取期将事件指定的棋盘格或玩家当前位置换算为逻辑坐标;行军/印章/落格
+// 脉冲的播放几何同样在提取拍算死(不变量①提取即定格,
 // ADR-0029/#608:tokenMoved 全烤 keyframes、印章与落格脉冲自带坐标),播放期零读
 // 可变引擎态。行军路径(#385):marchArrived/capitalHalt 事件
 // 自带 MovePath 摘要,marchEvent 按事件内路径播——合并批(联机单 tick 多转移)多段
 // 行军各播各段,不再依赖引擎 lastMove 单槽;反应窗续走的余段用转移前位置(prePositions)
 // 截短——与单机 remainingMarchPath 同一公式;对不上的路径不播动画、不做 diff 重建。
-import { encounterChoiceAt, encounterChoiceLabel } from "@core/encounters";
 import type { GameEngine } from "@core/authority";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import type { MovePath } from "@core/board";
@@ -22,7 +21,6 @@ import { jinnangCardOf } from "@core/jinnang";
 import { skillById } from "@core/skills";
 import {
   activeSkillDefOf,
-  encounterDefOfId,
   eventSeat,
   eventSeatPlayer,
   heroDefOf,
@@ -62,8 +60,7 @@ function cursorsOf(engine: GameEngine): ExtractCursors {
 }
 
 // ─────────────────────── 取数辅助(契约违反当场炸出,零兜底) ───────────────────────
-// 行动者座位校验单源 core/event-tiers(eventSeat);名将/主动技/机遇目录回查同源
-// (heroDefOf/activeSkillDefOf/encounterDefOfId),文案不再分叉。
+// 行动者座位校验单源 core/event-tiers(eventSeat);名将和主动技目录回查同用 heroDefOf 与 activeSkillDefOf。
 function guohaoOf(engine: GameEngine, seat: number): string {
   return engine.players[seat].guohao;
 }
@@ -159,8 +156,6 @@ function textFloaterAtTile(engine: GameEngine, seat: number, text: string, tileI
 function tileNameOfProperty(engine: GameEngine, propertyId: string): string {
   return engine.board.at(tileOfProperty(engine, propertyId)).name;
 }
-
-// 机遇目录条目按 id 查:单源 core/event-tiers(encounterDefOfId)。
 
 /** 金钱浮字(供应=铜钱雨,余=金额浮字)。纳税铜钱雨档(reason="tax" 随雨落币)
  *  已随税关格退役整体清退(#826/#828):cashDelta 不再带 coins,铜钱雨唯一通路
@@ -274,11 +269,13 @@ function arrivalPresentation(
   ev: { tileIndex: number; path: MovePath },
   prePosition: number | null,
   halted: boolean,
+  passedCityDraws: readonly PresentationEvent[],
   announce?: PresentationEvent,
 ): PresentationEvent[] {
   const out: PresentationEvent[] = [];
   const march = marchEvent(engine, seat, ev, prePosition);
   if (march) out.push(march);
+  out.push(...passedCityDraws);
   if (announce) out.push(announce);
   // 落格定音(#826 全城池制):旧「非城池格金圈一拍」随功能格退役而删;恰落己都城
   // (驻章即定音)与驻跸(横幅+驻章)走驻跸线。
@@ -338,6 +335,7 @@ export function extractBatchEvents(
     return -1;
   })();
   const events_: PresentationEvent[] = [];
+  const passedCityDraws: PresentationEvent[] = [];
   const pre = (seat: number): number | null => prePositions?.[seat] ?? null;
   const cursors = cursorsOf(engine); // 跨批游标(生命周期=引擎实例,显式对象传递)
 
@@ -351,7 +349,9 @@ export function extractBatchEvents(
       }
       case "marchArrived": {
         const seat = eventSeat(engine, ev);
-        events_.push(...arrivalPresentation(engine, seat, ev, pre(seat), false));
+        events_.push(
+          ...arrivalPresentation(engine, seat, ev, pre(seat), false, passedCityDraws.splice(0)),
+        );
         break;
       }
       case "capitalHalt": {
@@ -366,6 +366,7 @@ export function extractBatchEvents(
             ev,
             pre(seat),
             true,
+            passedCityDraws.splice(0),
             haltBannerEvent(engine, seat, ev.tileIndex),
           ),
         );
@@ -403,15 +404,6 @@ export function extractBatchEvents(
         if (ev.reason === "maxed") {
           events_.push(textFloater(engine, eventSeat(engine, ev), "城已满级,按兵不动"));
         }
-        break;
-      }
-      case "propertyGranted": {
-        // 机遇赐城(#719,传檄而定):城池易主宣告(归属按提取时刻引擎态=得城者),
-        // 与购地/破产易主同通路;据章/buy 音/价款浮字是「购」的待遇,赐城只宣告易主
-        eventSeat(engine, ev);
-        events_.push(
-          propertyChangedEvent(engine, ev.propertyId, { levelChanged: false, ownerChanged: true }),
-        );
         break;
       }
       case "cashChanged": {
@@ -661,6 +653,7 @@ export function extractBatchEvents(
       case "reactionOpened": {
         // 开窗轻叩(#751 窎开音):反应窗开即响(木鱼族),窗体 UI 本身直读副本
         // pendingReaction 不经本提取器;声音走通用 sound 档,单机/联机同见。
+        if (ev.view.kind === "march") events_.push(...passedCityDraws.splice(0));
         events_.push({ kind: "sound", event: "reactionOpen" });
         break;
       }
@@ -713,7 +706,7 @@ export function extractBatchEvents(
       }
       case "staminaChanged": {
         const seat = eventSeat(engine, ev);
-        // #568 病 A:零实际差=无变化无演出(满体力回蓝/顶格赈济/触底机遇不再浮「体力 +0」;
+        // #568 病 A:零实际差=无变化无演出(满体力时不浮「体力 +0」;
         // 发射点不设守卫——事件语义=宣告实际差,含 0,守卫单点在表现层折算处)。
         // reason=rest=休整期满回满,文案点明出处;其余=delta 宣告。
         if (ev.delta === 0) break;
@@ -734,28 +727,16 @@ export function extractBatchEvents(
         events_.push(textFloater(engine, seat, exhaustionTextOf(engine, ev)));
         break;
       }
-      case "reputationChanged": {
-        const seat = eventSeat(engine, ev);
-        events_.push(
-          textFloater(
-            engine,
-            seat,
-            ev.reason === "fate" ? `天命眷顾,声望 ${signed(ev.delta)}` : `声望 ${signed(ev.delta)}`,
-          ),
-        );
-        break;
-      }
       case "jinnangDrawn": {
         const seat = eventSeat(engine, ev);
-        events_.push(
-          textFloater(
-            engine,
-            seat,
-            ev.reason === "jinnangTile"
-              ? "抽一张锦囊"
-              : `获锦囊一封${ev.count > 1 ? ` ×${ev.count}` : ""}`,
-          ),
-        );
+        const text = `获锦囊一封${ev.count > 1 ? ` ×${ev.count}` : ""}`;
+        if (ev.reason === "turnStart") {
+          events_.push(textFloater(engine, seat, text));
+        } else {
+          const floater = textFloaterAtTile(engine, seat, text, ev.tileIndex);
+          // 经过事件早于本段落位，等本段行军播放完成或开拦检窗时再显示。
+          (ev.reason === "cityPassed" ? passedCityDraws : events_).push(floater);
+        }
         break;
       }
       case "jinnangReshuffled": {
@@ -768,14 +749,6 @@ export function extractBatchEvents(
         // 牌库弃堆双空落空宣告(#588):文案浮字锚抽牌者——自引擎浮字死通道迁 fx 面,
         // 单机/联机同见,rules 06「锦囊已空」玩家可见口径由此成立
         events_.push(textFloater(engine, eventSeat(engine, ev), "锦囊已空"));
-        break;
-      }
-      case "encounterChoice": {
-        const seat = eventSeat(engine, ev);
-        const option = encounterChoiceAt(encounterDefOfId(ev.encounterId), ev.choiceIndex);
-        events_.push(
-          textFloater(engine, seat, encounterChoiceLabel(option, ev.grantsSkillBooks === true)),
-        );
         break;
       }
       case "turnSkipped": {
@@ -804,7 +777,7 @@ export function extractBatchEvents(
       }
       // ── 无表现档(default 守卫,档位单源 core/event-tiers)──
       // 走到这里的已登记 kind 必须是 fx=silent 档(回合/胜负生命周期、treasureSold、
-      // encounterTriggered 等:状态折叠
+      // 其余事件由状态折叠消费
       // 与卷轴/反应窗 UI 的输入,不产演出)——presented 档漏 case = 下面赋值编译期红
       //(FxPresentedKind 派生集,#430 防遗漏机器)。线上未知 kind 不在联合内,运行时
       // 落此跳过:ADR-0020 既定口径,非吞错。
@@ -816,6 +789,7 @@ export function extractBatchEvents(
     }
   }
 
+  events_.push(...passedCityDraws);
   // 铜钱声(旧 spawnFloaters 口径:有正收入就叮一声,每批一次,排在首个浮字之前)
   const firstFloater = events_.findIndex((e) => e.kind === "cashDelta" || e.kind === "supplyRain");
   const coinDue =

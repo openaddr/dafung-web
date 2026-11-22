@@ -1,7 +1,7 @@
 // 折叠投影器单测(#386 两族,#387 全覆盖,ADR-0020 折叠切换⑤):事件批 → 本地引擎副本
 // 字段的投影契约,按字段族分组断言「事件序列 → 状态」——回合/胜负、掷骰/行军(含权威落格
 // 事实:相位/pendingLand/落格表现态/交涉到来)、城池、金钱(含相邻回填)、珍宝、名将、
-// 锦囊(含反应窗)、声望/体力、跳过、破产、机遇;以及契约边界(未知 kind 忽略 = 范围
+// 锦囊(含反应窗)、体力、跳过、破产;以及契约边界(未知 kind 忽略 = 范围
 // 定义、无主座位/事件序违反当场炸)与快照对账(折叠漂移被水合无条件校正,快照=校准锚)。
 // 真实命令与 JSON 下行的决策续行接缝见同目录 local-hydration.test.ts。
 import { describe, it, expect, spyOn } from "bun:test";
@@ -22,12 +22,11 @@ import {
   placePlayer,
   setCash,
   setDefense,
-  setReputation,
+  setJinnangPiles,
 } from "@core/planter";
-import { cmdMsg, type InboundMsg } from "../../scripts/wire";
-import { ENCOUNTERS, type EncounterDef } from "@core/encounters";
+import { cmdMsg, eventsMsg, type InboundMsg, type ServerMsg } from "../../scripts/wire";
 import { REACTION_WINDOW_MS } from "@core/constants";
-import type { GameEvent, GameEventBody } from "@core/game-events";
+import { beginGameEventBatch, type GameEvent, type GameEventBody } from "@core/game-events";
 import { armHero } from "@core/testing";
 import guanzhongData from "../../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
@@ -41,7 +40,7 @@ const MAP = loadMap(guanzhongData);
 const CHANGAN = 0;
 const LUOYANG = MAP.board.tiles.find((t) => t.propertyId === "prop-luoyang")!.index;
 
-function makeEngine(seed = 7, encountersEnabled = false): GameEngine {
+function makeEngine(seed = 7): GameEngine {
   const seats: SeatConfig[] = [
     { name: "A", isBot: false, guohao: "魏" },
     { name: "B", isBot: false, guohao: "蜀" },
@@ -51,7 +50,6 @@ function makeEngine(seed = 7, encountersEnabled = false): GameEngine {
     targetNetWorth: 30000,
     startingCash: 10000,
     startingTreasures: 0,
-    encounter: { enabled: encountersEnabled },
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -74,7 +72,7 @@ function path(landIndex: number): MovePath {
 }
 
 describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
-  it("银行债批量卖城清偿经线上编码与事件折叠后,现金清债与下一回合同步", () => {
+  it("银行债清偿后推进回合，事件使持牌者收下反应锦囊，其余座位只见张数", () => {
     const e = makeEngine();
     e.doDraftRoll();
     while (e.phase === "Setup")
@@ -82,11 +80,14 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     const debtor = e.activeIndex;
     const nextSeat = 1 - debtor;
     giveJinnang(e, nextSeat, []);
+    setJinnangPiles(e, ["半路杀出"], []);
     grantProperty(e, debtor, "prop-jinyang", 1); // 关中晋阳 1 级变卖价 900
     setCash(e, debtor, 50);
     e.payOrLiquidate(e.activePlayer, null, 400);
     const replica = makeEngine();
-    replica.restoreFromSnapshot(e.snapshot());
+    replica.restoreFromSnapshot(redactSnapshotForSeat(e.snapshot(), nextSeat));
+    const otherReplica = makeEngine();
+    otherReplica.restoreFromSnapshot(redactSnapshotForSeat(e.snapshot(), debtor));
     const message = JSON.parse(
       cmdMsg({
         type: "confirmBankruptcySettle",
@@ -95,7 +96,16 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     ) as Extract<InboundMsg, { type: "cmd" }>;
 
     e.submitCommand(message.cmd);
-    foldEventBatch(replica, JSON.parse(JSON.stringify(e.gameEvents)));
+    for (const [viewer, copy] of [
+      [nextSeat, replica],
+      [debtor, otherReplica],
+    ] as const) {
+      const downlink = JSON.parse(eventsMsg(redactEvents(e.gameEvents, viewer))) as Extract<
+        ServerMsg,
+        { type: "events" }
+      >;
+      foldEventBatch(copy, downlink.events);
+    }
 
     expect(e.players[debtor].cash).toBe(550);
     expect(replica.players[debtor].cash).toBe(550);
@@ -104,6 +114,68 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     expect(e.activeIndex).toBe(nextSeat);
     expect(replica.activeIndex).toBe(nextSeat);
     expect(e.turnPhase).toBe("Roll");
+    expect(replica.turnPhase).toBe("Roll");
+    expect(replica.players[nextSeat]).toMatchObject({
+      jinnangHand: ["半路杀出"],
+      jinnangHandCount: 1,
+    });
+    expect(otherReplica.players[nextSeat]).toMatchObject({ jinnangHand: [], jinnangHandCount: 1 });
+    expect(replica.jinnangDeckCount).toBe(0);
+    expect(otherReplica.turnNumber).toBe(e.turnNumber);
+    const recovered = JSON.parse(JSON.stringify(redactSnapshotForSeat(e.snapshot(), debtor)));
+    expect(recovered.events).toContainEqual({
+      kind: "jinnangDrawn",
+      count: 1,
+      reason: "turnStart",
+      seat: nextSeat,
+      round: e.round,
+      turn: e.turnNumber,
+    });
+    otherReplica.restoreFromSnapshot(recovered);
+    expect(otherReplica.players[nextSeat]).toMatchObject({ jinnangHand: [], jinnangHandCount: 1 });
+  });
+
+  it("跳过座位不摸牌，实际回合洗回后先摸再出牌，双空直接进入掷骰", () => {
+    const e = makeEngine();
+    e.doDraftRoll();
+    while (e.phase === "Setup")
+      e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
+    const active = e.activeIndex;
+    const skipped = 1 - active;
+    giveJinnang(e, active, ["缓兵之计"]);
+    giveJinnang(e, skipped, []);
+    armPhase(e, { turnPhase: "AwaitingJinnang" });
+    e.submitCommand({ type: "useJinnang", cardId: "缓兵之计" });
+    e.submitCommand({ type: "useJinnang", cardId: "缓兵之计", targets: [skipped] });
+    setJinnangPiles(e, [], ["横征暴敛"]);
+    const replica = makeEngine();
+    replica.restoreFromSnapshot(redactSnapshotForSeat(e.snapshot(), active));
+
+    const finishTurn = () => {
+      armPhase(e, { turnPhase: "AwaitingDecision" });
+      e.submitCommand({ type: "endDecision" });
+      foldEventBatch(replica, JSON.parse(eventsMsg(redactEvents(e.gameEvents, active))).events);
+    };
+    finishTurn();
+    expect(e.gameEvents.filter((ev) => ev.kind === "turnSkipped").map((ev) => ev.seat)).toEqual([
+      skipped,
+    ]);
+    expect(e.activeIndex).toBe(active);
+    expect(replica.players[skipped].jinnangHandCount).toBe(0);
+    expect(replica.players[active].jinnangHand).toEqual(["横征暴敛"]);
+    expect(replica.jinnangDiscard).toEqual([]);
+    expect(replica.jinnangDeckCount).toBe(0);
+    expect(replica.turnPhase).toBe("AwaitingJinnang");
+    expect(e.choicesFor().find((option) => option.id === "横征暴敛")?.available).toBe(true);
+
+    e.submitCommand({ type: "useJinnang", cardId: null });
+    finishTurn();
+    expect(e.activeIndex).toBe(skipped);
+    expect(e.gameEvents.filter((ev) => ev.kind.startsWith("jinnang"))).toEqual([
+      expect.objectContaining({ kind: "jinnangExhausted", seat: skipped }),
+    ]);
+    expect(replica.players[skipped].jinnangHandCount).toBe(0);
+    expect(replica.jinnangDeckCount).toBe(0);
     expect(replica.turnPhase).toBe("Roll");
   });
 
@@ -179,7 +251,7 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     foldEventBatch(e, [
       ev(0, { kind: "cashChanged", delta: 500, reason: "supply" }),
       ev(1, { kind: "cashChanged", delta: -200, reason: "stock" }),
-      ev(0, { kind: "cashChanged", delta: -100, reason: "encounter" }),
+      ev(0, { kind: "cashChanged", delta: -100, reason: "stock" }),
     ]);
 
     expect(e.players[0].cash).toBe(cash0 + 400);
@@ -279,7 +351,6 @@ describe("折叠投影器 · 回合/胜负族", () => {
     e.lastLandOutcome = { kind: "Noop" };
     e.treasureVisitor = { def: MAP.catalog.get("prop-luoyang")!, ownerIdx: 1 };
     e.pendingReaction = null;
-    e.jinnangUsedTags = ["谋"];
     const turn: GameEvent = { kind: "turnStarted", seat: 1, round: 2, turn: 5 };
     foldEventBatch(e, [turn]);
 
@@ -290,7 +361,6 @@ describe("折叠投影器 · 回合/胜负族", () => {
     expect(e.pendingLand).toBeNull();
     expect(e.lastLandOutcome).toBeNull();
     expect(e.treasureVisitor).toBeNull(); // 交涉窗口收口(turnEnded 相邻同口径)
-    expect(e.jinnangUsedTags).toEqual([]); // 标签名额清零
   });
 
   it("roundStarted/roundEnded 定轮次锚点;gameOver 定胜负终局", () => {
@@ -338,7 +408,7 @@ describe("折叠投影器 · 掷骰/行军族", () => {
     expect(e.players[0].cash).toBe(cash0 + 800);
   });
 
-  it("marchArrived 仅落位,机遇效果落账前不预测城池决策", () => {
+  it("marchArrived 仅落位，等权威事件开启城池决策", () => {
     const e = makeEngine();
     foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: CHANGAN, path: path(CHANGAN) })]);
     expect(e.players[0].position).toBe(CHANGAN);
@@ -430,7 +500,7 @@ describe("折叠投影器 · 城池族", () => {
     expect(e.players[0].cash).toBe(cash0); // Setup 期现金由开局校准覆盖
   });
 
-  it("propertyBought 扣价入册;propertyUpgraded 对齐等级(副本无持有按事件补册)", () => {
+  it("购城扣价入册，升城同步等级与防御", () => {
     const e = makeEngine();
     const cash0 = e.players[0].cash;
     foldEventBatch(e, [
@@ -440,28 +510,6 @@ describe("折叠投影器 · 城池族", () => {
 
     expect(e.players[0].cash).toBe(cash0 - 4000);
     expect(e.players[0].properties[0]?.level).toBe(2);
-
-    const e2 = makeEngine(); // 赐城缺口级联:副本无持有,按事件面补册
-    foldEventBatch(e2, [
-      ev(0, { kind: "propertyUpgraded", propertyId: "prop-luoyang", newLevel: 4 }),
-    ]);
-    expect(e2.players[0].properties[0]).toMatchObject({ propertyId: "prop-luoyang", level: 4 });
-  });
-
-  it("propertyGranted 机遇赐城按 1 级满防入册", () => {
-    const e = makeEngine();
-    foldEventBatch(e, [ev(0, { kind: "propertyGranted", propertyId: "prop-luoyang" })]);
-    expect(e.players[0].properties).toEqual([
-      {
-        propertyId: "prop-luoyang",
-        group: "a",
-        level: 1,
-        maxLevel: 4,
-        defense: 40,
-        burning: null,
-        damageRanking: [],
-      },
-    ]);
   });
 
   it("propertyRejected 无状态转移(声明性)", () => {
@@ -750,17 +798,17 @@ describe("折叠投影器 · 名将族", () => {
 });
 
 describe("折叠投影器 · 锦囊族", () => {
-  it("jinnangDrawn 手牌数/牌库数对账(内容=暗牌不折)", () => {
+  it("jinnangDrawn 仅给出张数时折叠手牌数和牌库余数", () => {
     const e = makeEngine();
     e.jinnangDeckCount = 10;
-    foldEventBatch(e, [ev(0, { kind: "jinnangDrawn", count: 2, reason: "encounter" })]);
+    foldEventBatch(e, [ev(0, { kind: "jinnangDrawn", count: 2, reason: "turnStart" })]);
 
     expect(e.players[0].jinnangHandCount).toBe(2);
     expect(e.jinnangDeckCount).toBe(8);
     expect(e.players[0].jinnangHand).toEqual([]); // 暗牌内容不折(ADR-0016)
   });
 
-  it("jinnangAnnounced 出牌扣账:手牌数-1/入弃堆/标签占名额", () => {
+  it("jinnangAnnounced 消耗手牌并将牌移入弃牌堆", () => {
     const e = makeEngine();
     e.players[0].jinnangHand = ["连环计"];
     e.players[0].jinnangHandCount = 1;
@@ -768,7 +816,7 @@ describe("折叠投影器 · 锦囊族", () => {
 
     expect(e.players[0].jinnangHandCount).toBe(0);
     expect(e.jinnangDiscard).toEqual(["连环计"]);
-    expect(e.jinnangUsedTags).toEqual(["谋"]);
+    expect(e.players[0].jinnangHand).toEqual([]);
   });
 
   it("peekApplied 零折(#575):窥探即时一次性,无任何客户端状态(声明性零转移)", () => {
@@ -795,10 +843,10 @@ describe("折叠投影器 · 锦囊族", () => {
     e.players[0].jinnangHandCount = 1;
     foldEventBatch(e, [
       ev(0, { kind: "jinnangAnnounced", cardId: "军情密探", targetSeats: [1] }),
-      ev(0, { kind: "jinnangDrawn", count: 0, reason: "noop" }),
+      ev(0, { kind: "jinnangDrawn", count: 0, reason: "turnStart" }),
     ]);
     // 只折出牌扣账,窥探零入册(被识破不再残留幻影窥探——存量偏差随 #575 消解)
-    expect(e.jinnangUsedTags).toEqual(["谋"]);
+    expect(e.players[0].jinnangHandCount).toBe(0);
     expect(e.jinnangDiscard).toEqual(["军情密探"]);
   });
 
@@ -846,7 +894,6 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(replica.players.map((p) => p.jinnangHandCount)).toEqual([0, 0]);
     expect(replica.players.map((p) => p.jinnangHand)).toEqual([[], []]);
     expect(replica.jinnangDiscard).toEqual(["火烧连营", "识破诡计", "识破诡计"]);
-    expect(replica.jinnangUsedTags).toEqual(["攻"]);
     for (const engine of [authority, replica]) {
       expect(engine.players[1].properties).toMatchObject([
         { propertyId: "prop-jinyang", defense: 12, damageRanking: [{ seat: 0, damage: 8 }] },
@@ -989,24 +1036,10 @@ describe("折叠投影器 · 锦囊族", () => {
   });
 });
 
-describe("折叠投影器 · 声望/体力/跳过族", () => {
-  it("reputationChanged 直加实际增减(#1098 起无里程碑重算,纯累加)", () => {
-    const e = makeEngine();
-    e.players[0].reputation = 25;
-    foldEventBatch(e, [
-      ev(0, { kind: "reputationChanged", delta: 10, reason: "encounter" }),
-      ev(0, { kind: "reputationChanged", delta: 10, reason: "encounter" }),
-    ]);
-
-    expect(e.players[0].reputation).toBe(45);
-  });
-
-  it("机遇导致耗竭仍为无来源，真实事件批同步城损、易主、奖励和休整", () => {
-    const e = makeEngine(1, true);
+describe("折叠投影器 · 体力/跳过族", () => {
+  it("无来源耗竭的事件批同步城损、易主、奖励和休整", () => {
+    const e = makeEngine(1);
     armPhase(e, { phase: "Playing", turnPhase: "Roll", activeIndex: 0 });
-    setReputation(e, 0, -300);
-    placePlayer(e, 0, 1); // 晋阳 → 无主幽州，粮道被劫扣 10 体力
-    pinDice(e, "march", [1]);
     grantProperty(e, 0, "prop-jinyang", 1);
     applyCityDamage(e, e.players[0], "prop-jinyang", 1, e.players[1]);
     grantProperty(e, 0, "prop-luoyang", 3);
@@ -1015,16 +1048,16 @@ describe("折叠投影器 · 声望/体力/跳过族", () => {
 
     const replica = makeEngine();
     replica.restoreFromSnapshot(JSON.parse(JSON.stringify(redactSnapshotForSeat(e.snapshot(), 1))));
-    const message = JSON.parse(cmdMsg({ type: "rollAndMove" })) as Extract<
-      InboundMsg,
-      { type: "cmd" }
-    >;
-    e.submitCommand(message.cmd);
+    beginGameEventBatch(e);
+    e.damageStamina(0, 10, null);
     const events = JSON.parse(JSON.stringify(redactEvents(e.snapshot().events, 1)));
     foldEventBatch(replica, events);
 
     expect(events).toContainEqual(
-      expect.objectContaining({ kind: "staminaChanged", delta: -6, reason: "encounter" }),
+      expect.objectContaining({ kind: "staminaChanged", delta: -6, reason: "damage" }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({ kind: "exhaustionResolved", sourceSeat: null }),
     );
     expect(e.players[0].properties).toMatchObject([
       { propertyId: "prop-luoyang", level: 2, defense: 30, damageRanking: [] },
@@ -1054,108 +1087,6 @@ describe("折叠投影器 · 声望/体力/跳过族", () => {
 
     foldEventBatch(e, [ev(1, { kind: "turnSkipped" })]);
     expect(e.players[1]).toMatchObject({ skipTurns: 0, resting: false });
-  });
-});
-
-describe("折叠投影器 · 机遇族", () => {
-  it("encounterTriggered 抉择型置 AwaitingEncounter;选项落定回 Land(续跑落格)", () => {
-    const e = makeEngine();
-    foldEventBatch(e, [
-      ev(0, { kind: "encounterTriggered", encounterId: "奉迎天子", tier: "好运" }),
-    ]);
-    expect(e.turnPhase).toBe("AwaitingEncounter");
-    expect(e.lastLandOutcome?.kind).toBe("Noop");
-
-    foldEventBatch(e, [
-      ev(0, { kind: "encounterChoice", encounterId: "奉迎天子", choiceIndex: 0 }),
-    ]);
-    expect(e.turnPhase).toBe("Land"); // 结算后续跑本落格(相位由后续事件/水合精修)
-  });
-
-  it("encounterTriggered 即时型不动相位(等待最终落格事实)", () => {
-    const e = makeEngine();
-    foldEventBatch(e, [
-      ev(0, { kind: "encounterTriggered", encounterId: "屯粮居奇", tier: "好运" }),
-      ev(0, { kind: "cashChanged", delta: 250, reason: "encounter" }),
-    ]);
-    expect(e.turnPhase).toBe("Roll"); // 未动相位
-    expect(e.players[0].cash).toBe(makeEngine().players[0].cash + 250);
-  });
-
-  it("折章(#1153):即时路 encounterTriggered 按 def.setsFlags 折入章册(静态目录派生)", () => {
-    // 守住:联机副本的即时路落章——事件本体零改动,章由 id 回查目录派生(拍板②),
-    // 与引擎 settleEncounter 写点同源;测试目录条目用后即清,不污染共享表
-    const flagDef: EncounterDef = {
-      id: "章链即时(折叠测试)",
-      tier: "好运",
-      tags: ["声望"],
-      weight: 1,
-      text: "t",
-      setsFlags: ["元直荐书"],
-      effect: { kind: "cash", delta: 0 },
-    };
-    ENCOUNTERS.push(flagDef);
-    try {
-      const e = makeEngine();
-      foldEventBatch(e, [
-        ev(0, { kind: "encounterTriggered", encounterId: "章链即时(折叠测试)", tier: "好运" }),
-      ]);
-      expect(e.players[0].encounterFlags).toEqual(["元直荐书"]);
-    } finally {
-      ENCOUNTERS.splice(
-        ENCOUNTERS.findIndex((c) => c.id === "章链即时(折叠测试)"),
-        1,
-      );
-    }
-  });
-
-  it("折已遇集(#1154):encounterTriggered 对奇遇条目折入 onceEncounterIds,一局一遇按玩家", () => {
-    // 守住:联机副本的奇遇已遇集落账——与引擎 maybeApplyEncounter 写点同位,静态清单派生
-    const e = makeEngine();
-    foldEventBatch(e, [
-      ev(0, { kind: "encounterTriggered", encounterId: "刮骨", tier: "好运" }),
-      ev(0, { kind: "encounterTriggered", encounterId: "神医行诊", tier: "好运" }),
-      ev(1, { kind: "encounterTriggered", encounterId: "刮骨", tier: "好运" }),
-    ]);
-    expect(e.players[0].onceEncounterIds).toEqual(["刮骨"]); // 非奇遇不记;同条不重记
-    expect(e.players[1].onceEncounterIds).toEqual(["刮骨"]); // 按玩家各自记账
-  });
-
-  it("折章(#1153):抉择路 encounterChoice 按 id+choiceIndex 回查 option.setsFlags 折章;未选落章选项不折", () => {
-    // 守住:联机副本的抉择路落章——按事件载荷(id+下标)目录派生(#385 同源纪律),
-    // 事件不带成品章名;婉拒路不落章
-    const choiceDef: EncounterDef = {
-      id: "章链抉择(折叠测试)",
-      tier: "中性",
-      tags: ["声望"],
-      weight: 1,
-      text: "t",
-      choices: [
-        { text: "接下荐书", repDelta: 0, setsFlags: ["怀玺"] },
-        { text: "婉拒(无事发生)", repDelta: 0 },
-      ],
-    };
-    ENCOUNTERS.push(choiceDef);
-    try {
-      const e = makeEngine();
-      foldEventBatch(e, [
-        ev(0, { kind: "encounterTriggered", encounterId: "章链抉择(折叠测试)", tier: "中性" }),
-        ev(0, { kind: "encounterChoice", encounterId: "章链抉择(折叠测试)", choiceIndex: 0 }),
-      ]);
-      expect(e.players[0].encounterFlags).toEqual(["怀玺"]);
-      // 婉拒路(choiceIndex 1,无 setsFlags):不落章
-      const e2 = makeEngine();
-      foldEventBatch(e2, [
-        ev(0, { kind: "encounterTriggered", encounterId: "章链抉择(折叠测试)", tier: "中性" }),
-        ev(0, { kind: "encounterChoice", encounterId: "章链抉择(折叠测试)", choiceIndex: 1 }),
-      ]);
-      expect(e2.players[0].encounterFlags).toEqual([]);
-    } finally {
-      ENCOUNTERS.splice(
-        ENCOUNTERS.findIndex((c) => c.id === "章链抉择(折叠测试)"),
-        1,
-      );
-    }
   });
 });
 
@@ -1199,15 +1130,13 @@ describe("折叠对账:快照=校准锚(#386,ADR-0020 决策 3)", () => {
     const snap = e.snapshot();
     const snapCash = snap.players.map((p) => p.cash);
     const snapPos = snap.players.map((p) => p.position);
-    const snapRep = snap.players.map((p) => p.reputation);
     const snapStamina = snap.players.map((p) => p.stamina);
 
-    // 人为制造折叠漂移:现金/位置错账 + 声望/体力/跳过/破产/城池错账
+    // 人为制造折叠漂移:现金/位置错账 + 体力/跳过/破产/城池错账
     foldEventBatch(e, [
       ev(0, { kind: "cashChanged", delta: 777, reason: "drift" }),
       ev(0, { kind: "marchArrived", tileIndex: 11, path: path(11) }),
       ev(1, { kind: "capitalHalt", tileIndex: 8, path: path(8) }),
-      ev(0, { kind: "reputationChanged", delta: 33, reason: "drift" }),
       ev(0, { kind: "staminaChanged", delta: -40, reason: "drift" }),
       ev(0, { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 0 }),
       ev(0, {
@@ -1220,14 +1149,12 @@ describe("折叠对账:快照=校准锚(#386,ADR-0020 决策 3)", () => {
     ]);
     expect(e.players[0].cash).toBe(snapCash[0] + 777 - 4000);
     expect(e.players[1].position).toBe(8);
-    expect(e.players[0].reputation).toBe(snapRep[0] + 33);
     expect(e.players[0].isBankrupt).toBe(true);
 
     // 快照到达:水合覆盖全量字段,漂移当场纠正(快照=校准锚)
     e.restoreFromSnapshot(snap);
     expect(e.players.map((p) => p.cash)).toEqual(snapCash);
     expect(e.players.map((p) => p.position)).toEqual(snapPos);
-    expect(e.players.map((p) => p.reputation)).toEqual(snapRep);
     expect(e.players.map((p) => p.stamina)).toEqual(snapStamina);
     expect(e.players.map((p) => p.isBankrupt)).toEqual([false, false]);
     expect(e.players[0].properties).toEqual([]);

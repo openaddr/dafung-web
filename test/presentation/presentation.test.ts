@@ -9,7 +9,6 @@ import { FX } from "../../src/app/fx/timings";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import { ENCOUNTERS } from "@core/encounters";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import guanzhongData from "../../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
@@ -388,7 +387,7 @@ describe("事件→动效映射表(合成批)", () => {
     expect(out[0]).toEqual({ kind: "sound", event: "pay" });
     expect(out.some((ev) => ev.kind === "sound" && ev.event === "coin")).toBe(false);
     const plain = synth(e, [
-      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -50, reason: "encounter" },
+      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -50, reason: "stock" },
     ]);
     const floater = plain.find((ev) => ev.kind === "cashDelta");
     expect(floater).toMatchObject({ amount: -50 });
@@ -528,13 +527,12 @@ describe("事件→动效映射表(合成批)", () => {
     ]);
   });
 
-  it("stamina/reputation/jinnangDrawn/turnSkipped/heroRecruited:文案浮字按事件字段直读", () => {
+  it("stamina/jinnangDrawn/turnSkipped/heroRecruited:文案浮字按事件字段直读", () => {
     const e = E();
     const out = synth(e, [
-      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: -40, reason: "encounter" },
+      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: -40, reason: "damage" },
       { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 100, reason: "rest" },
-      { kind: "reputationChanged", seat: 0, round: 1, turn: 1, delta: 20, reason: "fate" },
-      { kind: "jinnangDrawn", seat: 0, round: 1, turn: 1, count: 1, reason: "jinnangTile" },
+      { kind: "jinnangDrawn", seat: 0, round: 1, turn: 1, count: 1, reason: "turnStart" },
       { kind: "turnSkipped", seat: 1, round: 1, turn: 1 },
       {
         kind: "heroRecruited",
@@ -548,8 +546,7 @@ describe("事件→动效映射表(合成批)", () => {
     expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
       "体力 −40",
       "休整完毕,体力回满 +100",
-      "天命眷顾,声望 +20",
-      "抽一张锦囊",
+      "获锦囊一封",
       "被跳过一回合",
       "周瑜 来投",
     ]);
@@ -560,7 +557,7 @@ describe("事件→动效映射表(合成批)", () => {
     const out = synth(e, [
       { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "skill" },
       { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "heroRelief" },
-      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "encounter" },
+      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "damage" },
       { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "rest" },
     ]);
     expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([]);
@@ -594,35 +591,6 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     const e = E();
     const out = synth(e, [{ kind: "jinnangExhausted", seat: 0, round: 1, turn: 1 }]);
     expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual(["锦囊已空"]);
-  });
-
-  it("propertyGranted:机遇赐城 → 城池易主宣告(#719 迁 fx 面,与购地/破产易主同通路)", () => {
-    const e = E();
-    const tile = e.board.tiles.find(
-      (t) => t.propertyId != null && t.index !== e.players[0].capitalIndex,
-    )!;
-    // 得城者已入册(提取时刻态):宣告归属色=得城者
-    e.players[0].properties.push({
-      burning: null,
-      damageRanking: [],
-      propertyId: tile.propertyId!,
-      group: "g",
-      level: 1,
-      maxLevel: 4,
-      defense: 40,
-    });
-    const out = synth(e, [
-      { kind: "propertyGranted", seat: 0, round: 1, turn: 1, propertyId: tile.propertyId! },
-    ]);
-    expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({
-      kind: "propertyChanged",
-      tileIndex: tile.index,
-      level: 1,
-      ownerColorIndex: e.players[0].colorIndex,
-      levelChanged: false,
-      ownerChanged: true,
-    });
   });
 
   it("assetTransferred:逐城易主宣告(缺口 2)——承让方持有时归属色随提取时刻态,回无主=null", () => {
@@ -704,9 +672,8 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     });
   });
 
-  it("jinnangInflicted / treasureStolen / encounterChoice:文案浮字按事件字段直读(缺口 5/6)", () => {
+  it("jinnangInflicted / treasureStolen:文案浮字按事件字段直读(缺口 5/6)", () => {
     const e = E();
-    const def = ENCOUNTERS.find((c) => c.choices != null && c.choices.length >= 2)!;
     const out = synth(e, [
       { kind: "jinnangInflicted", seat: 0, round: 1, turn: 1, cardId: "缓兵之计", targetSeat: 1 },
       {
@@ -718,29 +685,11 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
         treasureId: "seal-1",
         treasureName: "传国玉玺",
       },
-      { kind: "encounterChoice", seat: 0, round: 1, turn: 1, encounterId: def.id, choiceIndex: 0 },
     ]);
     expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
       "中【缓兵之计】,下回合无法行动",
       "窃得「蜀」的「传国玉玺」",
-      def.choices![0].text,
     ]);
-  });
-
-  it("encounterChoice 静态目录案:事件不带成品文案,查表缺失当场炸出(缺口 6 零兜底)", () => {
-    const e = E();
-    expect(() =>
-      synth(e, [
-        {
-          kind: "encounterChoice",
-          seat: 0,
-          round: 1,
-          turn: 1,
-          encounterId: "不存在",
-          choiceIndex: 0,
-        },
-      ]),
-    ).toThrow();
   });
 
   it("耗竭宣告显示归零伤害来源、降级和失城，休整回满另播浮字", () => {

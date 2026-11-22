@@ -2,7 +2,7 @@
 // OnlineController + gameStore/netStore,经生产 ReconnectingSocket 的真 WebSocket
 // 连进程内服务器。IPC 只承载具体测试意图与同拍读数,零 DOM/几何/像素/演出泵。
 //
-// 装配与收摊:PORT=0/专属临时目录/零扩展/关闭机遇与决策看门狗;固定 seed 经既有
+// 装配与收摊:PORT=0/专属临时目录/零扩展/关闭决策看门狗;固定 seed 经既有
 // REST/adoptRoom 缝布场。每例先解散房间,再两端 destroy/reset/断 IPC/有界等退出;
 // suite stop(true)、还原 env、清临时目录。失败同样清理,不以 reset 促成收敛。
 // 健康/恢复的公开状态均读两端引擎与各自 store 四向对账,私密手牌和询问集逐端核对。
@@ -14,7 +14,7 @@
 // 纯传输故障归 protocol-online;真实设备交互由用户在 APK 验收。
 // 退避由生产 timer 接缝推进,无墙钟等待。
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { MovePath } from "@core/board";
@@ -46,7 +46,6 @@ interface PlayerRowLike {
   position: number;
   capitalIndex: number;
   stamina: number;
-  reputation: number;
   skipTurns: number;
   isBankrupt: boolean;
   jinnangHandCount: number;
@@ -62,7 +61,6 @@ interface PublicPlayerRow {
   position: number;
   capitalIndex: number;
   stamina: number;
-  reputation: number;
   skipTurns: number;
   isBankrupt: boolean;
   jinnangHandCount: number;
@@ -99,7 +97,6 @@ function publicPlayerOf(p: PlayerRowLike): PublicPlayerRow {
     position: p.position,
     capitalIndex: p.capitalIndex,
     stamina: p.stamina,
-    reputation: p.reputation,
     skipTurns: p.skipTurns,
     isBankrupt: p.isBankrupt,
     jinnangHandCount: p.jinnangHandCount,
@@ -336,7 +333,6 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     setEnv("LOGS_DIR", join(tmpDir, "logs"));
     setEnv("STATIC_DIR", join(tmpDir, "static"));
     setEnv("EXTENSIONS_DIR", join(tmpDir, "extensions"));
-    setEnv("JIYU_CONFIG", realpathSync(join(import.meta.dir, "..", "fixtures", "jiyu-off.json")));
     setEnv("E2E_BOT_STEP_MS", "0");
     setEnv("E2E_REACTION_MS", undefined); // 实测生产默认,清除外部覆盖并在 afterAll 还原
     setEnv("DECISION_TIMEOUT_MS", "0");
@@ -657,7 +653,8 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
   it("隔离双人类反应窗:有效应答、明确拒重复、两座恰一次与结算落盘", async () => {
     await withIsolatedPair("automatic", async (pair) => {
       const [host, guest] = pair.clients;
-      await startIsolatedPair(pair, 3, 2849, "魏");
+      // 首席人机出连环计时，两名真人的起手均有识破诡计。
+      await startIsolatedPair(pair, 3, 2719, "魏");
       await finishIsolatedSetup(pair);
       let views = await pair.wait("连环计双人类反应窗", (current) =>
         current.every(
@@ -672,6 +669,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
       const seq = views[0].engine!.pendingReaction!.seq;
       const guestHintBefore = views[1].game.hint;
       const ownHands = views.map((view, seat) => view.game.snapshot!.players[seat].jinnangHand);
+      const eventOffsets = views.map((view) => view.wire.events.length);
       for (const [seat, view] of views.entries()) {
         expect(view.net.connection).toBe("open");
         expect(view.wire.errors).toEqual([]);
@@ -780,7 +778,19 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
         ]);
         expect(view.engine!.reaction).toBeNull();
         expect(view.game.snapshot!.reaction).toBeNull();
-        expect(view.game.snapshot!.players[seat].jinnangHand).toEqual(ownHands[seat]);
+        const drawnAfterWindow = view.wire.events.slice(eventOffsets[seat]).flatMap((event) => {
+          if (event.kind !== "jinnangDrawn") return [];
+          if (event.seat === seat) {
+            expect(event.cardIds).toHaveLength(event.count);
+            return event.cardIds!;
+          }
+          expect(event.cardIds).toBeUndefined();
+          return [];
+        });
+        expect(view.game.snapshot!.players[seat].jinnangHand).toEqual([
+          ...ownHands[seat],
+          ...drawnAfterWindow,
+        ]);
       }
       expect(views[0].wire.errors).toEqual(
         Array(2).fill("非本窗被询问座位,不能应答(更不能替他人应答)"),

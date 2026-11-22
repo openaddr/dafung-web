@@ -91,9 +91,7 @@ export type PresentationEvent =
   /** 回合宣告(#762 元数据随事件烤定,ADR-0029 不变量①同族:guohao/色/轮次提取拍
    *  从引擎读定,播放期与槽泵合并判别零读引擎)。 */
   | { kind: "turnBanner"; guohao: string; colorIndex: number; round: number }
-  /** 落格金圈一拍(#850 技能施展定音):heroSkillActivated 施法者 token 金圈一拍——
-   *  原「行军落事件/机遇格定音」生产者(按落点格型直译)已随功能格五型退役(#826)
-   *  整体删除,本事件现仅技能施展单一生产者,提取期烤坐标同步下发 CSS 自走。 */
+  /** 技能施展的金圈，以 heroSkillActivated 的施法者位置为锚点。 */
   | { kind: "landPulse"; tileIndex: number; x: number; y: number }
   | DuelSignsEvent
   /** 都城路过必停全屏宣告(S7 #513):capitalHalt 事件的漆金横幅级宣告(与回合横幅

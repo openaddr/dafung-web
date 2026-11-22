@@ -42,7 +42,6 @@ const MOMENT_LABEL: Record<GameMoment, string> = {
   MarchPassedCity: "途经城池",
   // 城池
   PropertyBought: "购城后",
-  PropertyGained: "得城后",
   PropertyUpgraded: "城升级后",
   PropertyDemolished: "城受损",
   PropertyLost: "失城后",
@@ -59,9 +58,7 @@ const MOMENT_LABEL: Record<GameMoment, string> = {
   CashGained: "得银",
   CashLost: "失银",
   TurnSkipImposed: "被跳回合",
-  StaminaChanged: "体力变动",
   StaminaLoss: "体力损耗", // #1377 放逐攒怒挂点(枚举新增的编译期穷尽项,标签随族)
-  ReputationChanged: "声望变动",
   // 破产与终局
   PlayerBankrupt: "破产出局",
   AssetsSeized: "资产被收",

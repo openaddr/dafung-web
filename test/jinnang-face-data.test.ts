@@ -15,8 +15,7 @@ import {
 } from "@app/components/card/jinnang-face-data";
 
 describe("jinnangAliasSplit(笺脚别称剥离)", () => {
-  it("9 张真实牌逐张:常规牌都有四字计名别称,切分无损还原原文", () => {
-    expect(JINNANG_CARDS.length).toBe(9);
+  it("常规牌的四字计名别称切分后可无损还原原文", () => {
     for (const def of JINNANG_CARDS) {
       const { alias, body } = jinnangAliasSplit(def.text);
       if (def.targetDomain === "reaction") continue; // 反应牌照票面无别称前缀(#281)
@@ -184,8 +183,8 @@ describe("treasureArtOf(珍宝画心)", () => {
     expect(jixing.bookTitle).toBe("疾行");
     expect(existsSync(new URL(`../public${jixing.image}`, import.meta.url))).toBe(true);
 
-    const longTitle = treasureArtOf(makeSkillBook("wengzhongzhuobie"));
-    expect(longTitle.bookTitle).toBe("瓮中捉鳖");
+    const longTitle = treasureArtOf(makeSkillBook("taoguangyanghui"));
+    expect(longTitle.bookTitle).toBe("韬光养晦");
     expect(longTitle.image).toBe(jixing.image);
   });
 

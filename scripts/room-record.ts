@@ -7,7 +7,6 @@
 // room-persistence.ts,房间编排归 room.ts,两者同源消费本模块。
 import { GameEngine } from "../src/core/authority";
 import type { EngineConfig, SeatConfig } from "../src/core/authority";
-import type { EncounterSwitch } from "../src/core/encounters";
 import type { LoadedMap } from "../src/core/board-loader";
 import { createDice } from "../src/core/dice";
 
@@ -35,8 +34,6 @@ export interface RoomRecord {
   hostConfig: HostConfig;
   /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
   mapId: string | null;
-  /** 本局机遇配置(#135);null/缺省(旧记录)=机遇关。恢复引擎时传回构造 config。 */
-  encounter?: EncounterSwitch | null;
   snapshot: ReturnType<GameEngine["snapshot"]> | null;
 }
 
@@ -76,8 +73,6 @@ export function engineFromRecord(
       startingCash: map.startingCash,
       // 起手珍宝(件/人)同上,恒随地图顶层(#1100)。
       startingTreasures: map.startingTreasures,
-      // #135:机遇配置随房间记录恢复(缺省 = 机遇关,与历史记录行为一致)
-      ...(rec.encounter ? { encounter: rec.encounter } : {}),
       // #284:反应窗时长覆盖随恢复透传(缺省走 core 常量表)
       ...(reactionWindowMs != null && reactionWindowMs > 0 ? { reactionWindowMs } : {}),
     },
