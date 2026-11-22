@@ -24,25 +24,27 @@ import { useDialogPeekSurface, useDialogStackSlot } from "@app/hooks/dialog-stac
 import { TESTIDS } from "@app/screens/game/testids";
 import { DialogMinimize } from "./dialog-minimize";
 
-const DialogMinimizeContext = React.createContext<ReturnType<typeof useDialogPeekSurface> | null>(
-  null,
-);
+const DialogMinimizeContext = React.createContext<
+  (ReturnType<typeof useDialogPeekSurface> & { active: boolean; closeFromBack: () => void }) | null
+>(null);
 
 export function useDialogMinimize() {
   return React.useContext(DialogMinimizeContext);
 }
 
 function Dialog<Payload>(props: DialogPrimitive.Root.Props<Payload>) {
-  const peek = useDialogPeekSurface(props.open === true);
+  const active = props.open === true;
+  const peek = useDialogPeekSurface(active);
   const ownActions = React.useRef<DialogPrimitive.Root.Actions>(null);
   const actions = props.actionsRef ?? ownActions;
+  const closeFromBack = React.useCallback(() => actions.current!.close(), [actions]);
   React.useLayoutEffect(() => {
     // 退出 Base UI 的模态与退场生命周期，Portal keepMounted 保留原内容树。
     if (peek.hidden) actions.current!.unmount();
   }, [actions, peek.hidden]);
 
   return (
-    <DialogMinimizeContext.Provider value={peek}>
+    <DialogMinimizeContext.Provider value={{ ...peek, active, closeFromBack }}>
       <DialogPrimitive.Root
         {...props}
         open={peek.hidden ? false : props.open}
@@ -84,6 +86,7 @@ function DialogOverlay({
 }) {
   return (
     <DialogPrimitive.Backdrop
+      forceRender
       data-slot="dialog-overlay"
       /* 默认入场(#1370):dialog-overlay-in 淡入 150ms,形制单源 app.css 底件系
          弹层段;消费方传 dialog-overlay-out(退场)时靠 app.css 源序后者胜接管。 */
@@ -126,7 +129,11 @@ function DialogContent({
   const drag = useDialogDrag({ popupRef });
   // 叠层开栈(#767):本件挂载即活弹层入栈(Portal 随 open 挂载,卸载=关闭出栈),
   // 栈深>1 且本层为上层 → 遮罩消费减淡档 --mask-dim-stacked。
-  const { stacked } = useDialogStackSlot(!hidden);
+  const { stacked } = useDialogStackSlot(
+    peek?.active === true && !hidden,
+    true,
+    peek?.closeFromBack,
+  );
   return (
     <DialogPrimitive.Portal keepMounted={hidden || minimize !== undefined} hidden={hidden}>
       <DialogOverlay

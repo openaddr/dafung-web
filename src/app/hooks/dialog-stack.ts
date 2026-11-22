@@ -1,11 +1,7 @@
-// 弹层开栈(#767 弹窗详情族④「叠层遮罩减淡」):「同帧开了几层弹层」的唯一事实源。
-// 每个活弹层实例(横幅系 BannerShell / 底件系 ui-dialog DialogContent)挂载时入栈、
-// 卸载时出栈,数组长度即栈深;栈深>1 时**上层**(非栈底)遮罩消费减淡档
-// --mask-dim-stacked(app.css,0.28),底层遮罩维持全档 0.42 压暗盘面——上层是玩家
-// 正在操作的焦点,双层全档会「双重墨纱」闷掉弹层内容。
-// 判定条件写死:入栈成员=活弹层实例;退场幽灵帧(BannerGhostContext)是纯视觉重放
-// 不入栈;视觉叠放序与入栈序一致(横幅系 z-30 恒低于底件系 z-50,底件系同层 Portal
-// 追加序即视觉序),无任何兜底分支。
+// 弹层按视觉层级登记，供遮罩、顶层交互和安卓系统返回共用。
+import { onBackButtonPress } from "@tauri-apps/api/app";
+import { isTauri, type PluginListener } from "@tauri-apps/api/core";
+import { useGameStore } from "@app/store/gameStore";
 import {
   createContext,
   useContext,
@@ -17,14 +13,49 @@ import {
 } from "react";
 
 /** 活跃弹层栈(模块级,数组即计数器;槽位=Symbol 实例身份,挂载/卸载严格配对)。 */
-const stack: { slot: symbol; order: number; portal: boolean }[] = [];
+const stack: { slot: symbol; order: number; portal: boolean; back?: () => void }[] = [];
 const listeners = new Set<() => void>();
 let nextOrder = 0;
+let releaseBackListener: (() => void) | null = null;
+
+function syncAndroidBackListener() {
+  if (!stack.some((entry) => entry.back !== undefined)) {
+    releaseBackListener?.();
+    releaseBackListener = null;
+    return;
+  }
+  if (releaseBackListener !== null || !isTauri() || !navigator.userAgent.includes("Android"))
+    return;
+
+  let listening = true;
+  let listener: PluginListener | undefined;
+  const reportError = (error: unknown) => {
+    const detail = error instanceof Error ? error.message : String(error);
+    useGameStore.getState().pushHint(`弹层返回键监听失败：${detail}`, "error");
+  };
+  releaseBackListener = () => {
+    listening = false;
+    if (listener !== undefined) void listener.unregister().catch(reportError);
+  };
+  void onBackButtonPress(() => {
+    if (listening) stack.at(-1)?.back?.();
+  })
+    .then(async (registered) => {
+      if (listening) listener = registered;
+      else await registered.unregister();
+    })
+    .catch(reportError);
+}
 
 /** 本实例是否为叠层中的上层:栈深>1 且本实例下标>0。底层实例恒 false(全档遮罩)。
  *  active=false(如幽灵帧)不入栈、恒 false。layout effect:入栈/出栈都发生在绘制前,
  *  上层遮罩首帧即减淡档,不闪全档(遮罩无入场动画,整帧跳变可见)。 */
-export function useDialogStackSlot(active: boolean, portal = true) {
+export function useDialogStackSlot(active: boolean, portal = true, onBack?: () => void) {
+  const back = useRef(onBack);
+  useLayoutEffect(() => {
+    back.current = onBack;
+  }, [onBack]);
+  const handlesBack = onBack !== undefined;
   const slotRef = useRef<symbol | null>(null);
   if (slotRef.current === null) slotRef.current = Symbol("dialog-slot");
   const slot = slotRef.current;
@@ -36,7 +67,13 @@ export function useDialogStackSlot(active: boolean, portal = true) {
     const index = stack.findIndex((entry) =>
       entry.portal === portal ? entry.order > order.current! : entry.portal,
     );
-    stack.splice(index < 0 ? stack.length : index, 0, { slot, order: order.current, portal });
+    stack.splice(index < 0 ? stack.length : index, 0, {
+      slot,
+      order: order.current,
+      portal,
+      back: handlesBack ? () => back.current?.() : undefined,
+    });
+    syncAndroidBackListener();
     const sync = () => {
       const index = stack.findIndex((entry) => entry.slot === slot);
       const stacked = index > 0;
@@ -51,11 +88,12 @@ export function useDialogStackSlot(active: boolean, portal = true) {
       const i = stack.findIndex((entry) => entry.slot === slot);
       if (i < 0) throw new Error("弹层开栈:卸载时槽位不在栈内(挂载/卸载配对破坏)");
       stack.splice(i, 1);
+      syncAndroidBackListener();
       listeners.delete(sync);
       // 上层收走后,新的上层(或独层)遮罩回全档——存活实例同步复位
       for (const notify of listeners) notify();
     };
-  }, [active, portal, slot]);
+  }, [active, portal, slot, handlesBack]);
   return position;
 }
 

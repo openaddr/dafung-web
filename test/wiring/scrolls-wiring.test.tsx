@@ -8,6 +8,7 @@ import { GHOST, UI } from "@app/fx/timings";
 import { SHORT_LANDSCAPE_QUERY } from "@app/hooks/use-media-query";
 import { SCROLL_TESTIDS as T } from "@app/screens/game/scroll/testids";
 import { TESTIDS } from "@app/screens/game/testids";
+import { GAME_DIAG_TID } from "@app/screens/shared/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { GameEngine, type GameCommand, type SeatConfig } from "@core/authority";
@@ -650,33 +651,57 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
   });
 });
 
-it("战报点空白后可查诸侯分项，关闭分项回棋盘并恢复战报滚动", async () => {
+it("设置上的战报最小化后，可逐层关闭诸侯分项和名录并恢复战报滚动", async () => {
   const { el } = startGame();
   click(q(el, TESTIDS.settingsButton)!);
   await settle();
-  click(docQ(TESTIDS.settingsWarReport)!);
+  const settings = docQ(TESTIDS.settingsDialog)!;
+  click(q(settings, TESTIDS.settingsWarReport)!);
   await settle();
 
+  expect(docQ(TESTIDS.settingsDialog) === settings).toBe(true);
   const report = () => docQ(TESTIDS.logDrawer)!;
   const list = () => report().querySelector("ul")!;
   list().scrollTop = 72;
-  expect(docQ(TESTIDS.modalBackdrop)).not.toBeNull();
-  click(docQ(TESTIDS.modalBackdrop)!);
+  click(q(report().parentElement!, TESTIDS.modalBackdrop)!);
   await settle();
-  expect(report().closest("[hidden]") != null).toBe(true);
+  expect(report().closest("[hidden]")).not.toBeNull();
+  expect(settings.closest("[hidden]")).not.toBeNull();
 
   click(q(el, TESTIDS.topbarOverview)!);
   await settle();
-  click(docQ(TESTIDS.warlordsCities(0))!);
+  const overview = docQ(TESTIDS.warlordsOverview)!;
+  click(q(overview, TESTIDS.warlordsCities(0))!);
   await settle();
   click(q(docQ(TESTIDS.cityLedger)!, TESTIDS.modalClose)!);
   await finishExit(() => docQ(TESTIDS.cityLedger), "查阅分项关闭");
-  expect(docQ(TESTIDS.warlordsOverview)).toBeNull();
+  expect(docQ(TESTIDS.warlordsOverview) === overview).toBe(true);
 
+  click(q(overview, TESTIDS.modalClose)!);
+  await finishExit(() => docQ(TESTIDS.warlordsOverview), "关闭名录回棋盘");
   click(docQ(TESTIDS.modalRestore)!);
   await settle();
-  expect(report().closest("[hidden]") == null).toBe(true);
+  expect(report().closest("[hidden]")).toBeNull();
   expect(list().scrollTop).toBe(72);
+  click(report().querySelector('[data-slot="sheet-close"]')!);
+  await settle();
+  expect(docQ(TESTIDS.logDrawer)).toBeNull();
+  expect(docQ(TESTIDS.settingsDialog) === settings).toBe(true);
+});
+
+it("对局诊断关闭后回到同一个设置弹层", async () => {
+  const { el } = startGame();
+  click(q(el, TESTIDS.settingsButton)!);
+  await settle();
+  const settings = docQ(TESTIDS.settingsDialog)!;
+  click(q(settings, TESTIDS.settingsDiagnostic)!);
+  await settle();
+
+  expect(docQ(TESTIDS.settingsDialog) === settings).toBe(true);
+  click(docQ(GAME_DIAG_TID.dialog)!.querySelector('button[aria-label="关闭"]')!);
+  await settle();
+  expect(docQ(GAME_DIAG_TID.dialog)).toBeNull();
+  expect(docQ(TESTIDS.settingsDialog) === settings).toBe(true);
 });
 
 it("从战报看局面时收到交涉抉择，恢复后才显示", async () => {
@@ -685,7 +710,7 @@ it("从战报看局面时收到交涉抉择，恢复后才显示", async () => {
   await settle();
   click(docQ(TESTIDS.settingsWarReport)!);
   await settle();
-  click(docQ(TESTIDS.modalBackdrop)!);
+  click(q(docQ(TESTIDS.logDrawer)!.parentElement!, TESTIDS.modalBackdrop)!);
   await settle();
 
   const commands = () => game.engine.log.filter((line) => line.category === "cmd").length;

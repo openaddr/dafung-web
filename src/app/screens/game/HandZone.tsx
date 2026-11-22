@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { onDiceSignReveal } from "@app/fx/DiceOverlay";
 import { SIGN_FACES } from "@core/constants";
-import { ATTR_TIPS, Tip } from "./Tip";
+import { SIGN_TIP, Tip } from "./Tip";
 import { TESTIDS } from "./testids";
 import "./layout.css";
 
@@ -57,7 +57,7 @@ export function HandZone({
     <div className="handzone" data-testid={TESTIDS.handZone} inert={inert}>
       {showDiceFace && (
         <Tip
-          tip={ATTR_TIPS.sign}
+          tip={SIGN_TIP}
           testId={TESTIDS.diceFace}
           className={"diceseal" + (awaitingMyRoll ? " await" : "")}
         >

@@ -17,7 +17,7 @@
 // 弹层托管行随格 tap 退役,开关接同一 ADR-0028 现役引擎通路(useAutopilotOn 回读 +
 // controller.setAutoPilot,行为=旧托管钮);仅自机语义不变(本弹层只属屏前真人)。
 import { Button } from "@base-ui/react/button";
-import { memo, useId, useState } from "react";
+import { memo, useId, useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { Switch } from "@app/components/ui/switch";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
@@ -38,8 +38,8 @@ import "./layout.css";
 
 interface SettingsDialogProps {
   onClose: () => void;
-  /** 战报› 行:开战报抽屉(本弹层先收)。 */
   onOpenWarReport: () => void;
+  warReport?: ReactNode;
   /** 回到主页行:弃局离屏(控制器销毁 + 切 setup),接线归 GameScreen。 */
   onGoHome: () => void;
   onCaptureDiagnostic?: (gameId: string) => Promise<void>;
@@ -79,6 +79,7 @@ function SettingsSwitchRow({
 export const SettingsDialog = memo(function SettingsDialog({
   onClose,
   onOpenWarReport,
+  warReport,
   onGoHome,
   onCaptureDiagnostic,
 }: SettingsDialogProps) {
@@ -94,15 +95,7 @@ export const SettingsDialog = memo(function SettingsDialog({
   const [confirmHome, setConfirmHome] = useState(false);
   const gameId = useGameStore((s) => s.snapshot?.gameId);
   const [diagnostic, setDiagnostic] = useState<CurrentDiagnosticGame | null>(null);
-  if (diagnostic !== null && diagnostic.gameId === gameId) {
-    return (
-      <GameDiagnosticDialog
-        current={diagnostic}
-        onClose={onClose}
-        onBack={() => setDiagnostic(null)}
-      />
-    );
-  }
+  const closeDiagnostic = () => setDiagnostic(null);
 
   return (
     <Dialog
@@ -161,15 +154,12 @@ export const SettingsDialog = memo(function SettingsDialog({
             演出加速
             <i className="setval">标准</i>
           </div>
-          {/* 战报›:开战报抽屉(本弹层先收,抽屉本体在 GameScreen 持开合) */}
+          {/* 战报抽屉叠在设置上。 */}
           <button
             type="button"
             data-testid={TESTIDS.settingsWarReport}
             className="setrow setrow-btn"
-            onClick={() => {
-              onClose();
-              onOpenWarReport();
-            }}
+            onClick={onOpenWarReport}
           >
             战报
             <Sym name="expand" size={11} className="rotate-[-90deg] text-gold" />
@@ -236,6 +226,14 @@ export const SettingsDialog = memo(function SettingsDialog({
             制式单源 shared/RoundClose(C8)。 */}
         <RoundClose />
       </DialogContent>
+      {warReport}
+      {diagnostic !== null && diagnostic.gameId === gameId && (
+        <GameDiagnosticDialog
+          current={diagnostic}
+          onClose={closeDiagnostic}
+          onBack={closeDiagnostic}
+        />
+      )}
     </Dialog>
   );
 });

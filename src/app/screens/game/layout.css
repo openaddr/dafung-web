@@ -297,14 +297,13 @@
   background: color-mix(in srgb, var(--color-paper-lo) 92%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-paper) 16%, transparent);
   border-radius: 5px;
-  padding: 3px 5px 2px;
+  padding: 2px 5px 1px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  gap: 1px;
 }
-/* 行1:国号印 + 现金主数 + 体力色条 */
 .game-layout .seat .l1 {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -315,8 +314,6 @@
    印字单走亮变体,单源 core/theme.ts playerSealTexts,八色逐一 ≥5.3 实测);印边框
    仍吃 --pc 本体(身份锚)。 */
 .game-layout .seat .pseal {
-  position: relative; /* 行2 图标命中垫上探入行1(#751 C 批):定位抬起保住
-                         印/现金带=单人格弹层的格面 tap 通路(现金 span 已 relative) */
   width: 14px;
   height: 14px;
   flex: none;
@@ -331,40 +328,30 @@
   border: 1px solid var(--pc);
   color: var(--pc-seal);
 }
-/* 托管常驻微标(#770):托管(AI 代打)开启的席位,国号印右 8px 齿轮,--color-gold-wash
-   墨金弱色(状态在而不抢戏;§4.6 撤文字可辨,role=img 读屏名在 SeatRail)。纯展示
-   不设点击层——开关交互唯单人格弹层(ADR-0028 单一开关),点击冒泡进格根 tap。 */
+/* 托管齿轮是状态提示，开关在设置弹层。 */
 .game-layout .seat .hosted {
   flex: none;
   display: inline-flex;
   align-items: center;
   color: var(--color-gold-wash);
 }
-/* 现金主数:裸数、省「两」(格上口径,原型 .cash-s;全称带「两」在单人格弹层,
-   #745 高3 起全链无千分位)。relative 容器锚 #495 浮标,testid 数值本体保持纯文本。
-   锁宽(#1022 渲染税):tabular-nums 定宽数字 + min-width 按最大位数(6 位,起手
-   5000 且现金无上限)预留——seat-cash.ts 的 rAF count-up 逐帧 textContent 直写
-   不再牵动席位行 layout(位数增减被预留宽吸收,l1 行内体力轨起点恒定)。 */
 .game-layout .seat .cash {
-  min-width: 6ch;
-  font-size: 10.5px;
+  margin-inline-start: auto;
+  font-size: 11px;
   line-height: 1;
   color: var(--color-attr-cash);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-/* 体力色条:4px 细轨吃行1剩余宽度(#743 判词 C/#751 C 批:3→4px,行1 纵向余量
-   内,濒耗竭读数是全格最需要精度的位);濒耗竭(低于三成)转朱砂。格上无刻度数
-   (原型口径,数值归弹层);浮签触发元拉满剩余宽,细轨不缩瘪。空轨底色 ink 40%
-   (#743 判词 C:原 14% 对格底 1.48:1 近隐形,短红条后「轨道到哪」无参考系——
-   提到 40% 实测 3.40:1 过 WCAG 图形线,仍弱于填充 success 5.27 主从不变)。 */
-.game-layout .seat .strack-tip {
-  flex: 1 1 auto;
+.game-layout .seat .seat-stamina {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px;
   min-width: 0;
-  margin-left: 2px;
-  /* 行2 图标命中区(#751 C 批)纵向垫进本行上空,细轨触发元自身 3-4px 高、
-     叠不过垫面——定位抬到静置垫之上保住体力浮签的唯一点位。 */
-  position: relative;
+  font-size: 10px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 .game-layout .seat .strack {
   display: block;
@@ -404,31 +391,16 @@
   --breath-lo: 0.55;
   animation: fx-breathe calc(var(--dur-med) * 2) var(--ease-sine) infinite;
 }
-/* 席位格次行：两组账目各保留自身间距，组间用发丝线分隔。 */
+/* 第二行给体力轨分配余宽，让城池和锦囊张数保留完整读数。 */
 .game-layout .seat .l2 {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 2px;
-  margin: 0 -5px;
+  gap: 5px;
 }
-/* 组壳(#770):行2 的两个分组容器;组内 2px 凝距(账目式汉字与计数一组), */
-/* 项距全归组间隙(space-between)。 */
-.game-layout .seat .l2hi,
-.game-layout .seat .l2lo {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-}
-/* 发丝线组分隔(#770):1px --hairline 竖线标组界(高频读数|低频藏品),上下
-   各让 2px 不触格顶底。 */
-.game-layout .seat .l2sep {
-  flex: none;
-  width: 1px;
-  align-self: stretch;
-  margin: 2px 0;
-  background: var(--hairline);
+.game-layout .seat .ai-city {
+  padding-inline-start: 4px;
+  border-inline-start: 1px solid var(--hairline);
 }
 .game-layout .seat .ai {
   display: inline-flex;

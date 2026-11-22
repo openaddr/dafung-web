@@ -1,5 +1,7 @@
 // 关键接线:真实组件与控制器验证命令/状态或私密信息通路,不验证几何和演出。
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from "bun:test";
+import * as tauriApp from "@tauri-apps/api/app";
+import * as tauriCore from "@tauri-apps/api/core";
 // bun 测试进程无 Vite define:GameScreen 全图经 SettingsDialog 触达 version.ts,其
 // 模块求值读构建期注入的 __APP_VERSION__——按生产同一值源(package.json CalVer)先行
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
@@ -189,13 +191,27 @@ it("任一席位打开全员详情，查档关闭回到全员，选目标时席�
       String(player.jinnangHandCount),
     );
   }
-  click(q(overview()!, TESTIDS.warlordsCities(2))!);
-  expect(overview()).toBeNull();
-  const ledger = q(document, TESTIDS.cityLedger)!;
-  click(q(ledger, TESTIDS.modalClose)!);
-  await clock.advance(GHOST.frameMs);
-  expect(overview()).not.toBeNull();
-  click(q(overview()!, TESTIDS.modalClose)!);
+  const parent = overview()!;
+  const viewport = parent.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')!;
+  viewport.scrollTop = 72;
+  for (const [entry, modal] of [
+    [TESTIDS.warlordsCities(2), TESTIDS.cityLedger],
+    [TESTIDS.warlordsHeroes(2), TESTIDS.seatHeroModal],
+    [TESTIDS.warlordsGems(2), TESTIDS.seatGemModal],
+  ]) {
+    click(q(parent, entry)!);
+    expect(overview() === parent).toBe(true);
+    expect(parent.hasAttribute("data-nested-dialog-open")).toBe(true);
+    const detail = q(document, modal)!;
+    click(q(detail, TESTIDS.modalClose)!);
+    await clock.advance(GHOST.frameMs);
+    expect(q(document, modal)).toBeNull();
+    expect(overview() === parent).toBe(true);
+    expect(viewport.scrollTop).toBe(72);
+  }
+  click(q(parent, TESTIDS.warlordsGems(2))!);
+  click(q(parent, TESTIDS.modalClose)!);
+  expect(q(document, TESTIDS.seatGemModal)).toBeNull();
   await clock.advance(GHOST.frameMs);
 
   click(q(el, TESTIDS.jinnangCard("军情密探"))!);
@@ -205,6 +221,38 @@ it("任一席位打开全员详情，查档关闭回到全员，选目标时席�
   click(target);
   expect(target.getAttribute("aria-pressed")).toBe("true");
   expect(overview()).toBeNull();
+});
+
+it("安卓系统返回先关闭分项，再关闭诸侯详情", async () => {
+  using _native = spyOn(tauriCore, "isTauri").mockReturnValue(true);
+  const listener = new tauriCore.PluginListener("app", "back-button", 0);
+  using unregister = spyOn(listener, "unregister").mockResolvedValue(undefined);
+  using register = spyOn(tauriApp, "onBackButtonPress").mockResolvedValue(listener);
+  const userAgent = Object.getOwnPropertyDescriptor(navigator, "userAgent");
+  Object.defineProperty(navigator, "userAgent", { configurable: true, value: "Android" });
+  clock = installControlledClock();
+  try {
+    const { el } = startGame((e) => armPhase(e, { activeIndex: 0, turnPhase: "Roll" }));
+    click(q(el, TESTIDS.topbarOverview)!);
+    const overview = () => q(document, TESTIDS.warlordsOverview);
+    click(q(overview()!, TESTIDS.warlordsCities(0))!);
+    expect(register).toHaveBeenCalledTimes(1);
+    const pressBack = register.mock.calls[0][0];
+
+    act(() => pressBack({ canGoBack: false }));
+    await clock.advance(GHOST.frameMs);
+    expect(q(document, TESTIDS.cityLedger)).toBeNull();
+    expect(overview()).not.toBeNull();
+    expect(unregister).not.toHaveBeenCalled();
+
+    act(() => pressBack({ canGoBack: false }));
+    await clock.advance(GHOST.frameMs);
+    expect(overview()).toBeNull();
+    expect(unregister).toHaveBeenCalledTimes(1);
+  } finally {
+    if (userAgent === undefined) Reflect.deleteProperty(navigator, "userAgent");
+    else Object.defineProperty(navigator, "userAgent", userAgent);
+  }
 });
 
 it("连环计上一步经在途锁保留首选，改选后第二步需重新选择", () => {
