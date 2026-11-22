@@ -40,7 +40,7 @@ import {
   type PendingJinnang,
   type PendingHeroSkill,
 } from "./jinnang-execution";
-import { damageStamina, exhaustIfDepleted } from "./stamina-damage";
+import { damageStamina } from "./stamina-damage";
 // 破产清算+交割托管域(#321,ADR-0019):escrow 交割/退回、付款或清算、债务留痕结算、
 // 破产善后、整批出售并清偿与认破产在 bankruptcy.ts,壳内同名方法薄委托转发;
 // 与 economy.ts 分层(清算流程≠经济交易原语)。
@@ -82,7 +82,7 @@ import {
   pickCapital,
   setGuohao,
 } from "./setup-flow";
-// 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
+// 招贤机会及选将、求书和跳过结算由 recruitment.ts 负责。
 import { tryRecruitHero, resolveHeroPick, type HeroOffer, type HeroPick } from "./recruitment";
 // 遣散域(#1147,ADR-0019 委托式拆分):免费主动遣散(槽移除/回池划名/已学技折书)在
 // hero-dismiss.ts,壳内薄委托;清算期间禁用。
@@ -242,7 +242,7 @@ export class GameEngine {
   roundAnchor = 0; // 固定的轮次锚点(draftOrder[0]),不随破产漂移
   // public:供 snapshot/联机序列化(同 takenCapitalIndices 模式)。内部代码读 Set,不直接改字段。
   recruitedHeroIds = new Set<string>(); // 已被招揽的名将(唯一)
-  offeredHeroes: HeroOffer[] = []; // 当前招贤纳士的候选(三选一;行携预掷授技,#787)
+  offeredHeroes: HeroOffer[] = []; // 待选名将可为空，候选携带预掷的实授技能。
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
   /** 锦囊牌库/弃牌堆(#122):开局 finishSetup 洗序;抽牌从堆顶(pop)出。
    *  公开字段(重放/快照/CLI 可读),可见性由传输层投影裁剪(ADR-0016)。 */
@@ -935,11 +935,6 @@ export class GameEngine {
 
   damageStamina(seat: number, amount: number, sourceSeat: number | null): number {
     return damageStamina(this, seat, amount, sourceSeat);
-  }
-
-  /** 无来源耗竭入口，结算城损与休整。 */
-  exhaustIfDepleted(seat: number): "none" | "resolved" {
-    return exhaustIfDepleted(this, seat);
   }
 
   /** 文案浮字入队(ADR-0013 唯一选项自动执行的轻提示,无金额):渲染为棋盘一行小字。 */

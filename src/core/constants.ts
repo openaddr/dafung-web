@@ -37,18 +37,13 @@ export const CAPITAL_STAMINA_RECOVERY_RATE = 0.5;
 /** 体力耗竭休整回合数:归 0 后跳过自己 N 个回合,休整期满体力回满(GLOSSARY「休整」)。 */
 export const EXHAUSTION_REST_TURNS = 2;
 
-/** Bot 在比较锦囊收益时，按此比例将体力伤害换算为银两价值。 */
-export const STAMINA_CASH_RATE = 5;
-
 /** 单个 CJK 汉字判定(国号校验共用;core 层,不依赖 DOM)。 */
 export function isSingleCjk(s: string): boolean {
   return /^[㐀-鿿]$/.test(s);
 }
 
-/** 反应窗时长配置表(#281,ADR-0017):键=反应窗挂点时机,值=默认时长(毫秒)。
- *  引擎开窗时写入 view.windowMs,单机与联机按该值计时;测试可经 EngineConfig 覆盖。
- *  权威反应窗不受演出 E2E_TIME_SCALE 缩放。 */
-export const REACTION_WINDOW_MS: Record<"JinnangAnnounced" | "MarchPassedCity", number> = {
-  JinnangAnnounced: 30_000,
-  MarchPassedCity: 30_000,
-};
+/** 按反应窗类型配置默认时长（毫秒）。权威端开窗时写入 view.windowMs。 */
+export const REACTION_WINDOW_MS = {
+  jinnang: 30_000,
+  march: 30_000,
+} as const;

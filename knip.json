@@ -1,17 +1,21 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "$schema": "./node_modules/knip/schema.json",
   "entry": [
     "index.html",
+    "scripts/build-sound-clips.ts",
+    "scripts/bun-release.ts",
     "scripts/cli.ts",
     "scripts/fetch-asset.ts",
-    "scripts/frame-probe.ts",
     "scripts/pr-merge.ts",
     "scripts/procs.ts",
+    "scripts/release.ts",
     "scripts/shot.mjs",
     "scripts/sim-batch.ts",
     "scripts/sim-jinnang.ts",
+    "scripts/ws-new.ts",
     "scripts/ws-run.ts",
-    "test/**/*.test.{ts,tsx}"
+    "test/**/*.test.{ts,tsx}",
+    "test/online/dual-client-runtime.ts"
   ],
   "ignore": ["public/fonts/fonts.css", "src/app/components/ui/**", "extensions/**"]
 }

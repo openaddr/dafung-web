@@ -10,7 +10,7 @@ import { applyCityDamage, fullDefenseOf, resetToFull } from "@core/defense";
 import { buy, upgrade, settleDebt } from "@core/economy";
 import { createPlayer } from "@core/player";
 import { serializeGame, restoreGameSnapshot } from "@core/snapshot";
-import { applyPlant, grantProperty, setDefense, setStamina } from "@core/planter";
+import { applyPlant, grantProperty, setDefense } from "@core/planter";
 import { testEngine } from "@core/testing";
 import { tileIndexOfProperty } from "@core/board";
 import guanzhongData from "../public/maps/guanzhong.json";
@@ -245,8 +245,7 @@ describe("外敌乘虚城损", () => {
     const pid = freeCity(e);
     grantProperty(e, 0, pid, 2);
     setDefense(e, 0, pid, 2);
-    setStamina(e, 0, 0);
-    expect(e.exhaustIfDepleted(0)).toBe("resolved");
+    expect(e.damageStamina(0, 100, null)).toBe(0);
     expect(e.players[0].properties.find((h) => h.propertyId === pid)).toMatchObject({
       level: 1,
       defense: 40,

@@ -18,7 +18,7 @@ function useMediaQuery(query: string): boolean {
 /** 窄屏(X6 #25):覆盖式抽屉按可用空间判断，宽不超过 767px 或高不超过 500px。
  *  横屏手机即使宽度超过 767px，高度仍可能需要抽屉；输入设备不改变布局。
  *  500px 与矮横屏档 SHORT_LANDSCAPE_QUERY 同值，两者语义分别为抽屉与形态分档。 */
-export const IS_NARROW_QUERY = "(max-width: 767px), (max-height: 500px)";
+const IS_NARROW_QUERY = "(max-width: 767px), (max-height: 500px)";
 
 /** 窄屏:见 IS_NARROW_QUERY。 */
 export const useIsNarrow = () => useMediaQuery(IS_NARROW_QUERY);

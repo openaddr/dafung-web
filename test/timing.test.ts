@@ -1367,7 +1367,7 @@ describe("时机框架:事件化第二批(#456)", () => {
     expect(entries.filter((x) => x.moment === "StaminaLoss").map((x) => x.ctx)).toEqual([
       { subject: seat, delta: -20 },
     ]);
-    e.addStamina(seat, 50); // 增益:不派(温泉/赈济不攒)
+    e.addStamina(seat, 50); // 增益不派发体力损耗时机。
     expect(entries.filter((x) => x.moment === "StaminaLoss")).toHaveLength(1);
   });
 });

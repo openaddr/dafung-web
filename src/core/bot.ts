@@ -17,7 +17,7 @@ import { netWorth } from "./networth";
 import { guidePriceOf, isSkillBook } from "./treasures";
 import { skillBookLearners } from "./roster";
 import { beginGameEventBatch } from "./game-events";
-import { EXHAUSTION_REST_TURNS, INITIAL_CITY_LEVEL, STAMINA_CASH_RATE } from "./constants";
+import { EXHAUSTION_REST_TURNS, INITIAL_CITY_LEVEL } from "./constants";
 import type { BankruptcyAsset } from "./bankruptcy";
 import { sellValueOf } from "./economy";
 
@@ -153,6 +153,8 @@ interface ReactionDecision {
  *  (等概率胜:国库 +winnerBankGain / 负:向使用者赔 loserPaysUser)。 */
 const EST_COUNTER_CARD_VALUE = 100;
 const EST_SKIP_TURN_LOSS = 200;
+/** 每点非致耗竭伤害的识破估值。 */
+const EST_STAMINA_DAMAGE_PER_POINT = 5;
 
 /** 火烧连营单城火烧估损(#1389):seat 名下 tileIndex 这座城的火焰损失——等级高于 1 级时估为降一级
  *  的变卖价差;1 级非都城=整城变卖价;1 级都城=0(打空即停免疫,
@@ -194,7 +196,7 @@ function counterLossEstimate(
     case "staminaDamage":
       return def.effect.damage >= me.stamina
         ? EXHAUSTION_REST_TURNS * EST_SKIP_TURN_LOSS
-        : def.effect.damage * STAMINA_CASH_RATE;
+        : def.effect.damage * EST_STAMINA_DAMAGE_PER_POINT;
     case "duel": {
       // 期望损失对表推导(#299):等概率胜(国库 +winnerBankGain)/负(赔 loserPaysUser)
       // → 期望净收益 (winnerBankGain − loserPaysUser)/2,损失取其相反数;

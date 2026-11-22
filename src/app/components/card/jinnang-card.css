@@ -567,12 +567,3 @@
   line-height: 1.85;
   font-variant-numeric: tabular-nums;
 }
-.jinnang-detail .dt-foot {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
-  font-size: 12px;
-  color: var(--color-paper-dim);
-  line-height: 1.8;
-  font-variant-numeric: tabular-nums;
-}

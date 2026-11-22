@@ -206,7 +206,6 @@ export function JinnangCardDetail({ cardId, className }: JinnangCardDetailProps)
         </div>
         <p className="dt-text">{def.text}</p>
       </div>
-      <div className="dt-foot">每回合每类限用一张 ·{def.tags.map((t) => `「${t}」`).join("")}</div>
     </div>
   );
 }

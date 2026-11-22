@@ -558,8 +558,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           for (const { seat, cardId } of ev.spentCards) {
             consumeCard(engine, eventSeatPlayer(engine, seat, "反应牌扣账"), cardId);
           }
-          // 锦囊收窗继续行军；尚有可用暗牌时，出牌阶段随既有决策窗校准恢复。
-          // 下一反应环与行军落格分别由同批开窗和落格事件覆盖。
+          // 下一反应环、出牌阶段恢复或行军落格均以随后的权威事件为准。
           if (pr.view.kind === "jinnang") engine.turnPhase = "Roll";
         }
         break;

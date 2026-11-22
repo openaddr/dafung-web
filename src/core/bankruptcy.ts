@@ -109,11 +109,7 @@ export function payOrLiquidate(
  *  时机·AssetsSeized(#457):破产终局恰一派(债主视角,与 PlayerBankrupt 破产者视角
  *  成对)——珍宝在 economy.seizeBankruptAssets 内转移、名将是释放非转移,均不逐件派;
  *  无债主(归银行/销毁)无收走方,不派。 */
-export function seizeBankruptAssetsTraced(
-  g: GameEngine,
-  player: Player,
-  creditor: Player | null,
-): void {
+function seizeBankruptAssetsTraced(g: GameEngine, player: Player, creditor: Player | null): void {
   const moved = player.properties.map((h) => ({ propertyId: h.propertyId, level: h.level }));
   const treasureCount = player.treasures.length;
   seizeBankruptAssets(player, creditor);
@@ -146,7 +142,7 @@ export function seizeBankruptAssetsTraced(
 /** 破产善后:名将释放回招贤池(treasures 已转债主);锦囊手牌清入弃牌堆
  *  (#198,设计定稿 §3「破产清空」——不转债主、不变卖、不回流)。
  *  creditor=债主(#384):随 PlayerBankrupt 派发进事件体(creditorSeat,null=归银行)。 */
-export function finalizeBankruptcy(g: GameEngine, p: Player, creditor: Player | null): void {
+function finalizeBankruptcy(g: GameEngine, p: Player, creditor: Player | null): void {
   for (const slot of p.heroes) g.recruitedHeroIds.delete(slot.heroId);
   p.heroes = [];
   if (p.jinnangHand.length > 0) {

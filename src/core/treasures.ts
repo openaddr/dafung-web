@@ -200,7 +200,7 @@ export function createTreasureDeck(): TreasureDef[] {
 // ──────────────────────────── 技能书(#1146)────────────────────────────
 /** 技能书珍宝位档(#1146):低档位走珍宝价表(变卖/交涉价随 guidePriceOf);
  *  初值 Lv.2(指导价 200 两)——归 D 票校准。 */
-export const SKILL_BOOK_LEVEL = 2;
+const SKILL_BOOK_LEVEL = 2;
 
 /** 技能书实例 id 前缀(#1146):`skillbook-<skillId>`。同技多册同 id(锦囊手牌同款:
  *  同名张多手共存,实例定位恒在持有者列表内,无独立流水号)——快照/折叠按本前缀

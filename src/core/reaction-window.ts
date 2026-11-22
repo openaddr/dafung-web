@@ -130,14 +130,11 @@ export type ReactionPayload =
     };
 
 /** 反应窗挂起态(#281):公告 + 应答记录 + 续结算载荷。全部随快照序列化(SNAPSHOT_FIELDS
- *  单点清单);重放=普通 respondReaction 命令流(超时兜底=权威侧代发同款命令,ADR-0017)。
+ *  单点清单);超时由权威侧提交普通 respondReaction 命令（ADR-0017）。
  *  结算中段停相位先例:AwaitingTreasureOwner(落他人城→城主三选)。 */
 export interface PendingReaction {
   /** 窗实例号(#284):引擎每次开新窗 +1 的单调序号,跨整局递增,随快照序列化。
-   *  消费方:传输层(联机 room.ts armReactionWait)按 seq 判据武装超时定时器——同一
-   *  窗只武装一次、到期时刻一次算死,链重开不重置他人倒计时(FreeKill request.lua
-   *  「timestamp+timeout 随包下发、同窗不重置」同语义);客户端横幅/倒计时以 seq 变化
-   *  重起弧。重放按命令流重算天然复现(cmd 流派生状态)。 */
+   *  房间编排按窗号登记截止时刻，客户端在窗号变化时重开计时。 */
   seq: number;
   /** 挂起点公告(快照 reaction 派生字段直接透出此结构)。 */
   view: ReactionView;
@@ -160,12 +157,11 @@ export const REACTION_EXPECT: Record<ReactionView["kind"], JinnangEffect["kind"]
 
 // 结算中段停相位先例:AwaitingTreasureOwner(落他人城→城主三选)。挂起点存 pendingReaction
 // (公告+应答+续结算载荷,全序列化)→ AwaitingReaction → 应答齐 → 续结算。被询问的
-// isBot 座位在开窗同一调用内即席代答(botReactionDecision,纯策略不掷骰,重放确定性);
+// isBot 座位在开窗同一调用内即席代答(botReactionDecision，按确定性策略应答);
 // 人类座位(含托管/看门狗代驾)等 respondReaction 命令——权威侧超时代发的也是这条普通
-// 命令,重放天然复现。每次结算只问一轮:每被询问座位至多应答一次。
+// 命令。一个反应窗内，被询问座位各应答一次。
 
-/** 单调流水号取号(#284):反应窗实例号(挂起点写 PendingReaction.seq)。cmd 流派生
- *  状态，由快照保留上一次编号，重放可按命令复现。 */
+/** 单调流水号取号(#284):反应窗实例号写入 PendingReaction.seq，由快照保留上一次编号。 */
 function nextJinnangSeq(g: GameEngine): number {
   return ++g.jinnangSeq;
 }
@@ -181,9 +177,7 @@ export function openReactionWindow(
   // (联机 env E2E_REACTION_MS)优先,缺省按窗种类查 core 配置表。客户端横幅/倒计时
   // 投影与联机权威侧定时器同读快照值(两端同长自动成立),构造点不散抄常量表。
   const windowMs =
-    g.reactionWindowMsOverride > 0
-      ? g.reactionWindowMsOverride
-      : REACTION_WINDOW_MS[viewSeed.kind === "jinnang" ? "JinnangAnnounced" : "MarchPassedCity"];
+    g.reactionWindowMsOverride > 0 ? g.reactionWindowMsOverride : REACTION_WINDOW_MS[viewSeed.kind];
   const view: ReactionView = { ...viewSeed, windowMs };
   if (view.kind === "jinnang" && payload.kind === "counter") {
     view.counter = {

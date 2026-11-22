@@ -112,7 +112,7 @@ interface RackCardJunshi {
   onDeselect?: () => void;
 }
 
-/** 详情弹层壳:内容 = JinnangCardDetail 五段面板,壳(定位/遮罩/出口)归本件。
+/** 详情弹层壳：JinnangCardDetail 提供内容，本组件负责定位、遮罩与关闭。
  *  modal=true(默认):焦点陷阱+锁滚+Esc/点遮罩关闭全由底件承担。#530:补 × 关闭钮
  *  (制式单源 shared/RoundClose;此前弹层零按钮,唯一出口是点背衬,关闭 affordance
  *  与城池详情不一致)。

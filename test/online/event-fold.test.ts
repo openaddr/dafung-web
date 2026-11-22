@@ -954,7 +954,7 @@ describe("折叠投影器 · 锦囊族", () => {
           userSeat: 0,
           ownerSeat: 1,
           tileIndex: LUOYANG,
-          windowMs: REACTION_WINDOW_MS.MarchPassedCity,
+          windowMs: REACTION_WINDOW_MS.march,
         },
       }),
       ev(1, {
@@ -1009,7 +1009,7 @@ describe("折叠投影器 · 锦囊族", () => {
               userSeat: 2,
               targetSeats: [0, 1],
               queriedBySeat: [0, 1],
-              windowMs: REACTION_WINDOW_MS.JinnangAnnounced,
+              windowMs: REACTION_WINDOW_MS.jinnang,
             },
           }),
         ],

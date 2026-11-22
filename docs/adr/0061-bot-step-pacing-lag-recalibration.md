@@ -27,7 +27,7 @@ bot 座位每步决策间隔 3s(`src/core/timings.ts` `BOT_STEP_MS`,权威节奏
 
 - `RoomRegistryOptions.botStepMs`:0/缺席 = 无配速(**bun 测试缺省**,既有用例预算按 0ms bot 连锁书写);
 - 生产装配层显式传 core 常量:单机 `local.ts` 解析链 `SoloRoomConfig.botStepMs ?? e2e localStorage 键 ?? BOT_STEP_MS`;联机 `server.ts` = env `E2E_BOT_STEP_MS` ?? `BOT_STEP_MS`(显式 "0" = 关);
-- e2e 默认关:playwright server env 与单机 fixtures 默认 "0"(隔离,既有 spec 墙钟零变化);要验配速行为的用例经 env 显式开启。
+- 无头联机协议与整局对跑用例通过 `E2E_BOT_STEP_MS=0` 关闭配速。配速行为由房间用例显式注入时长验证。
 
 ### 2. 判据再定标:LAG 阈值抬到正常局水位上
 
