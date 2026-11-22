@@ -59,7 +59,7 @@ export type GameMoment =
   /** 失城:火攻、火烧连营和外敌乘虚攻陷非都城后派发。
    *  ctx.propertyId/ctx.tileIndex = 被攻陷的城。subject = 原城主。 */
   | "PropertyLost"
-  /** 招贤后:resolveHeroPick 选定名将(tryRecruitHero 只出三选一候选)。ctx.heroId。subject = 招贤者。 */
+  /** 选定名将入麾下后派发。ctx.heroId，subject 为招贤者。 */
   | "HeroRecruited"
   /** 得宝后：探宝、技能书入册、交易交割或窃玉偷香。ctx.treasureId = 所得珍宝。subject = 得宝者。 */
   | "TreasureGained"

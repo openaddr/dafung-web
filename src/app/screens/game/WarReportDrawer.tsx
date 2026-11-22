@@ -49,7 +49,7 @@ export function warEntriesOf(snapshot: GameSnapshot): LogEvent[] {
 }
 
 /** 战报每次加载的条数。 */
-export const WAR_WINDOW = 100;
+const WAR_WINDOW = 100;
 
 /** 值等(#1140 渲染税):战报条目唯一增长键=logCount(#1081 值语义依赖,log 只增
  *  前提下长度变化 ⇔ 内容变化)——条目窗/色表全由 log 与 players(值等复用引用)

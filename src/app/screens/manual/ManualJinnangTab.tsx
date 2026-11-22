@@ -1,11 +1,4 @@
-// 锦囊签(#1071,spec #1069 决议⑤ T2 装配):JINNANG_CARDS 全量 9 种 JinnangCardFace
-// 标准档网格(8px 基 120×160 竖笺 3:4,陈列数=目录种数;flex-wrap 居中,窄档自然换行,
-// 体部内滚承接)+ 点卡开 PileShell 包 JinnangCardDetail 详情叠层(题名=牌名、朱印章=
-// JINNANG_FAMILY 族章字、面板五段=牌名/章行+目标域+牌库数/全文/脚注,样式随
-// jinnang-card.css 同文件自带)。卡面角注=牌库张数(copies,「×N」浅印,纸底画材色
-// 浅掺 --card-ink;children 槽挂入,卡面组件维持纯展示豁免)。
-// 交互语义(开合)归本件;
-// testid 消费 MANUAL_TID.card(id)/detail(id),id=目录中文牌名。
+// 手册锦囊签按目录陈列牌面与牌库张数。点牌后用牌堆弹层展示与对局共用的锦囊详情。
 import { useState } from "react";
 import { JINNANG_CARDS, jinnangCardOf } from "@core/jinnang";
 import { JinnangCardFace, JinnangCardDetail } from "@app/components/card/JinnangCardFace";

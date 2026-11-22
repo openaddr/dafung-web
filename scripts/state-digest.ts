@@ -48,7 +48,7 @@ export function hashCanonical(value: unknown): string {
  *  - 每行 ts(墙钟出生时间,epoch ms @ Date.now)——「何时发生」非引擎内容;
  *  - header 类行整行——局头 detail 内嵌 gameId(实例身份)与 startedAt(墙钟),
  *    且局头全是重放要素(=语料定义本身,已由 stateHash 的对应字段钉住)。 */
-export function chainLogHash(prevHash: string, newLines: unknown[]): string {
+function chainLogHash(prevHash: string, newLines: unknown[]): string {
   const content = newLines
     .filter((line) => (line as Record<string, unknown>).category !== "header")
     .map((line) => {

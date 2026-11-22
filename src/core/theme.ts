@@ -12,7 +12,7 @@ interface Rgb {
   b: number;
 }
 
-export const hex = (h: string): Rgb => {
+const hex = (h: string): Rgb => {
   const s = h.replace("#", "");
   return {
     r: parseInt(s.slice(0, 2), 16),

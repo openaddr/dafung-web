@@ -6,7 +6,7 @@ import type { PropertyHolding } from "./model";
 import type { MomentContinuation } from "./moment-stages";
 
 /** 国库为每点实际敌城伤害发放的即时奖励，单位为两。 */
-export const CITY_IMMEDIATE_REWARD_PER_POINT = 5;
+const CITY_IMMEDIATE_REWARD_PER_POINT = 5;
 
 export function cityPriceShare(def: PropertyDef, percent: number): number {
   return Math.round((def.purchasePrice * percent) / 100);

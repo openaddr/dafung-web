@@ -740,7 +740,7 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
         userSeat: view.userSeat,
         targetSeats: view.targetSeats,
         queriedBySeat: [],
-        windowMs: REACTION_WINDOW_MS.JinnangAnnounced,
+        windowMs: REACTION_WINDOW_MS.jinnang,
       },
       answers: [],
       payload: { kind: "jinnang", userSeat: view.userSeat, cardId: view.cardId, targets: [] },
@@ -797,7 +797,7 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
         userSeat: 2,
         ownerSeat: 1,
         tileIndex: 10,
-        windowMs: REACTION_WINDOW_MS.MarchPassedCity,
+        windowMs: REACTION_WINDOW_MS.march,
       },
       answers: [],
       payload: {
@@ -925,7 +925,7 @@ describe("botReactionDecision 链环口径(#571)", () => {
         userSeat: 2,
         targetSeats: opts.shareSeat != null ? [opts.shareSeat] : [],
         queriedBySeat: [],
-        windowMs: REACTION_WINDOW_MS.JinnangAnnounced,
+        windowMs: REACTION_WINDOW_MS.jinnang,
       },
       answers: [],
       payload: {

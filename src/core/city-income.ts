@@ -4,7 +4,7 @@ import { awardCityReward, cityPriceShare } from "./city-damage";
 import type { PropertyDef } from "./economy";
 import type { MomentContinuation } from "./moment-stages";
 
-export const CITY_INCOME_PERCENT = 3;
+const CITY_INCOME_PERCENT = 3;
 
 export function cityIncomeOf(property: PropertyDef): number {
   return cityPriceShare(property, CITY_INCOME_PERCENT);

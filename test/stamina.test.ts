@@ -1,9 +1,9 @@
 // 体力系统单测(#131):初值/夹紧 + 耗竭的城损、休整和期满回满。
-// 落格与随机无关:耗竭入口 exhaustIfDepleted 直调,种子只影响无关路径。
+// 通过体力伤害入口触发耗竭。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
-import { grantProperty, setStamina } from "@core/planter";
+import { grantProperty } from "@core/planter";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
@@ -63,9 +63,7 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
     const p2 = giveProperty(e, 0, 2);
     const cap = capitalHolding(e, 0);
     grantProperty(e, 0, cap.propertyId, 4); // 都城同规:可降
-    setStamina(e, 0, 0);
-    const r = e.exhaustIfDepleted(0);
-    expect(r).toBe("resolved"); // 全自动,无相位
+    expect(e.damageStamina(0, 100, null)).toBe(0);
     expect(e.activeIndex).not.toBe(0); // 当前诸侯耗竭后，回合已经交给下一席。
     expect(e.players[0].properties.find((h) => h.propertyId === p1)!.level).toBe(2); // 3→2
     expect(e.players[0].properties.find((h) => h.propertyId === p2)!.level).toBe(1); // 2→1
@@ -87,8 +85,7 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
     finishSetupLite(e);
     const city = giveProperty(e, 0, 1);
     const cap = capitalHolding(e, 0);
-    setStamina(e, 0, 0);
-    expect(e.exhaustIfDepleted(0)).toBe("resolved");
+    expect(e.damageStamina(0, 100, null)).toBe(0);
     expect(e.findOwner(city)).toBeNull();
     expect(e.findOwner(cap.propertyId)).toBe(e.players[0]);
     expect(cap).toMatchObject({ level: 1, defense: 0 });
@@ -101,8 +98,7 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
     const e = makeEngine();
     finishSetupLite(e);
     e.players[0].properties = []; // 清掉都城:纯"一无所有"场景
-    e.players[0].stamina = 0;
-    expect(e.exhaustIfDepleted(0)).toBe("resolved");
+    expect(e.damageStamina(0, 100, null)).toBe(0);
     expect(e.players[0].skipTurns).toBe(2);
     expect(e.players[0].resting).toBe(true);
     expect(e.players[0].stamina).toBe(0);
@@ -113,8 +109,7 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
     const e = makeEngine();
     finishSetupLite(e);
     giveProperty(e, 0, 3);
-    e.players[0].stamina = 0;
-    e.exhaustIfDepleted(0); // 内含 endTurn:活跃已让位下家
+    e.damageStamina(0, 100, null); // 行动者耗竭后交棒给下一席。
     expect(e.players[0].skipTurns).toBe(2);
     e.endTurn(); // 下家回合毕 → 推进遇本人:跳 1(2→1)
     expect(e.players[0].skipTurns).toBe(1);
@@ -127,11 +122,10 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
     expect(rest).toBeTruthy();
   });
 
-  it("stamina>0 不触发:入口直调返回 none", () => {
+  it("体力受伤后仍大于零时不进入休整", () => {
     const e = makeEngine();
     finishSetupLite(e);
-    e.players[0].stamina = 1;
-    expect(e.exhaustIfDepleted(0)).toBe("none");
+    expect(e.damageStamina(0, 99, null)).toBe(1);
     expect(e.players[0].skipTurns).toBe(0);
     expect(e.players[0].resting).toBe(false);
   });

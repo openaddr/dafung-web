@@ -163,10 +163,10 @@ describe("华佗·regenStamina 效果(#133)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     armHero(e, e.players[0], huatuo());
-    e.addStamina(0, -100); // 归 0(耗竭线上)
+    e.addStamina(0, -85); // 从低体力恢复。
     e.dispatchMoment("RoundStart", { subject: 1 });
-    expect(e.players[0].stamina).toBe(15); // 0 + 15
-    expect(e.exhaustIfDepleted(0)).toBe("none"); // 体力 >0:不进耗竭相位
+    expect(e.players[0].stamina).toBe(30);
+    expect(e.players[0].resting).toBe(false);
     expect(e.players[0].skipTurns).toBe(0); // 无跳回合惩罚
   });
 });

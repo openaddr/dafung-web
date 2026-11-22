@@ -55,7 +55,7 @@ type WiringController = GameControllerClass & { resync(): void; completeCommand(
 let newWiringController: (e: GameEngine, deferCommands: boolean) => WiringController;
 
 const MAP = loadMap(guanzhongData);
-const SEED = 67; // 锦囊族既定锚(react-jinnang/peek/self-target 三 spec 同源离线核算,头注第 2 步)
+const SEED = 67;
 
 /** 座位表:与模板同(solo 口径 seat 0 = 自机)。 */
 const SEATS: SeatConfig[] = [
@@ -65,9 +65,7 @@ const SEATS: SeatConfig[] = [
   { name: "座 4", isBot: true },
 ];
 
-/** 种引擎到 Playing 停靠(公共命令链,模板 seedPlayingEngine 同款;非法态当场
- *  抛错不静默)。seed 67 落点:开局出牌阶段态(turnPhase=AwaitingJinnang、手各 1、
- *  牌库 14),react-jinnang.spec 头注离线核算同款。 */
+/** 通过公共命令开局。各用例自行种植所需手牌与相位。 */
 function seedPlayingEngine(): GameEngine {
   const e = new GameEngine(MAP.board, MAP.catalog, createDice(SEED), {
     seats: SEATS,
@@ -148,6 +146,20 @@ function click(el: Element): void {
     el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
 }
+
+it("锦囊详情显示功能标签和牌面效果，不提示已取消的出牌限制", async () => {
+  const { el } = startGame((engine) => {
+    giveJinnang(engine, 0, ["缓兵之计"]);
+    armPhase(engine, { activeIndex: 0, turnPhase: "Roll" });
+  });
+  click(q(el, TESTIDS.jinnangCard("缓兵之计"))!);
+  await settle();
+  const detail = modalQ(TESTIDS.jinnangDetail);
+  if (detail == null) throw new Error("手牌未打开锦囊详情");
+  expect(detail.textContent).toContain(jinnangCardOf("缓兵之计").text);
+  expect(detail.textContent).toContain("谋攻");
+  expect(detail.textContent).not.toContain("每回合每类限用一张");
+});
 
 it("选中锦囊直接显示全文，换选更新正文，进入目标段收起正文", () => {
   const { el, snap } = startGame((e) => {

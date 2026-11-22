@@ -10,7 +10,7 @@ import { createDice } from "@core/dice";
 import { loadMap } from "@core/board-loader";
 import { testEngine, armHero } from "@core/testing";
 import { fullDefenseOf } from "@core/defense";
-import { grantProperty, setDefense, setStamina } from "@core/planter";
+import { grantProperty, setDefense } from "@core/planter";
 import { HEROES } from "@core/heroes";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import guanzhongData from "../public/maps/guanzhong.json";
@@ -208,12 +208,16 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     const seat = e.players.indexOf(mover);
     const capital = e.board.at(mover.capitalIndex).propertyId!;
     setDefense(e, seat, capital, 0);
-    setStamina(e, seat, 0);
     beginGameEventBatch(e);
-    expect(e.exhaustIfDepleted(seat)).toBe("resolved");
+    expect(e.damageStamina(seat, 100, null)).toBe(0);
     const events = e.snapshot().events;
-    expect(kinds(events).slice(0, 3)).toEqual(["exhaustionResolved", "turnEnded", "turnStarted"]);
-    expect(events[0]).toMatchObject({
+    expect(kinds(events).slice(0, 4)).toEqual([
+      "staminaChanged",
+      "exhaustionResolved",
+      "turnEnded",
+      "turnStarted",
+    ]);
+    expect(events[1]).toMatchObject({
       kind: "exhaustionResolved",
       seat,
       sourceSeat: null,
@@ -554,16 +558,16 @@ describe("事件流(#385 缺口 6):耗竭处置的文案事件", () => {
         x.propertyId != null && x.index !== mover.capitalIndex && e.findOwner(x.propertyId) == null,
     )!;
     grantProperty(e, seat, tile.propertyId!, 2);
-    setStamina(e, seat, 0);
     beginGameEventBatch(e);
-    expect(e.exhaustIfDepleted(seat)).toBe("resolved");
+    expect(e.damageStamina(seat, 100, null)).toBe(0);
     const events = e.snapshot().events;
-    expect(kinds(events).slice(0, 3)).toEqual([
+    expect(kinds(events).slice(0, 4)).toEqual([
+      "staminaChanged",
       "propertyDamaged", // 都城打空
       "propertyDamaged", // 普通城降级
       "exhaustionResolved",
     ]);
-    expect(events[2]).toMatchObject({
+    expect(events[3]).toMatchObject({
       kind: "exhaustionResolved",
       seat,
       sourceSeat: null,

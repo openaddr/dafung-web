@@ -71,7 +71,7 @@ describe("放逐攒怒(#1377 AC1):损失攒等值标记,增益不攒", () => {
     setStamina(e, 0, 59); // 再损 1:40→41(未达 60,无待决)
     expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(41);
     expect(e.pendingSkillChoices).toHaveLength(0);
-    setStamina(e, 0, 90); // 增益 +31(温泉/赈济路):不攒
+    setStamina(e, 0, 90); // 增益 +31：不攒
     expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(41);
     setStamina(e, 0, 100); // 回满同样是增益:不攒
     expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(41);
@@ -143,11 +143,10 @@ describe("放逐约束(#1377 AC3):不放自己 / 已跳者叠加 / 跨耗竭不�
     armHero(e, 0, "caopi", ["fangzhu"]);
     setStamina(e, 0, 50); // 50 标记,不挂问
     armPhase(e, { activeIndex: 1 });
-    setStamina(e, 1, 0);
-    expect(e.exhaustIfDepleted(1)).toBe("resolved");
+    expect(e.damageStamina(1, 100, null)).toBe(0);
     expect(e.players[1].skipTurns).toBe(2);
     expect(e.players[1].resting).toBe(true);
-    setStamina(e, 0, 0); // 再损 50 → 100:挂待决
+    setStamina(e, 0, 10); // 再损 40 → 90，挂待决。
     e.respondSkillChoice(0, true, 1);
     expect(e.players[1].skipTurns).toBe(3);
     e.endTurn();
@@ -164,9 +163,8 @@ describe("放逐约束(#1377 AC3):不放自己 / 已跳者叠加 / 跨耗竭不�
     finishSetupLite(e);
     armPhase(e, { activeIndex: 0 });
     armHero(e, 0, "caopi", ["fangzhu"]);
-    setStamina(e, 0, 0);
+    e.damageStamina(0, 100, null);
     e.respondSkillChoice(0, false); // 放弃:保留
-    e.exhaustIfDepleted(0);
     expect(skillMarksOf(fangzhuSlot(e), "fangzhu")).toBe(100);
     expect(e.players[0].resting).toBe(true);
     e.endTurn(); // 座位 1 回合毕:座位 0 跳 1(2→1),休整中不回满
@@ -215,8 +213,7 @@ describe("行殇(#1377 AC4):耗竭可选 +1,缓兵之计不触发", () => {
     finishSetupLite(e);
     armPhase(e, { activeIndex: 0 });
     armHero(e, 1, "caopi", ["xingshang"]);
-    setStamina(e, 0, 0);
-    expect(e.exhaustIfDepleted(0)).toBe("resolved");
+    expect(e.damageStamina(0, 100, null)).toBe(0);
     expect(e.players[0].skipTurns).toBe(2);
     expect(e.pendingSkillChoices).toEqual([
       { skillId: "xingshang", heroId: "caopi", ownerSeat: 1, subjectSeat: 0, targetSeat: 0 },
@@ -242,8 +239,7 @@ describe("行殇(#1377 AC4):耗竭可选 +1,缓兵之计不触发", () => {
     finishSetupLite(e);
     armPhase(e, { activeIndex: 0 });
     armHero(e, 1, "caopi", ["xingshang"]);
-    setStamina(e, 0, 0);
-    e.exhaustIfDepleted(0);
+    e.damageStamina(0, 100, null);
     e.respondSkillChoice(1, false);
     expect(e.players[0].skipTurns).toBe(2);
   });
@@ -267,8 +263,7 @@ describe("韬光养晦按笔计酬(#1377 AC5):耗竭一笔+行殇一笔=两笔 +
     armHero(e, 0, "simayi", ["taoguangyanghui"]);
     armHero(e, 1, "caopi", ["xingshang"]);
     const base = e.players[0].cash;
-    setStamina(e, 0, 0);
-    e.exhaustIfDepleted(0); // 耗竭笔:TurnSkipImposed(exhaustion)→ +100
+    e.damageStamina(0, 100, null); // 耗竭笔:TurnSkipImposed(exhaustion)→ +100
     expect(e.players[0].cash).toBe(base + 100);
     e.respondSkillChoice(1, true); // 行殇笔:TurnSkipImposed(xingshang)→ 再 +100
     expect(e.players[0].cash).toBe(base + 200);
@@ -324,8 +319,7 @@ describe("bot 两策略(#1377 AC7):行殇恒发,放逐满发目标=身价领跑�
     armPhase(e, { activeIndex: 0 });
     setBot(e, 1, true);
     armHero(e, 1, "caopi", ["xingshang"]);
-    setStamina(e, 0, 0);
-    e.exhaustIfDepleted(0);
+    e.damageStamina(0, 100, null);
     expect(e.turnPhase).toBe("AwaitingSkillChoice");
     botAct(e); // 驱动器泵(bot/托管同口)
     expect(e.players[0].skipTurns).toBe(3); // 恒发动

@@ -192,7 +192,7 @@ export function otherLivingSeats(e: GameEngine, userSeat: number): number[] {
  *  注:主动技不受反应窗/锦囊任何庇护(#229/#281 口径:技能不走 announce 通道,不可被识破),
  *  故此处无锦囊类守卫。城目标域(#1388 T2)不走席位校验——合法性单源
  *  heroSkillCityTargets,误入本口=调用方目标域分派 bug,当场炸(零兜底)。 */
-export function heroSkillTargetOk(
+function heroSkillTargetOk(
   e: GameEngine,
   user: number,
   target: number,

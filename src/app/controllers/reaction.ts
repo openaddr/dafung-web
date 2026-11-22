@@ -10,7 +10,7 @@ import { REACTION_EXPECT, type ReactionView } from "@core/reaction-window";
 import type { GameSnapshot } from "@core/snapshot";
 
 /** 反应窗被询问座位集(view 单源)。 */
-export function reactionQueriedSeats(view: ReactionView): number[] {
+function reactionQueriedSeats(view: ReactionView): number[] {
   return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
 }
 

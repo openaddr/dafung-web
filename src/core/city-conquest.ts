@@ -2,8 +2,8 @@ import type { GameEngine } from "./authority";
 import { cityPriceShare, type CityDamageEntry, type CityReward } from "./city-damage";
 import type { PropertyHolding } from "./model";
 
-export const CONQUEST_REWARD_PERCENT = 5;
-export const CONQUEST_POOL_PERCENT = 10;
+const CONQUEST_REWARD_PERCENT = 5;
+const CONQUEST_POOL_PERCENT = 10;
 
 interface ConquestReward {
   seat: number;

@@ -83,13 +83,6 @@ export function resumeStaminaDamageMoment(
   }
 }
 
-/** 无来源耗竭入口。体力已归零时，结算城损与休整。 */
-export function exhaustIfDepleted(g: GameEngine, seat: number): "none" | "resolved" {
-  if (g.players[seat].stamina > 0 || g.players[seat].resting) return "none";
-  resolveExhaustion(g, seat, null, null);
-  return "resolved";
-}
-
 /** 外敌乘虚扣掉每座城的当前防御，随后进入休整。 */
 function resolveExhaustion(
   g: GameEngine,

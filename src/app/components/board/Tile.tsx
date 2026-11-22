@@ -293,15 +293,13 @@ function CandidateSeal({ order }: { order: number }) {
 // 844×390 实测可读)。锚点 (49,-34):-6° 旋转后底左角 (34,-22.4) 让开右侧木匾
 // 顶缘(-22),顶右角 (64,-45.6) 出格顶一线=悬挂印旧观感;旗组 #842 已收回左上,
 // 右上角唯此一印不撞木匾(右侧)/王旗(上方)/等级徽记(左下)。
-// #665/#828 收编导出:印文词表与徽标组件供 test/tile-badge.test.tsx 同源断言
-// (词表漂移/普通城无徽标在组件级钉住,不靠 e2e)。
-export const TILE_EVENT_BADGES: Record<TileEvent, string> = {
+const TILE_EVENT_BADGES: Record<TileEvent, string> = {
   treasure: "珍宝",
   hero: "名将",
   market: "商市",
 };
 
-export function EventSeal({ event }: { event: TileEvent }) {
+function EventSeal({ event }: { event: TileEvent }) {
   return (
     <g className="bv-event-seal" transform="translate(49 -34) rotate(-6)">
       <rect

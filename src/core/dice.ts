@@ -12,7 +12,7 @@ export interface DiceRoll {
 }
 
 /** mulberry32:快速可种子化 PRNG。返回 next + 状态读写(供序列化跨进程续掷)。 */
-export function mulberry32(seed: number): {
+function mulberry32(seed: number): {
   next: () => number;
   getState: () => number;
   setState: (a: number) => void;
