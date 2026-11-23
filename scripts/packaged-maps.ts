@@ -1,6 +1,7 @@
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import { extname, join } from "node:path";
-import { parseCatalog } from "@dafung/core/engine/map-source";
+// 相对路径让 Vite 把仓库内的 TypeScript 一起打包进配置，再交给 Node 加载。
+import { parseCatalog } from "../packages/core/src/engine/map-source";
 
 /** 两个构建入口和部署工具以清单为准，保留相对目录。 */
 export function readPackagedMaps(mapsDir: string) {

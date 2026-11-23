@@ -52,6 +52,7 @@ function fixture(): string {
   for (const script of ["build-dist.ts", "dist-freshness.ts", "packaged-maps.ts"]) {
     cpSync(join(ROOT, "scripts", script), join(root, "scripts", script));
   }
+  cpSync(join(ROOT, CORE, "src/engine"), join(root, CORE, "src/engine"), { recursive: true });
   writeFileSync(
     join(root, "package.json"),
     JSON.stringify({
@@ -107,6 +108,19 @@ function fresh(root: string): boolean {
   expect(child.exitCode).toBe(0);
   return child.stdout.toString().trim() === "true";
 }
+
+testBuild("Node 能加载客户端的 Vite 开发配置", () => {
+  const command = `
+    import { loadConfigFromFile } from "vite";
+    const config = await loadConfigFromFile(
+      { command: "serve", mode: "development" },
+      "apps/client/vite.config.ts",
+    );
+    if (!config) throw new Error("客户端 Vite 配置未加载");
+  `;
+  const child = Bun.spawnSync(["node", "--input-type=module", "--eval", command], { cwd: ROOT });
+  expect(child.exitCode, child.stderr.toString()).toBe(0);
+});
 
 testBuild(
   "build:client 产出 WebView 资源和内置地图,再次构建仍过类型门而免打包",
