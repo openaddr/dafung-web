@@ -106,7 +106,7 @@ export function App() {
       const map = await loadMapById(source, mapId);
       // registry 的 MapData 取同图原始数据(单源缓存命中,不再二次 fetch):
       // BoardView 在换图前先有东西可画
-      // 服务器地址由 LobbyApi 在调用时取 server-base 单源(#279):默认同源,大厅可改(APK 真机联机)
+      // LobbyApi 每次调用都从 server-base 取当前服务器地址，大厅可修改。
       const controller = new OnlineController(map, mapId);
       setController(controller, await source.loadMapData(mapId));
       setScreen("lobby");
