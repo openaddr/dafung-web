@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { parseArgs } from "node:util";
+import { buildServer } from "./build-server";
 import { RELEASE_TAG, releaseBunVersion } from "./server-release-archive";
 
-const REPO = "openaddr/dafung-web";
 const VPS = "root@160.202.253.194";
 const PORT = "9981";
-const USAGE = "用法: bun run deploy [--tag v<CalVer>] [--dry-run]";
+const USAGE = "用法: bun run deploy [--dry-run]";
 const SSH = [
   "ssh",
   "-T",
@@ -64,47 +64,6 @@ const run: Execute = (args, options) => {
   return child.stdout;
 };
 
-interface GitHubRelease {
-  tag_name: string;
-  draft: boolean;
-  prerelease: boolean;
-  assets: { name: string; state: string; size: number; digest: string | null }[];
-}
-
-function selectRelease(tag: string | undefined, execute: Execute) {
-  if (tag !== undefined && !RELEASE_TAG.test(tag)) throw new Error(`非法发布标签:${tag}`);
-  const route = tag === undefined ? "latest" : `tags/${tag}`;
-  const release = JSON.parse(
-    execute(["gh", "api", `repos/${REPO}/releases/${route}`]).toString(),
-  ) as GitHubRelease;
-  const actual = release.tag_name;
-  if (
-    typeof actual !== "string" ||
-    !RELEASE_TAG.test(actual) ||
-    (tag !== undefined && actual !== tag) ||
-    release.draft !== false ||
-    release.prerelease !== false ||
-    !Array.isArray(release.assets)
-  ) {
-    throw new Error(`对应的 GitHub Release 不是公开正式版本:${route}`);
-  }
-  const filename = `dafung-server-${actual}.tar.gz`;
-  const matches = release.assets.filter((asset) => asset.name === filename);
-  const [asset] = matches;
-  if (
-    matches.length !== 1 ||
-    !asset ||
-    asset.state !== "uploaded" ||
-    !Number.isSafeInteger(asset.size) ||
-    asset.size <= 0 ||
-    typeof asset.digest !== "string" ||
-    !/^sha256:[a-f0-9]{64}$/.test(asset.digest)
-  ) {
-    throw new Error(`Release 缺少可核验的服务端归档:${filename}`);
-  }
-  return { tag: actual, filename, size: asset.size, sha256: asset.digest.slice("sha256:".length) };
-}
-
 function sshCommand(args: string[]): string[] {
   // OpenSSH 把远端命令交给 shell，逐个引用参数以保留脚本和参数边界。
   const command = ["sh", "-c", REMOTE_DEPLOY, "deploy-vps", ...args]
@@ -116,38 +75,27 @@ function sshCommand(args: string[]): string[] {
 export async function deployVps(args: string[], execute: Execute = run): Promise<string> {
   const { values } = parseArgs({
     args,
-    options: { tag: { type: "string" }, "dry-run": { type: "boolean" }, help: { type: "boolean" } },
+    options: { "dry-run": { type: "boolean" }, help: { type: "boolean" } },
   });
   if (values.help) return USAGE;
-  const release = selectRelease(values.tag, execute);
   const stage = mkdtempSync(join(tmpdir(), "dafung-vps-deploy-"));
   try {
-    execute([
-      "gh",
-      "release",
-      "download",
-      release.tag,
-      "--repo",
-      REPO,
-      "--pattern",
-      release.filename,
-      "--dir",
-      stage,
-    ]);
-    const archive = join(stage, release.filename);
-    const bytes = readFileSync(archive);
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    if (bytes.length !== release.size || sha256 !== release.sha256) {
-      throw new Error(`发布包大小或 SHA-256 与 Release 不一致:${release.filename}`);
-    }
+    const archive = await buildServer(stage);
+    const filename = basename(archive);
     const manifest = JSON.parse(execute(["tar", "-xOzf", archive, "./release.json"]).toString());
-    const bunVersion = releaseBunVersion(manifest, release.tag);
-    const target = [release.tag, bunVersion, PORT];
+    const tag = `v${manifest.version}`;
+    if (!RELEASE_TAG.test(tag) || filename !== `dafung-server-${tag}.tar.gz`) {
+      throw new Error(`本地服务端归档与发版号不一致:${filename}`);
+    }
+    const bunVersion = releaseBunVersion(manifest, tag);
+    const sha256 = createHash("sha256").update(readFileSync(archive)).digest("hex");
+    const prepared = `本地已构建 ${filename}\nSHA-256 ${sha256}`;
+    const target = [tag, bunVersion, PORT];
     if (values["dry-run"]) {
       const checked = execute(sshCommand(["check", ...target]))
         .toString()
         .trim();
-      return `预检通过，${release.filename} 的 SHA-256 已核对。\n${checked}`;
+      return `${prepared}\n预检通过\n${checked}`;
     }
 
     const tool = await Bun.build({
@@ -156,12 +104,13 @@ export async function deployVps(args: string[], execute: Execute = run): Promise
       target: "bun",
     });
     if (!tool.success) throw new AggregateError(tool.logs, "构建 VPS 安装器失败");
-    const bundle = execute(["tar", "-czf", "-", "--", "deploy-server.js", release.filename], {
+    const bundle = execute(["tar", "-czf", "-", "--", "deploy-server.js", filename], {
       cwd: stage,
     });
-    return execute(sshCommand(["install", ...target, sha256]), { input: bundle })
+    const deployed = execute(sshCommand(["install", ...target, sha256]), { input: bundle })
       .toString()
       .trim();
+    return `${prepared}\n${deployed}`;
   } finally {
     rmSync(stage, { recursive: true, force: true });
   }
