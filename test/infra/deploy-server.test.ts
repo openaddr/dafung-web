@@ -70,13 +70,19 @@ function sandbox() {
   };
   const install = async (
     tag: string,
-    options?: { bunVersion?: string; port?: string; unsafe?: boolean },
+    options?: {
+      bunVersion?: string;
+      port?: string;
+      unsafe?: boolean;
+      mtime?: string;
+      server?: string;
+    },
   ) => {
     const input = mkdtempSync(join(directory, "input-"));
     const payload = join(input, "payload");
     mkdirSync(join(payload, "maps/boards"), { recursive: true });
     mkdirSync(join(payload, "extensions"));
-    writeFileSync(join(payload, "server.js"), "console.log('server');");
+    writeFileSync(join(payload, "server.js"), options?.server ?? "console.log('server');");
     writeFileSync(
       join(payload, "release.json"),
       JSON.stringify({ version: tag.slice(1), bunVersion: options?.bunVersion ?? Bun.version }),
@@ -91,7 +97,15 @@ function sandbox() {
     writeFileSync(join(payload, "maps/index.json"), JSON.stringify(maps));
     if (options?.unsafe) symlinkSync("../../../etc/passwd", join(payload, "extensions/unsafe.js"));
     const archive = join(input, `dafung-server-${tag}.tar.gz`);
-    const tar = Bun.spawnSync(["tar", "-czf", archive, "-C", payload, "."]);
+    const tar = Bun.spawnSync([
+      "tar",
+      "-czf",
+      archive,
+      "-C",
+      payload,
+      ...(options?.mtime ? [`--mtime=${options.mtime}`] : []),
+      ".",
+    ]);
     if (tar.exitCode !== 0) throw new Error(tar.stderr.toString());
     const sha256 = new Bun.CryptoHasher("sha256")
       .update(await Bun.file(archive).arrayBuffer())
@@ -153,14 +167,16 @@ test("安装已核验的指定版本，systemd 以 root 运行且只监听本机
 test("同版重启沿用房间，跨版从空房启动，回滚恢复旧版数据", async () => {
   const host = sandbox();
   try {
-    const first = await host.install(OLD);
+    const first = await host.install(OLD, { mtime: "@1" });
     await host.run(first);
     const oldData = host.ready();
     expect(oldData.port).toBe(3000);
     writeFileSync(join(oldData.roomsDir, "old-room.json"), "old room");
     writeFileSync(join(oldData.logsDir, "old-game.jsonl"), "old log");
 
-    await host.run(first);
+    const rebuilt = await host.install(OLD, { mtime: "@2" });
+    expect(rebuilt.at(-1)).not.toBe(first.at(-1));
+    await host.run(rebuilt);
     expect(host.ready()).toEqual(oldData);
     expect(readFileSync(join(host.ready().roomsDir, "old-room.json"), "utf8")).toBe("old room");
 
@@ -181,6 +197,21 @@ test("同版重启沿用房间，跨版从空房启动，回滚恢复旧版数�
     await host.run(next);
     expect(host.ready().roomsDir).not.toBe(newData.roomsDir);
     expect(readdirSync(host.ready().roomsDir)).toEqual([]);
+  } finally {
+    host.clean();
+  }
+});
+
+test("同一发版号的运行文件有变化时在停服前拒绝", async () => {
+  const host = sandbox();
+  try {
+    await host.run(await host.install(OLD));
+    const before = host.ready();
+    host.commands.length = 0;
+    const rebuilt = await host.install(OLD, { server: "console.log('different');" });
+    await expect(host.run(rebuilt)).rejects.toThrow("server.js");
+    expect(host.commands).toEqual([]);
+    expect(host.ready()).toEqual(before);
   } finally {
     host.clean();
   }

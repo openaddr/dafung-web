@@ -204,15 +204,20 @@ export async function stageServerRelease(
     const releaseDir = join(releasesDir, tag);
     const marker = join(releaseDir, "archive.sha256");
     const installed = lstatSync(releaseDir, { throwIfNoEntry: false });
-    writeFileSync(join(payload, "archive.sha256"), digest + "\n");
-    const sealed = payloadChecksums(payload);
+    let archiveReceipt = digest + "\n";
     if (installed) {
       if (!installed.isDirectory() || !lstatSync(marker, { throwIfNoEntry: false })?.isFile()) {
         throw new Error(`已安装发布包目录或摘要文件损坏:${releaseDir}`);
       }
-      if (readFileSync(marker, "utf8") !== digest + "\n") {
-        throw new Error(`已安装 ${tag} 的摘要与所选发布包不同:${marker}`);
+      // tar 时间戳可以不同，已安装发版号的实际文件必须逐项一致。
+      archiveReceipt = readFileSync(marker, "utf8");
+      if (!/^[a-f0-9]{64}\n$/.test(archiveReceipt)) {
+        throw new Error(`已安装发布包摘要格式损坏:${marker}`);
       }
+    }
+    writeFileSync(join(payload, "archive.sha256"), archiveReceipt);
+    const sealed = payloadChecksums(payload);
+    if (installed) {
       verifyInstalledContent(releaseDir, sealed);
     } else {
       writeFileSync(join(payload, PAYLOAD_SEAL), JSON.stringify(sealed) + "\n");
