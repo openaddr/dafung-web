@@ -45,8 +45,8 @@ interface BannerShellProps {
   testid?: string;
   /** 破产清算的资产网格使用较宽的横幅。 */
   wide?: boolean;
-  /** 定高分页内容不使用滚动井;由业务网格控制页内密度。 */
-  fixedBody?: boolean;
+  /** 分页内容换页时重置正文的滚动位置。 */
+  bodyKey?: number;
   className?: string;
 }
 
@@ -90,7 +90,7 @@ export function BannerShell({
   onClose,
   testid,
   wide,
-  fixedBody,
+  bodyKey,
   className,
 }: BannerShellProps) {
   useEffect(() => {
@@ -165,13 +165,9 @@ export function BannerShell({
           长内容(破产清单等)横屏也不溢出;内衬 px-3/py-3 随内容走(挂井内包裹层,
           视口缘的渐隐带才贴得住内容断头处,观感口径同 pile-body 内容 margin)。 */}
       {summary != null && <div className="banner-summary">{summary}</div>}
-      {fixedBody ? (
-        <div className="banner-body banner-body-fixed min-h-0">{children}</div>
-      ) : (
-        <ScrollArea className="banner-body min-h-0">
-          <div className="px-3 py-3">{children}</div>
-        </ScrollArea>
-      )}
+      <ScrollArea key={bodyKey} className="banner-body min-h-0">
+        <div className="banner-body-content px-3 py-3">{children}</div>
+      </ScrollArea>
       {/* #729 footer 槽:正文井之后的钉底段。shrink-0 + 壳体 flex-col 限高链
           (max-h-86dvh → 井 min-h-0 → viewport 内滚)让 footer 在场时正文井自然被
           压缩内滚,钮组不随内容滚走;发丝分隔线与题行 border-b 同色对称(#729 拍板),
