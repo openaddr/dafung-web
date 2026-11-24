@@ -4,8 +4,7 @@
 //   - S10(#43):保留右上 ×(壳 44px 热区),关闭 = ×/遮罩/Esc;
 //     hideClose 只留给必须决策的卷轴(详情卷轴均放弃性,不占用)。
 //   - #35:选都模式下详情内嵌「定都于此 / 再想想」,确认才落子(整合旧 pendingCapital 确认框)。
-//   - #767 弹窗详情族①②:城名下补真实格缩略图(TileThumb,与名下清单/CityLedgerModal
-//     同源同件,纯展示不抢焦点)。#1417:选都先读建城费、余额与补给,再翻等级表。
+//   - #767 城名下显示真实格缩略图。#1417:选都先读建城费、余额与补给,再翻等级表。
 import { memo, useId } from "react";
 import { formatMoney } from "@dafung/core/engine/money";
 import { fullDefenseOf } from "@dafung/core/engine/defense";
@@ -159,7 +158,13 @@ export const TileDetailScroll = memo(function TileDetailScroll({
         <>
           <span hidden data-tile-index={tileIndex} />
           <div className="flex items-center justify-center gap-3">
-            <TileThumb tile={tile} def={property} tileIndex={tileIndex} players={players} />
+            <TileThumb
+              tile={tile}
+              def={property}
+              tileIndex={tileIndex}
+              players={players}
+              className="city-detail-thumb"
+            />
             <div className="text-center text-xs text-paper-dim">
               <p className="m-0">
                 {tierLabel}

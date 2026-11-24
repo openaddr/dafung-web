@@ -109,8 +109,41 @@ export function BankruptcyScroll({
         title={`${guohao}·变卖自救`}
         testid={T.bankruptcyScroll}
         wide
-        fixedBody
+        bodyKey={page}
         className="bankruptcy-shell"
+        summary={
+          <div className="bankruptcy-catalog-head">
+            <div data-testid={T.bankruptcyDebt} className="bankruptcy-account">
+              <span>
+                现钱 {formatMoney(cash)} · 债务 {formatMoney(debtAmount)}
+              </span>
+              {groups.length > 0 && totalValue < owe && (
+                <small>全部变卖仍差 {formatMoney(owe - totalValue)}</small>
+              )}
+            </div>
+            <div className="bankruptcy-pages">
+              <Button
+                aria-label="上一页"
+                data-testid={T.bankruptcyPrevious}
+                disabled={page === 0}
+                onClick={() => setPage(page - 1)}
+              >
+                <Sym name="back" size={16} />
+              </Button>
+              <span data-testid={T.bankruptcyPage}>
+                {page + 1} / {pageCount}
+              </span>
+              <Button
+                aria-label="下一页"
+                data-testid={T.bankruptcyNext}
+                disabled={page + 1 === pageCount}
+                onClick={() => setPage(page + 1)}
+              >
+                <Sym name="back" size={16} />
+              </Button>
+            </div>
+          </div>
+        }
         footer={
           <div className="bankruptcy-footer">
             <div
@@ -151,122 +184,89 @@ export function BankruptcyScroll({
           </div>
         }
       >
-        <div className="bankruptcy-inventory">
-          <div className="bankruptcy-catalog-head">
-            <div data-testid={T.bankruptcyDebt} className="bankruptcy-account">
-              <span>
-                现钱 {formatMoney(cash)} · 债务 {formatMoney(debtAmount)}
-              </span>
-              {groups.length > 0 && totalValue < owe && (
-                <small>全部变卖仍差 {formatMoney(owe - totalValue)}</small>
-              )}
-            </div>
-            <div className="bankruptcy-pages">
-              <Button
-                aria-label="上一页"
-                data-testid={T.bankruptcyPrevious}
-                disabled={page === 0}
-                onClick={() => setPage(page - 1)}
-              >
-                <Sym name="back" size={16} />
-              </Button>
-              <span data-testid={T.bankruptcyPage}>
-                {page + 1} / {pageCount}
-              </span>
-              <Button
-                aria-label="下一页"
-                data-testid={T.bankruptcyNext}
-                disabled={page + 1 === pageCount}
-                onClick={() => setPage(page + 1)}
-              >
-                <Sym name="back" size={16} />
-              </Button>
-            </div>
+        {groups.length === 0 ? (
+          <div className="bankruptcy-empty">
+            <SealEmpty char="无" note="没有可变卖珍宝或非都城城池" title="没有可变卖资产" />
+            <p>名将不能变卖,认破产需再次确认。</p>
           </div>
-          {groups.length === 0 ? (
-            <div className="bankruptcy-empty">
-              <SealEmpty char="无" note="没有可变卖珍宝或非都城城池" title="没有可变卖资产" />
-              <p>名将不能变卖,认破产需再次确认。</p>
-            </div>
-          ) : (
-            <div className="bankruptcy-grid">
-              {groups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((group) => {
-                const quantity = selected.filter((asset) => asset.group === group.key).length;
-                const id = groupId(group);
-                const duplicate = group.ids.length > 1;
-                const art =
-                  group.kind === "treasure" ? (
-                    <TreasureArt treasure={group.treasure} className="bankruptcy-art" />
-                  ) : (
-                    <svg
-                      className="bankruptcy-art"
-                      viewBox="0 0 40 48"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      aria-hidden="true"
-                    >
-                      <path d="M3 21 20 8l17 13H3Zm4 0v22h26V21M3 43h34M16 43V29h8v14M11 26v5m18-5v5M12 15V8h16v7" />
-                    </svg>
-                  );
-                const contents = (
-                  <>
-                    {art}
-                    <span className="bankruptcy-asset-copy">
-                      <span className="bankruptcy-asset-name">{group.name}</span>
-                      <span className="bankruptcy-asset-price">
-                        {formatMoney(group.price)}
-                        {duplicate && <small>/件</small>}
-                      </span>
-                      {group.kind === "property" && <small>Lv.{group.level}</small>}
-                    </span>
-                  </>
-                );
-                return duplicate ? (
-                  <div
-                    key={group.key}
-                    data-testid={T.bankruptcyAsset(group.kind, id)}
-                    data-selected={quantity > 0 || undefined}
-                    className="bankruptcy-asset bankruptcy-duplicate"
-                  >
-                    {contents}
-                    <span className="bankruptcy-stock">共{group.ids.length}件</span>
-                    <div className="bankruptcy-stepper" aria-label={`${group.name}数量`}>
-                      <Button
-                        aria-label={`减少${group.name}`}
-                        data-testid={T.bankruptcyDecrease(id)}
-                        disabled={quantity === 0}
-                        onClick={() => decrease(group)}
-                      >
-                        −
-                      </Button>
-                      <output data-testid={T.bankruptcyQuantity(id)}>{quantity}</output>
-                      <Button
-                        aria-label={`增加${group.name}`}
-                        data-testid={T.bankruptcyIncrease(id)}
-                        disabled={enough || quantity === group.ids.length}
-                        onClick={() => add(group, quantity)}
-                      >
-                        +
-                      </Button>
-                    </div>
-                  </div>
+        ) : (
+          <div className="bankruptcy-grid">
+            {groups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((group) => {
+              const quantity = selected.filter((asset) => asset.group === group.key).length;
+              const id = groupId(group);
+              const duplicate = group.ids.length > 1;
+              const art =
+                group.kind === "treasure" ? (
+                  <TreasureArt treasure={group.treasure} className="bankruptcy-art" />
                 ) : (
-                  <Toggle
-                    key={group.key}
-                    data-testid={T.bankruptcyAsset(group.kind, id)}
-                    pressed={quantity > 0}
-                    disabled={enough && quantity === 0}
-                    onPressedChange={(pressed) => (pressed ? add(group, 0) : decrease(group))}
-                    className={cn("bankruptcy-asset", quantity > 0 && "bankruptcy-selected")}
+                  <svg
+                    className="bankruptcy-art"
+                    viewBox="0 0 40 48"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    aria-hidden="true"
                   >
-                    {contents}
-                  </Toggle>
+                    <path d="M3 21 20 8l17 13H3Zm4 0v22h26V21M3 43h34M16 43V29h8v14M11 26v5m18-5v5M12 15V8h16v7" />
+                  </svg>
                 );
-              })}
-            </div>
-          )}
-        </div>
+              const contents = (
+                <>
+                  {art}
+                  <span className="bankruptcy-asset-copy">
+                    <span className="bankruptcy-asset-name">{group.name}</span>
+                    <span className="bankruptcy-asset-price">
+                      {formatMoney(group.price)}
+                      {duplicate && <small>/件</small>}
+                    </span>
+                    {group.kind === "property" && <small>Lv.{group.level}</small>}
+                  </span>
+                </>
+              );
+              return duplicate ? (
+                <div
+                  key={group.key}
+                  data-testid={T.bankruptcyAsset(group.kind, id)}
+                  data-selected={quantity > 0 || undefined}
+                  className="bankruptcy-asset bankruptcy-duplicate"
+                >
+                  {contents}
+                  <span className="bankruptcy-stock">共{group.ids.length}件</span>
+                  <div className="bankruptcy-stepper" aria-label={`${group.name}数量`}>
+                    <Button
+                      aria-label={`减少${group.name}`}
+                      data-testid={T.bankruptcyDecrease(id)}
+                      disabled={quantity === 0}
+                      onClick={() => decrease(group)}
+                    >
+                      −
+                    </Button>
+                    <output data-testid={T.bankruptcyQuantity(id)}>{quantity}</output>
+                    <Button
+                      aria-label={`增加${group.name}`}
+                      data-testid={T.bankruptcyIncrease(id)}
+                      disabled={enough || quantity === group.ids.length}
+                      onClick={() => add(group, quantity)}
+                    >
+                      +
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Toggle
+                  key={group.key}
+                  data-testid={T.bankruptcyAsset(group.kind, id)}
+                  pressed={quantity > 0}
+                  disabled={enough && quantity === 0}
+                  onPressedChange={(pressed) => (pressed ? add(group, 0) : decrease(group))}
+                  className={cn("bankruptcy-asset", quantity > 0 && "bankruptcy-selected")}
+                >
+                  {contents}
+                </Toggle>
+              );
+            })}
+          </div>
+        )}
       </BannerShell>
       {confirmingBankruptcy && (
         <ConfirmDialog

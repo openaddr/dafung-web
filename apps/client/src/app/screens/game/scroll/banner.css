@@ -101,11 +101,8 @@
   background: linear-gradient(180deg, var(--color-gold-bright), var(--color-gold-deep));
 }
 
-/* ── 城池详情缩略图(#767 弹窗详情族②):TileThumb 规范类(city-ledger-thumb,
-   组件单源)的横幅域尺寸档——清单弹层域的尺寸在 pile-modal.css(.pile-modal 作用域),
-   两域各管各档不跨引。基准高 96px 上限(宽随 viewBox 比例自适应),矮横屏档 48px
-   随密度降档(见文件尾媒询块)。 ── */
-.banner-body .city-ledger-thumb {
+/* 城池详情直接为缩略图指定尺寸，宽度随 viewBox 比例。 */
+.city-detail-thumb {
   height: 96px;
   width: auto;
 }
@@ -118,15 +115,14 @@
   .banner-overlay {
     position: fixed;
   }
-  /* 详情缩略图矮横屏降档(#767):96 → 48px 随密度收半,详情层首帧不挤爆 310px 预算 */
-  .banner-body .city-ledger-thumb {
+  .city-detail-thumb {
     height: 48px;
   }
   /* #839 刀③的 scroll-tile-detail 单点 mask 渐隐块已收编进上方通案渐隐带(#846):
      不再按 testid 逐实例打补丁,全族卷轴同拍——单点块退役,勿复活两套系统。 */
 }
 
-/* 清算分页:同一 BannerShell 的定高正文,标准横屏每页三列两行,不产生纵向滚动。 */
+/* 清算每页三列两行，资产区在矮屏按需内滚。 */
 .bankruptcy-shell {
   width: min(92vw, 1000px);
   max-height: calc(100dvh - 32px);
@@ -140,14 +136,11 @@
   margin-top: 8px;
   padding: 8px 0 0;
 }
-.bankruptcy-shell .banner-body-fixed {
-  flex-shrink: 0;
-  padding: 4px 10px 10px;
+.bankruptcy-shell .banner-summary {
+  padding: 4px 10px 6px;
 }
-.bankruptcy-inventory {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.bankruptcy-shell .banner-body-content {
+  padding: 0 10px 10px;
 }
 .bankruptcy-catalog-head,
 .bankruptcy-footer,
@@ -348,7 +341,16 @@
   outline-offset: 2px;
 }
 @media (orientation: landscape) and (max-height: 500px) {
-  .bankruptcy-shell .banner-body-fixed {
+  .bankruptcy-shell {
+    padding-block: 8px;
+  }
+  .bankruptcy-shell > div:first-child {
+    margin-bottom: 4px;
+  }
+  .bankruptcy-shell .banner-summary {
+    padding: 0 8px 6px;
+  }
+  .bankruptcy-shell .banner-body-content {
     padding: 0 8px 8px;
   }
   .bankruptcy-shell h2 {

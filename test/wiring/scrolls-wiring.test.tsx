@@ -505,6 +505,10 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
 
     const commands = engine.log.filter((line) => line.category === "cmd").length;
     const asset = () => docQ(T.bankruptcyAsset("treasure", "skillbook-jixing"))!;
+    const assetViewport = () => asset().closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+    const viewport = assetViewport();
+    expect(viewport !== null).toBe(true);
+    viewport!.scrollTop = 32;
     expect(docQ(TESTIDS.modalBackdrop)).not.toBeNull();
     click(asset());
     click(docQ(TESTIDS.modalBackdrop)!);
@@ -522,6 +526,7 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     click(docQ(TESTIDS.modalRestore)!);
     await settle();
     expect(docQ(T.bankruptcyScroll)?.closest("[hidden]") == null).toBe(true);
+    expect(assetViewport()?.scrollTop).toBe(32);
     expect(asset().getAttribute("aria-pressed")).toBe("true");
     expect(snap().pendingDebt?.amount).toBe(1000);
     expect(engine.log.filter((line) => line.category === "cmd")).toHaveLength(commands);
@@ -612,6 +617,12 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     plant({ kind: "armDebt", amount: 1000, creditor: null });
     const commandCount = engine.log.filter((line) => line.category === "cmd").length;
     const bookQuantity = () => docQ(T.bankruptcyQuantity("skillbook-jixing"))!;
+    const viewportSelector = '[data-slot="scroll-area-viewport"]';
+    const viewport = bookQuantity().closest<HTMLElement>(viewportSelector);
+    expect(viewport !== null).toBe(true);
+    expect(docQ(T.bankruptcyDebt)!.closest(viewportSelector) === null).toBe(true);
+    expect(docQ(T.bankruptcyNext)!.closest(viewportSelector) === null).toBe(true);
+    expect(docQ(T.bankruptcyConfirm)!.closest(viewportSelector) === null).toBe(true);
     click(docQ(T.bankruptcyIncrease("skillbook-jixing"))!);
     expect(bookQuantity().textContent).toBe("1");
     click(docQ(T.bankruptcyDecrease("skillbook-jixing"))!);
@@ -623,7 +634,12 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
       true,
     );
     click(docQ(T.bankruptcyDecrease("qingnang"))!);
+    viewport!.scrollTop = 32;
     click(docQ(T.bankruptcyNext)!);
+    expect(
+      docQ(T.bankruptcyAsset("treasure", "edict"))!.closest<HTMLElement>(viewportSelector)
+        ?.scrollTop,
+    ).toBe(0);
     click(docQ(T.bankruptcyAsset("treasure", "edict"))!);
     click(docQ(T.bankruptcyPrevious)!);
     expect(docQ(T.bankruptcyQuantity("qingnang"))!.textContent).toBe("1");
