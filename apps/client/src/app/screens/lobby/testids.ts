@@ -10,7 +10,7 @@ export const LID = {
   joinInput: "lobby-join-input",
   join: "lobby-join",
   rejoin: "lobby-rejoin",
-  // #279:联机服务器地址(未入座可改;默认同源,覆写持久化 localStorage)
+  // #279:联机服务器地址(未入座可改，手动地址会保存)
   serverBase: "lobby-server-base",
   // #766:服务器行收进「高级」details 折叠(默认收起,探活点常驻 summary;展开出地址输入)
   serverToggle: "lobby-server-toggle",
