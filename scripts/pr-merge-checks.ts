@@ -28,7 +28,10 @@ const rules: Array<[RegExp, string[]]> = [
     ["check:core", "check:goldens", "check:sim-bench"],
   ],
   [/^apps\/server\/src\//, ["typecheck:scripts", "test:protocol"]],
-  [/^scripts\/(?:build-server|deploy-server|server-release-archive|server-systemd)\.ts$/, []],
+  [
+    /^scripts\/(?:build-server|deploy-server|deploy-vps|server-release-archive|server-systemd)\.ts$/,
+    [],
+  ],
   [
     /^(?:packages\/core\/src\/engine\/|packages\/core\/extensions\/(?!.*\.md$)|packages\/core\/maps\/|scripts\/(?:whole-game|state-digest|test-corpus|engine-helpers)\.ts$)/,
     ["check:core"],

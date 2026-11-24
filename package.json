@@ -49,6 +49,7 @@
     "check:test-boundaries": "bun scripts/check-test-boundaries.ts",
     "build:client": "bun scripts/build-dist.ts --typecheck",
     "build:server": "bun scripts/build-server.ts",
+    "deploy": "bun scripts/deploy-vps.ts",
     "deploy:server": "bun scripts/deploy-server.ts"
   },
   "dependencies": {
