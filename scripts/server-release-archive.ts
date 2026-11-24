@@ -25,7 +25,10 @@ interface ReleaseInput {
 }
 
 function readBunVersion(releaseDir: string, tag: string): string {
-  const manifest: unknown = JSON.parse(readFileSync(join(releaseDir, "release.json"), "utf8"));
+  return releaseBunVersion(JSON.parse(readFileSync(join(releaseDir, "release.json"), "utf8")), tag);
+}
+
+export function releaseBunVersion(manifest: unknown, tag: string): string {
   if (
     !manifest ||
     typeof manifest !== "object" ||
