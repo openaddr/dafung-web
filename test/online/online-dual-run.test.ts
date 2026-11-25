@@ -8,7 +8,7 @@
 // 健康/恢复的公开状态均读两端引擎与各自 store 四向对账,私密手牌和询问集逐端核对。
 // 恢复仅在 guest 的公开 socketFactory/timer/random 边界控制真 WS 与退避回调,
 // 不替换 socket 语义或全局时钟。稳定读数停在固定种子的注册真人门,零弃试重跑。
-// 反应窗 seed2849/魏 的既有谱验证生产默认宽窗(长于本例总超时),每次有效手答/拒重复均
+// 反应窗 seed9092/魏 的既有谱验证生产默认宽窗(长于本例总超时),每次有效手答/拒重复均
 // 以真实下行事件或 error 历史立屏障,超时代答无法在本例预算内替代手答。
 //
 // 纯传输故障归 protocol-online;真实设备交互由用户在 APK 验收。
@@ -653,7 +653,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     await withIsolatedPair("automatic", async (pair) => {
       const [host, guest] = pair.clients;
       // 首席人机出连环计时，两名真人的起手均有识破诡计。
-      await startIsolatedPair(pair, 3, 2719, "魏");
+      await startIsolatedPair(pair, 3, 9092, "魏");
       await finishIsolatedSetup(pair);
       let views = await pair.wait("连环计双人类反应窗", (current) =>
         current.every(

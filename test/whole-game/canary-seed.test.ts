@@ -21,9 +21,9 @@ function soloEngine(seed: number): GameEngine {
   });
 }
 
-describe("种子哨兵(solo 形状 setup 签名,seed 1010)", () => {
+describe("种子哨兵(solo 形状 setup 签名,seed 13261)", () => {
   it("定都剑阁，首回合两张反应牌可直接掷骰，落咸阳待购", () => {
-    const e = soloEngine(1010);
+    const e = soloEngine(13261);
     e.doDraftRoll();
     let guard = 0;
     while (e.phase === "Setup" && guard++ < 60) {

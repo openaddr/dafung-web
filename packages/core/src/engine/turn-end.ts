@@ -32,13 +32,25 @@ export function resumeTurnEnd(g: GameEngine, state: TurnEndContinuation): void {
     const burning: CityBurningContinuation =
       state.kind === "turnEnd" ? { kind: "cityBurning", nextTile: 0 } : state;
     if (resumeCityBurning(g, burning)) return;
+    const extraTurn = g.pendingExtraTurn;
+    if (extraTurn) {
+      g.pendingExtraTurn = undefined;
+      if (declareVictory(g)) return;
+      if (!g.activePlayer.isBankrupt) {
+        if (g.activePlayer.skipTurns === 0) {
+          startTurn(g);
+          return;
+        }
+        skipTurn(g, g.activeIndex);
+      }
+    }
     const count = g.players.length;
     const first = (g.activeIndex + 1) % count;
     const remaining = (g.roundAnchor - first + count) % count;
     const next = planNextTurn(g, first, remaining);
     for (const seat of next.skipped) skipTurn(g, seat);
     if (next.seat != null) {
-      if (!declareVictory(g)) {
+      if (extraTurn || !declareVictory(g)) {
         g.activeIndex = next.seat;
         startTurn(g);
       }

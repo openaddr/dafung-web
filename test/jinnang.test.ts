@@ -78,8 +78,8 @@ describe("锦囊目录(数据校验)", () => {
     expect(JINNANG_CARDS.some((c) => c.tags.includes("守"))).toBe(false); // 守类清零,枚举保留
   });
 
-  it("牌库构成 20 张，按目录 copies 展平", () => {
-    expect(JINNANG_DECK_LIST.length).toBe(20);
+  it("牌库构成 21 张，按目录 copies 展平", () => {
+    expect(JINNANG_DECK_LIST.length).toBe(21);
     const counts = new Map(JINNANG_CARDS.map((c) => [c.id, 0]));
     for (const id of JINNANG_DECK_LIST) counts.set(id, (counts.get(id) ?? 0) + 1);
     for (const c of JINNANG_CARDS) {
@@ -88,6 +88,11 @@ describe("锦囊目录(数据校验)", () => {
     expect(JINNANG_CARDS.find((c) => c.id === "缓兵之计")?.copies).toBe(1);
     expect(JINNANG_CARDS.find((c) => c.id === "半路杀出")?.copies).toBe(3);
     expect(JINNANG_CARDS.find((c) => c.id === "袭扰")?.copies).toBe(2);
+    expect(jinnangCardOf("挟天子以令诸侯")).toMatchObject({
+      copies: 1,
+      tags: ["谋"],
+      targetDomain: "self",
+    });
   });
 
   it("buildJinnangDeck 同 seed 同牌序，配置的牌无遗漏", () => {

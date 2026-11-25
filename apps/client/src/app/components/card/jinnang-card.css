@@ -2,7 +2,7 @@
    忠实移植(2026-09-24 用户已验收的视觉基线):类名、形制、色值不做自由发挥。
    选择器统一收口在 .jinnang-card / .jinnang-detail 作用域下(原型是裸类名,入库改为
    组件前缀防全局串扰);#511 卡面 B 案「墨面金框」改制:纸底+金框画心+立绘 img 通道。
-   #1532 六张锦囊使用 A 案小场景，三张沿用专属墨线。画心只占金框，
+   故事画心使用小场景位图，军情密探等沿用专属墨线。画心只占金框，
    牌名/标签章/笺脚文字恒在纸底。动效时长/缓动走 --dur-* 与 --ease-* token
    (tokens.css 单源,reduced-motion 由 app.css 全局兜层承担)。
 
@@ -38,7 +38,7 @@
   font-size: 16px;
 }
 
-/* ── 笺头:族色界格线 + 牌名(font-brush;长牌名 ≥4 字降档 1.72em)── */
+/* ── 笺头：族色界格线与牌名。长牌名降档，超出预留宽度时折行。 ── */
 .jinnang-card .tou {
   display: flex;
   align-items: stretch;
@@ -47,7 +47,7 @@
   margin-right: 3.8em; /* 让位右上标签章 */
 }
 .jinnang-card .jie {
-  width: 0.32em;
+  flex: 0 0 0.32em;
   background: var(--fam, var(--color-danger));
   opacity: 0.85;
   border-radius: 0.16em;
@@ -58,7 +58,8 @@
   line-height: 1.15;
   letter-spacing: 0.06em;
   align-self: center;
-  white-space: nowrap;
+  white-space: normal;
+  text-wrap: balance;
   color: var(--card-ink); /* 纸上墨字(可读性红线:#511 文字恒在纸底) */
 }
 .jinnang-card .ming.long {

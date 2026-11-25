@@ -187,7 +187,8 @@ describeSlow("server WS 命令回报与对局日志", () => {
   });
 
   it("联机日志从校准锚连续下行，重连归座后继续交付至解散", async () => {
-    const created = await post("/room/new", { seats: 2, seed: 2 });
+    // 客席首动，直接掷骰落在无主城的购地决策。
+    const created = await post("/room/new", { seats: 2, seed: 5 });
     expect(created.ok).toBe(true);
     const roomId = created.roomId as string;
     const hostToken = created.seatToken as string;

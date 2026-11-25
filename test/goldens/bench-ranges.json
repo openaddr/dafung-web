@@ -1,31 +1,31 @@
 {
   "guanzhong#2": {
-    "medianRounds": [62, 104],
+    "medianRounds": [60, 100],
     "bankruptRate": [0, 0],
     "format": 1
   },
   "guanzhong#4": {
-    "medianRounds": [46, 76],
-    "bankruptRate": [0.02, 0.03],
+    "medianRounds": [45, 75],
+    "bankruptRate": [0, 0],
     "format": 1
   },
   "zhongyuan#2": {
-    "medianRounds": [39, 65],
+    "medianRounds": [35, 59],
     "bankruptRate": [0, 0],
     "format": 1
   },
   "zhongyuan#4": {
-    "medianRounds": [33, 55],
+    "medianRounds": [32, 53],
     "bankruptRate": [0, 0],
     "format": 1
   },
   "yanzhou#2": {
-    "medianRounds": [25, 41],
+    "medianRounds": [23, 39],
     "bankruptRate": [0, 0],
     "format": 1
   },
   "yanzhou#4": {
-    "medianRounds": [19, 31],
+    "medianRounds": [17, 28],
     "bankruptRate": [0, 0],
     "format": 1
   }

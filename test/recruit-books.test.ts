@@ -167,7 +167,7 @@ it("托管在没有招将候选时求书并结清招贤机会", () => {
 });
 
 it("首回合抽到袭扰，行军求书后在下个己方出牌阶段研读", () => {
-  const engine = makeEngine(2, 4);
+  const engine = makeEngine(2, 704);
   engine.doDraftRoll();
   engine.pickCapital(engine.currentSetupPlayerIndex, 9);
   engine.pickCapital(engine.currentSetupPlayerIndex, 6);

@@ -108,6 +108,8 @@ export interface GameSnapshot {
   turnNumber: number;
   round: number;
   roundAnchor: number;
+  /** 当前活跃诸侯待接续的额外回合，仅在权威快照中保存。 */
+  pendingExtraTurn?: true;
   activeIndex: number;
   targetNetWorth: number;
   startingCash: number;
@@ -328,6 +330,13 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => e.roundAnchor,
     write: (e, s) => {
       e.roundAnchor = s.roundAnchor;
+    },
+  },
+  {
+    key: "pendingExtraTurn",
+    read: (e) => e.pendingExtraTurn,
+    write: (e, s) => {
+      e.pendingExtraTurn = s.pendingExtraTurn;
     },
   },
   // public:供 snapshot/联机序列化(内部由 advanceToNextActive 维护)
