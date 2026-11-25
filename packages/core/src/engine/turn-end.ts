@@ -109,6 +109,7 @@ function planNextTurn(
 
 function skipTurn(g: GameEngine, seat: number): void {
   const player = g.players[seat];
+  g.turnNumber += 1;
   player.skipTurns -= 1;
   emitGameEvent(g, seat, { kind: "turnSkipped" });
   g.logEvent(
@@ -167,9 +168,9 @@ function declareVictory(g: GameEngine): boolean {
 }
 
 function startTurn(g: GameEngine): void {
+  g.turnNumber += 1;
   g.dispatchMoment("TurnStart", { subject: g.activeIndex });
   g.turnPhase = "Roll";
-  g.turnNumber += 1;
   // 行军骰面与路径仍供当前命令的演出消费，下一次行军会覆盖它们。
   g.lastLandOutcome = null;
   g.pendingLand = null;

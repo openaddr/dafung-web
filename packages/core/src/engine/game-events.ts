@@ -341,7 +341,7 @@ export interface StaminaChangedBody {
   delta: number;
   reason: string;
 }
-/** 跳过回合(#384):skipTurns 消费点产出，seat 为被跳过者，消费完即结束休整。 */
+/** 消费跳过次数后记录该回合的编号。seat 为被跳过者。 */
 export interface TurnSkippedBody {
   kind: "turnSkipped";
 }

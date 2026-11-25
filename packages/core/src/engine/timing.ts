@@ -2,7 +2,7 @@
 // (TriggerSkill.when);珍宝/地块/全局规则暂无时机挂点——宣称以实况为准。
 // 设计与扩展指南 + 完整分类目录(设计技能/事件时翻目录找灵感)见 docs/explanation/时机框架.md。
 //
-// 回合是任一诸侯从开始行动到收尾的流程（engine.turnNumber）。
+// 开始实际回合和处理被跳过的回合都推进全桌回合编号（engine.turnNumber）。
 // 全桌按固定座次处理各席位的行动或跳过，走一圈计作一轮（engine.round）。
 // 新增时机先在 GameMoment 与 MOMENTS 登记，再在对应的结算点用 dispatchMoment 派发。
 

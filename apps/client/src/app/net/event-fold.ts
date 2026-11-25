@@ -12,8 +12,7 @@
 //                 turnStarted → activeIndex + turnPhase=Roll + 回合清场(
 //                 窗口与落格决策载荷清场);roundStarted/roundEnded → roundAnchor
 //                 (=轮次锚点主体);gameOver → isOver/winner/winReason/phase/turnPhase。
-//                 round/turnNumber 逐事件摸事件首部(turnStarted 特殊:引擎派发后才
-//                 turnNumber+1,故 +1;开局首回合同批有 gameStarted 先行,取首部本值)
+//                 round/turnNumber 逐事件取权威事件首部
 //   掷骰/行军族   diceRolled → lastRoll + heroDiceBonus 消费清零;capitalHalt → position/
 //                 lastMove/turnPhase=Land(补给金额相邻回填);marchArrived → position/
 //                 lastMove/turnPhase=Land;landingResolved → 最终相位/pendingLand/
@@ -173,8 +172,7 @@ function consumeCard(engine: GameEngine, p: Player, cardId: string): void {
 
 /** 批上下文:批内跨事件相邻推演所需的临时锚点(纯函数局部态,不落引擎)。 */
 interface FoldCtx {
-  /** 开局批旗标:gameStarted 与开局首个 turnStarted 同批(finishSetup),此时 turnNumber
-   *  取事件首部本值(引擎开局即置 1,非「派发后 +1」路径)。 */
+  /** 开局校准已包含起手与首个实际回合摸牌。 */
   sawGameStart: boolean;
 }
 
@@ -187,11 +185,9 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
     sawGameStart: false,
   };
   for (const ev of events) {
-    // 事件首部摸照(判定表「turnNumber/round 事件覆盖」):round 逐事件对齐(单调,后写
-    // 覆盖先写);turnNumber 在 turnStarted 处 +1(引擎派发 TurnStart 后才自增),开局
-    // 首回合除外(同批 gameStarted 先行,引擎开局即置 1)。
+    // 回合编号已由引擎在行动开始或跳过时推进。
     engine.round = ev.round;
-    engine.turnNumber = ev.turn + (ev.kind === "turnStarted" && !ctx.sawGameStart ? 1 : 0);
+    engine.turnNumber = ev.turn;
     switch (ev.kind) {
       // ── 回合/胜负族 ──
       case "gameStarted": {

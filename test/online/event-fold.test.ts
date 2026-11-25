@@ -144,7 +144,7 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     expect(otherReplica.players[nextSeat]).toMatchObject({ jinnangHand: [], jinnangHandCount: 1 });
   });
 
-  it("跳过座位不摸牌，实际回合洗回后先摸再出牌，双空直接进入掷骰", () => {
+  it("被跳过的回合占编号，实际回合洗回后先摸再出牌，双空直接进入掷骰", () => {
     const e = makeEngine();
     e.doDraftRoll();
     while (e.phase === "Setup")
@@ -166,9 +166,14 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
       foldEventBatch(replica, JSON.parse(eventsMsg(redactEvents(e.gameEvents, active))).events);
     };
     finishTurn();
-    expect(e.gameEvents.filter((ev) => ev.kind === "turnSkipped").map((ev) => ev.seat)).toEqual([
-      skipped,
+    expect(
+      e.gameEvents.filter((ev) => ev.kind === "turnSkipped" || ev.kind === "turnStarted"),
+    ).toMatchObject([
+      { kind: "turnSkipped", seat: skipped, turn: 2 },
+      { kind: "turnStarted", seat: active, turn: 3 },
     ]);
+    expect(e.turnNumber).toBe(3);
+    expect(replica.turnNumber).toBe(3);
     expect(e.activeIndex).toBe(active);
     expect(replica.players[skipped].jinnangHandCount).toBe(0);
     expect(replica.players[active].jinnangHand).toEqual(["横征暴敛"]);
@@ -351,7 +356,7 @@ describe("折叠投影器 · 回合/胜负族", () => {
     expect(e.turnNumber).toBe(1); // 开局首回合:引擎 finishSetup 即置 1,不 +1
   });
 
-  it("turnStarted 中盘批:activeIndex 翻页、回合开账清场、turnNumber=首部+1", () => {
+  it("turnStarted 中盘批按权威事件回合编号清场并切换行动者", () => {
     const e = makeEngine();
     e.activeIndex = 0;
     const suspended: TurnPhase = "AwaitingDecision"; // 经变量赋值,避免字面量收窄断言
@@ -360,12 +365,12 @@ describe("折叠投影器 · 回合/胜负族", () => {
     e.lastLandOutcome = { kind: "Noop" };
     e.treasureVisitor = { def: MAP.catalog.get("prop-luoyang")!, ownerIdx: 1 };
     e.pendingReaction = null;
-    const turn: GameEvent = { kind: "turnStarted", seat: 1, round: 2, turn: 5 };
+    const turn: GameEvent = { kind: "turnStarted", seat: 1, round: 2, turn: 6 };
     foldEventBatch(e, [turn]);
 
     expect(e.activeIndex).toBe(1);
     expect<TurnPhase>(e.turnPhase).toBe("Roll"); // 显式宽化:避开赋值字面量收窄
-    expect(e.turnNumber).toBe(6); // 引擎派发 TurnStart 后自增
+    expect(e.turnNumber).toBe(6);
     expect(e.round).toBe(2);
     expect(e.pendingLand).toBeNull();
     expect(e.lastLandOutcome).toBeNull();
