@@ -2,9 +2,9 @@
 // (TriggerSkill.when);珍宝/地块/全局规则暂无时机挂点——宣称以实况为准。
 // 设计与扩展指南 + 完整分类目录(设计技能/事件时翻目录找灵感)见 docs/explanation/时机框架.md。
 //
-// 术语对齐:回合(turn)= 一个人行动一次(engine.turnNumber);轮(round)= 所有人各行动一次
-// (engine.round,roundAnchor 锚定)。新增时机 = ① 此处 GameMoment 加一项 + MOMENTS 注册;
-// ② authority.ts 在正确点位挂一个 dispatchMoment 派发。仅此两步,再无散派。
+// 回合是任一诸侯从开始行动到收尾的流程（engine.turnNumber）。
+// 全桌按固定座次处理各席位的行动或跳过，走一圈计作一轮（engine.round）。
+// 新增时机先在 GameMoment 与 MOMENTS 登记，再在对应的结算点用 dispatchMoment 派发。
 
 /** 时机类型（完整清单见 MOMENTS）。subject(时机主体座位)与 ctx 字段见各时机注释;
  *  分类目录 + 技能灵感示例见 docs/explanation/时机框架.md。 */
@@ -17,9 +17,9 @@ export type GameMoment =
   /** 终局:endTurn 胜负判定确定 isOver 处(净资产达标/群雄尽灭两条路径同挂)。subject = 胜者。 */
   | "GameOver"
   // ── 回合与轮 ──
-  /** 一轮开始:round 即将 +1 后、轮首玩家 TurnStart 之前。subject = roundAnchor。 */
+  /** 轮次递增后，本轮消费跳过次数及开始实际回合前。subject = roundAnchor。 */
   | "RoundStart"
-  /** 一轮结束:最后一位玩家 TurnEnd 后、round +1 之前。subject = roundAnchor。 */
+  /** 本轮各席位的行动或跳过处理完毕后、持城收益发放前。subject = roundAnchor。 */
   | "RoundEnd"
   /** 回合开始:新 activeIndex 确定后(含开局首个回合进 Playing 时)。subject = 新活跃玩家。 */
   | "TurnStart"

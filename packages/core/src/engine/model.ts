@@ -56,8 +56,8 @@ export interface Player {
 /** 对局日志条目。字段格式、写入点和用途见 docs/reference/对局日志.md。 */
 export interface LogEvent {
   ts: number; // 时间(epoch ms,引擎侧 Date.now())
-  round: number; // 轮(engine.round,所有人各行动一次 = 1 轮)
-  turn: number; // 回合(engine.turnNumber)
+  round: number; // 全桌轮次（engine.round）
+  turn: number; // 全桌实际回合编号（engine.turnNumber）
   player: string | null; // 玩家国号(无主行为为 null)
   brief: string; // 人类可读简报(中文)
   detail: string; // 机读审计行(英文键值;cmd/room/header/final 为 JSON)

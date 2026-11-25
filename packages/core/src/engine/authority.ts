@@ -236,8 +236,8 @@ export class GameEngine {
   phase: EnginePhase = "Setup";
   setupPhase: SetupPhase = "Guohao";
   turnPhase: TurnPhase = "Roll";
-  turnNumber = 0;
-  round = 1; // 回合计数:所有人各行动一次 = 1 轮(供名将技能冷却等使用)
+  turnNumber = 0; // 全桌共用的实际回合编号，每开始一个回合增加 1。
+  round = 1; // 全桌按固定座次走一圈才进入下一轮。名将技能冷却以轮计。
   // public:供 snapshot/联机序列化(轮次锚点需跨进程恢复,否则恢复后 round 计数会漂移)。
   roundAnchor = 0; // 固定的轮次锚点(draftOrder[0]),不随破产漂移
   // public:供 snapshot/联机序列化(同 takenCapitalIndices 模式)。内部代码读 Set,不直接改字段。
