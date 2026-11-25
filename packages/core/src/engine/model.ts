@@ -57,7 +57,7 @@ export interface Player {
 export interface LogEvent {
   ts: number; // 时间(epoch ms,引擎侧 Date.now())
   round: number; // 全桌轮次（engine.round）
-  turn: number; // 全桌实际回合编号（engine.turnNumber）
+  turn: number; // 全桌回合编号（engine.turnNumber）
   player: string | null; // 玩家国号(无主行为为 null)
   brief: string; // 人类可读简报(中文)
   detail: string; // 机读审计行(英文键值;cmd/room/header/final 为 JSON)
