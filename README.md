@@ -31,6 +31,7 @@
 | 查规则 / 数值                                  | [规则手册](./docs/reference/rules/README.md)(十页导览)                                                                                                                                                                                                                |
 | 保存一局的日志和现场                           | [对局诊断](./docs/reference/对局日志.md#单局诊断文件)                                                                                                                                                                                                                 |
 | 懂设计(哲学 / 时机框架 / 联机架构 / 锦囊设计)  | [设计哲学](./docs/explanation/设计哲学.md) · [时机框架](./docs/explanation/时机框架.md) · [联机架构](./docs/explanation/联机架构.md) · [锦囊设计](./docs/explanation/锦囊设计.md) · [安卓交互与触达](./docs/design/DESIGN.md) · [组件收口](./docs/design/组件收口.md) |
+| 查音效的触发与试听                             | [音效设计](./docs/design/音效设计.md)                                                                                                                                                                                                                                 |
 | 查术语                                         | [GLOSSARY.md](./GLOSSARY.md)                                                                                                                                                                                                                                          |
 
 ## 为开发者
