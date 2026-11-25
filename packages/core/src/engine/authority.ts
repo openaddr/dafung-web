@@ -240,6 +240,8 @@ export class GameEngine {
   round = 1; // 全桌按固定座次走一圈才进入下一轮。名将技能冷却以轮计。
   // public:供 snapshot/联机序列化(轮次锚点需跨进程恢复,否则恢复后 round 计数会漂移)。
   roundAnchor = 0; // 固定的轮次锚点(draftOrder[0]),不随破产漂移
+  // 当前活跃诸侯的额外回合，等待本回合收尾，仅随权威快照保存。
+  pendingExtraTurn?: true;
   // public:供 snapshot/联机序列化(同 takenCapitalIndices 模式)。内部代码读 Set,不直接改字段。
   recruitedHeroIds = new Set<string>(); // 已被招揽的名将(唯一)
   offeredHeroes: HeroOffer[] = []; // 待选名将可为空，候选携带预掷的实授技能。

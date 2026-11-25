@@ -80,6 +80,163 @@ function path(landIndex: number): MovePath {
   };
 }
 
+describe("额外回合的联机命令与事件批", () => {
+  function submitAndFold(
+    authority: GameEngine,
+    replica: GameEngine,
+    seat: number,
+    command: GameCommand,
+  ): GameEvent[] {
+    const message = JSON.parse(cmdMsg(command)) as Extract<InboundMsg, { type: "cmd" }>;
+    authority.submitCommand(message.cmd);
+    const { events } = JSON.parse(eventsMsg(redactEvents(authority.gameEvents, seat)));
+    foldEventBatch(replica, events);
+    return events;
+  }
+
+  it("本轮末席的额外回合可在存档恢复后接续，洗回再出仍先走完原轮", () => {
+    let authority = makeEngine();
+    authority.doDraftRoll();
+    while (authority.phase === "Setup")
+      authority.pickCapital(
+        authority.currentSetupPlayerIndex,
+        authority.firstAvailableCapitalIndex(),
+      );
+    const first = authority.activeIndex;
+    armPhase(authority, { turnPhase: "AwaitingDecision" });
+    authority.submitCommand({ type: "endDecision" });
+    const last = authority.activeIndex;
+    const cardId = "挟天子以令诸侯";
+    giveJinnang(authority, first, []);
+    giveJinnang(authority, last, [cardId, "横征暴敛"]);
+    setJinnangPiles(authority, [], []);
+    setCash(authority, last, 10000);
+    placePlayer(authority, last, CHANGAN);
+    armPhase(authority, { turnPhase: "AwaitingJinnang" });
+
+    const replica = makeEngine();
+    const project = () =>
+      JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), last)));
+    replica.restoreFromSnapshot(project());
+    const submit = (command: GameCommand) => submitAndFold(authority, replica, last, command);
+    const expectTurn = (
+      activeIndex: number,
+      round: number,
+      turnNumber: number,
+      turnPhase: TurnPhase,
+    ) => {
+      for (const engine of [authority, replica]) {
+        expect(engine).toMatchObject({
+          activeIndex,
+          round,
+          turnNumber,
+          turnPhase,
+          roundAnchor: first,
+        });
+      }
+    };
+
+    submit({ type: "useJinnang", cardId });
+    expectTurn(last, 1, 2, "Roll");
+    expect(replica.players[last].jinnangHand).toEqual(["横征暴敛"]);
+    expect(replica.jinnangDiscard).toEqual([cardId]);
+    expect(project()).not.toHaveProperty("pendingExtraTurn");
+
+    const saved = JSON.parse(JSON.stringify(authority.snapshot()));
+    authority = makeEngine();
+    authority.restoreFromSnapshot(saved);
+    pinDice(authority, "march", [1, 1]);
+    submit({ type: "rollAndMove" });
+    expectTurn(last, 1, 2, "AwaitingDecision");
+    expect(replica.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "prop-jinyang" });
+
+    const firstExtra = submit({ type: "buyProperty" });
+    expectTurn(last, 1, 3, "AwaitingJinnang");
+    expect(firstExtra.filter((event) => event.kind === "turnStarted")).toMatchObject([
+      { seat: last, round: 1, turn: 3 },
+    ]);
+    expect(firstExtra.some((event) => event.kind === "roundEnded")).toBe(false);
+    expect(replica.players[last]).toMatchObject({
+      cash: 8200,
+      position: 1,
+      jinnangHand: ["横征暴敛", cardId],
+    });
+    expect(replica.findOwner("prop-jinyang")).toBe(replica.players[last]);
+    expect(replica.jinnangDiscard).toEqual([]);
+
+    submit({ type: "useJinnang", cardId });
+    expectTurn(last, 1, 3, "Roll");
+    submit({ type: "rollAndMove" });
+    submit({ type: "endDecision" });
+    expectTurn(last, 1, 4, "AwaitingJinnang");
+    expect(replica.players[last].jinnangHand).toEqual(["横征暴敛", cardId]);
+
+    pinDice(authority, "march", [3]);
+    submit({ type: "useJinnang", cardId: null });
+    submit({ type: "rollAndMove" });
+    const roundEnd = submit({ type: "endDecision" });
+    expectTurn(first, 2, 5, "Roll");
+    expect(roundEnd.filter((event) => event.kind === "roundEnded")).toHaveLength(1);
+    expect(replica.players[last].cash).toBe(8254);
+    expect(authority.players[last].cash).toBe(replica.players[last].cash);
+  });
+
+  it("识破后锦囊仍然消耗，可以继续出牌并按原座次推进", () => {
+    const authority = makeEngine();
+    authority.doDraftRoll();
+    while (authority.phase === "Setup")
+      authority.pickCapital(
+        authority.currentSetupPlayerIndex,
+        authority.firstAvailableCapitalIndex(),
+      );
+    const active = authority.activeIndex;
+    const responder = 1 - active;
+    const cardId = "挟天子以令诸侯";
+    giveJinnang(authority, active, [cardId, "横征暴敛"]);
+    giveJinnang(authority, responder, ["识破诡计"]);
+    setJinnangPiles(authority, ["半路杀出"], []);
+    placePlayer(authority, active, CHANGAN);
+    pinDice(authority, "march", [1]);
+    armPhase(authority, { turnPhase: "AwaitingJinnang" });
+
+    const replica = makeEngine();
+    replica.restoreFromSnapshot(
+      JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), active))),
+    );
+    const submit = (command: GameCommand) => submitAndFold(authority, replica, active, command);
+    const cash = replica.players[active].cash;
+
+    submit({ type: "useJinnang", cardId });
+    expect(replica.turnPhase).toBe("AwaitingReaction");
+    expect(replica.jinnangDiscard).toEqual([cardId]);
+    expect(replica.players[active].jinnangHand).toEqual(["横征暴敛"]);
+    const negate = submit({
+      type: "respondReaction",
+      seat: responder,
+      use: true,
+      cardId: "识破诡计",
+    });
+    expect(negate).toContainEqual(expect.objectContaining({ kind: "jinnangVoided", cardId }));
+    expect(replica.turnPhase).toBe("AwaitingJinnang");
+    expect(replica.jinnangDiscard).toEqual([cardId, "识破诡计"]);
+
+    submit({ type: "useJinnang", cardId: "横征暴敛" });
+    expect(replica.players[active].cash).toBe(cash + 200);
+    expect(replica.turnPhase).toBe("Roll");
+    submit({ type: "rollAndMove" });
+    const end = submit({ type: "endDecision" });
+    expect(end.filter((event) => event.kind === "turnStarted")).toMatchObject([
+      { seat: responder, round: 1, turn: 2 },
+    ]);
+    expect(replica).toMatchObject({
+      activeIndex: responder,
+      round: 1,
+      turnNumber: 2,
+      turnPhase: "Roll",
+    });
+  });
+});
+
 describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
   it("银行债清偿后推进回合，事件使持牌者收下反应锦囊，其余座位只见张数", () => {
     const e = makeEngine();

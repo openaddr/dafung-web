@@ -36,6 +36,7 @@ export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set(
   "staminaDamage",
   "fireWall", // #1389 T3 棒1:火烧连营溅射化(城指向/前方溅射/识破按城拆份)
   "skipTurn",
+  "extraTurn",
   "duel", // T4:连环计二虎竞食
   "peek", // T4:军情密探
 ]);

@@ -68,6 +68,7 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
   switch (def.effect.kind) {
     case "levyAll": // 横征暴敛:可用即用
     case "grantHero": // 求贤令:可用即用
+    case "extraTurn": // 挟天子以令诸侯:可用即用
       return { use: true };
     case "skipTurn": {
       // 缓兵之计:仅当目标当前身价领先;自己领先则无人值得拖
@@ -192,6 +193,7 @@ function counterLossEstimate(
     case "levyAll":
       return Math.min(def.effect.amount, me.cash);
     case "skipTurn":
+    case "extraTurn":
       return EST_SKIP_TURN_LOSS;
     case "staminaDamage":
       return def.effect.damage >= me.stamina

@@ -4,7 +4,7 @@ import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
 import { loadMap } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { defineChoiceEffect, EFFECTS, type EffectCtx } from "@dafung/core/engine/effects";
-import type { GameEvent } from "@dafung/core/engine/game-events";
+import { beginGameEventBatch, type GameEvent } from "@dafung/core/engine/game-events";
 import { findHolding } from "@dafung/core/engine/player";
 import {
   armDebt,
@@ -15,6 +15,7 @@ import {
   placePlayer,
   setCash,
   setDefense,
+  setJinnangPiles,
 } from "@dafung/core/engine/planter";
 import { SKILLS, type TriggerSkill } from "@dafung/core/engine/skills";
 import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
@@ -310,7 +311,7 @@ it("先结算的失城效果清除后一城的旧燃烧，已到期的标记不�
   ]);
 });
 
-it("主动破产也完成实际回合，破产施火者继续扣防且由存活的旧伤来源接城", () => {
+it("主动破产也完成实际回合并取消额外回合，由存活的旧伤来源接城", () => {
   const g = makeEngine();
 
   armPhase(g, { phase: "Playing", activeIndex: 1, turnPhase: "AwaitingJinnang" });
@@ -325,15 +326,109 @@ it("主动破产也完成实际回合，破产施火者继续扣防且由存活�
     burning: { sourceSeat: 0, progress: 2 },
   });
 
+  giveJinnang(g, 0, ["挟天子以令诸侯"]);
+  armPhase(g, { turnPhase: "AwaitingJinnang" });
+  submit(g, { type: "useJinnang", cardId: "挟天子以令诸侯" });
   armDebt(g, 20000, null);
   submit(g, { type: "declareBankruptcy" });
 
   expect(g.players[0].isBankrupt).toBe(true);
+  expect(g.activeIndex).toBe(1);
   expect(g.findOwner(CITY)).toBe(g.players[1]);
   expect(findHolding(g.players[1], CITY)).toMatchObject({ defense: 40, burning: null });
   expect(burnPayments(g.gameEvents)).toMatchObject([
     { seat: 1, delta: 180, reason: "city-conquest-pool" },
   ]);
+});
+
+it("待接续的额外回合消耗休整的一个跳过，不摸牌", () => {
+  const g = makeEngine();
+  g.doDraftRoll();
+  while (g.phase === "Setup")
+    g.pickCapital(g.currentSetupPlayerIndex, g.firstAvailableCapitalIndex());
+  const active = g.activeIndex;
+  const next = (active + 1) % g.players.length;
+  const cardId = "挟天子以令诸侯";
+  for (const seat of g.players.keys()) giveJinnang(g, seat, []);
+  giveJinnang(g, active, [cardId]);
+  giveJinnang(g, next, ["识破诡计"]);
+  setJinnangPiles(g, ["半路杀出"], []);
+  armPhase(g, { turnPhase: "AwaitingJinnang" });
+  const replica = replicaOf(g, active);
+
+  submit(g, { type: "useJinnang", cardId });
+  receive(g, replica, active);
+  expect(replica.turnPhase).toBe("AwaitingReaction");
+  submit(g, { type: "respondReaction", seat: next, use: false });
+  receive(g, replica, active);
+  expect(replica.turnPhase).toBe("Roll");
+
+  beginGameEventBatch(g);
+  g.damageStamina(active, 100, null);
+  receive(g, replica, active);
+  expect(
+    g.gameEvents.filter((event) => event.kind === "turnSkipped" || event.kind === "turnStarted"),
+  ).toMatchObject([
+    { kind: "turnSkipped", seat: active, round: 1, turn: 2 },
+    { kind: "turnStarted", seat: next, round: 1, turn: 3 },
+  ]);
+  for (const engine of [g, replica]) {
+    expect(engine).toMatchObject({ activeIndex: next, round: 1, turnNumber: 3, turnPhase: "Roll" });
+    expect(engine.players[active]).toMatchObject({
+      resting: true,
+      skipTurns: 1,
+      jinnangHandCount: 0,
+    });
+    expect(engine.players[next].jinnangHandCount).toBe(2);
+  }
+});
+
+it("待接续的额外回合等收尾选择与燃烧，燃烧满足胜利后立即终局", () => {
+  const g = makeEngine();
+  armPhase(g, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+  grantProperty(g, 1, CITY, 1);
+  grantProperty(g, 3, "prop-wujun", 1);
+  setDefense(g, 1, CITY, 9);
+  playJinnang(g, "火烧连营", TILE);
+  for (let i = 0; i < 3; i++) finishTurn(g);
+  expect(g.activeIndex).toBe(3);
+  const choice = grantTestSkill(
+    "test-extra-turn-end-choice",
+    "TurnEnd",
+    "during",
+    defineChoiceEffect("TurnEnd", offerChoice),
+  );
+  armHero(g, 3, "caopi", [choice]);
+  setCash(g, 0, 29996);
+  setCash(g, 3, 29999);
+  giveJinnang(g, 3, ["挟天子以令诸侯"]);
+  armPhase(g, { turnPhase: "AwaitingJinnang" });
+  submit(g, { type: "useJinnang", cardId: "挟天子以令诸侯" });
+
+  finishTurn(g);
+  expect(g.turnPhase).toBe("AwaitingSkillChoice");
+  expect(findHolding(g.players[1], CITY)).toMatchObject({ defense: 1, burning: { progress: 2 } });
+  const replica = replicaOf(g, 3);
+  submit(g, { type: "respondSkillChoice", seat: 3, use: false });
+  receive(g, replica, 3);
+
+  expect(
+    g.gameEvents.filter(
+      ({ kind }) =>
+        kind === "propertyBurningTicked" ||
+        kind === "roundEnded" ||
+        kind === "turnStarted" ||
+        kind === "gameOver",
+    ),
+  ).toMatchObject([
+    { kind: "propertyBurningTicked", propertyId: CITY },
+    { kind: "gameOver", seat: 0 },
+  ]);
+  for (const engine of [g, replica]) {
+    expect(engine).toMatchObject({ round: 1, turnPhase: "GameOver", winReason: "TargetNetWorth" });
+    expect(engine.winner).toBe(engine.players[0]);
+    expect(engine.players[3].cash).toBe(29999);
+  }
 });
 
 it("没有实际回合的整轮不推进燃烧", () => {

@@ -1322,22 +1322,17 @@ describe("窥探投影(ADR-0016 · #575 即时窥探)", () => {
 });
 
 describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略", () => {
-  it("托管座位按策略用牌(横征暴敛可用即用;原「代驾保守不用」口径随 #580 退役)", async () => {
-    const clock = new ManualClock();
-    const reg = new RoomRegistry(new InMemoryPersistence(), undefined, undefined, { clock });
-    const { roomId } = await playingRoom(reg);
+  it("托管接手出牌阶段时按策略打出横征暴敛", async () => {
+    const { reg, roomId } = await playingRoomWithClock(new ManualClock());
     const e = reg.get(roomId)!.engine!;
-    e.players[0].jinnangHand = ["横征暴敛"];
-    e.players[0].jinnangHandCount = 1;
-    // 双座都托管(#580 后与 bot 同款策略,无保守分支):对局持续代打
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    giveJinnang(e, 0, ["横征暴敛"]);
+    giveJinnang(e, 1, []);
     await reg.setAutoPilot(roomId, 0, true);
-    await reg.setAutoPilot(roomId, 1, true);
-    // 泵送:链经注入时钟自续,直到策略用牌(横征=可用即用,seat0 首个锦囊相位即耗)
-    for (let i = 0; i < 4000 && e.players[0].jinnangHand.length > 0 && !e.isOver; i++) {
-      clock.fireAll();
-      await macroTick();
-    }
-    expect(e.players[0].jinnangHand.length).toBe(0); // 代打按策略把牌用了
+    expect(e.gameEvents).toContainEqual(
+      expect.objectContaining({ kind: "jinnangAnnounced", seat: 0, cardId: "横征暴敛" }),
+    );
+    expect(e.players[0].jinnangHand).toEqual([]);
   });
 
   it("代驾座位按策略应答反应窗:识破自保划算才拆,策略答案透传 respondReaction(cmd 行锚)", async () => {

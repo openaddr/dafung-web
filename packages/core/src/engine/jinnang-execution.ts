@@ -647,7 +647,7 @@ function cityAfterLoss(g: GameEngine, propertyId: string): string {
 /** 待决时机结清才恢复出牌阶段或进入掷骰，并同步权威相位。 */
 export function settleJinnangExit(g: GameEngine): void {
   if (g.pendingMoment !== null) return;
-  const turnPhase = hasUsableJinnang(g) ? "AwaitingJinnang" : "Roll";
+  const turnPhase = !g.pendingExtraTurn && hasUsableJinnang(g) ? "AwaitingJinnang" : "Roll";
   g.turnPhase = turnPhase;
   emitGameEvent(g, g.activeIndex, { kind: "jinnangPhaseResumed", turnPhase });
 }
@@ -717,6 +717,15 @@ export function executeJinnang(
   exempt?: ReadonlySet<number>,
 ): void {
   switch (def.effect.kind) {
+    case "extraTurn":
+      g.pendingExtraTurn = true;
+      g.logEvent(
+        "system",
+        user.guohao,
+        `${user.guohao} 使用锦囊【${def.id}】，安排一个额外回合`,
+        `jinnangUse player=${user.id} card=${def.id}`,
+      );
+      break;
     case "grantHero":
       g.logEvent(
         "system",

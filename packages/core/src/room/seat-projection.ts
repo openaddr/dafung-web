@@ -257,6 +257,7 @@ export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapsh
         : s.pendingReaction,
     reaction: s.reaction != null ? redactReactionView(s.reaction, seat) : s.reaction,
     pendingMoment: undefined, // 续作只由权威驱动，客户端消费公开的技能选择事件。
+    pendingExtraTurn: undefined, // 客户端按回合事件推进。
     events: redactEvents(s.events, seat),
     log: s.log.map(projectGameLogLine),
   };

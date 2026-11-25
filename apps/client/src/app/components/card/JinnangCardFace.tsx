@@ -73,7 +73,7 @@ export function JinnangCardFace({
     <div className={classes} {...rest}>
       <div className="tou">
         <span className="jie" />
-        {/* 牌名 = 目录 id(中文自带因果);≥4 字降档防溢出(原型 .ming.long) */}
+        {/* 完整目录 id。长牌名降档，超出笺头文字区时折行。 */}
         <span className={def.id.length > 3 ? "ming long" : "ming"}>{def.id}</span>
       </div>
       {/* 章数注入(#841 刀③):--zhang-n 供 jinnang-card.css 次枚缩档让位

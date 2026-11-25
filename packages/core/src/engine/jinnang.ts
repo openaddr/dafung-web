@@ -76,6 +76,7 @@ export type JinnangEffect =
   | { kind: "staminaDamage"; damage: number; range: number } // 袭扰:近距离对手损失体力
   | { kind: "fireWall"; damage: number } // 火烧连营(#1389 溅射化):以指定城为火源,对此城及前方距离 1、2 格上的城各 damage 点火焰伤害(结算单点 defense.applyCityDamage;识破按城拆份)
   | { kind: "skipTurn" } // 缓兵之计:目标下回合被跳过
+  | { kind: "extraTurn" } // 挟天子以令诸侯:结束出牌阶段，本回合收尾后接续额外回合
   | { kind: "peek" } // 军情密探:即时窥探目标锦囊手牌一次(#575,窥探弹层 viewer-only 演出)
   | { kind: "duel"; winnerBankGain: number; loserPaysUser: number }; // 连环计:二虎竞食
 
@@ -83,7 +84,7 @@ interface JinnangCardDef {
   id: string; // 中文,自带因果
   tags: JinnangTag[];
   targetDomain: JinnangTargetDomain;
-  /** 牌库张数(v1 全 2 张,唯缓兵之计 1 张=全场唯一公开信息)。 */
+  /** 该牌在牌库中的张数。 */
   copies: number;
   text: string; // 牌面文案(与效果互证)
   effect: JinnangEffect;
@@ -174,6 +175,14 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     targetDomain: "self",
     text: "张榜求贤:随机招来一名名将。麾下满编时将其授技印成书，名将已尽时折现 300 两。",
     effect: { kind: "grantHero", fallbackCash: 300 },
+  },
+  {
+    id: "挟天子以令诸侯",
+    copies: 1,
+    tags: ["谋"],
+    targetDomain: "self",
+    text: "奉诏行事:出牌阶段，对自己使用。此牌生效后，立即结束你的出牌阶段。本回合结算完毕后，你获得一个额外回合。",
+    effect: { kind: "extraTurn" },
   },
 ];
 
