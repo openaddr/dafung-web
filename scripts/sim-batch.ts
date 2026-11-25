@@ -11,7 +11,7 @@
 // bot 行为单源 #580);本脚本经 onStep 钩子逐步读引擎事件批(批界 = botAct 入口,#375)。
 //
 // 统计口径:
-//   对局面 = 终局率 / 回合数(轮)分布 / 终局方式 / 最终身价分布 / 破产人次;
+//   对局面 = 终局率 / 局长(轮)分布 / 终局方式 / 最终身价分布 / 破产人次;
 //   技能侧(#1119 技能扩展地图)= 授技分布(全表含 0 次,授 0=池饿死)/ 击发统计(被动+主动+每授击发率)/ 终局构筑多样性;
 //   经济动作计数(#1121 数值校准分母)= 购城/升级/珍宝成交 局均频率。
 //
@@ -223,7 +223,7 @@ console.log(`终局率:${fin.length}/${N}(未终局 = ${TURN_CAP} 回合上限�
 if (fin.length > 0) {
   const rounds = asc(fin.map((s) => s.rounds));
   console.log(
-    `回合数(轮):中位 ${q(rounds, 0.5)} / p90 ${q(rounds, 0.9)} / min ${rounds[0]} / max ${rounds[rounds.length - 1]}`,
+    `局长(轮):中位 ${q(rounds, 0.5)} / p90 ${q(rounds, 0.9)} / min ${rounds[0]} / max ${rounds[rounds.length - 1]}`,
   );
   const byReason = new Map<string, number>();
   for (const s of fin) byReason.set(s.winReason, (byReason.get(s.winReason) ?? 0) + 1);
