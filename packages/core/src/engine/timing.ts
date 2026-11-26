@@ -1,20 +1,15 @@
 // 游戏时机总线:集中定义所有时机点(GameMoment)。效果通道现仅技能挂用
 // (TriggerSkill.when);珍宝/地块/全局规则暂无时机挂点——宣称以实况为准。
-// 设计与扩展指南 + 完整分类目录(设计技能/事件时翻目录找灵感)见 docs/explanation/时机框架.md。
-//
-// 开始实际回合和处理被跳过的回合都推进全桌回合编号（engine.turnNumber）。
-// 全桌按固定座次处理各席位的行动或跳过，走一圈计作一轮（engine.round）。
 // 新增时机先在 GameMoment 与 MOMENTS 登记，再在对应的结算点用 dispatchMoment 派发。
 
-/** 时机类型（完整清单见 MOMENTS）。subject(时机主体座位)与 ctx 字段见各时机注释;
- *  分类目录 + 技能灵感示例见 docs/explanation/时机框架.md。 */
+/** 时机类型。各条注释说明派发点、主体座位和额外上下文。 */
 export type GameMoment =
   // ── 生命周期 ──
   /** 对局开始:finishSetup 进入 Playing 处、首个 TurnStart 之前。subject = roundAnchor(首动者)。 */
   | "GameStart"
   /** 选都完成:最后一位 pickCapital 成功后、finishSetup 收尾前。subject = 该落子者。 */
   | "SetupComplete"
-  /** 终局:endTurn 胜负判定确定 isOver 处(净资产达标/群雄尽灭两条路径同挂)。subject = 胜者。 */
+  /** 终局:endTurn 胜负判定确定 isOver 处（身价达标或仅一人存活）。subject = 胜者。 */
   | "GameOver"
   // ── 回合与轮 ──
   /** 轮次递增后，本轮消费跳过次数及开始实际回合前。subject = roundAnchor。 */

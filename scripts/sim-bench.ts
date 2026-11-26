@@ -32,8 +32,7 @@ import { netWorth } from "@dafung/core/engine/networth";
 import { runWholeGame } from "./whole-game";
 import { CORPUS_MAPS, botSeats } from "./test-corpus";
 
-// ── 矩阵(座位档 2/4:引擎座位上限 4、国号池四家,sim-batch 校验 2-4;票面「8」
-//    不适用,判词见 ADR-0054)──
+// 固定席位档复跑历史性能与平衡基线。
 const MAPS = CORPUS_MAPS;
 const SEATS_OPTIONS = [2, 4];
 const SEED0 = 4001;

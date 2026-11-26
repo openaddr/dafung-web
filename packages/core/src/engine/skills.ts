@@ -25,16 +25,14 @@ export interface TriggerSkill {
    *  - "self":属主是时机主体(我的骰/我的失银/我的回合…)
    *  - "others":时机主体不是属主(别人失银/别人掷骰…)
    *  - "any":主体不限(任何人,含属主自己)
-   *  - "actor":时机主体恰为当前行动玩家(activeIndex,属主不限)——当前所有派发点主体即行动者,
-   *    与 "any" 等价;未来出现「非行动玩家」主体的时机(如回合外失银)时二者分化。 */
+   *  - "actor":时机主体为当前行动诸侯，属主不限。 */
   scope?: "self" | "actor" | "others" | "any";
   /** 「你可」应答确认发动时，将本槽里该技能的标记归零。 */
   fireResetsMarks?: boolean;
 }
 
 /** 名将主动技(#188 档 3):数据声明,与被动技(TriggerSkill·时机驱动)同表并存。
- *  结算复用既有单点(火攻=defense.applyCityDamage,#1388 T2 定向化);
- *  技能结算内不派发时机(与 grantSkillCash 的防连锁口径一致)。
+ *  主动技走各自的机制结算，相关时机由该结算点派发。
  *  目标校验单源在 choices.ts(引擎命令提交时复核,UI/bot 永不裁决,ADR-0013)。 */
 export interface ActiveSkillDef {
   id: string; // 唯一(同时是麾下槽位 lastFired 的冷却键)

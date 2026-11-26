@@ -19,4 +19,4 @@ cd packages/core/extensions/hero-taishici
 ../../../../node_modules/.bin/esbuild src/index.ts --format=esm --target=es2022 --charset=utf8 --outfile=index.js
 ```
 
-写扩展包的完整说明见 `docs/how-to/扩将指南.md` 的「运行时扩展包」一节。
+编写自己的包时，参照[运行时扩展包](../../../../docs/how-to/扩将指南.md#运行时扩展包)。

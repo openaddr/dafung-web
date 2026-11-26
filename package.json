@@ -33,6 +33,8 @@
     "check:agents-budget": "bun scripts/check-agents-budget.ts",
     "check:fmt": "oxfmt --check",
     "check:links": "bun scripts/check-doc-links.ts",
+    "check:rule-docs": "bun scripts/rule-docs.ts",
+    "gen:rule-docs": "bun scripts/rule-docs.ts --write",
     "check:retired": "bun scripts/check-retired-phrases.ts",
     "check:fake-bold": "bun scripts/check-fake-bold.ts",
     "check:map-docs": "bun scripts/check-map-docs.ts",

@@ -19,6 +19,13 @@ const rules: Array<[RegExp, string[]]> = [
     [],
   ],
   [/^scripts\/.+\.(?:ts|mjs)$/, ["typecheck:scripts"]],
+  [/^scripts\/rule-docs\.ts$/, ["check:rule-docs"]],
+  [/\.md$|^scripts\/check-retired-phrases\.ts$/, ["check:retired"]],
+  [
+    /^(?:packages\/core\/maps\/|docs\/reference\/rules\/|GLOSSARY\.md$|scripts\/check-map-docs\.ts$)/,
+    ["check:map-docs"],
+  ],
+  [/^apps\/client\/src\/|^scripts\/check-fake-bold\.ts$/, ["check:fake-bold"]],
   [/^scripts\/build-sound-clips\.ts$/, []],
   [/^packages\/core\/src\//, ["check:core"]],
   [/^packages\/core\/src\/(?:room|protocol)\//, ["typecheck:scripts"]],
@@ -79,7 +86,14 @@ const slowCheck = (name: string, files: string[]): Check => ({
 });
 
 export function checksFor(base: string, target: string, paths: string[], jj: Jj): Check[] {
-  const selected = new Set(["lint", "check:fmt", "build", "test"]);
+  const selected = new Set([
+    "lint",
+    "check:fmt",
+    "check:links",
+    "check:rule-docs",
+    "build",
+    "test",
+  ]);
   const baseFiles = new Set(jj("file", "list", "-r", base).split("\n"));
   const targetFiles = new Set(jj("file", "list", "-r", target).split("\n"));
   const changedSlow: string[] = [];

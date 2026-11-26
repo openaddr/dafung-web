@@ -1,5 +1,5 @@
-// 全局共享常量(单一来源,避免多处重复导致漂移)。数值索引见 docs/reference/rules/10-关键数值总表.md。
-/** 对局座位范围与开局默认人数（六人标准局）。 */
+// 公共规则常量。
+/** 对局座位范围与开局默认人数。 */
 export const MIN_SEAT_COUNT = 2;
 export const MAX_SEAT_COUNT = 8;
 export const STANDARD_SEAT_COUNT = 6;

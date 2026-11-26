@@ -1,12 +1,4 @@
-// 锦囊系统(#122):目录数据 + 牌库构建。纯数据 + 纯函数,单测直测。
-// 设计定稿见 docs/explanation/锦囊设计.md;术语见 GLOSSARY.md「锦囊与暗牌」。
-// 红线:拿到即用、无需思考的牌不配当锦囊——每张牌必须在「用不用/对谁用/
-// 这回合用哪张」上至少一问有真实权衡(设计拷问会定,2026-09-09)。
-// id 用中文且自带因果(名字与效果互证)。
-// 牌面用语规范(2026-09-24 归一,与 docs/reference/rules/06-锦囊.md 同一口径):
-//   目标句「指定一名/两名其他诸侯」「其余所有诸侯」;回指用「其」;数额用阿拉伯数字
-//   (300 两);城池(非城防)、现金(非家资)、名将(非武将);text 首段四字计名前缀
-//   仅入详情浮层,牌面笺脚渲染时剥离。
+// 锦囊目录与牌库构建。牌面和效果共用数值。
 
 /** 锦囊标签是供规则引用的功能类别，一张牌可有多枚。使用时机由目标域声明。 */
 export type JinnangTag = "谋" | "攻" | "守" | "援" | "即时";
@@ -74,7 +66,7 @@ export type JinnangEffect =
   | { kind: "levyAll"; amount: number } // 横征暴敛:全体其他玩家各付(上限=现金,不清算)
   | { kind: "stealTreasure" } // 窃玉偷香:随机夺目标一张珍宝
   | { kind: "staminaDamage"; damage: number; range: number } // 袭扰:近距离对手损失体力
-  | { kind: "fireWall"; damage: number } // 火烧连营(#1389 溅射化):以指定城为火源,对此城及前方距离 1、2 格上的城各 damage 点火焰伤害(结算单点 defense.applyCityDamage;识破按城拆份)
+  | { kind: "fireWall"; damage: number } // 火烧连营的逐城伤害由 fireWallSplashCities 确定受击城
   | { kind: "skipTurn" } // 缓兵之计:目标下回合被跳过
   | { kind: "extraTurn" } // 挟天子以令诸侯:结束出牌阶段，本回合收尾后接续额外回合
   | { kind: "peek" } // 军情密探:即时窥探目标锦囊手牌一次(#575,窥探弹层 viewer-only 演出)
@@ -86,23 +78,33 @@ interface JinnangCardDef {
   targetDomain: JinnangTargetDomain;
   /** 该牌在牌库中的张数。 */
   copies: number;
-  text: string; // 牌面文案(与效果互证)
+  text: string; // 详情用的完整牌面文案。
   effect: JinnangEffect;
 }
 
+const LIANHUAN_WINNER_CASH = 300;
+const LIANHUAN_LOSER_CASH = 400;
+const LEVY_CASH = 200;
+const HERO_POOL_EMPTY_CASH = 300;
+const FIRE_WALL_DAMAGE = 8;
+export const FIRE_WALL_RANGE = 2;
+const fireWallSteps = Array.from({ length: FIRE_WALL_RANGE }, (_, i) => i + 1).join("、");
 const XIRAO_DAMAGE = 10;
 const XIRAO_RANGE = 3;
 
-/** 锦囊目录。变更须过「无博弈不锦囊」红线评审。
- *  反应牌两张(识破诡计/半路杀出,「即时」标记)不经出牌阶段,只在反应窗打出。 */
+/** 在库锦囊，按 copies 展开。 */
 export const JINNANG_CARDS: JinnangCardDef[] = [
   {
     id: "连环计",
     copies: 2,
     tags: ["谋"],
     targetDomain: "two-others",
-    text: "二虎竞食:指定两名其他诸侯拼点,胜者得 300 两,败者向你赔 400 两;平局则此计作废。",
-    effect: { kind: "duel", winnerBankGain: 300, loserPaysUser: 400 },
+    text: `二虎竞食:指定两名其他诸侯拼点,胜者得 ${LIANHUAN_WINNER_CASH} 两,败者向你赔 ${LIANHUAN_LOSER_CASH} 两;平局则此计作废。`,
+    effect: {
+      kind: "duel",
+      winnerBankGain: LIANHUAN_WINNER_CASH,
+      loserPaysUser: LIANHUAN_LOSER_CASH,
+    },
   },
   {
     id: "军情密探",
@@ -125,8 +127,8 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     copies: 2,
     tags: ["攻"],
     targetDomain: "all-others",
-    text: "强征贡赋:其余所有诸侯各向你缴纳 200 两;现金不足者倾囊而付。",
-    effect: { kind: "levyAll", amount: 200 },
+    text: `强征贡赋:其余所有诸侯各向你缴纳 ${LEVY_CASH} 两;现金不足者倾囊而付。`,
+    effect: { kind: "levyAll", amount: LEVY_CASH },
   },
   {
     id: "窃玉偷香",
@@ -141,8 +143,8 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     copies: 2,
     tags: ["攻"],
     targetDomain: "one-city",
-    text: "火烧营寨:指定任意一座城为火源，对火源及其前方第 1、2 格上的有主城各造成 8 点火焰伤害，己城也会受伤。实际扣防且未破防的城施加燃烧，若已燃烧则续火。",
-    effect: { kind: "fireWall", damage: 8 },
+    text: `火烧营寨:指定任意一座城为火源，对火源及其前方第 ${fireWallSteps} 格上的有主城各造成 ${FIRE_WALL_DAMAGE} 点火焰伤害，己城也会受伤。实际扣防且未破防的城施加燃烧，若已燃烧则续火。`,
+    effect: { kind: "fireWall", damage: FIRE_WALL_DAMAGE },
   },
   {
     id: "袭扰",
@@ -173,8 +175,8 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     copies: 2,
     tags: ["援"],
     targetDomain: "self",
-    text: "张榜求贤:随机招来一名名将。麾下满编时将其授技印成书，名将已尽时折现 300 两。",
-    effect: { kind: "grantHero", fallbackCash: 300 },
+    text: `张榜求贤:随机招来一名名将。麾下满编时将其授技印成书，名将已尽时折现 ${HERO_POOL_EMPTY_CASH} 两。`,
+    effect: { kind: "grantHero", fallbackCash: HERO_POOL_EMPTY_CASH },
   },
   {
     id: "挟天子以令诸侯",

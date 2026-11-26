@@ -1,4 +1,4 @@
-/* ⚠️ 自动生成,勿手改 — 来源 src/core/theme.ts(Theme + Motion),运行 `bun run gen:theme` 再生成 */
+/* ⚠️ 自动生成,勿手改 — 来源 @dafung/core/engine/theme（Theme 与 Motion）,运行 `bun run gen:theme` 再生成 */
 @theme {
   --color-bg: #1f1a13;
   --color-bg-deep: #16110c;

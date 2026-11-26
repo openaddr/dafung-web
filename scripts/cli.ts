@@ -2,12 +2,13 @@
 // LLM 演练线:new 全参数面开局 → auto-setup → auto(stoppedBy=human 停等)→ 人类按
 // status.prompt / choices / reaction 发命令推进,循环到终局;全 bot 局可 run-to-end 一步跑完。
 // 共享层(地图/序列化/状态摘要)在 ./engine-helpers,与 server.ts 复用;
-// bot 驱动的相位正典 = src/core/bot.ts 的 BOT_ATTENDED_PHASES。
+// bot 驱动的相位以 BOT_ATTENDED_PHASES 为准。
 import { resolve } from "node:path";
 import type { GameEngine } from "@dafung/core/engine/authority";
 import type { SeatConfig } from "@dafung/core/engine/authority";
 import type { GameCommand } from "@dafung/core/engine/authority";
 import { botAct, BOT_ATTENDED_PHASES } from "@dafung/core/engine/bot";
+import { MAX_SEAT_COUNT, MIN_SEAT_COUNT, STANDARD_SEAT_COUNT } from "@dafung/core/engine/constants";
 import { reactionQueriedSeats } from "@dafung/core/room/bot-driver";
 import { fingerprint } from "@dafung/core/room/seat-projection";
 import {
@@ -87,8 +88,9 @@ function intFlag(flags: Record<string, string>, key: string): number | undefined
 }
 
 function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: GameConfig } {
-  const seatsNum = parseInt(flags.seats ?? "2", 10);
-  if (!(seatsNum >= 2 && seatsNum <= 4)) throw new Error("--seats 必须 2-4");
+  const seatsNum = intFlag(flags, "seats") ?? STANDARD_SEAT_COUNT;
+  if (seatsNum < MIN_SEAT_COUNT || seatsNum > MAX_SEAT_COUNT)
+    throw new Error(`--seats 必须为 ${MIN_SEAT_COUNT}–${MAX_SEAT_COUNT} 的整数，收到 ${seatsNum}`);
   const botIdx = new Set(
     (flags.bot ?? "")
       .split(",")
