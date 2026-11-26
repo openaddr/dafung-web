@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it, spyOn } from "bun:test";
 import { AudioProvider } from "@app/fx/AudioProvider";
-import { getAudio } from "@app/fx/audio";
+import { getAudio, MediaAudioPlayer } from "@app/fx/audio";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { installControlledClock } from "./controlled-clock";
@@ -103,5 +103,61 @@ it("AudioContext 时钟停零时仍用网页媒体播放，反应提醒平滑压
     host.remove();
     if (original) Object.defineProperty(window, "AudioContext", original);
     else Reflect.deleteProperty(window, "AudioContext");
+  }
+});
+
+it("演出尾音渐出途中卡住，恢复后继续降低音量再停声", async () => {
+  const played: HTMLMediaElement[] = [];
+  using _play = spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (
+    this: HTMLMediaElement,
+  ) {
+    played.push(this);
+    return Promise.resolve();
+  });
+  const clock = installControlledClock({ monotonic: true });
+  const player = new MediaAudioPlayer({ preload: false });
+  try {
+    player.play("cityConquest");
+    const [tail] = played;
+    player.stop("presentation", "fade");
+    await clock.advance(16);
+    const beforeStall = tail.volume;
+    expect(beforeStall).toBeLessThan(1);
+
+    await clock.advance(235, { stalled: true });
+    expect(tail.hasAttribute("src")).toBe(true);
+    expect(tail.volume).toBeGreaterThan(0);
+    expect(tail.volume).toBeLessThan(beforeStall);
+    await clock.advance(112);
+    expect(tail.hasAttribute("src")).toBe(false);
+  } finally {
+    player.dispose();
+    clock.restore();
+  }
+});
+
+it("反应窗压低结算声的第一拍延迟时，恢复后仍分步变化", async () => {
+  const played: HTMLMediaElement[] = [];
+  using _play = spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (
+    this: HTMLMediaElement,
+  ) {
+    played.push(this);
+    return Promise.resolve();
+  });
+  const clock = installControlledClock({ monotonic: true });
+  const player = new MediaAudioPlayer({ preload: false });
+  try {
+    player.play("cityConquest");
+    player.play("reactionOpen");
+    const [tail] = played;
+    await clock.advance(74, { stalled: true });
+    const firstGain = tail.volume;
+    expect(firstGain).toBeGreaterThan(0.35);
+    expect(firstGain).toBeLessThan(1);
+    await clock.advance(16);
+    expect(tail.volume).toBeCloseTo(0.35);
+  } finally {
+    player.dispose();
+    clock.restore();
   }
 });

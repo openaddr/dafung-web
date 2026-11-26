@@ -185,3 +185,25 @@ it("仪式进行时重新开声，旧撒币拍保持静默", async () => {
     soundClipUrl(SOUND_CLIPS.coin),
   ]);
 });
+
+it("主线程卡过仪式截止拍时，锣声仍渐出，后续结算按原节拍接棒", async () => {
+  const events = declareExit();
+  using media = observeMedia();
+  const gong = soundClipUrl(SOUND_CLIPS.bankrupt);
+  const coin = soundClipUrl(SOUND_CLIPS.coin);
+  const playing = present([...events, { kind: "sound", event: "coin" }], createEngineSink());
+  await media.advance(CEREMONY.blotAtMs);
+  await media.advance(CEREMONY.coinsAtMs - CEREMONY.blotAtMs);
+  await media.advance(CEREMONY.settleMs - CEREMONY.coinsAtMs - 132);
+  const originalGain = media.volumes().get(gong)!;
+
+  await media.advance(235, { stalled: true });
+  await playing;
+  expect(media.played.at(-1)?.src).toBe(coin);
+  expect(media.volumes().has(gong)).toBe(true);
+  await media.advance(48);
+  expect(media.volumes().get(gong)).toBeGreaterThan(0);
+  expect(media.volumes().get(gong)).toBeLessThan(originalGain);
+  await media.advance(112);
+  expect(media.volumes().has(gong)).toBe(false);
+});

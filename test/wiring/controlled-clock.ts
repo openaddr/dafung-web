@@ -15,9 +15,11 @@ export function installControlledClock({ monotonic = false } = {}) {
     ],
   });
 
-  async function advance(ms: number): Promise<void> {
+  async function advance(ms: number, { stalled = false } = {}): Promise<void> {
     await act(async () => {
-      clock.tick(ms);
+      // 模拟主线程阻塞后恢复，到期的回调到恢复那一刻才有机会执行。
+      if (stalled) clock.jump(ms);
+      else clock.tick(ms);
       // Bun 原生让步不捕获 happy-dom Window 的计时器；后者可能属于已关闭的前一文件。
       await Bun.sleep(0);
     });

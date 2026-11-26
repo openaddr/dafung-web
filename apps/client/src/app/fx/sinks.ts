@@ -106,7 +106,7 @@ export function createEngineSink(): EngineSink {
       const coinsTailMs = settleMs - coinsAtMs;
       const audio = getAudio();
       const playCoins = audio.defer("coinsBox", coinsTailMs);
-      // 锣雨贴倒旗起拍，撒币另占一拍。三段音各自到仪式交棒为止。
+      // 锣雨贴倒旗起拍，撒币另占一拍。交棒前渐出，卡顿恢复后收完余声。
       audio.play("bankrupt", settleMs);
       audio.play("rain", settleMs);
       shakeDesk();
