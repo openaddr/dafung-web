@@ -19,6 +19,7 @@ import type {
   DuelSide,
   FxSink,
   MarchSegmentFrames,
+  MarchStart,
   PropertyChangedEvent,
   SealSound,
   SkillFloatTone,
@@ -53,8 +54,8 @@ export function createEngineSink(): EngineSink {
     rollDice(die: number) {
       return animateDice(die);
     },
-    marchBegin(playerId: string, keyframes: readonly MarchSegmentFrames[]) {
-      beginMarch(playerId, keyframes);
+    marchBegin(playerId: string, keyframes: readonly MarchSegmentFrames[], start: MarchStart) {
+      beginMarch(playerId, keyframes, start);
     },
     marchToken(playerId: string, keyframes: readonly MarchSegmentFrames[]) {
       return animateMove(playerId, keyframes);

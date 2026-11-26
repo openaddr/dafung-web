@@ -275,7 +275,7 @@ export const EVENT_TIERS = {
   jinnangVoided: {
     fold: "declarative",
     fx: "presented",
-    why: "份、整计或链环作废宣告，反应锦囊已随最终应答扣账；份或整计作废随识破线和浮字发声",
+    why: "份、整计或链环作废宣告，反应锦囊已随最终应答扣账；识破线和浮字直读结算对象，份或整计作废随判词发声",
   },
   jinnangRestored: {
     fold: "declarative",
@@ -334,18 +334,6 @@ export type FxPresentedKind = {
 }[EventKind];
 
 // ─────────────────────── 双消费器共享批上下文(#430 票项 3)───────────────────────
-/** 锦囊宣布游标:识破线/反应窗 targetSeats 回溯「最近一次宣布」——fold 批内锚
- *  (宣布与开窗同批)与 extract 跨批衔接(宣布批 → 应答批)共用同一形状,
- *  单源于此,fold/extract 各自实例化。 */
-export interface AnnounceCursor {
-  /** 宣布者座位。 */
-  readonly userSeat: number;
-  /** 所宣布的锦囊牌 id。 */
-  readonly cardId: string;
-  /** 受影响份清单(宣布时快照)。 */
-  readonly targetSeats: number[];
-}
-
 /** 行动者座位契约校验(零兜底):座位型事件恒带有效 seat;null/越界=产出侧 bug,
  *  当场炸出。fold(折叠目标解析)与 extract(表现锚定)共用同一校验与文案。 */
 export function eventSeat(engine: GameEngine, ev: GameEvent): number {

@@ -10,9 +10,11 @@ import type { TurnPhase } from "@dafung/core/engine/authority";
 import { HEROES, heroById } from "@dafung/core/engine/heroes";
 import { REACTION_WINDOW_MS } from "@dafung/core/engine/constants";
 import { botReactionDecision } from "@dafung/core/engine/bot";
+import type { JinnangReactionView } from "@dafung/core/engine/reaction-window";
 import { armHero } from "@dafung/core/engine/testing";
 import {
   armPhase,
+  armReaction,
   giveJinnang,
   grantProperty,
   pinDice,
@@ -187,13 +189,13 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
       kind: "jinnang",
       cardId: "火烧连营",
       userSeat,
-      targetSeats: [capTile], // 份清单=受击城 tileIndex(一份=一座受击城,#1389)
+      targets: { kind: "city", ids: [capTile], requiresSelection: true },
       queriedBySeat: [victimSeat],
       windowMs: 30_000, // 权威开窗时长随 view 走
     });
     expect(e.pendingReaction!.seq).toBeGreaterThan(0); // #284:窗实例号单调分配
     expect(victim.properties[0].level).toBe(3); // 挂起中未结算
-    e.respondReaction(victimSeat, true, "识破诡计", capTile); // 免单城:被保护份=城格
+    e.respondReaction(victimSeat, true, "识破诡计", { kind: "city", id: capTile }); // 免单城:被保护份=城格
     // 结算:识破生效,这一城免烧(完全不受此次伤害,含溅射账)
     expect(e.pendingReaction).toBeNull();
     expect(victim.properties[0].level).toBe(3); // 城防原样
@@ -251,12 +253,14 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     armUser(e, userSeat, ["火烧连营"]);
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [victim.capitalIndex]);
-    expect(jinnangView(e).targetSeats.sort()).toEqual([victim.capitalIndex, sideTile.index].sort());
+    expect([...jinnangView(e).targets.ids].sort()).toEqual(
+      [victim.capitalIndex, sideTile.index].sort(),
+    );
     // 份错:非受击城的 tileIndex 拒绝(不占应答名额)
-    e.respondReaction(holderSeat, true, "识破诡计", farTile.index);
+    e.respondReaction(holderSeat, true, "识破诡计", { kind: "city", id: farTile.index });
     expect(e.pendingReaction!.answers).toEqual([]);
     // 免一城(side 城),余一城(都城)照烧
-    e.respondReaction(holderSeat, true, "识破诡计", sideTile.index);
+    e.respondReaction(holderSeat, true, "识破诡计", { kind: "city", id: sideTile.index });
     expect(e.pendingReaction).toBeNull();
     expect(
       e.players[holderSeat].properties.find((h) => h.propertyId === sideTile.propertyId)!.defense,
@@ -277,9 +281,10 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     }
     e.resolveJinnang("横征暴敛"); // 全体域:宣布即入窗
     expect(e.turnPhase).toBe("AwaitingReaction");
-    expect(jinnangView(e).targetSeats.sort()).toEqual([...others].sort());
+    expect([...jinnangView(e).targets.ids].sort()).toEqual([...others].sort());
     const userCashBefore = user.cash;
-    for (const seat of others) e.respondReaction(seat, true, "识破诡计", seat); // 各保各份
+    for (const seat of others)
+      e.respondReaction(seat, true, "识破诡计", { kind: "seat", id: seat }); // 各保各份
     expect(e.pendingReaction).toBeNull();
     for (const seat of others) expect(e.players[seat].cash).toBe(500); // 各份失效
     expect(user.cash).toBe(userCashBefore); // 征不到银(无进账)
@@ -299,8 +304,8 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     e.players[high].cash = 500;
     e.resolveJinnang("横征暴敛");
     // 两张都拆 low 那份:座位序 low 进反识破链,high 原样收回
-    e.respondReaction(high, true, "识破诡计", low);
-    e.respondReaction(low, true, "识破诡计", low);
+    e.respondReaction(high, true, "识破诡计", { kind: "seat", id: low });
+    e.respondReaction(low, true, "识破诡计", { kind: "seat", id: low });
     // #571:low 的识破进链环窗,high(持收回的第二张)被询问反识破,不用 → low 站住
     expect(e.turnPhase).toBe("AwaitingReaction");
     expect(jinnangView(e).cardId).toBe("识破诡计");
@@ -329,8 +334,8 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     e.resolveJinnang("连环计", [a]);
     e.resolveJinnang("连环计", [b]); // two-b → 宣布 → 窗
     expect(e.turnPhase).toBe("AwaitingReaction");
-    expect(jinnangView(e).targetSeats.sort()).toEqual([a, b].sort());
-    e.respondReaction(b, true, "识破诡计"); // 连环计 shareSeat 可省略(任意一张即全计作废)
+    expect([...jinnangView(e).targets.ids].sort()).toEqual([a, b].sort());
+    e.respondReaction(b, true, "识破诡计"); // 连环计整计作废，无需选份
     e.respondReaction(a, true, "识破诡计");
     // #571:座位序 a 的识破进链环窗,b(被顶替收回的第二张)被询问反识破,不用 → a 站住
     expect(e.turnPhase).toBe("AwaitingReaction");
@@ -370,13 +375,13 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     e.resolveJinnang("火烧连营", [capTile]); // 城指向:中心=x 都城(#1389);双持牌者同窗:queried=[x,y]
     expect(e.turnPhase).toBe("AwaitingReaction");
     expect(e.pendingReaction!.answers).toEqual([]);
-    e.respondReaction(userSeat, true, "识破诡计", capTile); // 越权:使用者非被询问者
+    e.respondReaction(userSeat, true, "识破诡计", { kind: "city", id: capTile }); // 越权:使用者非被询问者
     expect(e.pendingReaction!.answers).toEqual([]);
     e.respondReaction(x, true, "火烧连营"); // 错牌:非反应牌
     expect(e.pendingReaction!.answers).toEqual([]);
-    e.respondReaction(x, true, "识破诡计", userSeat); // 份错:座位号非受击城格(城指向域份=城)
+    e.respondReaction(x, true, "识破诡计", { kind: "seat", id: userSeat }); // 窗只接受城格
     expect(e.pendingReaction!.answers).toEqual([]);
-    e.respondReaction(x, true, "识破诡计", capTile); // x 生效应答(免 x 都城这一城)
+    e.respondReaction(x, true, "识破诡计", { kind: "city", id: capTile }); // x 生效应答(免 x 都城这一城)
     expect(e.pendingReaction!.answers.length).toBe(1);
     e.respondReaction(x, false); // 重复应答:拒绝
     expect(e.pendingReaction!.answers.length).toBe(1);
@@ -391,7 +396,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     // 恢复端续答收窗:y 也拆同一城份(被 x 座位序占住→原样退回),x 的识破进反识破链环
     // (#571),y 持收回的第二张被询问;y 先用(W2 生效=救计,x 的识破作废)再反悔路径
     // 不测——此处走不用:x 站住,城防原样
-    e2.respondReaction(y, true, "识破诡计", capTile);
+    e2.respondReaction(y, true, "识破诡计", { kind: "city", id: capTile });
     expect(e2.turnPhase).toBe("AwaitingReaction"); // #571:链环窗挂起(询问 y)
     expect(e2.pendingReaction?.view.kind === "jinnang" && e2.pendingReaction.view.cardId).toBe(
       "识破诡计",
@@ -730,36 +735,45 @@ describe("反应窗窗实例号(#284)", () => {
 });
 
 describe("botReactionDecision 纯决策口径(#281)", () => {
-  /** 直接摆一个识破窗(公开字段直设,同相位摆位口径),返回可断言的引擎。 */
+  /** 构造 bot 识破决策所读的窗态。 */
   function armCounterWindow(
     seats: SeatConfig[],
-    view: { cardId: string; userSeat: number; targetSeats: number[] },
+    view: Pick<JinnangReactionView, "cardId" | "userSeat" | "targets">,
   ) {
     const e = makeEngine(42, seats);
     finishSetup(e);
-    e.pendingReaction = {
-      seq: 1, // #284:测试摆位给一个占位实例号(真实分配在 openReactionWindow)
-      view: {
+    armReaction(
+      e,
+      {
         kind: "jinnang",
-        cardId: view.cardId,
-        userSeat: view.userSeat,
-        targetSeats: view.targetSeats,
+        ...view,
         queriedBySeat: [],
         windowMs: REACTION_WINDOW_MS.jinnang,
       },
-      answers: [],
-      payload: { kind: "jinnang", userSeat: view.userSeat, cardId: view.cardId, targets: [] },
-    };
+      { kind: "jinnang", userSeat: view.userSeat, cardId: view.cardId, targets: [] },
+    );
     return e;
   }
 
-  it("识破只自保:指定自己且净值划算才拆(shareSeat=自己);指定他人不拆", () => {
-    const e = armCounterWindow(SEATS3, { cardId: "横征暴敛", userSeat: 0, targetSeats: [1, 2] });
+  it("识破只自保:指定自己且净值划算才拆;指定他人不拆", () => {
+    const e = armCounterWindow(SEATS3, {
+      cardId: "横征暴敛",
+      userSeat: 0,
+      targets: { kind: "seat", ids: [1, 2], requiresSelection: true },
+    });
     setHand(e, 1, ["识破诡计"]);
     e.players[1].cash = 500;
-    expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "识破诡计", shareSeat: 1 });
+    expect(botReactionDecision(e, 1)).toEqual({
+      use: true,
+      cardId: "识破诡计",
+      target: { kind: "seat", id: 1 },
+    });
     // 城指向域(#1389):份=受击城——份城不在我名下不拆;我名下受击城择估损最高一城护
-    const e2 = armCounterWindow(SEATS3, { cardId: "火烧连营", userSeat: 0, targetSeats: [2] });
+    const e2 = armCounterWindow(SEATS3, {
+      cardId: "火烧连营",
+      userSeat: 0,
+      targets: { kind: "city", ids: [2], requiresSelection: true },
+    });
     const tile2 = e2.board.at(2).propertyId!;
     for (const p of e2.players) p.properties = p.properties.filter((h) => h.propertyId !== tile2);
     grantProperty(e2, 2, tile2, 2); // 份城归 seat2:seat1 无涉 → 不拆
@@ -774,19 +788,23 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     const e3 = armCounterWindow(SEATS3, {
       cardId: "火烧连营",
       userSeat: 0,
-      targetSeats: [freeTile.index],
+      targets: { kind: "city", ids: [freeTile.index], requiresSelection: true },
     });
     grantProperty(e3, 1, freeTile.propertyId!, 3);
     setHand(e3, 1, ["识破诡计"]);
     expect(botReactionDecision(e3, 1)).toEqual({
       use: true,
       cardId: "识破诡计",
-      shareSeat: freeTile.index,
+      target: { kind: "city", id: freeTile.index },
     });
   });
 
   it("净值贪心:无损失/低损失不拆(军情密探情报无用)", () => {
-    const e = armCounterWindow(SEATS3, { cardId: "军情密探", userSeat: 0, targetSeats: [1] });
+    const e = armCounterWindow(SEATS3, {
+      cardId: "军情密探",
+      userSeat: 0,
+      targets: { kind: "seat", ids: [1], requiresSelection: false },
+    });
     setHand(e, 1, ["识破诡计"]);
     expect(botReactionDecision(e, 1)).toEqual({ use: false });
   });
@@ -857,7 +875,7 @@ describe("反识破链(#571/ADR-0060)", () => {
     }
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [victim.capitalIndex]); // 城指向:中心=都城(#1389),根窗挂起
-    e.respondReaction(victimSeat, true, "识破诡计", victim.capitalIndex); // victim 拆 → 链环窗挂起
+    e.respondReaction(victimSeat, true, "识破诡计", { kind: "city", id: victim.capitalIndex }); // victim 拆 → 链环窗挂起
     return { e, userSeat, victimSeat, victim, capTile: victim.capitalIndex };
   }
 
@@ -901,7 +919,7 @@ describe("反识破链(#571/ADR-0060)", () => {
     e.players[y].cash = 500;
     const userCashBefore = user.cash;
     e.resolveJinnang("横征暴敛");
-    e.respondReaction(x, true, "识破诡计", x); // x 自保
+    e.respondReaction(x, true, "识破诡计", { kind: "seat", id: x }); // x 自保
     e.respondReaction(y, false); // y 根窗不用
     expect(e.turnPhase).toBe("AwaitingReaction"); // x 的保护进链环窗,y 被询问
     e.respondReaction(y, true, "识破诡计"); // y 反识破:拆 x 的保护(拉偏架)
@@ -915,25 +933,29 @@ describe("反识破链(#571/ADR-0060)", () => {
 });
 // ── 反识破链环 bot 决策(#571/ADR-0060:只护己利——救被拆的己计/护被反的己份)──
 describe("botReactionDecision 链环口径(#571)", () => {
-  /** 摆一个反识破链环窗(公开字段直设,同相位摆位口径)。 */
+  /** 构造 bot 反识破决策所读的链环窗态。 */
   function armChainWindow(
     seats: SeatConfig[],
-    opts: { rootUserSeat: number; rootCardId: string; shareSeat?: number; protects: boolean },
+    opts: { rootUserSeat: number; rootCardId: string; targetSeat: number; protects: boolean },
   ) {
     const e = makeEngine(42, seats);
     finishSetup(e);
-    e.pendingReaction = {
-      seq: 1, // #284:测试摆位给一个占位实例号(真实分配在 openReactionWindow)
-      view: {
+    armReaction(
+      e,
+      {
         kind: "jinnang",
         cardId: "识破诡计",
         userSeat: 2,
-        targetSeats: opts.shareSeat != null ? [opts.shareSeat] : [],
+        targets: { kind: "seat", ids: [opts.targetSeat], requiresSelection: false },
+        counter: {
+          rootCardId: opts.rootCardId,
+          rootUserSeat: opts.rootUserSeat,
+          protects: opts.protects,
+        },
         queriedBySeat: [],
         windowMs: REACTION_WINDOW_MS.jinnang,
       },
-      answers: [],
-      payload: {
+      {
         kind: "counter",
         userSeat: 2,
         cardId: "识破诡计",
@@ -941,9 +963,9 @@ describe("botReactionDecision 链环口径(#571)", () => {
         negated: [],
         protects: opts.protects,
         upcoming: [],
-        ...(opts.shareSeat != null ? { shareSeat: opts.shareSeat } : {}),
+        target: { kind: "seat", id: opts.targetSeat },
       },
-    };
+    );
     return e;
   }
 
@@ -951,7 +973,7 @@ describe("botReactionDecision 链环口径(#571)", () => {
     const e = armChainWindow(SEATS3, {
       rootUserSeat: 1,
       rootCardId: "横征暴敛",
-      shareSeat: 2,
+      targetSeat: 2,
       protects: true,
     });
     setHand(e, 1, ["识破诡计"]);
@@ -963,7 +985,7 @@ describe("botReactionDecision 链环口径(#571)", () => {
     const e = armChainWindow(SEATS3, {
       rootUserSeat: 0,
       rootCardId: "横征暴敛",
-      shareSeat: 2,
+      targetSeat: 2,
       protects: true,
     });
     setHand(e, 1, ["识破诡计"]);
@@ -974,7 +996,7 @@ describe("botReactionDecision 链环口径(#571)", () => {
     const e = armChainWindow(SEATS3, {
       rootUserSeat: 0,
       rootCardId: "横征暴敛",
-      shareSeat: 1,
+      targetSeat: 1,
       protects: false,
     });
     setHand(e, 1, ["识破诡计"]);
@@ -986,7 +1008,7 @@ describe("botReactionDecision 链环口径(#571)", () => {
     const e = armChainWindow(SEATS3, {
       rootUserSeat: 0,
       rootCardId: "横征暴敛",
-      shareSeat: 2,
+      targetSeat: 2,
       protects: false,
     });
     setHand(e, 1, ["识破诡计"]);
@@ -997,7 +1019,7 @@ describe("botReactionDecision 链环口径(#571)", () => {
     const e = armChainWindow(SEATS3, {
       rootUserSeat: 1,
       rootCardId: "横征暴敛",
-      shareSeat: 2,
+      targetSeat: 2,
       protects: true,
     });
     setHand(e, 1, ["识破诡计"]);

@@ -113,6 +113,13 @@ export function createBoard(tiles: TileDef[]): Board {
   };
 }
 
+/** 按绝对城格号查棋盘，越界即拒绝。 */
+export function tileAtIndex(board: Board, index: number): TileDef {
+  if (!Number.isInteger(index) || index < 0 || index >= board.count)
+    throw new RangeError(`棋盘城格索引越界(${index})`);
+  return board.at(index);
+}
+
 /** propertyId → 棋盘格 index 的唯一反查口(城不在棋盘 = 地图数据 bug,响亮炸出)。
  *  消费面全家福:core 侧=引擎留痕(authority tileName/tileIndexOfProperty 薄委托)、
  *  耗竭/破产卷标(choices)、拆城结算(jinnang-execution);app 侧=事件提取(fx)、

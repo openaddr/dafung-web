@@ -115,13 +115,10 @@ export async function driveBots(
             const d = botReactionDecision(e, seat);
             await host.applyCommand(
               r.roomId,
-              // 协议零新增:应答命令本就携带牌 id/自保份座位可选位,策略答案原样透传(#580)
               {
                 type: "respondReaction",
                 seat,
-                use: d.use,
-                cardId: d.cardId,
-                shareSeat: d.shareSeat,
+                ...d,
               },
               onUpdate,
             );

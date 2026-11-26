@@ -4,12 +4,14 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { GameEngine } from "@dafung/core/engine/authority";
 import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
+import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
 import { OnlineController } from "@app/controllers/online";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
 import { getEngine, useGameStore } from "@app/store/gameStore";
 import { getController, setController } from "@app/controllers/registry";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
-import type { ServerMsg } from "@dafung/core/protocol/wire";
+import { errorMsg, eventsMsg, type InboundMsg, type ServerMsg } from "@dafung/core/protocol/wire";
+import { redactEvents } from "@dafung/core/room/seat-projection";
 import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
 import zhongyuanData from "../../packages/core/maps/zhongyuan.json" with { type: "json" };
 import mapCatalog from "../../packages/core/maps/index.json" with { type: "json" };
@@ -355,6 +357,47 @@ describe("OnlineController 原座恢复", () => {
       type: "cmd",
       cmd: { type: "useJinnang", cardId: null },
     });
+  });
+
+  it("错误选份仅释放对应应答，原窗可立即重答", async () => {
+    const engine = authority();
+    armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+    giveJinnang(engine, 0, ["横征暴敛"]);
+    giveJinnang(engine, 1, ["识破诡计"]);
+    engine.submitCommand({ type: "useJinnang", cardId: "横征暴敛" });
+
+    serveRoom(roomFields(true));
+    await controller.joinRoom("SAME");
+    const socket = sockets[0]!;
+    socket.open();
+    hydrate(socket, engine);
+    const reaction = controller.engine.snapshot().reaction;
+    expect(reaction).toMatchObject({
+      targets: { kind: "seat", ids: [1], requiresSelection: true },
+    });
+    const respond = { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" } as const;
+    const latest = () => JSON.parse(socket.sent.at(-1)!) as Extract<InboundMsg, { type: "cmd" }>;
+
+    controller.dispatchCommand({ ...respond, target: { kind: "city", id: 1 } });
+    expect(useNetStore.getState().pending).toBe(true);
+    socket.receive({ type: "error", error: "另一条消息失败" });
+    expect(useNetStore.getState().pending).toBe(true);
+
+    const { requestId } = latest();
+    expect(requestId).toBeDefined();
+    const rejectedFrame = JSON.parse(errorMsg("错份", requestId)) as ServerMsg;
+    socket.receive(rejectedFrame);
+    expect(useNetStore.getState().pending).toBe(false);
+    expect(useGameStore.getState().interactive).toBe(true);
+    expect(controller.engine.snapshot().reaction).toEqual(reaction);
+
+    controller.dispatchCommand({ ...respond, target: { kind: "seat", id: 1 } });
+    socket.receive(rejectedFrame);
+    expect(useNetStore.getState().pending).toBe(true);
+    engine.submitCommand(latest().cmd);
+    socket.receive(JSON.parse(eventsMsg(redactEvents(engine.gameEvents, 1))));
+    expect(controller.engine.snapshot().reaction).toBeNull();
+    expect(controller.engine.players[1].jinnangHand).toEqual([]);
   });
 
   it("未开局大厅以当前lobby完成校准,再次耗尽仍可恢复且销毁后不复活", async () => {

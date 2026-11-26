@@ -709,7 +709,10 @@ export const engineServer = Bun.serve<WsSeat>({
             : "对局未开始",
         },
       ).then((result) => {
-        if (!result.ok) ws.send(errorMsg(result.message));
+        if (!result.ok)
+          ws.send(
+            errorMsg(result.message, result.reason === "rejected" ? result.requestId : undefined),
+          );
       });
     },
     close(ws) {

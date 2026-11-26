@@ -1015,7 +1015,7 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
           seat: victimSeat,
           use: true,
           cardId: "识破诡计",
-          shareSeat: victimSeat,
+          target: { kind: "city", id: e.players[victimSeat].capitalIndex },
         }),
       403,
     );
@@ -1368,12 +1368,13 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
       await macroTick();
     }
     expect(e.players[1].jinnangHand.length).toBe(0); // 代驾把识破打了
-    // 策略答案原样透传:cmd 行的 respondReaction 带 use:true + cardId(协议零新增,回归锚)
+
     const cmdRow = e.log.find(
       (l) => l.category === "cmd" && l.detail.includes('"type":"respondReaction"'),
     );
     expect(cmdRow?.detail).toContain('"use":true');
     expect(cmdRow?.detail).toContain('"cardId":"识破诡计"');
+    expect(JSON.parse(cmdRow!.detail).target).toEqual({ kind: "seat", id: 1 });
   });
 
   // 手泵两座托管到终局，核对事件批收敛和重连摘要的终局结果（#580、ADR-0020）。

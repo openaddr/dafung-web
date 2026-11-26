@@ -80,7 +80,7 @@ it("火烧连营在识破保护的城之外结算，己城仅扣防，敌城伤�
     seat: 1,
     use: true,
     cardId: "识破诡计",
-    shareSeat: 1,
+    target: { kind: "city", id: 1 },
   });
 
   expect(findHolding(e.players[1], "prop-jinyang")).toMatchObject({

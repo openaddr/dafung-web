@@ -134,7 +134,7 @@ it("识破保护已有燃烧的单城，反识破恢复该城的本次扣防并�
     seat: 1,
     use: true,
     cardId: "识破诡计",
-    shareSeat: 1,
+    target: { kind: "city", id: 1 },
   });
   const protectedResult = makeEngine();
   protectedResult.restoreFromSnapshot(json(authority.snapshot()));

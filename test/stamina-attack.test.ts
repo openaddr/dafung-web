@@ -109,7 +109,11 @@ it("目标可以识破袭扰而保住原体力", () => {
   expect(engine.players[1].stamina).toBe(100);
   expect(engine.jinnangDiscard).toEqual(["袭扰", "识破诡计"]);
   expect(engine.snapshot().events).toContainEqual(
-    expect.objectContaining({ kind: "jinnangVoided", cardId: "袭扰" }),
+    expect.objectContaining({
+      kind: "jinnangVoided",
+      cardId: "袭扰",
+      result: { kind: "whole", userSeat: 0, verdict: "failed" },
+    }),
   );
   expect(engine.snapshot().events.some((event) => event.kind === "staminaChanged")).toBe(false);
 });

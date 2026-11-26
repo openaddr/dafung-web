@@ -26,7 +26,12 @@ import { jinnangCardOf } from "./jinnang";
 // bot 即席应答策略(botReactionDecision)由域模块直接消费——bot 对 game 仅 type 依赖,无运行时环。
 // (#323:域外挂点 openReactionWindow 的私有壳委托随移动结算域迁出而删——调用点
 // marchTraverse 进了 movement-flow.ts,改直调已导出的自由函数,壳内只留 respondReaction。)
-import { respondReaction, type PendingReaction } from "./reaction-window";
+import {
+  respondReaction,
+  type PendingReaction,
+  type ReactionAnswer,
+  type ReactionTarget,
+} from "./reaction-window";
 // 锦囊+主动技+效果执行域(#319,ADR-0019):出牌阶段决策/出牌/效果结算在 jinnang-execution.ts,
 // 壳内同名公共方法薄委托转发;reaction-window 续结算经壳上 executeJinnang/settleJinnangExit 回调;
 // 载荷类型(PendingJinnang/PendingHeroSkill)随域走(#326,ADR-0019)。
@@ -173,10 +178,8 @@ export type GameCommand =
   // 反应窗应答(#281,ADR-0017):被询问座位对当前反应窗表态。seat 必须显式携带——反应窗
   // 天然多属主,decisionOwner 归属不适用(pickCapital 同款:seat 随命令过网/进日志,
   // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
-  // use=true 时 cardId=打出的反应锦囊;shareSeat 仅识破根窗 AOE 必带=被保护份的座位(替他人
-  // 拆招即指他人份;连环计两份任意一张识破即全计作废,shareSeat 可省略);反识破链环窗
-  // 不带份(争夺份随窗载荷,#571 ADR-0060)。
-  | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number }
+  // use=true 时 cardId 是打出的反应锦囊。须选份时携带 target，种类和编号均须与公告相符。
+  | ({ type: "respondReaction" } & ReactionAnswer)
   // 「你可」应答(#1377):seat 必须等于挂问属主(seat 随命令过网/进日志,重放据此复现);
   // use=false=暂不发(标记保留);use=true 放逐必带 targetSeat,行殇目标既定(载荷自带)。
   | { type: "respondSkillChoice"; seat: number; use: boolean; targetSeat?: number };
@@ -578,8 +581,13 @@ export class GameEngine {
   //    marchTraverse 进了 movement-flow.ts,与锦囊执行(#319)同款改直调已导出的自由函数。
 
   /** 反应窗应答(#281 公共入口,UI/bot 驱动器/联机/超时代发同走):薄委托。 */
-  respondReaction(seat: number, use: boolean, cardId?: string, shareSeat?: number): void {
-    respondReaction(this, seat, use, cardId, shareSeat);
+  respondReaction(
+    seat: number,
+    use: boolean,
+    cardId?: string,
+    target?: ReactionTarget,
+  ): string | void {
+    return respondReaction(this, seat, use, cardId, target);
   }
 
   /** 「你可」应答(#1377 公共入口,UI/bot 驱动器/托管代驾同走):薄委托 → choices.respondSkillChoice。 */
@@ -711,7 +719,8 @@ export class GameEngine {
   // 所有玩家操作通过 submitCommand 统一入口提交;state.ts(热座)和将来的
   // network-client.ts(联机)都调用这一个方法。联机时服务器的消息处理器只需:
   //   socket.on("command", cmd => engine.submitCommand(cmd))
-  submitCommand(cmd: GameCommand): void {
+  /** 被拒的反应窗应答返回原因，供房间编排回执。 */
+  submitCommand(cmd: GameCommand): string | void {
     if (!Object.hasOwn(CMD_BRIEF, cmd.type)) throw new Error(`未知对局命令：${cmd.type}`);
     beginGameEventBatch(this); // 事件流(#375):命令=一次转移,入口开新批(弃上一命令的批)
     // 命令流(ADR-0014):每条玩家命令在统一入口记一行 cmd(detail=完整命令 JSON,重放的
@@ -729,7 +738,7 @@ export class GameEngine {
         `${responder.guohao} 提交命令:${CMD_BRIEF[cmd.type]}`,
         JSON.stringify(cmd),
       );
-      return this.respondReaction(cmd.seat, cmd.use, cmd.cardId, cmd.shareSeat);
+      return this.respondReaction(cmd.seat, cmd.use, cmd.cardId, cmd.target);
     }
     const issuer = this.players[this.decisionOwner];
     this.logEvent(

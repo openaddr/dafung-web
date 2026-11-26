@@ -42,6 +42,7 @@ import {
   openReactionWindow,
   resolveDuel,
   REACTION_EXPECT,
+  type JinnangReactionView,
   type ReactionPayload,
   type ReactionViewSeed,
 } from "./reaction-window";
@@ -327,26 +328,28 @@ function settleJinnangPlay(
   targets: number[],
 ): void {
   consumeJinnangCard(g, user, def.id); // 出牌即扣账:被识破也不回手(识破只护份)
-  // 份清单(view.targetSeats):self=使用者自身一份;全体域=受影响全员;指向域=被指定者;
-  // 城指向域(#1389)=受击城 tileIndex 清单(一份=一座受击城:有主且非打空都城免疫)。
-  const splash =
-    def.targetDomain === "one-city" ? fireWallSplashCities(g, requireCenter(def, targets)) : null;
-  const shareSeats =
-    def.targetDomain === "self"
-      ? [userSeat]
-      : def.targetDomain === "all-others"
-        ? otherLivingSeats(g, userSeat)
-        : def.targetDomain === "one-city"
-          ? splash!.filter((c) => c.ownerSeat != null && !c.immune).map((c) => c.tileIndex)
-          : [...targets];
-  // 时机 ctx 的 targetSeats 语义=受影响座位(处变不惊消费面):城指向域=受击城主座位
-  // 去重(座位序;一份=城,时机面按「谁的城被烧」归座位,与席位域「人」语义对齐)
-  const announcedSeats =
-    def.targetDomain === "one-city"
-      ? [...new Set(splash!.filter((c) => c.ownerSeat != null).map((c) => c.ownerSeat!))].sort(
-          (a, b) => a - b,
-        )
-      : shareSeats;
+  let announcedSeats: number[];
+  let reactionTargets: JinnangReactionView["targets"];
+  if (def.targetDomain === "one-city") {
+    const splash = fireWallSplashCities(g, requireCenter(def, targets));
+    const cityIds: number[] = [];
+    const owners = new Set<number>();
+    for (const { tileIndex, ownerSeat, immune } of splash) {
+      if (ownerSeat === null) continue;
+      owners.add(ownerSeat);
+      if (!immune) cityIds.push(tileIndex);
+    }
+    announcedSeats = [...owners].sort((a, b) => a - b);
+    reactionTargets = { kind: "city", ids: cityIds, requiresSelection: true };
+  } else {
+    const levyAll = def.targetDomain === "all-others";
+    announcedSeats = levyAll
+      ? otherLivingSeats(g, userSeat)
+      : def.targetDomain === "self"
+        ? [userSeat]
+        : [...targets];
+    reactionTargets = { kind: "seat", ids: announcedSeats, requiresSelection: levyAll };
+  }
   // 出牌宣告走 JinnangAnnounced 时机产事件:fx 面=出牌指示线+文案浮字(#719 死写删除)
   g.dispatchMoment("JinnangAnnounced", {
     subject: userSeat,
@@ -363,8 +366,10 @@ function settleJinnangPlay(
           (id) => jinnangCardOf(id).effect.kind === REACTION_EXPECT.jinnang,
         ),
     );
-  if (queried.length === 0) {
-    // 无人可识破:不开窗,直接结算
+  if (
+    queried.length === 0 ||
+    (reactionTargets.requiresSelection && reactionTargets.ids.length === 0)
+  ) {
     executeJinnang(g, user, userSeat, def, targets);
     settleJinnangExit(g);
     return;
@@ -373,7 +378,7 @@ function settleJinnangPlay(
     kind: "jinnang",
     cardId: def.id,
     userSeat,
-    targetSeats: shareSeats,
+    targets: reactionTargets,
     queriedBySeat: queried,
   };
   const payload: ReactionPayload = {

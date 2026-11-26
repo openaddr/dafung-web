@@ -15,6 +15,7 @@ import { useFxStore } from "@app/fx/fxStore";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { isMarching } from "@app/fx/useMarch";
 import type { ReactionTiming } from "@dafung/core/protocol/wire";
+import { shallow } from "zustand/shallow";
 import { reactionQueriesSeat } from "./reaction";
 
 /**
@@ -117,6 +118,7 @@ export abstract class GameController {
     this.unsubMarching = useFxStore.subscribe(
       (s) => s.marching,
       () => this.sync(),
+      { equalityFn: shallow },
     );
   }
 

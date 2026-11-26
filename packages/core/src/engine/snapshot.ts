@@ -190,11 +190,7 @@ export interface GameSnapshot {
    *  重放=普通 respondReaction 命令流);可见性由传输层投影(ADR-0016),公开载荷另经
    *  派生字段 reaction 透出。 */
   pendingReaction: import("./reaction-window").PendingReaction | null;
-  /** 反应窗公开载荷(#281,纯派生=pendingReaction.view):可见性两档登记见 ReactionView
-   *  类型注释——公告字段 public,jinnang 窗 queriedBySeat 为 per-seat private(redact
-   *  每座位只留「自己是否被询问」,改造归传输层下一道缝)。与 pendingReaction 双份同载:
-   *  本字段是纯派生只读投影,消费方=UI(GameScreen 反应窗态);挂起态 pendingReaction
-   *  消费方=恢复重建(restoreFromSnapshot)与传输层超时判据(room.ts 读 seq/answers)。 */
+  /** 从 pendingReaction.view 派生的反应窗公告。重连与开窗事件同形，询问身份按座位匿名。 */
   reaction: import("./reaction-window").ReactionView | null;
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
   jinnangDeckCount: number;
@@ -218,7 +214,7 @@ function clonePendingReaction(
           kind: "jinnang",
           cardId: pr.view.cardId,
           userSeat: pr.view.userSeat,
-          targetSeats: [...pr.view.targetSeats],
+          targets: { ...pr.view.targets, ids: [...pr.view.targets.ids] },
           queriedBySeat: [...pr.view.queriedBySeat],
           ...(pr.view.counter != null ? { counter: { ...pr.view.counter } } : {}),
           windowMs: pr.view.windowMs,
@@ -231,7 +227,10 @@ function clonePendingReaction(
           tileIndex: pr.view.tileIndex,
           windowMs: pr.view.windowMs,
         };
-  const answers: import("./reaction-window").ReactionAnswer[] = pr.answers.map((a) => ({ ...a }));
+  const answers: import("./reaction-window").ReactionAnswer[] = pr.answers.map((a) => ({
+    ...a,
+    ...(a.target === undefined ? {} : { target: { ...a.target } }),
+  }));
   const payload: import("./reaction-window").ReactionPayload =
     pr.payload.kind === "jinnang"
       ? {
@@ -249,8 +248,8 @@ function clonePendingReaction(
             root: { ...pr.payload.root, targets: [...pr.payload.root.targets] },
             negated: [...pr.payload.negated],
             protects: pr.payload.protects,
-            upcoming: pr.payload.upcoming.map((u) => ({ ...u })),
-            ...(pr.payload.shareSeat != null ? { shareSeat: pr.payload.shareSeat } : {}),
+            upcoming: pr.payload.upcoming.map((u) => ({ ...u, target: { ...u.target } })),
+            ...(pr.payload.target === undefined ? {} : { target: { ...pr.payload.target } }),
           }
         : {
             kind: "march",

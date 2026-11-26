@@ -507,21 +507,19 @@ export function armGameOver(
  *  answers 恒空、turnPhase=AwaitingReaction 同拍(拆开即窗悬相位不自洽);view/
  *  payload 由种植者给形(windowMs 显式给值=免与默认展示档赛跑的站点惯例)。bot 即席
  *  代答**不模拟**(种的是挂起态,应答归被测环真命令链 respondReaction)。view 公开面
- *  座位(userSeat/targetSeats/queriedBySeat/ownerSeat)越界当场炸;payload 续结算
+ *  座位和城格越界当场炸;payload 续结算
  *  载荷不校验(消费面=被测环的续结算,引擎自有断言)。 */
 export function armReaction(e: GameEngine, view: ReactionView, payload: ReactionPayload): void {
   const seats = (s: number[]) => s.forEach((x) => assertSeat("armReaction", e, x));
   if (view.kind === "jinnang") {
     assertSeat("armReaction", e, view.userSeat);
-    if (jinnangCardOf(view.cardId).targetDomain === "one-city") {
-      // 城指向域(#1389):targetSeats=可拆份的受击城 tileIndex 清单,走棋盘界校验;
-      // 份归属(受击城恒有主)归被测环真命令链自有断言,此处不代查。
-      view.targetSeats.forEach((x) => {
+    if (view.targets.kind === "city") {
+      view.targets.ids.forEach((x) => {
         if (!Number.isInteger(x) || x < 0 || x >= e.board.count)
           throw new Error(`armReaction:城份格越界(${x})`);
       });
     } else {
-      seats(view.targetSeats);
+      seats(view.targets.ids);
     }
     seats(view.queriedBySeat);
   } else {

@@ -22,7 +22,7 @@ export function statusOf(e: GameEngine) {
     // 非选项集相位 choicesFor 返回 [] → 此处亦 [])。
     choices: s.choices.filter((o) => o.available),
     // 反应窗公告(ReactionView | null,快照字段透传,零派生):
-    // jinnang 窗含 queriedBySeat/windowMs,march 窗含 ownerSeat。
+    // 锦囊窗携带 targets 与询问集，行军窗携带城主及途经城格。
     reaction: s.reaction,
     players: s.players.map((p) => ({
       guohao: p.guohao,
@@ -91,7 +91,7 @@ function promptFor(
       return `${who} 出牌阶段:用锦囊(cmd {"type":"useJinnang","cardId":"<id>"};今不用 {"type":"useJinnang","cardId":null},牌 id 见 status.choices)${skill}`;
     }
     case "AwaitingReaction":
-      return `反应窗(cmd {"type":"respondReaction","seat":<n>,"use":<bool>,"cardId":"<id>"},待应答座位与窗信息见 status.reaction)`;
+      return `反应窗(cmd {"type":"respondReaction","seat":<n>,"use":<bool>,"cardId":"<id>"})。待应答座位和对象见 status.reaction。targets.requiresSelection 为 true 时，出牌须从公告选份并附 "target":{"kind":"city"|"seat","id":<n>}。`;
     case "AwaitingTreasureOwner":
       return `${decisionOwner ?? who} 城主抉择:公道买卖(fair <id>)/坐地起价(premium <id>)/跳过(tskip)`;
     case "AwaitingBankruptcySettle":

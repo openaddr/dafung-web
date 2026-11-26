@@ -203,7 +203,7 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
         ],
       },
     ];
-    beginMarch("p-f5", kf);
+    beginMarch("p-f5", kf, { tileIndex: 0, position: kf[0].points[0] });
     expect(isMarching("p-f5")).toBe(true);
     gates.gate("zhongyuan").resolve(ZHONGYUAN);
     await drain();

@@ -940,7 +940,7 @@ describe("军情密探·窥探(#575 即时一次性)", () => {
     e.resolveJinnang("军情密探");
     e.resolveJinnang("军情密探", [1]);
     expect(e.turnPhase).toBe("AwaitingReaction"); // 宣布 → 识破窗挂起
-    e.respondReaction(1, true, "识破诡计", 1); // 自保识破
+    e.respondReaction(1, true, "识破诡计");
     expect(e.pendingReaction).toBeNull();
     expect(e.turnPhase).toBe("Roll"); // 计被拆,照常收卷
     expect(e.gameEvents.some((x) => x.kind === "peekApplied")).toBe(false);

@@ -26,6 +26,12 @@ export interface MarchSegmentFrames {
   flow: BoardPos[];
 }
 
+/** 行军播出前棋子停留的格与槽位坐标。 */
+export interface MarchStart {
+  tileIndex: number;
+  position: BoardPos;
+}
+
 /** 技能浮字档(#850 技能演出补课):cast=主动技施展(浮字升档,玩家色随件烤定);
  *  tag=被动技名小签。嵌套联合让「cast 缺色」在类型层面不可表达(零兜底:
  *  描边色缺失是提取侧 bug,不该靠渲染侧回退)。 */
@@ -73,6 +79,7 @@ export type PresentationEvent =
   | {
       kind: "tokenMoved";
       playerId: string;
+      start: MarchStart;
       /** 整条行走序列(提取拍烤死,ADR-0029 不变量①):每段起点中心→终点(驿道恒直线
        *  #928/ADR-0044,无途经点;末段含落格槽位偏移)。播放器纯哑渲染,连棋盘对象都不摸。 */
       keyframes: MarchSegmentFrames[];
@@ -242,9 +249,8 @@ export interface FxSink {
   playSound(event: SoundEvent): void;
   /** 掷骰签演出(现身→停留→渐隐;骰落声在签内现身拍同拍,#927),await 到收场。 */
   rollDice(die: number): Promise<void>;
-  /** 行军锚定(同步):把棋子放进接管集并锚回 keyframes 首帧(不变量①:提取烤好
-   *  的逐帧坐标随事件走),必须先于 React 渲染终态。 */
-  marchBegin(playerId: string, keyframes: readonly MarchSegmentFrames[]): void;
+  /** 同步把棋子锚在烤好的出发槽位，必须先于 React 渲染终态。 */
+  marchBegin(playerId: string, keyframes: readonly MarchSegmentFrames[], start: MarchStart): void;
   /** 行军动画(异步):逐帧消费烤好的 keyframes 写 transform(哑渲染,零引擎读取)。 */
   marchToken(playerId: string, keyframes: readonly MarchSegmentFrames[]): Promise<void>;
   /** 浮动金额(coins=true 时附带补给铜钱雨)。 */

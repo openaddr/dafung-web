@@ -140,8 +140,7 @@ async function finishExit(query: () => Element | null, label: string): Promise<v
 }
 
 /** 火烧连营窗种植(识破应答/不用路径/降噪口三例共用的反应窗形):userSeat=bot 真打出
- *  形,目标=受击城 tileIndex(城指向域,#1389——view.targetSeats 与 payload.targets 均
- *  为城格清单),被询问=仅自机(窗应答即本例人工链,bot 零牵涉)。 */
+ *  形，公告要求点选受击城，被询问仅自机。 */
 function huoshaoWindow(userSeat: number, cityTile: number): PlantOp[] {
   return [
     {
@@ -150,7 +149,7 @@ function huoshaoWindow(userSeat: number, cityTile: number): PlantOp[] {
         kind: "jinnang",
         cardId: "火烧连营",
         userSeat,
-        targetSeats: [cityTile],
+        targets: { kind: "city", ids: [cityTile], requiresSelection: true },
         queriedBySeat: [0],
         windowMs: 30000,
       },
@@ -161,7 +160,7 @@ function huoshaoWindow(userSeat: number, cityTile: number): PlantOp[] {
 
 /** 受击城选址(接线种植地形约束):取「无主且 tileIndex<4」的首座城。无主=多窗判词
  *  需要(免烧行「无主,免于火焰」);上界 4 为既有断言的城名锚稳定保留——历史约束
- *  (planter 公开面把 targetSeats 当座位断言、城格须 <席位数)已随 #1389/#1395 城份
+ *  (planter 公开面把城格当座位断言、城格须 <席位数)已随 #1389/#1395 城份
  *  域感知改走棋盘界,不再生效。exclude=已入用的城(多窗不重城)。 */
 function plantableCityTile(
   engine: GameEngine,
@@ -358,7 +357,7 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
         kind: "jinnang",
         cardId: "横征暴敛",
         userSeat: 1,
-        targetSeats: [0, 2, 3],
+        targets: { kind: "seat", ids: [0, 2, 3], requiresSelection: true },
         queriedBySeat: [0],
         windowMs: 30000,
       },

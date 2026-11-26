@@ -71,6 +71,8 @@ export class OnlineController extends GameController {
   private ended = false;
   private roomId: string | null = null;
   private seatToken: string | null = null;
+  private sentReactionRequests = 0;
+  private pendingReactionRequest: number | undefined;
   /** 归档使用独立的权威日志前缀，水合副本的日志仍由既有状态通路维护。 */
   private gameLog: GameLogPrefix | null = null;
   /** 当前占位引擎对应的地图 id(换图守卫:同图不重建)。 */
@@ -132,6 +134,12 @@ export class OnlineController extends GameController {
     this.connectionStatus = status;
     useNetStore.getState().setConnection(status);
   }
+
+  private clearPending(): void {
+    this.pending = false;
+    this.pendingReactionRequest = undefined;
+    useNetStore.getState().setPending(false);
+  }
   /** 我的座位托管中(netStore seats 广播回读,公式单源 myAutoPilotOn)。 */
   get autoPilotOn(): boolean {
     return myAutoPilotOn(useNetStore.getState());
@@ -159,10 +167,12 @@ export class OnlineController extends GameController {
       return;
     }
     this.pending = true;
+    this.pendingReactionRequest =
+      cmd.type === "respondReaction" ? ++this.sentReactionRequests : undefined;
     // UI F3:pending 透传 netStore(HandPanel 读 netStore.pending 显示「行军中…」;
     // 不给基类加 seam,联机/单机经同一 store 字段取态,单机恒 false)。
     useNetStore.getState().setPending(true);
-    this.sock.send(cmdMsg(cmd));
+    this.sock.send(cmdMsg(cmd, this.pendingReactionRequest));
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }
 
@@ -374,8 +384,7 @@ export class OnlineController extends GameController {
       if (this.connectionStatus === "calibrating") this.resetReactionTiming();
       this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
       this.setConnectionStatus("open");
-      this.pending = false;
-      useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
+      this.clearPending();
       // 演出(#385):netStore 暂存的事件批(events 消息先于同 tick 快照到达)经
       // SnapshotEffects 直译播放;本帧无批(空批 flush)时游标不推进,自然跳过。
       this.fx.play(prePositions);
@@ -424,8 +433,7 @@ export class OnlineController extends GameController {
       if (hydrated) this.fx.play(prePositions);
       // #388:命令在途锁在此解锁(旧世界靠快照回包清零;空批转移无 events 消息,由
       // 随后的决策窗校准快照解锁——见 server.ts 校准口径)。
-      this.pending = false;
-      useNetStore.getState().setPending(false);
+      this.clearPending();
       this.checkRollSeal();
       this.sync();
       return;
@@ -444,7 +452,14 @@ export class OnlineController extends GameController {
       this.failCalibration(msg.error);
       return;
     }
-    // 普通命令错误仍闪提示;pending 解锁等下一帧 events/校准快照校正。
+    // 错份拒绝没有状态下行，匹配该次应答的回执后立即恢复原窗操作。
+    if (
+      this.pendingReactionRequest !== undefined &&
+      msg.requestId === this.pendingReactionRequest
+    ) {
+      this.clearPending();
+      this.sync();
+    }
     useGameStore.getState().pushHint(msg.error);
   }
 
@@ -454,8 +469,7 @@ export class OnlineController extends GameController {
     sock?.close();
     this.mapLoad = null;
     this.fx.dropStalledBatch();
-    this.pending = false;
-    useNetStore.getState().setPending(false);
+    this.clearPending();
     this.connectionStatus = "failed";
     useNetStore.getState().setConnectionFailure(reason);
     this.sync();
@@ -566,8 +580,7 @@ export class OnlineController extends GameController {
     this.sock = null;
     sock?.close();
     this.gameLog = null;
-    this.pending = false;
-    useNetStore.getState().setPending(false); // UI F3:销毁时清 pending,防残留
+    this.clearPending();
     this.setConnectionStatus("idle");
     this.sync();
   }

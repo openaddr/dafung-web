@@ -67,7 +67,7 @@ export function lobbyView(r: RoomSession, onlineSeats: Set<number>): LobbyView {
 const ANON_SEAT = -1;
 
 /** 反应窗公开载荷的 per-seat 投影(#281,ADR-0016):公告字段(cardId/userSeat/
- *  targetSeats)public 原样;queriedBySeat 是 per-seat private 档——**身份匿名、数量
+ *  targets/counter)public 原样;queriedBySeat 是 per-seat private 档——**身份匿名、数量
  *  保留**(与 redactEvents 同一口径):自己座位保留,他人一律置换 ANON_SEAT。数量必须
  *  保留:出牌阶段开窗拍必带校准全量快照,水合无条件覆盖折叠态——若投影把查询集覆盖成
  *  [自己]/[](长度 ≤1),折叠器(event-fold.ts)闭窗算术「应答数 ≥ queriedBySeat.length」

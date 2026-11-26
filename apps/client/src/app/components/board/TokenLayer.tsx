@@ -29,7 +29,7 @@ import type { Board } from "@dafung/core/engine/board";
 import type { BoardPos } from "@dafung/core/engine/board";
 import { Theme, rgba } from "@dafung/core/engine/theme";
 import { TOKEN_SLOT_OFFSETS } from "@dafung/core/engine/constants";
-import { marchPos } from "@app/fx/useMarch";
+import { marchPos, marchStartTile } from "@app/fx/useMarch";
 import { FlagShapes } from "./flagArt";
 import { BoardHost } from "./boardHost";
 import { playerSlotKey, tokenSlotGroups, tokenSlotOffset } from "./tokenSlots";
@@ -105,7 +105,11 @@ export function computeTokenSlots(
     activeId?: string;
   },
 ): TokenSlot[] {
-  const bySlot = tokenSlotGroups(players);
+  const slotPlayers = players.map((p) => {
+    const startTile = o.skipTokenIds?.has(p.id) ? marchStartTile(p.id) : undefined;
+    return startTile === undefined ? p : { ...p, position: startTile };
+  });
+  const bySlot = tokenSlotGroups(slotPlayers);
 
   const slots: TokenSlot[] = [];
   for (const p of players) {
@@ -143,13 +147,13 @@ export function computeTokenSlots(
         mine,
         targeted,
         active,
-        crowded: false, // 行军中在路径上、不占同格槽位语义
+        crowded: false, // 行军接管期的旗面独立绘制。
       });
       continue;
     }
     const pos = tokenRenderPos(p, board);
     const mates = bySlot.get(playerSlotKey(p)) ?? [p.id];
-    const off = tokenSlotOffset(players, p);
+    const off = tokenSlotOffset(slotPlayers, p);
     slots.push({
       player: p,
       x: pos.x + off.x,

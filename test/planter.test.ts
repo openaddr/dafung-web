@@ -292,7 +292,7 @@ describe("armReaction(挂反应载荷,裸写形)", () => {
       kind: "jinnang",
       cardId: "火烧连营",
       userSeat: 1,
-      targetSeats: [0],
+      targets: { kind: "city", ids: [0], requiresSelection: true },
       queriedBySeat: [0],
       windowMs: 30000,
     };
@@ -310,13 +310,13 @@ describe("armReaction(挂反应载荷,裸写形)", () => {
     expect(e.pendingReaction!.seq).toBe(2);
   });
 
-  it("view 公开面越界当场炸(使用者座位/城指向域城份格/被询问座位;#1389 城指向域 targetSeats 走棋盘界)", () => {
+  it("view 公开面越界当场炸(使用者座位/城指向域城份格/被询问座位;城格按棋盘界)", () => {
     const e = makeEngine();
     const badUser: ReactionView = {
       kind: "jinnang",
       cardId: "火烧连营",
       userSeat: 9,
-      targetSeats: [0],
+      targets: { kind: "city", ids: [0], requiresSelection: true },
       queriedBySeat: [0],
       windowMs: 1000,
     };
@@ -332,7 +332,7 @@ describe("armReaction(挂反应载荷,裸写形)", () => {
       kind: "jinnang",
       cardId: "火烧连营",
       userSeat: 1,
-      targetSeats: [28], // 城指向域(#1389):关中图 28 格,[28]=城份格越界,响亮炸
+      targets: { kind: "city", ids: [28], requiresSelection: true }, // 城指向域(#1389):关中图 28 格,[28]=城份格越界,响亮炸
       queriedBySeat: [0],
       windowMs: 1000,
     };
@@ -554,7 +554,7 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
       kind: "jinnang",
       cardId: "火烧连营",
       userSeat: 1,
-      targetSeats: [0],
+      targets: { kind: "city", ids: [0], requiresSelection: true },
       queriedBySeat: [0],
       windowMs: 30000,
     };

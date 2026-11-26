@@ -39,7 +39,6 @@
 //                 ADR-0016);jinnangReshuffled → 牌库数+count/弃堆清零(洗后牌序不折);
 //                 jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1);
 //                 peekApplied → 零折(窥探即时一次性 #575,无任何客户端状态);
-//                 (反应锦囊 id 出自同批应答,按座位配对;shareSeat 不参与折叠);
 //                 reactionOpened → pendingReaction
 //                 置窗(权威公告);reactionAnswered → 应答、收窗与实际费用入账
 //                 + 应答齐闭窗;行军窗闭窗即拦检牌扣账(引擎胜负两路均在结算点扣账,与
