@@ -6,9 +6,9 @@ import { parseArgs } from "node:util";
 import { buildServer } from "./build-server";
 import { RELEASE_TAG, releaseBunVersion } from "./server-release-archive";
 
-const VPS = "root@160.202.253.194";
+const SSH_HOST = "dafung-vps";
 const PORT = "9981";
-const USAGE = "用法: bun run deploy [--dry-run]";
+const USAGE = `用法: bun run deploy [--dry-run]\nSSH 目标: ${SSH_HOST}（配置见部署手册）`;
 const SSH = [
   "ssh",
   "-T",
@@ -22,7 +22,7 @@ const SSH = [
   "ConnectTimeout=10",
   "-o",
   "ServerAliveInterval=10",
-  VPS,
+  SSH_HOST,
 ];
 
 const REMOTE_DEPLOY = `

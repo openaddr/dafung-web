@@ -29,7 +29,7 @@ test("预检从本地构建，SSH 核对目标时不上传归档", async () => {
   expect(ssh).toHaveLength(1);
   expect(ssh[0]?.args).toContain("PreferredAuthentications=publickey");
   expect(ssh[0]?.args).toContain("StrictHostKeyChecking=yes");
-  expect(ssh[0]?.args).toContain("root@160.202.253.194");
+  expect(ssh[0]?.args.at(-2)).toBe("dafung-vps");
   expect(ssh[0]?.args.at(-1)).toEndWith(`'check' '${TAG}' '${Bun.version}' '9981'`);
   expect(ssh[0]?.input).toBeUndefined();
 });
@@ -38,6 +38,7 @@ test("部署上传本地新构建的归档，远端收到对应版本和摘要",
   const { ssh, execute } = fixture();
   await deployVps([], execute);
   expect(ssh).toHaveLength(1);
+  expect(ssh[0]?.args.at(-2)).toBe("dafung-vps");
   const contents = Bun.spawnSync(["tar", "-tzf", "-"], { stdin: ssh[0]?.input });
   expect(contents.exitCode, contents.stderr.toString()).toBe(0);
   expect(contents.stdout.toString().trim().split("\n")).toEqual(["deploy-server.js", ARCHIVE]);
