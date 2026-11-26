@@ -4,6 +4,7 @@ import { Collapsible } from "@base-ui/react/collapsible";
 import { Input } from "@base-ui/react/input";
 import { Radio } from "@base-ui/react/radio";
 import { RadioGroup } from "@base-ui/react/radio-group";
+import { MAX_SEAT_COUNT, MIN_SEAT_COUNT, STANDARD_SEAT_COUNT } from "@dafung/core/engine/constants";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { getAudio } from "@app/fx/audio";
 import { getServerBase, setServerBase } from "@app/net/server-base";
@@ -42,7 +43,7 @@ function validateTarget(value: string): string | null {
 function CreateRoomForm({ busy, onCreate }: Pick<LobbyEntryProps, "busy" | "onCreate">) {
   const targetLabelId = useId();
   const targetHelpId = useId();
-  const [seats, setSeats] = useState(2);
+  const [seats, setSeats] = useState(STANDARD_SEAT_COUNT);
   const [mode, setMode] = useState<"map" | "custom">("map");
   const [target, setTarget] = useState("");
   const [targetError, setTargetError] = useState<string | null>(null);
@@ -74,8 +75,8 @@ function CreateRoomForm({ busy, onCreate }: Pick<LobbyEntryProps, "busy" | "onCr
               testid={LID.seatCount}
               ariaLabel="诸侯数"
               value={seats}
-              min={2}
-              max={8}
+              min={MIN_SEAT_COUNT}
+              max={MAX_SEAT_COUNT}
               onChange={setSeats}
             />
           </div>

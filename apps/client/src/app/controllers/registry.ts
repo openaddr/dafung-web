@@ -51,6 +51,7 @@ import { anchorMarches } from "@app/fx/event-extract";
 import { createEngineSink } from "@app/fx/sinks";
 import type { PresentationEvent } from "@app/fx/presentation";
 import type { GameCommand, GameEngine } from "@dafung/core/engine/authority";
+import { MAX_SEAT_COUNT, MIN_SEAT_COUNT } from "@dafung/core/engine/constants";
 import { applyPlant, type PlantOp } from "@dafung/core/engine/planter";
 import { HEROES } from "@dafung/core/engine/heroes";
 import { loadMapById } from "@dafung/core/engine/map-source";
@@ -77,8 +78,13 @@ export function installDebugHooks(): void {
   // seedSoloToRound 复用此链,开局后必须停在座位 0 选都门。
   const seedSolo = async (opts: { seed?: number; mapId?: string; seats?: number } = {}) => {
     // 显式席位数须与设置屏/引擎同界,先拒绝非整数,避免 defaultSetupSeats 截断。
-    if (opts.seats != null && (!Number.isInteger(opts.seats) || opts.seats < 2 || opts.seats > 8))
-      throw new Error(`seedSolo:seats 须为 2–8 整数(收到 ${String(opts.seats)})`);
+    if (
+      opts.seats != null &&
+      (!Number.isInteger(opts.seats) || opts.seats < MIN_SEAT_COUNT || opts.seats > MAX_SEAT_COUNT)
+    )
+      throw new Error(
+        `seedSolo:seats 须为 ${MIN_SEAT_COUNT}–${MAX_SEAT_COUNT} 的整数(收到 ${String(opts.seats)})`,
+      );
     const source = getMapSource();
     // df.seed.* 分段量取参数解析、地图加载、控制器构造、注册、同步和选都;cost-probe 聚合读取。
     const tResolve = performance.now();

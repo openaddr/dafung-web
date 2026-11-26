@@ -56,7 +56,7 @@ function seedPlayingEngine(): GameEngine {
     seed: SEED,
     mapId: "guanzhong",
   });
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   while (e.phase === "Setup") {
     if (!e.aiSetupStep()) {
       const r = e.pickCapital(e.currentSetupPlayerIndex, Math.min(...e.offeredCapitals));
@@ -394,7 +394,7 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     const { el, snap } = startGame([
       { kind: "giveTreasure", seat: 1, treasures: [{ id: "gem-1", name: "夜明珠", level: 5 }] },
       { kind: "giveJinnang", seat: 0, cards: ["军情密探"] },
-      { kind: "armPhase", turnPhase: "AwaitingJinnang" },
+      { kind: "armPhase", activeIndex: 0, turnPhase: "AwaitingJinnang" },
     ]);
     const opt = q(el, TESTIDS.jinnangCard("军情密探"));
     if (opt == null) throw new Error("接线测试:军情密探牌钮缺席(手牌种植断)");

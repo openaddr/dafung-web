@@ -22,7 +22,7 @@ export type TileDetailRequest = {
 } & ({ pickCapital: false } | { pickCapital: true; onConfirmCapital: () => void });
 
 interface CapitalPickFlow {
-  /** X4(#23) 选都候选集(引擎三选一,全座位可见;null = 非选都期)。BoardView candidateTiles。 */
+  /** 选都候选集(全座位可见，null 表示非选都期)。BoardView candidateTiles。 */
   offeredCapitals: number[] | null;
   /** 轮到本地选都时的可选城集(非决策席位 undefined = 无可点)。BoardView selectableTiles。 */
   selectableTiles: Set<number> | undefined;
@@ -57,7 +57,7 @@ export function useCapitalPick(args: {
   );
   const [inspectionTile, setInspectionTile] = useState<number | null>(null);
 
-  // X4(#23) 选都候选:引擎三选一候选(snapshot.offeredCapitals,跨玩家不重复)全座位可见——
+  // 选都候选(snapshot.offeredCapitals)全座位可见。
   // 非决策席位静态低透明金圈 + 壹贰叁序号印(不可点不脉冲),「轮到本地选」才升格为可点脉冲。
   const offeredCapitals = offeredCapitalTiles(snapshot);
   // 候选集内容串作键:快照每次 sync 都换新对象,按引用订阅会让 select 集/镜头效果
@@ -93,7 +93,7 @@ export function useCapitalPick(args: {
         const taken = snapshot.takenCapitalIndices.includes(tileIndex);
         useGameStore
           .getState()
-          .pushHint(taken ? "该城已被占据,另择他城" : "本轮三选一:仅候选之城可选", "error");
+          .pushHint(taken ? "该城已被占据,另择他城" : "只能选择当前候选城", "error");
       }
     }
   };

@@ -3,7 +3,12 @@ import { Input } from "@base-ui/react/input";
 import { useId, useRef, useState } from "react";
 import type { SeatConfig } from "@dafung/core/engine/authority";
 import type { MapSource } from "@dafung/core/engine/map-source";
-import { isSingleCjk } from "@dafung/core/engine/constants";
+import {
+  isSingleCjk,
+  MAX_SEAT_COUNT,
+  MIN_SEAT_COUNT,
+  STANDARD_SEAT_COUNT,
+} from "@dafung/core/engine/constants";
 import { formatMoney } from "@dafung/core/engine/money";
 import { playerColor, playerSealText, rgba } from "@dafung/core/engine/theme";
 import { getAudio } from "@app/fx/audio";
@@ -14,12 +19,7 @@ import { Sym } from "@app/screens/shared/Sym";
 import { cn } from "@app/utils/cn";
 import { GuohaoPicker } from "./GuohaoPicker";
 import { MapSelectPanel } from "./MapSelectPanel";
-import {
-  DEFAULT_GUOHAO,
-  DEFAULT_SEAT_COUNT,
-  DEFAULT_TARGET_NET_WORTH,
-  defaultSetupSeats,
-} from "./setup-defaults";
+import { DEFAULT_GUOHAO, DEFAULT_TARGET_NET_WORTH, defaultSetupSeats } from "./setup-defaults";
 import { TID } from "./testids";
 import { useMapName } from "./useMapName";
 import "./setup.css";
@@ -57,7 +57,7 @@ export function SoloSetupScreen({
   mapSource = getMapSource(),
   onMapChange,
 }: SoloSetupScreenProps) {
-  const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
+  const [seatCount, setSeatCount] = useState(STANDARD_SEAT_COUNT);
   const [target, setTarget] = useState(DEFAULT_TARGET_NET_WORTH);
   const [guohao, setGuohao] = useState(
     () => localStorage.getItem(GUOHAO_PREF_KEY) ?? DEFAULT_GUOHAO,
@@ -131,8 +131,8 @@ export function SoloSetupScreen({
                   testid={TID.seatCount}
                   ariaLabel="诸侯数"
                   value={seatCount}
-                  min={2}
-                  max={8}
+                  min={MIN_SEAT_COUNT}
+                  max={MAX_SEAT_COUNT}
                   onChange={setSeatCount}
                 />
               </div>

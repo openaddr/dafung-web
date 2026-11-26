@@ -65,6 +65,18 @@ function makeEngine(
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
 
+function finishSetupLeavingCitiesUnowned(engine: GameEngine, ...reservedCities: string[]): void {
+  engine.beginCapitalSelection();
+  while (engine.phase === "Setup") {
+    const tile = engine.offeredCapitals.find((index) => {
+      const propertyId = engine.board.at(index).propertyId;
+      return !reservedCities.some((reserved) => reserved === propertyId);
+    });
+    if (tile === undefined) throw new Error("选都候选占用了测试所需的无主城池");
+    expect(engine.pickCapital(engine.currentSetupPlayerIndex, tile).ok).toBe(true);
+  }
+}
+
 /** 事件首部三件套(折叠认 kind/seat + 族字段 + round/turn 首部摸照)。 */
 function ev<B extends GameEventBody>(seat: number | null, body: B): GameEvent {
   return { ...body, seat, round: 1, turn: 1 };
@@ -98,12 +110,7 @@ describe("额外回合的联机命令与事件批", () => {
 
   it("本轮末席的额外回合可在存档恢复后接续，洗回再出仍先走完原轮", () => {
     let authority = makeEngine();
-    authority.doDraftRoll();
-    while (authority.phase === "Setup")
-      authority.pickCapital(
-        authority.currentSetupPlayerIndex,
-        authority.firstAvailableCapitalIndex(),
-      );
+    finishSetupLeavingCitiesUnowned(authority, "prop-jinyang", "prop-youzhou", "prop-linzi");
     const first = authority.activeIndex;
     armPhase(authority, { turnPhase: "AwaitingDecision" });
     authority.submitCommand({ type: "endDecision" });
@@ -185,12 +192,7 @@ describe("额外回合的联机命令与事件批", () => {
 
   it("识破后锦囊仍然消耗，可以继续出牌并按原座次推进", () => {
     const authority = makeEngine();
-    authority.doDraftRoll();
-    while (authority.phase === "Setup")
-      authority.pickCapital(
-        authority.currentSetupPlayerIndex,
-        authority.firstAvailableCapitalIndex(),
-      );
+    finishSetupLeavingCitiesUnowned(authority, "prop-jinyang");
     const active = authority.activeIndex;
     const responder = 1 - active;
     const cardId = "挟天子以令诸侯";
@@ -287,9 +289,7 @@ describe("额外回合的联机命令与事件批", () => {
 describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
   it("银行债清偿后推进回合，事件使持牌者收下反应锦囊，其余座位只见张数", () => {
     const e = makeEngine();
-    e.doDraftRoll();
-    while (e.phase === "Setup")
-      e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
+    finishSetupLeavingCitiesUnowned(e, "prop-jinyang");
     const debtor = e.activeIndex;
     const nextSeat = 1 - debtor;
     giveJinnang(e, nextSeat, []);
@@ -350,7 +350,7 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
 
   it("被跳过的回合占编号，实际回合洗回后先摸再出牌，双空直接进入掷骰", () => {
     const e = makeEngine();
-    e.doDraftRoll();
+    e.beginCapitalSelection();
     while (e.phase === "Setup")
       e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
     const active = e.activeIndex;
@@ -399,7 +399,7 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
 
   it("批量清偿命令经线上编码后保留重复数量,真实事件批只消费所卖册数", () => {
     const e = makeEngine();
-    e.doDraftRoll();
+    e.beginCapitalSelection();
     while (e.phase === "Setup")
       e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
     const seat = e.activeIndex;
@@ -428,7 +428,7 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
 
   it("卖出同技书自救后交割另一册托管书,不误删卖家的同标识余册", () => {
     const e = makeEngine();
-    e.doDraftRoll();
+    e.beginCapitalSelection();
     while (e.phase === "Setup")
       e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
     const buyer = e.activeIndex;
@@ -1311,7 +1311,7 @@ describe("折叠投影器 · 体力/跳过族", () => {
 describe("折叠投影器 · 破产族", () => {
   it("真实破产把都城交给债主、释放名将并将手牌清入弃堆", () => {
     const e = makeEngine();
-    e.doDraftRoll();
+    e.beginCapitalSelection();
     while (e.phase === "Setup")
       e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
     const debtor = e.activeIndex;

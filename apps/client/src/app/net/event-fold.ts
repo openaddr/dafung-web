@@ -62,7 +62,7 @@
 // ── 校准兜底项(#384 判定表对账:折叠器不碰,由快照水合纠正,ADR-0020 决策 3)──
 //   ①窃玉偷香珍宝转移:treasureStolen 只宣告不转移(双方珍宝列表校准)
 //   ②出牌阶段目标段草稿无专属事件，随摘要水合；公开宣布时清除 pendingJinnang。
-//   ③Setup 期字段:draftOrder/draftRolls/currentDraftIndex/offeredCapitals/usedGuohao/
+//   ③Setup 期字段:draftOrder/currentDraftIndex/offeredCapitals/usedGuohao/
 //     setupPhase,开局校准点覆盖
 //   对账机器(#431):本校准清单的发射侧触发登记单源 scripts/seat-projection——
 //   CALIBRATION_WINDOWS/CALIBRATION_EVENT_KINDS(类型化 ReadonlySet,phase/kind 改名=

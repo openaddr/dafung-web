@@ -40,7 +40,7 @@ function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
 
 /** 驱动选都到完成(照 presentation.test.ts 的构造方式)。 */
 function finishSetup(e: GameEngine) {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;

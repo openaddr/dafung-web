@@ -74,7 +74,7 @@ if (!(SEATS_N >= 2 && SEATS_N <= 4))
 /** 回合上限(单玩家回合数;4 席 ≈ 750 轮):防永动局的测量口径,触顶 = 未终局,响亮上报。 */
 const TURN_CAP = 3000;
 
-// ── 座位与构造参数(全 bot;guohao 留空由 doDraftRoll 从字池分配,与 cli new 同口径)──
+// ── 座位与构造参数(全 bot;guohao 留空由 beginCapitalSelection 从字池分配,与 cli new 同口径)──
 const seats: SeatConfig[] = Array.from({ length: SEATS_N }, (_, i) => ({
   name: `诸侯 ${i + 1}`,
   isBot: true,

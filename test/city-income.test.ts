@@ -14,6 +14,7 @@ import {
   placePlayer,
   setCash,
   setDefense,
+  setJinnangPiles,
 } from "@dafung/core/engine/planter";
 import { SKILLS, type TriggerSkill } from "@dafung/core/engine/skills";
 import guanzhong from "../packages/core/maps/guanzhong.json";
@@ -172,8 +173,7 @@ it("空轮收入达标也要等下一次实际回合结束，空轮的轮末选�
 
 it("轮末与首笔得银各自应答后续发，跨过跳行动的轮次锚点并进入下一回合", () => {
   const e = makeEngine();
-  pinDice(e, "duel", [6, 5, 4, 3]); // 选都骰使座位 0 成为轮次锚点
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   while (e.phase === "Setup")
     e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
   const anchor = e.roundAnchor;
@@ -188,6 +188,7 @@ it("轮末与首笔得银各自应答后续发，跨过跳行动的轮次锚点�
   const cashBefore = e.players.map(({ cash }) => cash);
 
   for (const [seat] of e.players.entries()) giveJinnang(e, seat, []);
+  setJinnangPiles(e, ["横征暴敛"], []);
   armPhase(e, { activeIndex: mover, turnPhase: "AwaitingJinnang" });
   giveJinnang(e, mover, ["缓兵之计"]);
   submit(e, { type: "useJinnang", cardId: "缓兵之计" });

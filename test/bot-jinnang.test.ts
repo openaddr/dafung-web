@@ -12,7 +12,7 @@ import guanzhongData from "../packages/core/maps/guanzhong.json";
 import { loadMap } from "@dafung/core/engine/board-loader";
 import { botAct, jinnangIntent } from "@dafung/core/engine/bot";
 import { jinnangCardOf } from "@dafung/core/engine/jinnang";
-import { grantProperty, setDefense } from "@dafung/core/engine/planter";
+import { armPhase, grantProperty, setDefense } from "@dafung/core/engine/planter";
 
 const MAP = loadMap(guanzhongData);
 
@@ -38,7 +38,7 @@ function makeEngine(seed = 42, seats: SeatConfig[] = SEATS2) {
 
 /** 驱动选都到完成(人类选第一个空城,bot 自动)= finishSetup 真实路径。 */
 function finishSetup(e: GameEngine) {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;
@@ -53,11 +53,12 @@ function finishSetup(e: GameEngine) {
   }
 }
 
-/** 开好局并清掉开局锦囊卷轴(seed 42 开局必弹),当前玩家处可测态。 */
+/** 完成开局，将待测的出牌者置于座位 0。 */
 function prepared(seed?: number, seats?: SeatConfig[]) {
   const e = makeEngine(seed, seats);
   finishSetup(e);
   if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
+  armPhase(e, { activeIndex: 0 });
   return e;
 }
 

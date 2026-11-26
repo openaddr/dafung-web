@@ -87,13 +87,13 @@ it("加入框留给新房间，重进始终提交上次入座的房间码", asyn
   expect(joined).toEqual(["QRMX", "XYZ"]);
 });
 
-it("按地图默认时省略目标，自定义仅提交有效的正整数", async () => {
+it("默认以六席建房，按地图默认时省略目标，自定义仅提交有效的正整数", async () => {
   const created: Array<[number, number | undefined]> = [];
   await renderEntry({ onCreate: (seats, target) => created.push([seats, target]) });
   const create = () => click(LID.create);
 
-  await click(`${LID.seatCount}-plus`);
   await create();
+  await click(`${LID.seatCount}-plus`);
   await click(LID.targetCustom);
   await create();
   expect(input(LID.target).getAttribute("aria-invalid")).toBe("true");
@@ -106,8 +106,8 @@ it("按地图默认时省略目标，自定义仅提交有效的正整数", asyn
   await create();
 
   expect(created).toEqual([
-    [3, undefined],
-    [3, 25000],
-    [3, undefined],
+    [6, undefined],
+    [7, 25000],
+    [7, undefined],
   ]);
 });

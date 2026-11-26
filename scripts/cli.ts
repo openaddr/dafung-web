@@ -109,7 +109,7 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
     seats.push({
       name: `诸侯 ${i + 1}`,
       isBot: botIdx.has(i),
-      // guohao 留空,doDraftRoll 会从字池分配(对 bot 必要,对人类也省事)
+      // guohao 留空,beginCapitalSelection 会从字池分配(对 bot 必要,对人类也省事)
     });
   }
   // config 落盘构造参数包含地图 id。显式覆盖反应窗时长时一并保存，缺省读 core 常量表。

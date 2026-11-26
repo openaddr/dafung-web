@@ -33,7 +33,7 @@ function makeEngine(seed = 42, seats: SeatConfig[] = SEATS2): GameEngine {
 /** 开好局并清掉开局锦囊卷轴,回到常规相位(范式同 hero-skill 测试)。 */
 function prepared(seed?: number, seats?: SeatConfig[]) {
   const e = makeEngine(seed, seats);
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;

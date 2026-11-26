@@ -39,7 +39,7 @@ const kinds = (events: GameEvent[]) => events.map((ev) => ev.kind);
 /** 驱动选都到完成并清手牌(锦囊相位 inert,与 game.test.ts 同款垫子);
  *  返回逐编排步折叠出的事件全史(每步读一步的批)。 */
 function finishSetup(e: GameEngine): GameEvent[] {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   const history: GameEvent[] = [];
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {

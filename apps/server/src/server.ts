@@ -5,10 +5,10 @@
 // 房间编排由 @dafung/core 的 RoomRegistry 提供，落盘由 FileRoomPersistence 适配。
 //
 // 生命周期(ADR-0004 大厅 + ADR-0005 seatToken + ADR-0002 掉线):
-//   POST /room/new {seats,bot?,seed?...}   → Lobby,建房者=Seat0(host),领 token
+//   POST /room/new {seats?,bot?,seed?...}  → Lobby,建房者=Seat0(host),领 token
 //   POST /room/join {roomId}               → 凭码占第一个空 human Seat,领 token
-//   POST /room/start {roomId,seatToken}    → host 开局:构造引擎(doDraftRoll 自动国号),
-//                                            停在 Setup·PickCapital(L41:真人各自三选一)
+//   POST /room/start {roomId,seatToken}    → host 开局:构造引擎(beginCapitalSelection 自动国号),
+//                                            停在 Setup·PickCapital(从当前至多三个候选中选都)
 //   POST /room/dismiss {roomId,seatToken}  → host 解散房间(广播 dismissed,断开所有连接)
 //   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} /
 //                                            {type:"pickCapital",tileIndex}(L41 选都),
@@ -30,6 +30,7 @@ import { appendFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from "no
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GameEngine, TurnPhase } from "@dafung/core/engine/authority";
+import { STANDARD_SEAT_COUNT } from "@dafung/core/engine/constants";
 import { BOT_STEP_MS } from "@dafung/core/engine/timings";
 import { EventBatchChannel } from "@dafung/core/room/event-batch";
 import { statusOf } from "@dafung/core/room/room-status";
@@ -446,13 +447,12 @@ const HELP = {
   endpoints: {
     "GET /health": "存活 + 运行时长 + 房间数",
     "GET /help": "本接口列表",
-    "POST /room/new":
-      "建房 body:{seats,bot?,seed?,target?,guohao?} → {seat:0,seatToken,...lobby}(mapId=null;guohao=host 预设国号)",
+    "POST /room/new": `建房 body:{seats?,bot?,seed?,target?,guohao?} → {seat:0,seatToken,...lobby}(seats 默认 ${STANDARD_SEAT_COUNT};mapId=null;guohao=host 预设国号)`,
     "POST /room/join":
       "入座 body:{roomId,guohao?} → {seat,seatToken,...lobby}(guohao=预设国号,重名开局时加方位前缀)",
     "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
     "POST /room/start":
-      "开局 body:{roomId,seatToken}(仅 host,需已选图;开局后进选都三选一,WS pickCapital 落子)",
+      "开局 body:{roomId,seatToken}(仅 host,需已选图;从当前至多三个候选中选都,WS pickCapital 落子)",
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/托管)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=":
@@ -526,7 +526,8 @@ async function handle(req: Request): Promise<Response> {
   const obj = asObject(await readBody(req));
 
   if (path === "/room/new") {
-    const seatCount = intField(obj, "seats", 2);
+    const seatCount = Object.hasOwn(obj, "seats") ? obj.seats : STANDARD_SEAT_COUNT;
+    if (typeof seatCount !== "number") throw httpError(400, "seats 不是整数");
     const botIdx = new Set(
       String(obj.bot ?? "")
         .split(",")

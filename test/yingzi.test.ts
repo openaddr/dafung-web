@@ -29,13 +29,6 @@ const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },
   { name: "B", isBot: false, guohao: "蜀" },
 ];
-const SEATS4: SeatConfig[] = [
-  { name: "A", isBot: false, guohao: "魏" },
-  { name: "B", isBot: false, guohao: "蜀" },
-  { name: "C", isBot: false, guohao: "吴" },
-  { name: "D", isBot: false, guohao: "群" },
-];
-
 function makeEngine(seed = 42, seats: SeatConfig[] = SEATS2): GameEngine {
   const cfg: EngineConfig = {
     seats,
@@ -48,7 +41,7 @@ function makeEngine(seed = 42, seats: SeatConfig[] = SEATS2): GameEngine {
 
 /** 驱动选都到完成(人类选第一个空城);全员手牌清空(锦囊相位 inert)。 */
 function finishSetup(e: GameEngine) {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;
@@ -219,29 +212,7 @@ describe("英姿:掷骰三路七面(可达且按 7 结算)", () => {
   });
 });
 
-describe("英姿:不波及面(定序/掷金涟漪)", () => {
-  it("开局定序掷骰仍六面:招募前发生,麾下有英姿亦不接面数查询口(缺省语义)", () => {
-    const e = makeEngine(42, SEATS4);
-    arm(e, 0, "zhouyu", [YINGZI_SKILL_ID]); // 招募前预布英姿(极限布景)
-    const calls: (number | undefined)[] = [];
-    const real = e.dice;
-    (e as unknown as { dice: Dice }).dice = {
-      roll: (faces?: number) => real.roll(faces),
-      rollDie: (faces?: number) => {
-        calls.push(faces);
-        return real.rollDie(faces);
-      },
-      nextFloat: () => real.nextFloat(),
-      getRngState: () => real.getRngState(),
-      setRngState: (a: number) => real.setRngState(a),
-    };
-    e.doDraftRoll();
-    expect(e.draftRolls).toHaveLength(4);
-    for (const r of e.draftRolls) expect(r).toBeLessThanOrEqual(6); // 六面:无 7
-    for (const c of calls) expect(c).toBeUndefined(); // 定序掷骰不传面数(缺省语义,不接查询口)
-    expect(e.draftOrder).toHaveLength(4);
-  });
-
+describe("英姿与掷金", () => {
   it("掷金横涟漪(知情断言):周瑜掷 7 不触发「掷出 6」;对照掷 6 照常 +20", () => {
     const holderSetup = (seed: number) => {
       const eng = prepared(seed);

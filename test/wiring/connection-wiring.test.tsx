@@ -326,7 +326,7 @@ function startAuthority(): GameEngine {
     startingCash: map.startingCash,
     startingTreasures: map.startingTreasures,
   });
-  authority.doDraftRoll();
+  authority.beginCapitalSelection();
   return authority;
 }
 
@@ -411,6 +411,7 @@ it("联机大厅使用地图默认值，开局接受后等待权威首份棋局�
     }
   });
 
+  for (let i = 0; i < 4; i++) await click(`${LID.seatCount}-minus`);
   await click(LID.create);
   expect(createRequests).toEqual([{ seats: 2 }]);
   expect(container.textContent).toContain("目标身价按地图默认");
@@ -528,6 +529,7 @@ it("自定义目标随建房请求提交，换图期间可复制且目标由房�
     target.value = "25000";
     target.dispatchEvent(new Event("input", { bubbles: true }));
   });
+  for (let i = 0; i < 4; i++) await click(`${LID.seatCount}-minus`);
   await click(LID.create);
   expect(createRequests).toEqual([{ seats: 2, target: 25000 }]);
   await act(async () => {

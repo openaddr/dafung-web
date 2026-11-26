@@ -316,7 +316,7 @@ it("旁观席漏收同回合第二张火烧的宣布，恢复后该牌余款单�
 
 it("珍宝托管时只播公道买卖的升级声，清偿后由卖家归账响一声交接", async () => {
   const engine = makeEngine();
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   while (engine.phase === "Setup") {
     const outcome = engine.pickCapital(engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
     if (!outcome.ok) throw new Error(`选都失败 ${outcome.reason}`);

@@ -148,7 +148,7 @@ function makeSetupEngine(guohaos: string[]): GameEngine {
     seed,
     mapId: "guanzhong",
   });
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   return engine;
 }
 

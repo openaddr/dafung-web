@@ -33,7 +33,7 @@ function makeEngine(seed = 7, seats?: SeatConfig[]): GameEngine {
 
 /** 驱动选都到入局(人类选三候选首项,bot 自动);放行开局发牌相位。 */
 function finishSetup(e: GameEngine): void {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;

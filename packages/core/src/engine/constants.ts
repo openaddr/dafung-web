@@ -1,4 +1,9 @@
 // 全局共享常量(单一来源,避免多处重复导致漂移)。数值索引见 docs/reference/rules/10-关键数值总表.md。
+/** 对局座位范围与开局默认人数（六人标准局）。 */
+export const MIN_SEAT_COUNT = 2;
+export const MAX_SEAT_COUNT = 8;
+export const STANDARD_SEAT_COUNT = 6;
+
 // 抽签 1-面数 的汉字签面(签筒主题;骰子机制不变,仅展示;#1390 扩「七」=英姿第七面,
 // 掷骰面数单源 skills.heroDieFaces,签面表长随域扩,呈现面一律按表长消费)
 export const SIGN_FACES = ["一", "二", "三", "四", "五", "六", "七"];

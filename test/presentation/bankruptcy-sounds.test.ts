@@ -32,7 +32,7 @@ function makeEngine() {
 }
 
 function finishSetup(engine: GameEngine) {
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   while (engine.phase === "Setup") {
     const outcome = engine.pickCapital(engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
     if (!outcome.ok) throw new Error(`选都失败 ${outcome.reason}`);

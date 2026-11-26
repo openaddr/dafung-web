@@ -78,7 +78,7 @@ function seedPlayingEngine(): GameEngine {
     seed: SEED,
     mapId: "guanzhong",
   });
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   while (e.phase === "Setup") {
     if (!e.aiSetupStep()) {
       const r = e.pickCapital(e.currentSetupPlayerIndex, Math.min(...e.offeredCapitals));
@@ -968,21 +968,21 @@ describe("军情密探即时窥探弹层(自 react-jinnang-peek 迁入,#1315 批
 
 describe("锦囊 secrecy 可见性(自 react-jinnang 迁入,#1315 批T1)", () => {
   // ── ⑥secrecy(react-jinnang 例 1 迁入)──
-  // 零种植全真:选都链(引擎真实开局流,进程内毫秒级)到发牌呈现——单机快照是 god
+  // 真实选都与发牌，随后将本地座位设为当前出牌者。单机快照是 god
   // view(引擎在本机),「他人只见计数」的投影逻辑由 room 层单测 redactSnapshotForSeat
   // 直测;本例断言 UI 面不泄:他人牌面永不出现在 DOM。引擎缝账目断言(牌库/离库)同
   // e2e __dafung 桥语义,直读进程内引擎。
   it("起手与首回合摸牌后，架中只见自己牌面，其他席位显示张数", () => {
-    const { el, engine, snap } = startGame(() => {
-      // 零种植:seed 67 离线核算天然凑齐断言面(头注第 2 步)
+    const { el, engine, snap } = startGame((e) => {
+      armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
     });
     // 引擎缝 fail-fast:发牌没进引擎,后面全是废话(e2e 同款断言,直读引擎)
     expect(engine.jinnangDeck.length).toBe(JINNANG_DECK_LIST.length - 5);
     expect(
       engine.players.reduce((a, p) => a + p.jinnangHand.length, 0) + engine.jinnangDiscard.length,
     ).toBe(5);
-    const ownCount = engine.activeIndex === 0 ? 2 : 1;
-    const otherCount = engine.activeIndex === 1 ? 2 : 1;
+    const ownCount = engine.roundAnchor === 0 ? 2 : 1;
+    const otherCount = engine.roundAnchor === 1 ? 2 : 1;
     expect(q(el, TESTIDS.handZone)).not.toBeNull();
     expect(
       el.querySelectorAll(`[data-testid="${TESTIDS.jinnangHand}"] [data-testid^="jinnang-card-"]`),

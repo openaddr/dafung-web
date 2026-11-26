@@ -15,6 +15,7 @@ import {
   giveTreasure,
   grantProperty,
   setCash,
+  setJinnangPiles,
 } from "@dafung/core/engine/planter";
 import guanzhongData from "../packages/core/maps/guanzhong.json";
 import { loadMap } from "@dafung/core/engine/board-loader";
@@ -38,7 +39,7 @@ function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
 }
 
 function finishSetup(e: GameEngine) {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;
@@ -290,6 +291,7 @@ describe("破产清算", () => {
     finishSetup(e);
     const p = e.activePlayer;
     const nextSeat = (e.activeIndex + 1) % e.players.length;
+    setJinnangPiles(e, ["横征暴敛"], []);
     p.cash = 100;
     p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" });
     e.payOrLiquidate(p, null, 200);

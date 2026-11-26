@@ -29,7 +29,7 @@ interface TestAccess {
 }
 
 /** 三座房开局期事件批:bot(座位 2)先行代选都城长安——开局 flush 首个 events 消息
- *  的形状(服务器 doDraftRoll 后 driveBots 立即代选,capitalSelected 是开局首事件)。 */
+ *  的形状(服务器 beginCapitalSelection 后 driveBots 立即代选,capitalSelected 是开局首事件)。 */
 function firstBatchCapitalSelected(): GameEvent[] {
   return [
     {
@@ -59,7 +59,7 @@ function guanzhongRoomSnapshot(): { msg: Record<string, unknown>; botCapitalInde
     startingCash: GUANZHONG.map.startingCash,
     startingTreasures: 0,
   });
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   for (let i = 0; i < 3 && engine.currentSetupPlayerIndex === 2; i++) {
     engine.aiSetupStepFor(2); // 服务器代选:只驱动 bot 座位,轮到真人即停(与 driveBots 同口径)
   }

@@ -6,7 +6,7 @@
   },
   "guanzhong#4": {
     "medianRounds": [45, 75],
-    "bankruptRate": [0, 0],
+    "bankruptRate": [0.02, 0.03],
     "format": 1
   },
   "zhongyuan#2": {

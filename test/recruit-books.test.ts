@@ -35,9 +35,9 @@ function makeEngine(seatCount = 2, seed = 7): GameEngine {
   });
 }
 
-function startGame(seatCount = 2): GameEngine {
-  const engine = makeEngine(seatCount);
-  engine.doDraftRoll();
+function startGame(seatCount = 2, seed?: number): GameEngine {
+  const engine = makeEngine(seatCount, seed);
+  engine.beginCapitalSelection();
   while (engine.phase === "Setup") {
     const capital = engine.offeredCapitals.find((index) => index !== recruitCity.index)!;
     engine.pickCapital(engine.currentSetupPlayerIndex, capital);
@@ -167,10 +167,7 @@ it("托管在没有招将候选时求书并结清招贤机会", () => {
 });
 
 it("首回合抽到袭扰，行军求书后在下个己方出牌阶段研读", () => {
-  const engine = makeEngine(2, 704);
-  engine.doDraftRoll();
-  engine.pickCapital(engine.currentSetupPlayerIndex, 9);
-  engine.pickCapital(engine.currentSetupPlayerIndex, 6);
+  const engine = startGame(2, 62); // 首回合摸到袭扰，两座都城也在射程内。
   const seat = engine.activeIndex;
   const opponent = 1 - seat;
   const mover = engine.activePlayer;

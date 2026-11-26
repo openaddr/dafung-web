@@ -64,7 +64,7 @@ function seedEngine(pickCapitals = true): GameEngine {
     seed: SEED,
     mapId: "guanzhong",
   });
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   while (pickCapitals && e.phase === "Setup") {
     if (!e.aiSetupStep()) {
       const r = e.pickCapital(e.currentSetupPlayerIndex, Math.min(...e.offeredCapitals));

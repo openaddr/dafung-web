@@ -35,7 +35,7 @@ function makeController(clock: RecordingClock, botStepMs: number): LocalControll
         { name: "诸侯2", isBot: true },
         { name: "诸侯3", isBot: true },
       ],
-      seed: 1,
+      seed: 5,
       mapId: "guanzhong",
       botStepMs,
     },
@@ -48,7 +48,7 @@ describe("bot 步进配速接线(#730,ADR-0061)", () => {
     const clock = new RecordingClock();
     const c = makeController(clock, 600);
     try {
-      // seed 1 选都序 = bot1 → bot2 → 人类:构造同步段 bot1 落子后链挂起在配速定时器上
+      // seed 5 选都序 = bot1 → bot2 → 人类:构造同步段 bot1 落子后链挂起在配速定时器上
       expect(clock.delays).toContain(600);
       expect(c.engine.currentSetupPlayerIndex).not.toBe(0); // 链未跑完:还没轮到人类
     } finally {

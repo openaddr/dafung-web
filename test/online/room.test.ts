@@ -28,7 +28,8 @@ import type { RoomPersistence } from "@dafung/core/room/room-persistence";
 import type { RoomRecord } from "@dafung/core/room/room-record";
 import type { ServerMsg } from "@dafung/core/protocol/wire";
 import { MAP } from "../../scripts/engine-helpers";
-import type { LoadedMap } from "@dafung/core/engine/board-loader";
+import { loadMap, type LoadedMap } from "@dafung/core/engine/board-loader";
+import zhongyuanData from "../../packages/core/maps/zhongyuan.json";
 
 // 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);判据与实测耗时见文件头注。
 const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);
@@ -189,20 +190,18 @@ describe("RoomRegistry · 房间生命周期", () => {
     expect(room.engine).toBeNull();
   });
 
-  it("createRoom 拒绝 host=bot / 越界座位数", async () => {
+  it("createRoom 拒绝 host=bot 或不在 2–8 范围内的整数座位数", async () => {
     const reg = new RoomRegistry(new InMemoryPersistence());
     await expectRoomError(
       () => reg.createRoom({ seatCount: 3, botIdx: new Set([0]), hostConfig: {} }),
       400,
     );
-    await expectRoomError(
-      () => reg.createRoom({ seatCount: 9, botIdx: new Set(), hostConfig: {} }),
-      400,
-    );
-    await expectRoomError(
-      () => reg.createRoom({ seatCount: 1, botIdx: new Set(), hostConfig: {} }),
-      400,
-    );
+    for (const seatCount of [1, 2.5, 9]) {
+      await expectRoomError(
+        () => reg.createRoom({ seatCount, botIdx: new Set(), hostConfig: {} }),
+        400,
+      );
+    }
   });
 
   it("createRoom:座位上限 8(#29)", async () => {
@@ -346,15 +345,31 @@ describe("RoomRegistry · 真人选都 pickCapital(L41)", () => {
     expect(e.currentDraftIndex).toBeGreaterThan(0);
   });
 
-  it("bot 座位轮到自动选都:真人选完后服务器接棒,无需人工", async () => {
-    const { reg, roomId } = await startRoom({ seats: 3, bot: [1, 2] });
-    const e = reg.get(roomId)!.engine!;
-    // host(唯一真人)选都后,余下 bot 座位由 pickCapital 内部 driveBots 自动跑完
-    const cur = e.currentSetupPlayerIndex;
-    await reg.pickCapital(roomId, cur, e.offeredCapitals[0]);
-    expect(e.phase).toBe("Playing");
-    expect(e.players.every((p) => p.capitalIndex >= 0)).toBe(true);
-  });
+  for (const [seatCount, seed] of [
+    [6, 7],
+    [8, 1],
+  ] as const) {
+    it(`中原争霸 ${seatCount} 席联机开局，电脑补空席并代选都城`, async () => {
+      const reg = new RoomRegistry(new InMemoryPersistence());
+      const { room, token } = reg.createRoom({
+        seatCount,
+        botIdx: new Set(),
+        hostConfig: { seed },
+      });
+      const { roomId } = room;
+      reg.setMap(roomId, "zhongyuan", token, VALID_MAP_IDS);
+      await reg.startGame(roomId, token, undefined, () => loadMap(zhongyuanData));
+      const e = room.engine!;
+      expect(e.phase).toBe("Setup");
+      expect(e.currentSetupPlayerIndex).toBe(0); // 固定种子让房主先选、先行动
+      await reg.pickCapital(roomId, 0, e.offeredCapitals[0]);
+      expect(e.phase).toBe("Playing");
+      expect(e.activeIndex).toBe(0);
+      expect(e.players.filter((p) => p.isBot)).toHaveLength(seatCount - 1);
+      expect(new Set(e.players.map((p) => p.capitalIndex)).size).toBe(seatCount);
+      expect(e.players.every((p) => p.capitalIndex >= 0)).toBe(true);
+    });
+  }
 
   it("托管代选:开局后自助托管当前选都真人 → 服务器 bot 代选推进", async () => {
     const { reg, roomId } = await startRoom({ seats: 3, bot: [] });

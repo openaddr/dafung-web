@@ -38,7 +38,7 @@ it.each(["继续招贤", "归账后断线", "归账后跳过"])(
       startingCash: 10_000,
       startingTreasures: 0,
     });
-    engine.doDraftRoll();
+    engine.beginCapitalSelection();
     while (engine.phase === "Setup") {
       const result = engine.pickCapital(engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
       if (!result.ok) throw new Error(`选都失败 ${result.reason}`);

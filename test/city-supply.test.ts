@@ -33,7 +33,7 @@ function makeEngine(): GameEngine {
 
 function prepared(): GameEngine {
   const e = makeEngine();
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   while (e.phase === "Setup") {
     e.pickCapital(e.currentSetupPlayerIndex, e.firstAvailableCapitalIndex());
   }

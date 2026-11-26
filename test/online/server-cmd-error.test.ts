@@ -150,6 +150,24 @@ describeSlow("server WS 命令回报与对局日志", () => {
     rmSync(ROOMS_DIR, { recursive: true, force: true });
   });
 
+  it("省略建房人数时创建六席房间", async () => {
+    const created = await post("/room/new", {});
+    expect(created).toMatchObject({ ok: true, seat: 0, seatCount: 6 });
+    expect(created.seats).toHaveLength(6);
+  });
+
+  it("显式传入非法建房人数时返回 400", async () => {
+    for (const seats of [null, 2.5, "2 seats", [2]]) {
+      const response = await fetch(`${BASE}/room/new`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seats }),
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ ok: false });
+    }
+  });
+
   it("非法命令注入:该客户端收到 error 下行,服务器进程存活且服务继续", async () => {
     // 建房(2 座,座位 1 bot)→ 选图 → 开局(停在选都三选一)
     const created = await post("/room/new", { seats: 2, bot: "1", seed: 42 });
@@ -188,7 +206,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
 
   it("联机日志从校准锚连续下行，重连归座后继续交付至解散", async () => {
     // 客席首动，直接掷骰落在无主城的购地决策。
-    const created = await post("/room/new", { seats: 2, seed: 5 });
+    const created = await post("/room/new", { seats: 2, seed: 13 });
     expect(created.ok).toBe(true);
     const roomId = created.roomId as string;
     const hostToken = created.seatToken as string;

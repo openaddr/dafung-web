@@ -30,7 +30,7 @@ function marchToCapital(die: number, resupply = guanzhongData.resupply, stamina 
     startingCash: 10000,
     startingTreasures: 0,
   });
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   for (const _ of engine.players) {
     engine.pickCapital(engine.currentSetupPlayerIndex, engine.firstAvailableCapitalIndex());
   }
