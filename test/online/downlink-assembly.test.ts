@@ -212,9 +212,12 @@ const ALL_KIND_BODIES: GameEventBody[] = [
     propertyId: "xuchang",
     level: 1,
     defense: 32,
+    impact: "hit",
+    origin: "fireBlast",
     burning: null,
     damageRanking: [],
   },
+  { kind: "fireWallImpact", castSeq: 1, propertyId: "xuchang", impact: "conquest" },
   {
     kind: "propertyBurningChanged",
     propertyId: "xuchang",
@@ -265,6 +268,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
     sourceSeat: 1,
     downgradedPropertyIds: ["luoyang"],
     lostPropertyIds: [],
+    strongestImpact: "demolished",
     restTurns: 2,
   },
   { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1, 2] },
@@ -280,6 +284,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
     winnerSeat: 0,
   },
   { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
+  { kind: "jinnangRestored", cardId: "横征暴敛" },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
   { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, cardId: "军情密探", hand: ["连环计"] },
   {

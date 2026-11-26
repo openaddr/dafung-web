@@ -3,10 +3,16 @@ import { withGlobal } from "@sinonjs/fake-timers";
 
 /** 接线层的时间边界:ensureHappyDom 后、挂组件前安装;先卸组件再 restore。
  *  happy-dom 注册后 window === globalThis,两种 timeout 写法共用一个时钟。
- *  只接管 timeout/interval,Date、rAF 与 React 调度器仍走原生通路;不驱动演出泵。 */
-export function installControlledClock() {
+ *  可同步推进单调时间以验证截止时刻。Date、rAF 与 React 调度器仍走原生通路。 */
+export function installControlledClock({ monotonic = false } = {}) {
   const clock = withGlobal(globalThis).install({
-    toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    toFake: [
+      "setTimeout",
+      "clearTimeout",
+      "setInterval",
+      "clearInterval",
+      ...(monotonic ? (["performance"] as const) : []),
+    ],
   });
 
   async function advance(ms: number): Promise<void> {

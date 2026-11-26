@@ -18,6 +18,7 @@ export const TID = {
   guohaoError: "setup-guohao-error",
   startGame: "start-game",
   currentMapName: "current-map-name",
+  selectMap: "setup-select-map",
   mapPanel: "map-select-panel",
   mapItem: (id: string) => `map-item-${id}`,
   mapPreview: "map-preview",

@@ -6,6 +6,7 @@ import type { MapSource } from "@dafung/core/engine/map-source";
 import { isSingleCjk } from "@dafung/core/engine/constants";
 import { formatMoney } from "@dafung/core/engine/money";
 import { playerColor, playerSealText, rgba } from "@dafung/core/engine/theme";
+import { getAudio } from "@app/fx/audio";
 import { getMapSource } from "@app/map-sources";
 import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
 import { Stepper } from "@app/screens/shared/Stepper";
@@ -115,6 +116,7 @@ export function SoloSetupScreen({
                   </span>
                   <Button
                     aria-label="更换地图"
+                    data-testid={TID.selectMap}
                     onClick={() => setShowMapSelect(true)}
                     className="su-secondary note-btn font-brush"
                   >
@@ -141,7 +143,11 @@ export function SoloSetupScreen({
                   testid={TID.target}
                   ariaLabel="目标身价"
                   value={target}
-                  onChange={setTarget}
+                  onChange={(value) => {
+                    if (value === target) return;
+                    setTarget(value);
+                    getAudio().play("jinnangSelect");
+                  }}
                   options={TARGET_OPTIONS.map(({ value, label }) => ({
                     value,
                     label: (

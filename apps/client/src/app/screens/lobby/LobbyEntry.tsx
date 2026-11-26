@@ -5,6 +5,7 @@ import { Input } from "@base-ui/react/input";
 import { Radio } from "@base-ui/react/radio";
 import { RadioGroup } from "@base-ui/react/radio-group";
 import { useEffect, useId, useState, type ReactNode } from "react";
+import { getAudio } from "@app/fx/audio";
 import { getServerBase, setServerBase } from "@app/net/server-base";
 import { Stepper } from "@app/screens/shared/Stepper";
 import { Sym } from "@app/screens/shared/Sym";
@@ -83,7 +84,11 @@ function CreateRoomForm({ busy, onCreate }: Pick<LobbyEntryProps, "busy" | "onCr
             <RadioGroup
               aria-labelledby={targetLabelId}
               value={mode}
-              onValueChange={setMode}
+              onValueChange={(value) => {
+                if (value === mode) return;
+                setMode(value);
+                getAudio().play("jinnangSelect");
+              }}
               disabled={busy}
               className="flex flex-wrap gap-1.5"
             >

@@ -56,6 +56,7 @@ export interface SealFx {
   char: string;
   /** 印色档(S7):缺省朱砂深底;gold=漆金印(探宝「得」)。 */
   tone?: "gold";
+  onLanding?: () => void;
 }
 
 /** 常驻回合胶囊(回合宣告唯一形制;#762 立,#958 全幅横幅退役后单源):顶中槽内的
@@ -121,7 +122,13 @@ export interface CashFlyFx {
   /** 来源锚点(棋盘逻辑坐标,cashDelta/supplyRain 事件自带,提取拍烤定)。 */
   x: number;
   y: number;
+  /** 音效随铜钱存活，动画抵达后才执行。 */
+  onArrival?: () => void;
 }
+
+type VictoryPresentation =
+  | { phase: "prelude"; gameId: string }
+  | { phase: "scroll"; gameId: string; playDrum: () => void; playTheme: () => void };
 
 /** 出牌指示线(#281 P2-E):「使用者 token → 目标 token」水墨墨线的两个端点
  *  (棋盘逻辑坐标,提取期已按当时牌局状态解析)。 */
@@ -184,6 +191,7 @@ const pumpNotice = () => {
   const s = useFxStore.getState();
   if (s.noticeSlotOccupied || s.notice != null || s.noticeQueue.length === 0) return;
   const [next, ...queue] = s.noticeQueue;
+  const { onShow, ...notice } = next;
   const timer = setTimeout(() => {
     if (noticeTimer !== timer) return;
     noticeTimer = undefined;
@@ -191,7 +199,8 @@ const pumpNotice = () => {
     pumpNotice();
   }, FX.haltBannerMs);
   noticeTimer = timer;
-  useFxStore.setState({ notice: next, noticeQueue: queue });
+  useFxStore.setState({ notice, noticeQueue: queue });
+  onShow?.();
 };
 
 interface FxState {
@@ -200,7 +209,7 @@ interface FxState {
   /** 顶中知会横幅槽(#732):当前展示的知会件(null=槽空,等待条可回归)。 */
   notice: NoticeFx | null;
   /** 知会排队(#732):同槽互斥——展示中的知会播完(时长到)才从队首取下一条。 */
-  noticeQueue: NoticeFx[];
+  noticeQueue: Array<NoticeFx & { onShow?: () => void }>;
   noticeSlotOccupied: boolean;
   setNoticeSlotOccupied(occupied: boolean): void;
   /** 常驻回合胶囊(#762 立,#958 起为回合宣告唯一形制):当前回合方(国号印+名号+
@@ -239,8 +248,8 @@ interface FxState {
    *  区间置位/复位。消费见 orchestrator:批内同步件遇 overlay 活动延后到收场补发
    *  (同步件画在 z-45 幕下不可见);store 只装状态,互斥判据(批内前视)在编排侧。 */
   overlayActive: boolean;
-  /** 终局拼点等待播放或在场时，延后挂载对应对局的胜利页。 */
-  victoryDuelGameId: string | null;
+  /** 实时胜局的归账、拼点和卷轴交棒。 */
+  victoryPresentation: VictoryPresentation | null;
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   spawnTextFloater(x: number, y: number, text: string, skill?: SkillFloatTone): void;
@@ -248,7 +257,7 @@ interface FxState {
    *  已退役(#958),回合切换信号=胶囊重挂+席位金圈。colorIndex 供胶囊印字亮档
    *  换算(单源 core/theme playerSealText)。 */
   announceTurn(guohao: string, color: string, round: number, colorIndex: number): void;
-  stampSeal(x: number, y: number, char: string, tone?: "gold"): void;
+  stampSeal(x: number, y: number, char: string, tone?: "gold", onLanding?: () => void): void;
   spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;
   /** 窥探弹层(#575):置开关态(同拍再窥=替换,id 单调供弹层重挂重播入场)。
    *  入参=表现事件减 id(整件透传,含 cardId 题名锚,#1067)。 */
@@ -256,7 +265,7 @@ interface FxState {
   /** 关闭窥探弹层(#575):关闭即清,无任何残留。 */
   closePeek(): void;
   /** 都城停条带(#732 降格):入知会队列,槽空即播;号角/震屏校准在 sink 侧。 */
-  showHaltBanner(guohao: string, color: string, cityName: string): void;
+  showHaltBanner(guohao: string, color: string, cityName: string, onShow?: () => void): void;
   /** 金圈一拍(技能施展定音,#850)。 */
   spawnPulse(x: number, y: number): void;
   /** 破产仪式墨渍晕开(S7)。 */
@@ -264,15 +273,21 @@ interface FxState {
   /** 破产仪式铜钱撒落(S7)。 */
   spawnCoinBurst(x: number, y: number, count: number): void;
   /** 金钱飞行归账(#764):下发一枚在途铜钱(进账;合并已在 present 侧完成)。 */
-  spawnCashFly(playerId: string, amount: number, x: number, y: number): void;
-  /** 铜钱抵达即摘(animationend 拍,FlyCoin 回调;id 不在场 = 已被 resetFx 清,静默)。 */
-  removeCashFly(id: number): void;
+  spawnCashFly(
+    playerId: string,
+    amount: number,
+    x: number,
+    y: number,
+    onArrival?: () => void,
+  ): void;
+  /** 认领并摘除抵达的铜钱，旧回调无法再次触发数字回弹和音效。 */
+  removeCashFly(id: number): CashFlyFx | undefined;
   /** 出牌窗聚光(#764):开关态(HandRack 窗态选中挂摘;unmount 兜摘由调用方负责)。 */
   setSpotlight(on: boolean): void;
   /** 全屏签面 overlay 活动标志(#849 棒2):present 在两张签面 overlay 的挂→摘区间
    *  调用(挂 true / 摘 false),resetFx 一并复位。 */
   setOverlayActive(on: boolean): void;
-  setVictoryDuelGameId(gameId: string | null): void;
+  setVictoryPresentation(presentation: VictoryPresentation | null): void;
   addMarching(id: string): void;
   removeMarching(id: string): void;
   /** 城池宣告(ADR-0015):由 FxSink.announceTileChange 调用(触发源是播放器/sink,
@@ -292,7 +307,7 @@ interface FxState {
 }
 
 export const useFxStore = create<FxState>()(
-  subscribeWithSelector((set) => ({
+  subscribeWithSelector((set, get) => ({
     floaters: [],
     seals: [],
     notice: null,
@@ -311,7 +326,7 @@ export const useFxStore = create<FxState>()(
     cashFlies: [],
     spotlight: false,
     overlayActive: false,
-    victoryDuelGameId: null,
+    victoryPresentation: null,
 
     spawnFloater(x, y, amount, coins) {
       const id = nextId++;
@@ -353,9 +368,9 @@ export const useFxStore = create<FxState>()(
       useFxStore.setState({ turnCapsule: { id, guohao, color, colorIndex, round } });
     },
 
-    stampSeal(x, y, char, tone) {
+    stampSeal(x, y, char, tone, onLanding) {
       const id = nextId++;
-      set((s) => ({ seals: [...s.seals, { id, x, y, char, tone }] }));
+      set((s) => ({ seals: [...s.seals, { id, x, y, char, tone, onLanding }] }));
       setTimeout(() => set((s) => ({ seals: s.seals.filter((f) => f.id !== id) })), FX.sealMs);
     },
 
@@ -375,10 +390,10 @@ export const useFxStore = create<FxState>()(
       if (!occupied) pumpNotice();
     },
 
-    showHaltBanner(guohao, color, cityName) {
+    showHaltBanner(guohao, color, cityName, onShow) {
       const id = nextId++;
       set((s) => ({
-        noticeQueue: [...s.noticeQueue, { kind: "halt", id, guohao, color, cityName }],
+        noticeQueue: [...s.noticeQueue, { kind: "halt", id, guohao, color, cityName, onShow }],
       }));
       pumpNotice();
     },
@@ -412,15 +427,18 @@ export const useFxStore = create<FxState>()(
       );
     },
 
-    spawnCashFly(playerId, amount, x, y) {
+    spawnCashFly(playerId, amount, x, y, onArrival) {
       const id = nextId++;
-      set((s) => ({ cashFlies: [...s.cashFlies, { id, playerId, amount, x, y }] }));
+      set((s) => ({ cashFlies: [...s.cashFlies, { id, playerId, amount, x, y, onArrival }] }));
       // 无超时自清:存活期 = CSS 飞行全程,animationend 拍走 removeCashFly
       //(时长单源 FX.cashFlyMs,内联注入动画——超时账本是第二事实源,不设)。
     },
 
     removeCashFly(id) {
+      const fly = get().cashFlies.find((cashFly) => cashFly.id === id);
+      if (fly == null) return undefined;
       set((s) => ({ cashFlies: s.cashFlies.filter((f) => f.id !== id) }));
+      return fly;
     },
 
     setSpotlight(on) {
@@ -431,8 +449,8 @@ export const useFxStore = create<FxState>()(
       set({ overlayActive: on });
     },
 
-    setVictoryDuelGameId(gameId) {
-      set({ victoryDuelGameId: gameId });
+    setVictoryPresentation(presentation) {
+      set({ victoryPresentation: presentation });
     },
 
     spawnJinnangLine(x1, y1, x2, y2) {
@@ -526,7 +544,7 @@ export const useFxStore = create<FxState>()(
         cashFlies: [],
         spotlight: false,
         overlayActive: false,
-        victoryDuelGameId: null,
+        victoryPresentation: null,
       });
     },
   })),

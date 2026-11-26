@@ -2,8 +2,8 @@
 //   提取器(event-extract.ts,#385 起事件批直译)→ PresentationEvent[] → present()(how to play)→ FxSink。
 // 时序对照旧 src/render/state.ts 的 doRoll/afterLand/onTurnAdvanced 链:
 //   rollAndMove:  diceRolled → tokenMoved → 浮字
-//   buy(成功):   sealStamped("据") + buy 音 → 城池宣告(ADR-0015)→ 浮字
-//   upgrade(成功):upgrade 音 → 城池宣告(ADR-0015)→ 浮字
+//   buy(成功):   sealStamped("据") → 城池宣告(ADR-0015)→ 浮字，声音随章钤定
+//   upgrade(成功):城池等级宣告(ADR-0015)同拍发声
 //   选路/招贤/交涉/清算:语义音效(treasure/bankrupt) → 浮字
 //   回合推进:    turnBanner(下家国号)
 // 事件数组顺序即播放顺序,present 串行 await。
@@ -16,11 +16,12 @@
 import type { MovePath } from "@dafung/core/engine/board";
 import { formatMoney } from "@dafung/core/engine/money";
 import { diceApi, finishDiceOverlay } from "./DiceOverlay";
+import { discardCapitalRecruitment, finishCapitalSupply } from "./capital-supply-audio";
 import { finishDuelSigns } from "./DuelSignsOverlay";
 import { useFxStore } from "./fxStore";
 import { abandonMarch, animateMove, beginMarch } from "./useMarch";
 import { delay, FX, scStage } from "./timings";
-import type { FxSink, PresentationEvent } from "./presentation";
+import type { CashArrivalCue, FxSink, PresentationEvent } from "./presentation";
 
 // ─────────────────────── 终局封场(D2 全层化)───────────────────────
 // D2 的生命周期规则(对局结束 = 表现层使命终结)从骰子 overlay 升格到整个表现层:
@@ -44,11 +45,24 @@ const delayedLineTimers = new Set<ReturnType<typeof setTimeout>>();
 /** 终局封场:胜利屏挂载时调用(VictoryScreen);封场后一切 present 立即收队。 */
 export function finishPresentation(): void {
   sealed = true;
+  dismissInFlightPresentation();
+}
+
+/** 收回仍在场的签面及等待错位的指示线。 */
+export function dismissInFlightPresentation(): void {
+  discardCapitalRecruitment();
   finishDiceOverlay();
   finishDuelSigns();
+  for (const timer of delayedLineTimers) clearTimeout(timer);
+  delayedLineTimers.clear();
 }
 
 // ─────────────────────── 播放器 ───────────────────────
+type CashFlights = Map<string, { amount: number; x: number; y: number; cues: Set<CashArrivalCue> }>;
+
+/** 同一张火烧连营可以跨抉择续接，只有已播放的批可留下待飞归账。 */
+export type PendingFireWallRewards = WeakMap<CashArrivalCue, CashFlights>;
+
 /** 播放一组表现事件:串行 await,顺序 = 数组顺序。所有外设经 FxSink 驱动
  *  (生产 = createEngineSink 单例组装;测试 = createMemorySink 录制)。
  *  金钱飞行归账(#764)在此合帧:进账(cashDelta/supplyRain 且 amount>0)先记入
@@ -59,18 +73,31 @@ export function finishPresentation(): void {
 export async function present(
   events: PresentationEvent[],
   sink: FxSink,
-  isCurrent: () => boolean = () => !sealed,
+  {
+    isCurrent = () => true,
+    forVictory = false,
+    pendingFireWallRewards = new WeakMap(),
+  }: {
+    isCurrent?: () => boolean;
+    forVictory?: boolean;
+    pendingFireWallRewards?: PendingFireWallRewards;
+  } = {},
 ): Promise<void> {
-  const flyPend = new Map<string, { amount: number; x: number; y: number }>();
+  const canPlay = () => isCurrent() && (forVictory || !sealed);
+  const flyPend: CashFlights = new Map();
   // ③ overlay 互斥补发账本(#849 棒2):同步件(jline/cashFly/floater)是即发即忘的
   // 短命演出,同批内随后开场全屏签面 overlay(掷骰/拼点)时,其残余寿命整个画在
   // z-45 幕下不可见——暂存于此,overlay 收场按入队序补发。批内仍将开场 overlay 时
   // (overlayAheadFrom)才入账,补发拍 = 最后一场 overlay 收场(中途场不冲账,防
   // 补发件落进下一场的幕下);批尾账本恒空:入账前提是批内确有 overlay 事件,而
   // overlay case 收场即冲账——封场(sealed)提前收队时账本随队一并弃,同 flyPend。
-  const deferred: (() => void)[] = [];
-  const flushDeferred = () => {
-    for (const fn of deferred) fn();
+  const deferred: (() => void | Promise<void>)[] = [];
+  const flushDeferred = async () => {
+    for (const fn of deferred) {
+      if (!canPlay()) break;
+      const playback = fn();
+      if (playback !== undefined) await playback;
+    }
     deferred.length = 0;
   };
   /** 批内位次 i 之后是否还有全屏 overlay 事件(同步件延后判据;播放期零引擎读取,
@@ -79,34 +106,21 @@ export async function present(
     events.slice(i + 1).some((e) => e.kind === "diceRolled" || e.kind === "duelSigns");
   const flushFlies = (defer: boolean) => {
     if (flyPend.size === 0) return;
-    for (const [playerId, f] of flyPend) {
-      const fly = () => sink.cashFly({ playerId, ...f });
+    for (const [playerId, { cues, ...geometry }] of flyPend) {
+      const fly = () =>
+        sink.cashFly({
+          playerId,
+          ...geometry,
+          ...(cues.size > 0 ? { arrivalCues: [...cues] } : {}),
+        });
       if (defer) deferred.push(fly);
       else fly();
     }
     flyPend.clear();
   };
-  /** 金额浮字公共段(C10 收口):spawn 延后补发(③ overlay 判据 defer)+ 正向金额
-   *  飞行账本累积——cashDelta/supplyRain 两 case 曾逐字双抄,唯 coins 旗标异;
-   *  来源锚点取该席位最后一笔进账的(合并枚从最后现场起飞)。 */
-  const floatAndBank = (
-    playerId: string,
-    x: number,
-    y: number,
-    amount: number,
-    coins: boolean,
-    defer: boolean,
-  ) => {
-    const spawn = () => sink.spawnFloater(x, y, amount, coins);
-    if (defer) deferred.push(spawn);
-    else spawn();
-    if (amount > 0) {
-      const pend = flyPend.get(playerId);
-      flyPend.set(playerId, { amount: (pend?.amount ?? 0) + amount, x, y });
-    }
-  };
   for (const [i, ev] of events.entries()) {
-    if (!isCurrent()) {
+    if (!isCurrent()) return; // 作废边界已收回旧会话。
+    if (sealed && !forVictory) {
       for (const rest of events.slice(i)) {
         if (rest.kind === "tokenMoved") abandonMarch(rest.playerId);
       }
@@ -126,33 +140,68 @@ export async function present(
         } finally {
           useFxStore.getState().setOverlayActive(false);
         }
-        if (isCurrent() && !overlayAheadFrom(i)) flushDeferred();
+        if (canPlay() && !overlayAheadFrom(i)) await flushDeferred();
         break;
       case "tokenMoved":
         // 不变量①哑渲染:逐帧坐标提取拍已烤进事件,present 只透传(零引擎读取)。
         await sink.marchToken(ev.playerId, ev.keyframes);
         break;
-      case "cashDelta": {
-        // 金额浮字不带铜钱雨(coins 档随税关退役清退 #828,雨唯一通路=supplyRain);
-        // ③ 批内仍将开场 overlay 时浮字延后到收场补发(现画在幕下不可见),飞行账本照常累积。
-        floatAndBank(ev.playerId, ev.x, ev.y, ev.amount, false, deferSync);
-        break;
-      }
+      case "cashDelta":
       case "supplyRain": {
-        floatAndBank(ev.playerId, ev.x, ev.y, ev.amount, true, deferSync);
+        const { playerId, x, y, amount, sound, beforeFireWallImpact } = ev;
+        const spawn = () => {
+          sink.spawnFloater(x, y, amount, ev.kind === "supplyRain");
+          if (sound === "pay") sink.playSound(sound);
+        };
+        if (deferSync) deferred.push(spawn);
+        else spawn();
+        if (amount > 0) {
+          let flights = flyPend;
+          if (beforeFireWallImpact !== undefined) {
+            flights = pendingFireWallRewards.get(beforeFireWallImpact) ?? new Map();
+            pendingFireWallRewards.set(beforeFireWallImpact, flights);
+          }
+          const pend = flights.get(playerId);
+          const cues = pend?.cues ?? new Set<CashArrivalCue>();
+          if (sound !== undefined && sound !== "pay") cues.add(sound);
+          if (beforeFireWallImpact !== undefined) cues.add(beforeFireWallImpact);
+          // 合并枚沿用最后一笔进账的来源坐标，各结算仍各自占一个声音落点。
+          flights.set(playerId, { x, y, amount: (pend?.amount ?? 0) + amount, cues });
+        }
         break;
       }
       case "textFloat": {
         // skill=#850 技能演出档(cast=施展升档/tag=被动小签),与普通文案浮字同通路
         // 同步件(deferSync 判据共享:overlay 在场/将开场时一并延后补发)。
-        const spawn = () => sink.spawnTextFloater(ev.x, ev.y, ev.text, ev.skill);
+        const spawn = () => {
+          if (ev.sound !== undefined) sink.playSound(ev.sound);
+          sink.spawnTextFloater(ev.x, ev.y, ev.text, ev.skill);
+          if (ev.capitalRecruitment !== undefined) finishCapitalSupply(ev.capitalRecruitment);
+        };
         if (deferSync) deferred.push(spawn);
         else spawn();
         break;
       }
-      case "sealStamped":
-        sink.stampSeal(ev.x, ev.y, ev.char, ev.tone);
+      case "staminaExhausted": {
+        const play = async () => {
+          if (ev.citySound !== null) {
+            sink.playSound(ev.citySound);
+            await delay(FX.exhaustionLeadMs);
+          }
+          if (!canPlay()) return;
+          sink.playSound("exhaustionDrum");
+          sink.spawnTextFloater(ev.x, ev.y, ev.text);
+        };
+        if (deferSync) deferred.push(play);
+        else await play();
         break;
+      }
+      case "sealStamped": {
+        const stamp = () => sink.stampSeal(ev.x, ev.y, ev.char, ev.tone, ev.sound);
+        if (ev.sound != null && deferSync) deferred.push(stamp);
+        else stamp();
+        break;
+      }
       case "landPulse":
         // 落格定音(S7):金圈一拍,同步下发 CSS 自走(坐标提取烤好)。
         sink.landPulse(ev.x, ev.y);
@@ -167,12 +216,10 @@ export async function present(
         } finally {
           useFxStore.getState().setOverlayActive(false);
         }
-        if (isCurrent() && !overlayAheadFrom(i)) flushDeferred();
+        if (canPlay() && !overlayAheadFrom(i)) await flushDeferred();
         break;
       case "haltBanner":
-        // 都城停条带(#732 降格,原 S7 全屏宣告):号角同拍,等条带读过峰值段再接驻章
-        // (同 turnBanner 的 C3 口径;生产 sink 返回 void,不收签名;占用窗按条带级
-        // 校准 = haltHoldMs)。
+        // 知会槽播短门闩，条带的编排窗之后续接补给。
         sink.showHaltBanner(ev);
         await delay(FX.haltHoldMs);
         break;
@@ -188,26 +235,40 @@ export async function present(
       case "sound":
         sink.playSound(ev.event);
         break;
+      case "cityDamageSound": {
+        const play = () => sink.playSound(ev.event);
+        if (deferSync) deferred.push(play);
+        else play();
+        if (ev.fireWallCue !== undefined) {
+          const held = pendingFireWallRewards.get(ev.fireWallCue);
+          if (held !== undefined) {
+            pendingFireWallRewards.delete(ev.fireWallCue);
+            for (const [playerId, flight] of held) flyPend.set(playerId, flight);
+          }
+        }
+        break;
+      }
+      case "reactionOpened":
+        break; // 错开公开指示线的时序标记。
       case "jinnangPlayed": {
         // 出牌指示线(#281 P2-E):每目标一段,数量恒小(锦囊目标域至多全体)。
         // 下发时序两判据(#849 棒2,互斥按优先级):
         //   ③ 批内仍将开场全屏 overlay → 收场补发(deferred 账本,拦检线先例:
         //      reactionAnswered 线与 duelResolved 同批,现画在签面幕下不可见);
-        //   ② 同批随后开反应窗(识破窗挂点:reactionOpen 音随批)→ 错位到反应横幅
+        //   ② 同批随后开反应窗(reactionOpened)→ 错位到反应横幅
         //      亮相后 ~250ms 再落线——横幅入场即横向铺开吞线,亮相落定后再落线,
-        //      线在横幅外露段+锚点才读得出「谁打了谁」;只错位线,浮字/开窗音照常。
+        //      线在横幅外露段+锚点才读得出「谁打了谁」;浮字照常。
         //   两判据皆否 → 即发即忘(原制)。
         const dispatchLines = () => {
+          if (ev.sound !== undefined) sink.playSound(ev.sound);
           for (const l of ev.lines) sink.spawnJinnangLine(l.x1, l.y1, l.x2, l.y2);
         };
         if (deferSync) {
           deferred.push(dispatchLines);
-        } else if (
-          events.slice(i + 1).some((e) => e.kind === "sound" && e.event === "reactionOpen")
-        ) {
+        } else if (events.slice(i + 1).some((e) => e.kind === "reactionOpened")) {
           const t = setTimeout(() => {
             delayedLineTimers.delete(t);
-            if (!isCurrent()) return;
+            if (!canPlay()) return;
             dispatchLines();
           }, scStage(250));
           delayedLineTimers.add(t);
@@ -228,11 +289,17 @@ export async function present(
         // viewerSeat===本座自门(零渲染)。
         sink.revealPeek(ev);
         break;
-      case "propertyChanged":
+      case "propertyChanged": {
         // 城池宣告(ADR-0015):经 sink 下发 nonce 驱动 Tile 重播宣告动画。
         // 同步下发(无编排时长)——与相邻事件的相对序由 store 写入序保证。
-        sink.announceTileChange(ev);
+        const announce = () => {
+          sink.announceTileChange(ev);
+          if (ev.sound != null) sink.playSound(ev.sound);
+        };
+        if (ev.sound !== undefined && deferSync) deferred.push(announce);
+        else announce();
         break;
+      }
       case "cityBurned": {
         const showFlame = () => sink.showBurningPulse(ev.tileIndex, ev.marks);
         if (deferSync) deferred.push(showFlame);
@@ -241,7 +308,7 @@ export async function present(
       }
     }
   }
-  if (isCurrent()) flushFlies(false); // 批尾冲账:纯进账批的合并枚在此起飞
+  if (canPlay()) flushFlies(false); // 批尾冲账:纯进账批的合并枚在此起飞
 }
 
 // ─────────────────────── 掷骰签 ───────────────────────
@@ -288,8 +355,7 @@ export function remainingMarchPath(
  *  游标),无手工 reset 配对可忘。 */
 export function resetFxOrchestration(): void {
   sealed = false;
-  for (const t of delayedLineTimers) clearTimeout(t); // ② 错位在途定时器随局清
-  delayedLineTimers.clear();
+  dismissInFlightPresentation();
   useFxStore.getState().resetFx();
 }
 

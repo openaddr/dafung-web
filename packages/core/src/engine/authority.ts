@@ -274,6 +274,8 @@ export class GameEngine {
   /** 窗实例单调流水号(#284):开反应窗写 PendingReaction.seq(取 nextJinnangSeq)。
    *  由命令流派生，随 SNAPSHOT_FIELDS 序列化。 */
   jinnangSeq = 0;
+  /** 最近一次实际执行的火烧连营编号，首次执行前为空。 */
+  fireWallSeq: number | undefined;
   /** 反应窗时长覆盖(#284):EngineConfig.reactionWindowMs(联机权威侧 env 注入);
    *  0 = 无覆盖,开窗时按窗种类查 REACTION_WINDOW_MS 常量表。 */
   readonly reactionWindowMsOverride: number;
@@ -908,9 +910,7 @@ export class GameEngine {
     executeJinnang(this, user, userSeat, def, targets, exempt);
   }
 
-  /** 体力增减(#130):clamp 0~100,返回落账后的体力值。损失方向派发 StaminaLoss 时机
-   *  (#1377,放逐攒怒挂点:任何来路的损失一律广播,含打空最后一笔;delta=夹紧后实际
-   *  损失额，恒负值)。 */
+  /** 体力夹紧至 0~100，返回落账值。实际损耗派发 StaminaLoss，包括归零一击。 */
   addStamina(
     seat: number,
     delta: number,
@@ -925,6 +925,7 @@ export class GameEngine {
         kind: "staminaChanged",
         delta: change,
         reason: "damage",
+        ...(continuation.depletes && { depletes: true }),
       });
     if (change < 0)
       this.dispatchMoment(

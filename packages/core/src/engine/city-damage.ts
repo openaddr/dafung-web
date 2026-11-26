@@ -1,12 +1,28 @@
 import type { GameEngine } from "./authority";
 import type { PropertyDef } from "./economy";
-import { emitGameEvent } from "./game-events";
+import { emitGameEvent, type CashChangedBody } from "./game-events";
 import { formatMoney } from "./money";
 import type { PropertyHolding } from "./model";
 import type { MomentContinuation } from "./moment-stages";
 
 /** 国库为每点实际敌城伤害发放的即时奖励，单位为两。 */
 const CITY_IMMEDIATE_REWARD_PER_POINT = 5;
+
+export type CityDamageImpact = "hit" | "capitalBreached" | "demolished" | "conquest";
+export type CityDamageOrigin = "normal" | "fireBlast" | "fireWall" | "burning";
+
+export const CITY_DAMAGE_SEVERITY = {
+  hit: 0,
+  capitalBreached: 1,
+  demolished: 1,
+  conquest: 2,
+} satisfies Record<CityDamageImpact, number>;
+
+export interface CityRewardReceipt {
+  propertyId: string;
+  /** 火烧连营按施放编号归账，等待或跟随本次最重城损。 */
+  fireWall?: { castSeq: number; stage: "awaitingImpact" | "impactKnown" };
+}
 
 export function cityPriceShare(def: PropertyDef, percent: number): number {
   return Math.round((def.purchasePrice * percent) / 100);
@@ -61,7 +77,19 @@ export function awardCityReward(
   if (amount === 0) return;
   const player = g.players[seat];
   player.cash += amount;
-  emitGameEvent(g, seat, { kind: "cashChanged", delta: amount, reason });
+  const event: CashChangedBody = { kind: "cashChanged", delta: amount, reason };
+  if (continuation?.kind === "cityDamage") {
+    const cityReward: CityRewardReceipt = { propertyId };
+    const { after } = continuation;
+    if (after.kind === "fireWall") {
+      cityReward.fireWall = {
+        castSeq: after.castSeq,
+        stage: after.strongest === "published" ? "impactKnown" : "awaitingImpact",
+      };
+    }
+    event.cityReward = cityReward;
+  }
+  emitGameEvent(g, seat, event);
   g.logEvent(
     "system",
     player.guohao,

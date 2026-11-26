@@ -28,7 +28,6 @@ import { isActiveSkill, skillById } from "@dafung/core/engine/skills";
 import { isSkillBook } from "@dafung/core/engine/treasures";
 import { getAudio } from "@app/fx/audio";
 import { reactionChoicesForSeat } from "@app/controllers/reaction";
-import { AudioProvider } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
@@ -43,7 +42,7 @@ import {
 import { HandZone } from "./HandZone";
 import { SkillGlossaryDialog } from "./SkillGlossaryDialog";
 import { SkillBookLearnModal } from "./SkillBookLearnModal";
-import { ReactionBanner } from "./ReactionBanner";
+import { ReactionBanner, useReactionReminder } from "./ReactionBanner";
 import { SkillChoiceBanner } from "./SkillChoiceBanner";
 import { reactionMuteEngage, reactionMuted, type ReactionMuteState } from "./reaction-mute";
 import { GameTopBar } from "./GameTopBar";
@@ -226,6 +225,11 @@ function GameScreenLive({
   const viewSeat = useGameStore((s) => s.viewSeat);
   const hint = useGameStore((s) => s.hint);
   const hintLevel = useGameStore((s) => s.hintLevel);
+  useEffect(() => {
+    const discardPresentation = () => controller.discardPresentation();
+    document.addEventListener("visibilitychange", discardPresentation);
+    return () => document.removeEventListener("visibilitychange", discardPresentation);
+  }, [controller]);
   const localPlayer = useLocalPlayer();
   // 联机态最小订阅:对局屏消费面仅「是否联机」——selector 收窄成
   // 布尔(zustand 按 Object.is 比对),联机每条事件批(座位广播/重连进度/
@@ -252,20 +256,6 @@ function GameScreenLive({
   }, [peeking]);
   const closeWarlords = useCallback(() => setWarlordsOpen(false), []);
   const closeWarlordsInspection = useCallback(() => setWarlordsInspection(false), []);
-  // 入手音按手牌多重集差量播放,不跟随牌架挂载;同名牌逐张记账,收架期间照响。
-  // 账本只活在本屏,换局重挂即重开。
-  const prevHandRef = useRef<string[]>([]);
-  useEffect(() => {
-    const prev = [...prevHandRef.current];
-    const gained = selfPlayer.jinnangHand.filter((id) => {
-      const at = prev.indexOf(id);
-      if (at < 0) return true;
-      prev.splice(at, 1);
-      return false;
-    });
-    prevHandRef.current = [...selfPlayer.jinnangHand];
-    for (let i = 0; i < gained.length; i++) getAudio().play("jinnangDraw");
-  }, [selfPlayer.jinnangHand]);
   // 托管态单源取值收口 useAutopilotOn(netStore):联机已入座=座位广播,单机=控制器本地
   // 标记(托管以在座为前提,未入座恒 false)。
   const autopilotOn = useAutopilotOn(controller);
@@ -404,7 +394,6 @@ function GameScreenLive({
     if (!interactive) return;
     if (targetStep != null) {
       if (!targets.canConfirm) return;
-      if (junshiPendingCard?.stage !== "two-a") getAudio().play("stamp");
       if (junshiPendingSkill != null) {
         dispatchCommand({ type: "useHeroSkill", ...junshiPendingSkill, targets: targets.selected });
       } else {
@@ -417,7 +406,6 @@ function GameScreenLive({
       return;
     }
     if (junshiSelected == null) return;
-    if (!selectedNeedsTarget) getAudio().play("stamp");
     dispatchCommand(
       isSkillOption(junshiSelected)
         ? {
@@ -481,9 +469,10 @@ function GameScreenLive({
   const reactionChoices = reactionChoicesForSeat(snapshot, selfSeat);
   const reactionUp =
     reactionChoices != null && reactionChoices.asked && !reactionChoices.answered && !autopilotOn;
-  const reactionScope = reactionUp
+  const reactionIdentity = reactionChoices?.asked
     ? JSON.stringify([snapshot.gameId, selfSeat, snapshot.pendingReaction!.seq])
     : null;
+  const reactionScope = reactionUp ? reactionIdentity : null;
   const turnScope = reactionTurnScope(snapshot);
   const bookPlayScope = junshiUp && !junshiTargeting ? turnScope : null;
   const bookPlayReady = interactive && !peeking && bookPlayScope !== null;
@@ -545,6 +534,11 @@ function GameScreenLive({
   }, [controller, interactive, reactionScope, reactMuted, selfSeat]);
 
   const reaction = reactionUp && !reactMuted ? snapshot.reaction : null;
+  const answerDeadlineAt =
+    reaction != null && interactive && !connDown && !preparing && !peeking
+      ? reactionDeadlineAt
+      : null;
+  useReactionReminder(reactionIdentity, answerDeadlineAt);
   const noticeOccupied = junshiUp || reaction != null;
   useLayoutEffect(() => {
     const { setNoticeSlotOccupied } = useFxStore.getState();
@@ -622,7 +616,7 @@ function GameScreenLive({
   const reactionShare = reactTargets.selected[0];
   const reactRespond = (use: boolean) => {
     if (!interactive) return;
-    if (use) getAudio().play("stamp");
+    getAudio().stop("reaction");
     dispatchCommand({
       type: "respondReaction",
       seat: selfSeat,
@@ -690,7 +684,6 @@ function GameScreenLive({
         onConfirm={() => {
           const target = skillPending.targetSeat ?? skillTarget;
           if (target == null) return; // 放逐未选目标:确认钮禁用态,到不了这(自门控)
-          getAudio().play("stamp"); // 落印音
           dispatchCommand({
             type: "respondSkillChoice",
             seat: selfSeat,
@@ -759,8 +752,7 @@ function GameScreenLive({
     !interactive;
 
   const game = (
-    <AudioProvider>
-      {/* 掷骰签演出宿主与 AudioProvider 同挂在对局屏,生命周期为一局。 */}
+    <>
       <DiceOverlay />
       <div
         className="game-layout relative h-full w-full overflow-hidden bg-bg text-paper"
@@ -1010,7 +1002,6 @@ function GameScreenLive({
             onConfirm={(heroId) => {
               if (!bookPlayReady) return;
               setBookPick(null);
-              getAudio().play("stamp");
               dispatchCommand({ type: "useBookSkill", treasureId: bookToRead.book.id, heroId });
             }}
             onClose={() => setBookPick(null)}
@@ -1033,7 +1024,6 @@ function GameScreenLive({
               snapshot.turnPhase !== "AwaitingBankruptcySettle"
             }
             onDismiss={(heroId) => {
-              getAudio().play("stamp");
               dispatchCommand({ type: "dismissHero", heroId });
             }}
           />
@@ -1110,7 +1100,7 @@ function GameScreenLive({
         {/* 竖屏手机「请横屏」提示层:常驻 DOM,显隐在 layout.css 媒询。 */}
         <RotateHintOverlay />
       </div>
-    </AudioProvider>
+    </>
   );
   return <DialogPeekContext.Provider value={dialogPeek.context}>{game}</DialogPeekContext.Provider>;
 }

@@ -7,6 +7,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@app/components/ui/dialog";
+import { getAudio } from "@app/fx/audio";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { RoundClose } from "@app/screens/shared/RoundClose";
 import { cn } from "@app/utils/cn";
@@ -48,7 +49,10 @@ export function GuohaoPicker({
                 key={ch}
                 data-testid={TID.guohaoChar(ch)}
                 aria-pressed={value === ch}
-                onClick={() => onChoose(ch)}
+                onClick={() => {
+                  if (value !== ch) getAudio().play("jinnangSelect");
+                  onChoose(ch);
+                }}
                 className={cn("su-pool-key font-brush", value === ch && "seal-gold")}
               >
                 {ch}

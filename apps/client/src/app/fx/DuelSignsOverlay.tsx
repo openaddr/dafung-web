@@ -286,8 +286,8 @@ async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
     if (!(await stillShowingAfter(DUEL.shakeMs))) return;
     // ── 依座位序错拍落定(数组序=座位升序,提取期已排;间隙=clackGap):每拍 diceLand 音 ──
     for (const [i, sign] of signs.entries()) {
-      stopShakers[i]();
       if (i > 0 && !(await stillShowingAfter(DUEL.clackGapMs))) return;
+      stopShakers[i]();
       landSign(sign);
     }
     // ── 判词拍:金圈/金「平」/震屏判点差(+己方加权,#760)──

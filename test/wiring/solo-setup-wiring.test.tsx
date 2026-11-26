@@ -3,11 +3,16 @@ import * as tauriApp from "@tauri-apps/api/app";
 import * as tauriCore from "@tauri-apps/api/core";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { setAudio } from "@app/fx/audio";
+import type { MapData } from "@dafung/core/engine/board-loader";
 import type { MapSource } from "@dafung/core/engine/map-source";
 import type { SetupConfig } from "@app/screens/setup/SoloSetupScreen";
 import { TID } from "@app/screens/setup/testids";
+import guanzhong from "../../packages/core/maps/guanzhong.json";
 import maps from "../../packages/core/maps/index.json";
+import zhongyuan from "../../packages/core/maps/zhongyuan.json";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { recordAudio } from "./record-audio";
 
 let setup: typeof import("@app/screens/setup/SoloSetupScreen");
 let container: HTMLDivElement;
@@ -35,6 +40,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
   localStorage.removeItem(setup.GUOHAO_PREF_KEY);
+  setAudio(null);
 });
 
 afterAll(async () => {
@@ -65,7 +71,46 @@ async function typeGuohao(value: string): Promise<void> {
   });
 }
 
+it("选图变更响一次纸扣，预选、重复点选与取消保持安静", async () => {
+  const sounds = recordAudio();
+  const previews = new Map<string, MapData>([
+    ["guanzhong", guanzhong as MapData],
+    ["zhongyuan", zhongyuan as MapData],
+  ]);
+  const onMapChange = mock((_mapId: string) => {});
+  await act(async () =>
+    root.render(
+      <setup.SoloSetupScreen
+        mapId="guanzhong"
+        mapSource={{
+          listMaps: mapSource.listMaps,
+          loadMapData: async (id) => {
+            const preview = previews.get(id);
+            if (preview === undefined) throw new Error(`缺少地图测试数据 ${id}`);
+            return preview;
+          },
+        }}
+        onStart={async () => true}
+        onBack={() => {}}
+        onMapChange={onMapChange}
+      />,
+    ),
+  );
+
+  await click(TID.selectMap);
+  await click(TID.mapItem("guanzhong"));
+  expect(sounds).toEqual([]);
+  await click(TID.mapItem("zhongyuan"));
+  expect(find(TID.mapItem("zhongyuan"))?.getAttribute("aria-pressed")).toBe("true");
+  expect(sounds).toEqual(["jinnangSelect"]);
+  await click(TID.mapItem("zhongyuan"));
+  await click(TID.mapCancel);
+  expect(sounds).toEqual(["jinnangSelect"]);
+  expect(onMapChange).not.toHaveBeenCalled();
+});
+
 it("关闭字盘保留手写国号，快选回填并在起兵成功后记为预设", async () => {
+  const sounds = recordAudio();
   const { SoloSetupScreen, GUOHAO_PREF_KEY } = setup;
   const onStart = mock(async (_config: SetupConfig) => true).mockResolvedValueOnce(false);
   const render = () => (
@@ -84,15 +129,21 @@ it("关闭字盘保留手写国号，快选回填并在起兵成功后记为预�
   await click(TID.guohaoClose);
   expect(find(TID.guohaoPool) === null).toBe(true);
   expect(guohaoInput().value).toBe("燕");
+  await click(TID.guohaoTrigger);
+  await click(TID.guohaoChar("燕"));
+  expect(sounds).toEqual([]);
 
   await click(TID.guohaoTrigger);
   await click(TID.guohaoChar("巴"));
   expect(find(TID.guohaoPool) === null).toBe(true);
   expect(guohaoInput().value).toBe("巴");
   expect(find(TID.seatRow(0))?.textContent).toContain("巴");
+  expect(sounds).toEqual(["jinnangSelect"]);
 
   await click(`${TID.seatCount}-minus`);
   await click(`${TID.target}-60000`);
+  await click(`${TID.target}-60000`);
+  expect(sounds).toEqual(["jinnangSelect", "jinnangSelect"]);
   await click(TID.startGame);
   expect(onStart).toHaveBeenCalledTimes(1);
   expect(onStart).toHaveBeenCalledWith({

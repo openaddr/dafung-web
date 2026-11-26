@@ -31,6 +31,38 @@ export interface MarchSegmentFrames {
  *  描边色缺失是提取侧 bug,不该靠渲染侧回退)。 */
 export type SkillFloatTone = { kind: "cast"; colorIndex: number } | { kind: "tag" };
 
+/** 同一结算的铜钱共用一个 cue 对象，先抵达者认领声音。 */
+export interface CashArrivalCue {
+  readonly event: "coin" | "cashTransfer";
+  readonly capitalRecruitment?: CapitalRecruitmentCue;
+}
+
+/** 正落己都城后，同一对局、回合和诸侯的招贤展纸接在补给声之后。 */
+export interface CapitalRecruitmentCue {
+  readonly gameId: string;
+  readonly turn: number;
+  readonly playerId: string;
+}
+
+export type CityDamageSound = "cityHit" | "cityBreach" | "cityConquest";
+
+export interface CashPresentationEvent {
+  kind: "cashDelta" | "supplyRain";
+  playerId: string;
+  amount: number;
+  /** 棋盘逻辑坐标，提取拍定格。 */
+  x: number;
+  y: number;
+  atTile: number | null;
+  /** 失银随浮字发声，进账随铜钱抵达。 */
+  sound?: "pay" | CashArrivalCue;
+  /** 火烧连营落定前先呈现到账金额，铜钱等代表城损起飞。 */
+  beforeFireWallImpact?: CashArrivalCue;
+}
+
+/** 显式指定钤定拍的音效，null 表示只呈现印章。 */
+export type SealSound = "stamp" | "buy" | "treasure" | "treasureStolen" | "bookSetDown" | null;
+
 /** 表现事件:数组顺序 = 播放顺序(present 串行 await)。宁可少而精,按两侧现有
  *  调用收口;新增表现 = 加判别分支,而不是在控制器里另起内联链。 */
 export type PresentationEvent =
@@ -45,29 +77,15 @@ export type PresentationEvent =
        *  #928/ADR-0044,无途经点;末段含落格槽位偏移)。播放器纯哑渲染,连棋盘对象都不摸。 */
       keyframes: MarchSegmentFrames[];
     }
-  | {
-      kind: "cashDelta";
-      playerId: string;
-      amount: number;
-      /** 棋盘逻辑坐标(SVG 系,提取期已按 旧优先级 锚定)。 */
-      x: number;
-      y: number;
-      /** 语义锚点(浮字发生在哪格;null=锚到玩家自身)。 */
-      atTile: number | null;
-    }
-  | {
-      kind: "supplyRain";
-      playerId: string;
-      amount: number;
-      x: number;
-      y: number;
-      atTile: number | null;
-    }
+  | CashPresentationEvent
   | {
       kind: "textFloat";
       playerId: string;
       /** 棋盘文案，如「城已满级,按兵不动」。 */
       text: string;
+      sound?: SoundEvent;
+      /** 无银两时，以补给回体的浮字声作为同一次招贤的前拍。 */
+      capitalRecruitment?: CapitalRecruitmentCue;
       x: number;
       y: number;
       atTile: number | null;
@@ -75,6 +93,14 @@ export type PresentationEvent =
        *  cast=主动技施展浮字升档(1.0× brush 字+玩家色细描边,colorIndex 提取拍烤定);
        *  tag=被动技名小签(短签浮现)。缺省=普通文案浮字(0.8× ink-dim)。 */
       skill?: SkillFloatTone;
+    }
+  /** 外敌乘虚只响最重城损，随后休整宣告随闷鼓出现。 */
+  | {
+      kind: "staminaExhausted";
+      x: number;
+      y: number;
+      text: string;
+      citySound: CityDamageSound | null;
     }
   | {
       kind: "sealStamped";
@@ -87,6 +113,7 @@ export type PresentationEvent =
       /** 印色档(S7 #513):缺省=朱砂深底(据/筑/驻);gold=漆金印(探宝拼点「得」),
        *  漆金化口径(#492:金印留给得/平语义,朱砂保留给危险/破产)。 */
       tone?: "gold";
+      sound?: SealSound;
     }
   /** 回合宣告(#762 元数据随事件烤定,ADR-0029 不变量①同族:guohao/色/轮次提取拍
    *  从引擎读定,播放期与槽泵合并判别零读引擎)。 */
@@ -94,8 +121,7 @@ export type PresentationEvent =
   /** 技能施展的金圈，以 heroSkillActivated 的施法者位置为锚点。 */
   | { kind: "landPulse"; tileIndex: number; x: number; y: number }
   | DuelSignsEvent
-  /** 都城路过必停全屏宣告(S7 #513):capitalHalt 事件的漆金横幅级宣告(与回合横幅
-   *  同语感、更高强度),haltGong 号角+震屏由 sink 同拍发起。 */
+  /** 都城路过必停的知会条带，初次出现时响短门闩。 */
   | {
       kind: "haltBanner";
       playerId: string;
@@ -119,7 +145,10 @@ export type PresentationEvent =
       playerId: string;
       cardId: string;
       lines: { x1: number; y1: number; x2: number; y2: number }[];
+      sound?: SoundEvent;
     }
+  /** 公开指示线的错位依据。本座提醒随可应答窗口发声。 */
+  | { kind: "reactionOpened" }
   /** 出技指示线(#1388 T2):城目标域主动技(fireBlast)的「施术者 → 目标城格」指向线
    *  ——出牌墨线同语系(heroSkillActivated 事件直译,event-extract 生产;渲染复用
    *  同一 sink 线件,生长→停持→淡出同节拍)。席位域技(relief/warDrum)无指向不出线,
@@ -149,12 +178,13 @@ export type PresentationEvent =
     }
   /** 语义音效(得宝/破产/扩军/买入等):不绑定视觉的纯声音事件。 */
   | { kind: "sound"; event: SoundEvent }
+  | { kind: "cityDamageSound"; event: CityDamageSound; fireWallCue?: CashArrivalCue }
   | { kind: "cityBurned"; tileIndex: number; marks: number }
   /** 城池宣告(ADR-0015):扩军/易主的可播放信号,字段 = 引擎结算留痕
    *  (PropertyChangeTrace)原样透传。消费端双路:sink.announceTileChange 经 fxStore
    *  下发 nonce 驱动 Tile 重播宣告动画;与 sealStamped 等"浮层印"不同,宣告动效
    *  (印重钤/楼生长/易主流光)锚在 Tile 本体,须由 Tile 订阅重播而非 FxLayer 叠加。 */
-  | ({ kind: "propertyChanged" } & PropertyChangeTrace);
+  | ({ kind: "propertyChanged"; sound?: "upgrade" | CityDamageSound | null } & PropertyChangeTrace);
 
 /** propertyChanged 事件的独立类型(FxSink.announceTileChange 的窄签名用)。 */
 export type PropertyChangedEvent = Extract<PresentationEvent, { kind: "propertyChanged" }>;
@@ -169,6 +199,7 @@ export interface CashFlyEvent {
   /** 来源锚点(棋盘逻辑坐标,提取拍烤定)。 */
   x: number;
   y: number;
+  arrivalCues?: readonly CashArrivalCue[];
 }
 
 /** 拼点签面（ADR-0030）。座位升序决定签位和同轮错拍落定顺序。 */
@@ -224,15 +255,15 @@ export interface FxSink {
   /** 回合宣告:刷新常驻回合胶囊(重挂重播入场过渡)。全幅横幅已退役(#958),
    *  无停留窗、无音效——回合切换信号=胶囊重挂+席位金圈。 */
   announceTurn(guohao: string, colorIndex: number, round: number): void;
-  /** 朱砂印章(含 stamp 音);坐标提取拍已烤进事件(qiqian 在到达同步点换算)。
+  /** 朱砂印章(默认立即播放印声);坐标提取拍已烤进事件(qiqian 在到达同步点换算)。
    *  tone="gold"=漆金印(S7 探宝「得」印)。 */
-  stampSeal(x: number, y: number, char: string, tone?: "gold"): void;
+  stampSeal(x: number, y: number, char: string, tone?: "gold", sound?: SealSound): void;
   /** 落格金圈一拍(#850 技能施展定音):同步下发 CSS 自走(坐标提取烤好)。 */
   landPulse(x: number, y: number): void;
   /** 拼点签面(#637,ADR-0030):全屏多签演出整场(幕启→摇→落→判词→渐出),
    *  await 到整幕收口——串行编排保证签面收场后棋盘后效才登场。 */
   showDuelSigns(ev: DuelSignsEvent): Promise<void>;
-  /** 都城停全屏宣告(S7):haltGong+震屏同拍,横幅经 fxStore 下发(动画 CSS 自走)。 */
+  /** 都城必停的条带经 fxStore 下发。 */
   showHaltBanner(ev: Extract<PresentationEvent, { kind: "haltBanner" }>): void;
   /** 破产仪式(S7):三拍串行编排(倒旗→墨渍→撒币),await 到仪式收口。 */
   bankruptCeremony(ev: Extract<PresentationEvent, { kind: "bankruptCeremony" }>): Promise<void>;

@@ -203,7 +203,10 @@ describe("SnapshotEffects 落后即校准:吸附重档(#610,ADR-0029 ③)", () =
   it("连续 N 批超线 → 第 N 块整块跳过(浮字不播、行军会话作废),其余块演出照播", async () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const fx = new SnapshotEffects(() => e);
+    const fx = new SnapshotEffects(
+      () => e,
+      () => null,
+    );
     // 同步入队 K 批:第 k 块出队时 gap = K-k+1(主尺机器时间)。连超长度 = K-gapBatches+1,
     // 须 ≥ consecutiveForSnap → K ≥ gapBatches+consecutiveForSnap(#730 再定标后 5+6=11):
     // 块 1..6 连续超线(第 6 块吸附),其后落回线下(浮字照播);
@@ -238,7 +241,10 @@ describe("SnapshotEffects 落后即校准:吸附重档(#610,ADR-0029 ③)", () =
   it("浅积压不升档:单批演出全量照播(判据不误触发)", async () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const fx = new SnapshotEffects(() => e);
+    const fx = new SnapshotEffects(
+      () => e,
+      () => null,
+    );
     const countersBefore = { ...catchupCounters };
     enqueueBatches(fx, [presentableBatch(e, 0, -1, true)]); // 单批:gap=1 在线下
     await drain(fx);
@@ -251,7 +257,10 @@ describe("SnapshotEffects 落后即校准:吸附重档(#610,ADR-0029 ③)", () =
   it("边界清待播队列:dropStalledBatch 作废未开播块(出队即弃),新批照常消费", async () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const fx = new SnapshotEffects(() => e);
+    const fx = new SnapshotEffects(
+      () => e,
+      () => null,
+    );
     enqueueBatches(fx, [presentableBatch(e, 0, -1, true), presentableBatch(e, 1, -2, false)]);
     fx.dropStalledBatch(); // 断线边界:同步打作废标记(先于任何出队微任务)
     await drain(fx);
@@ -264,7 +273,10 @@ describe("SnapshotEffects 落后即校准:吸附重档(#610,ADR-0029 ③)", () =
   it("resetEventFace 同款作废:事件面归零后新批(seq 撞号也不误判)照常消费", async () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const fx = new SnapshotEffects(() => e);
+    const fx = new SnapshotEffects(
+      () => e,
+      () => null,
+    );
     enqueueBatches(fx, [presentableBatch(e, 0, -1, false)]);
     fx.resetEventFace(); // 重连边界:netStore 归零 + 本器游标归零 + 待播块作废
     await drain(fx);

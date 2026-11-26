@@ -196,6 +196,10 @@ export const FX = {
   get haltHoldMs() {
     return scStage(1000);
   },
+  /** 城损重拍先起音，闷鼓随后贴休整宣告。 */
+  get exhaustionLeadMs() {
+    return scStage(170);
+  },
   /** 破产墨渍晕开动画全长(#885):fx.css fx-inkblot-bloom 时长经本值由 FxLayer
    *  消费点内联注入(keyframe 只管形不时刻度,随 e2e/追帧通道缩放)。 */
   get inkBloomMs() {
@@ -237,6 +241,8 @@ export const FX = {
   get cashFlyMs() {
     return scStage(450);
   },
+  /** 从真实抵达起留完补给声。归账铜钱裁剪约 182ms，最低播放倍率 0.92。 */
+  capitalSupplyHandoffMs: 200,
 } as const;
 
 /** 掷骰签节奏(#927,ADR-0043:掷骰签替代全屏签面,摇签换字/压暗幕/落点金圈退役;

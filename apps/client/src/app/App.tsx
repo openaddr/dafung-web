@@ -3,19 +3,30 @@
 // 联机流程(阶段 8):首页「联机模式」→ 占位图 + OnlineController
 // → LobbyScreen(建房/加入);开局由服务器首帧 snapshot
 // 驱动 online.ts 切 GameScreen(对照旧 main.ts enterOnline)。
-import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { loadMapById } from "@dafung/core/engine/map-source";
 import { getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";
 import { setController } from "@app/controllers/registry";
+import { AudioProvider } from "@app/fx/AudioProvider";
+import { getAudio } from "@app/fx/audio";
 import { returnHome } from "@app/screens/shared/return-home";
 import { useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
 import { HomeScreen } from "@app/screens/home/HomeScreen";
 import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupScreen";
-import { SoundBoard } from "@app/screens/dev/SoundBoard";
+import { SoundBoardPage } from "@app/screens/sound/SoundBoard";
+import { ConnectionFailureSound } from "@app/screens/shared/ConnectionBanner";
 import { HintBar } from "@app/screens/shared/HintBar";
 // R3-C2(#89) 屏间转场(#771 墨韵化:墨晕盖入+内容浮现):keyed 外壳动画与对局屏棋盘缓推的 keyframes 集中于此
 import "./styles/screen-transition.css";
@@ -57,6 +68,10 @@ export function App() {
   const pushHint = useGameStore((s) => s.pushHint);
   const hint = useGameStore((s) => s.hint);
   const hintLevel = useGameStore((s) => s.hintLevel);
+
+  useLayoutEffect(() => {
+    getAudio().stop("all");
+  }, [shownScreen]);
 
   // R3-B15(#87):当前屏显式挂到 body[data-screen],app.css 的宣纸纹理据此分场景取浓度
   // (菜单屏 0.45 纸感主角 / 对局屏 0.36 纹理退后让格线清晰)。
@@ -153,7 +168,7 @@ export function App() {
   // SPA 内 URL 不变,挂载时读一次即可。
   const [devSound] = useState(() => new URLSearchParams(location.search).get("dev") === "sound");
   let content: ReactNode = null;
-  if (devSound) return <SoundBoard />;
+  if (devSound) return <SoundBoardPage />;
 
   if (shownScreen === "lobby") {
     content = <LobbyScreen onExit={handleExitLobby} />;
@@ -198,7 +213,7 @@ export function App() {
       </div>
     );
   }
-  return (
+  const screens = (
     <div className="relative h-full w-full">
       {content !== null && (
         <div key={shownScreen} className="screen-in relative h-full w-full" inert={preparing}>
@@ -234,5 +249,11 @@ export function App() {
         </div>
       )}
     </div>
+  );
+  return (
+    <AudioProvider>
+      <ConnectionFailureSound />
+      {screens}
+    </AudioProvider>
   );
 }

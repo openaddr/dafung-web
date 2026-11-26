@@ -8,7 +8,7 @@ import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 beforeAll(ensureHappyDom);
 afterAll(releaseHappyDom);
 
-it("AudioContext 显示 running 但时钟停在零时，对局音效仍交给网页媒体播放", () => {
+it("AudioContext 时钟停零时仍用网页媒体播放，反应提醒发声时压低结算尾音", () => {
   class FrozenAudioContext {
     readonly state = "running";
     readonly currentTime = 0;
@@ -54,6 +54,8 @@ it("AudioContext 显示 running 但时钟停在零时，对局音效仍交给网
 
     getAudio().play("diceLand");
     getAudio().play("diceLand");
+    const tails = [...played];
+    const originalVolumes = tails.map((element) => element.volume);
     getAudio().play("reactionTick");
     expect(played.map((element) => element.getAttribute("src"))).toEqual([
       "/assets/audio/playback/woodblock-hit.ogg",
@@ -61,10 +63,19 @@ it("AudioContext 显示 running 但时钟停在零时，对局音效仍交给网
       "/assets/audio/playback/reaction-tick.ogg",
     ]);
     expect(played[0]).not.toBe(played[1]);
+    expect(tails.every((element, i) => element.volume < originalVolumes[i])).toBe(true);
+    played[2].dispatchEvent(new Event("ended"));
+    expect(tails.map((element) => element.volume)).toEqual(originalVolumes);
+    expect(tails.some((element) => paused.has(element))).toBe(false);
 
+    const arrive = getAudio().defer("diceLand");
     getAudio().setMuted(true);
-    expect(played.every((element) => element.muted)).toBe(true);
+    expect(tails.every((element) => paused.has(element) && !element.hasAttribute("src"))).toBe(
+      true,
+    );
     getAudio().play("diceLand");
+    getAudio().setMuted(false);
+    arrive();
     expect(played).toHaveLength(3);
     act(() => root.render(null));
     expect(played.every((element) => paused.has(element) && !element.hasAttribute("src"))).toBe(

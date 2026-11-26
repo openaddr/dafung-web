@@ -99,7 +99,13 @@ export type ReactionPayload =
       /** 本环打出的反应牌 id(目录唯一 counter=「识破诡计」)。 */
       cardId: string;
       /** 链根:被拆的原锦囊上下文(链终续根结算)。 */
-      root: { userSeat: number; cardId: string; targets: number[] };
+      root: {
+        userSeat: number;
+        cardId: string;
+        targets: number[];
+        /** 前序份已由反识破恢复，随根计执行一并宣告。 */
+        restoredShare?: true;
+      };
       /** 本环争夺的份(all-others 根=具体座位;one/self=其唯一份;连环计=整计,省略)。 */
       shareSeat?: number;
       /** 已定案的豁免份集(兄弟链累积;根结算并入 exempt)。 */
@@ -529,10 +535,8 @@ function settleChainCounterWindow(g: GameEngine, pr: PendingReaction, plays: Rea
 }
 
 /** 反识破链环站住(#571,ADR-0060):站住识破的否定生效——整计域(连环计/单份计)
- *  protect=true=作废/落空即终局,protect=false=计恢复照常执行;按份域(all-others
- *  座位份/one-city 城份,#1389)该份入豁免集(判定事件逐份落账,protect=false 的环
- *  不落账=该份照常受击)。兄弟链未清则续开下一环(牌已随根窗收窗扣账),清空后按根域
- *  收口执行。 */
+ *  protects=true 时整计落空或该份入豁免集。兄弟链未清则续开下一环，
+ *  恢复判词随根计实际执行发出。 */
 function settleCounterStands(
   g: GameEngine,
   payload: Extract<ReactionPayload, { kind: "counter" }>,
@@ -542,25 +546,20 @@ function settleCounterStands(
   const responderSeat = payload.userSeat;
   const responder = g.players[responderSeat];
   const perShare = rootDef.targetDomain === "all-others" || rootDef.targetDomain === "one-city";
-  if (!perShare) {
-    if (payload.protects) {
-      // 整计域:识破站住=作废(连环计缺角)/落空(单份计),终局(宣告走 jinnangVoided 事件,fx 面文案浮字)
-      const verdict = rootDef.targetDomain === "two-others" ? "作废" : "落空";
-      const detail =
-        rootDef.targetDomain === "two-others"
-          ? `reactionCounter card=${rootDef.id} by=${responder.id} voided=all`
-          : `reactionCounter card=${rootDef.id} by=${responder.id} share=${g.players[payload.shareSeat!].id}`;
-      g.logEvent(
-        "system",
-        responder.guohao,
-        `${responder.guohao} 识破【${rootDef.id}】,此计${verdict}`,
-        detail,
-      );
-      emitGameEvent(g, responderSeat, { kind: "jinnangVoided", cardId: rootDef.id });
-      g.settleJinnangExit();
-      return;
-    }
-    g.executeJinnang(g.players[root.userSeat], root.userSeat, rootDef, root.targets); // 本环被反:计恢复
+  if (!perShare && payload.protects) {
+    // 整计域:识破站住=作废(连环计缺角)/落空(单份计),终局(宣告走 jinnangVoided 事件,fx 面文案浮字)
+    const verdict = rootDef.targetDomain === "two-others" ? "作废" : "落空";
+    const detail =
+      rootDef.targetDomain === "two-others"
+        ? `reactionCounter card=${rootDef.id} by=${responder.id} voided=all`
+        : `reactionCounter card=${rootDef.id} by=${responder.id} share=${g.players[payload.shareSeat!].id}`;
+    g.logEvent(
+      "system",
+      responder.guohao,
+      `${responder.guohao} 识破【${rootDef.id}】,此计${verdict}`,
+      detail,
+    );
+    emitGameEvent(g, responderSeat, { kind: "jinnangVoided", cardId: rootDef.id });
     g.settleJinnangExit();
     return;
   }
@@ -588,6 +587,7 @@ function settleCounterStands(
     payload.protects && payload.shareSeat != null
       ? [...payload.negated, payload.shareSeat]
       : [...payload.negated];
+  const restored = !payload.protects || root.restoredShare === true;
   if (payload.upcoming.length > 0) {
     const next = payload.upcoming[0]!;
     announceCounterLink(
@@ -595,19 +595,20 @@ function settleCounterStands(
       next.seat,
       next.cardId,
       next.shareSeat,
-      root,
+      restored ? { ...root, restoredShare: true } : root,
       negated,
       payload.upcoming.slice(1),
       true,
     );
     return;
   }
+  if (restored) emitGameEvent(g, root.userSeat, { kind: "jinnangRestored", cardId: rootDef.id });
   g.executeJinnang(
     g.players[root.userSeat],
     root.userSeat,
     rootDef,
     root.targets,
-    new Set(negated),
+    perShare ? new Set(negated) : undefined,
   );
   g.settleJinnangExit();
 }

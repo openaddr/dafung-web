@@ -8,6 +8,7 @@ export const HOME_TID = {
   manual: "home-manual",
   // #707 矮横屏档横排条带(替代二级选图弹层的首页内联选择器)
   mapStrip: "home-map-strip",
+  soundAudition: "home-sound-audition",
   diagExport: "home-diag-export",
   mapStripItem: (id: string) => `home-map-strip-item-${id}`,
 } as const;

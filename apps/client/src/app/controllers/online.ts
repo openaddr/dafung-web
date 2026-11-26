@@ -371,6 +371,7 @@ export class OnlineController extends GameController {
       }
       this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
       this.applyRoomFields(msg);
+      if (this.connectionStatus === "calibrating") this.resetReactionTiming();
       this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
       this.setConnectionStatus("open");
       this.pending = false;

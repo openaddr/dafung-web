@@ -3,6 +3,7 @@
 // 交易条件与结算预览、成交钮同处固定 footer。
 import { useState, type ReactNode } from "react";
 import { Button } from "@base-ui/react/button";
+import { getAudio } from "@app/fx/audio";
 import { PileShell, PileZone, treasureFace } from "./PileModal";
 import type { SnapshotTreasure } from "@app/store/gameStore";
 import "./pile-modal.css";
@@ -108,7 +109,11 @@ export function TreasurePickModal({
               key={t.id}
               data-testid={testids.item(t.id)}
               aria-pressed={sel}
-              onClick={() => setPickedId(t.id)}
+              onClick={() => {
+                if (sel) return;
+                setPickedId(t.id);
+                getAudio().play("jinnangSelect");
+              }}
               className={"pile-cell treasure-pick-cell" + (sel ? " treasure-pick-sel" : "")}
             >
               {treasureFace(t)}

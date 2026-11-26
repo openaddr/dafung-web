@@ -6,7 +6,7 @@
 // 一旁看盘面,旧判词「横幅是宣告件,无常驻需求」废止。拖拽逻辑单源在
 // hooks/use-dialog-drag(与 ui/dialog 底件系同一份),本壳只接三处:题行挂把手、
 // 壳体 transform 消费 --drag-x/--drag-y、遮罩随拖离中心减淡(色值单源在 hook)。
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 // #174:焦点陷阱收编为 shared/DialogFocusScope(2026-09-12 起为自研实现,无第三方依赖)
 import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
 // #846 正文井内滚换 ui/scroll-area 底件(#708 现成件):keepMounted 漆金轨道 +
@@ -15,7 +15,6 @@ import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { Button } from "@base-ui/react/button";
 import "./banner.css";
-import { getAudio } from "@app/fx/audio";
 // 题名拖动(#674,ADR-0031):原语单源与遮罩色值单源都在 hook 文件
 import {
   OVERLAY_TINT,
@@ -93,10 +92,6 @@ export function BannerShell({
   bodyKey,
   className,
 }: BannerShellProps) {
-  useEffect(() => {
-    getAudio().play("scrollOpen");
-  }, []);
-
   // 题名拖动(#674):壳体即变量宿主;题名更替 = 内容换新(#90 内容身份由题名承载),
   // 位置随 resetKey 回中心。
   const shellRef = useRef<HTMLDivElement | null>(null);

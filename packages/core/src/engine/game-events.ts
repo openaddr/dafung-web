@@ -19,7 +19,12 @@ import type { LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
 import type { ReactionCardSpend, ReactionView } from "./reaction-window";
 import type { MovePath } from "./board";
-import type { CityDamageEntry } from "./city-damage";
+import type {
+  CityDamageEntry,
+  CityDamageImpact,
+  CityDamageOrigin,
+  CityRewardReceipt,
+} from "./city-damage";
 import type { CityBurning } from "./model";
 import { findHolding } from "./player";
 import { heroSlotOf } from "./roster";
@@ -145,8 +150,17 @@ export interface PropertyDamagedBody {
   propertyId: string;
   level: number;
   defense: number;
+  impact: CityDamageImpact;
+  origin: CityDamageOrigin;
   burning: CityBurning | null;
   damageRanking: readonly CityDamageEntry[];
+}
+/** 一张火烧连营实际造成的最重城损。首处攻陷发生时即落定，其他结果等余城结清。 */
+export interface FireWallImpactBody {
+  kind: "fireWallImpact";
+  castSeq: number;
+  propertyId: string;
+  impact: CityDamageImpact;
 }
 /** 燃烧计时独立变化；seat 为当前城主。 */
 export interface PropertyBurningChangedBody {
@@ -174,6 +188,7 @@ export interface CashChangedBody {
   delta: number;
   reason: string;
   counterpartSeat?: number;
+  cityReward?: CityRewardReceipt;
 }
 /** 得宝(拼点探宝/交割收货)。 */
 export interface TreasureGainedBody {
@@ -219,6 +234,7 @@ export interface AssetTransferredBody {
   kind: "assetTransferred";
   propertyId: string;
   toSeat: number | null;
+  conquest?: CityDamageOrigin;
 }
 /** 招贤得将(三送将路经授技单点入槽;heroId=名将 id,skillIds=本次授技=权威态,
  *  客户端折叠据此建槽、不得自行重掷——掷骰在权威侧,票 #787)。 */
@@ -340,6 +356,8 @@ export interface StaminaChangedBody {
   kind: "staminaChanged";
   delta: number;
   reason: string;
+  /** 归零一击的表现随耗竭结算，待决技能可能把两者分到不同批。 */
+  depletes?: true;
 }
 /** 消费跳过次数后记录该回合的编号。seat 为被跳过者。 */
 export interface TurnSkippedBody {
@@ -352,6 +370,7 @@ export interface ExhaustionResolvedBody {
   sourceSeat: number | null;
   downgradedPropertyIds: string[];
   lostPropertyIds: string[];
+  strongestImpact: CityDamageImpact | null;
   restTurns: number;
 }
 /** 锦囊宣布(出牌扣账后、识破窗开窗前;targetSeats=受影响份清单)。 */
@@ -402,6 +421,11 @@ export interface JinnangVoidedBody {
   cardId: string;
   shareSeat?: number;
 }
+/** 反识破使整计或其中一份恢复，随根计实际执行发出。seat=原锦囊使用者。 */
+export interface JinnangRestoredBody {
+  kind: "jinnangRestored";
+  cardId: string;
+}
 /** 中招宣告(#385 缺口 5,缓兵之计):效果落账点产出——seat=用计者,targetSeat=中招者
  *  (fx 锚中招者位置出文案;下回合实际跳过另有 turnSkipped 相邻宣告)。 */
 export interface JinnangInflictedBody {
@@ -439,6 +463,7 @@ export type GameEventBody =
   | PropertyBoughtBody
   | PropertyUpgradedBody
   | PropertyDamagedBody
+  | FireWallImpactBody
   | PropertyBurningChangedBody
   | PropertyBurningTickedBody
   | PropertyRejectedBody
@@ -472,6 +497,7 @@ export type GameEventBody =
   | ReactionFailedBody
   | DuelResolvedBody
   | JinnangVoidedBody
+  | JinnangRestoredBody
   | JinnangInflictedBody
   | PeekAppliedBody;
 
@@ -497,6 +523,7 @@ export const GAME_EVENT_KINDS = [
   "propertyBought",
   "propertyUpgraded",
   "propertyDamaged",
+  "fireWallImpact",
   "propertyBurningChanged",
   "propertyBurningTicked",
   "propertyRejected",
@@ -529,6 +556,7 @@ export const GAME_EVENT_KINDS = [
   "reactionFailed",
   "duelResolved",
   "jinnangVoided",
+  "jinnangRestored",
   "jinnangInflicted",
   "peekApplied",
 ] as const satisfies readonly GameEvent["kind"][];

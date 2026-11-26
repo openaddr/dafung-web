@@ -1,5 +1,5 @@
 // 组件收口:全屏终局沿用 DialogFocusScope 与 BannerButton。
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { VictoryReason } from "@dafung/core/engine/authority";
 import type { Board } from "@dafung/core/engine/board";
 import type { MapCatalog } from "@dafung/core/engine/board-loader";
@@ -7,7 +7,7 @@ import { heroById } from "@dafung/core/engine/heroes";
 import { formatMoney } from "@dafung/core/engine/money";
 import { rgba, playerColor } from "@dafung/core/engine/theme";
 import { Lihui } from "@app/components/card/HeroCardFace";
-import { getAudio } from "@app/fx/audio";
+import { useFxStore } from "@app/fx/fxStore";
 import { finishPresentation } from "@app/fx/orchestrator";
 import { UI } from "@app/fx/timings";
 import { usePrefersReducedMotion } from "@app/hooks/use-media-query";
@@ -19,6 +19,7 @@ import { SCROLL_TESTIDS as T } from "./testids";
 import "./victory.css";
 
 type VictoryResult = {
+  gameId: string;
   winReason: Exclude<VictoryReason, "None" | "aborted">;
   winner: SnapshotPlayer;
   players: SnapshotPlayer[];
@@ -212,6 +213,8 @@ export const VictoryScreen = memo(function VictoryScreen(props: VictoryScreenPro
   const revealImmediately = !aborted && reducedMotion;
   const [actionsReady, setActionsReady] = useState(false);
   const showActions = actionsReady || revealImmediately;
+  const gameId = aborted ? null : props.gameId;
+  const playTheme = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (actionsReady) return;
     if (revealImmediately) {
@@ -223,19 +226,15 @@ export const VictoryScreen = memo(function VictoryScreen(props: VictoryScreenPro
     const timer = window.setTimeout(() => setActionsReady(true), delay);
     return () => window.clearTimeout(timer);
   }, [aborted, revealImmediately, actionsReady]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     finishPresentation();
-    if (aborted) return;
-    // 鼓点起势、朱印落定时鸣锣、号角接棒。系统动效偏好变化不重放音组。
-    const audio = getAudio();
-    audio.play("victoryDrum");
-    const stampT = window.setTimeout(() => audio.play("stamp"), 450);
-    const fanfareT = window.setTimeout(() => audio.play("victory"), 700);
-    return () => {
-      window.clearTimeout(stampT);
-      window.clearTimeout(fanfareT);
-    };
-  }, [aborted]);
+    const fx = useFxStore.getState();
+    const presentation = fx.victoryPresentation;
+    if (presentation?.phase !== "scroll" || presentation.gameId !== gameId) return;
+    fx.setVictoryPresentation(null);
+    playTheme.current = presentation.playTheme;
+    presentation.playDrum();
+  }, [gameId]);
 
   if (props.winReason === "aborted") {
     return (
@@ -309,7 +308,21 @@ export const VictoryScreen = memo(function VictoryScreen(props: VictoryScreenPro
                     >
                       {winner.guohao}称帝
                     </p>
-                    <span className="victory-stamp-seal font-title" aria-hidden="true">
+                    <span
+                      className="victory-stamp-seal font-title"
+                      data-testid={T.victorySeal}
+                      aria-hidden="true"
+                      onAnimationEnd={(event) => {
+                        if (
+                          event.target !== event.currentTarget ||
+                          event.animationName !== "victory-stamp-in"
+                        )
+                          return;
+                        const play = playTheme.current;
+                        playTheme.current = null;
+                        play?.();
+                      }}
+                    >
                       {Array.from(winner.guohao)[0]}
                     </span>
                   </div>

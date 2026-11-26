@@ -258,6 +258,7 @@ export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapsh
     reaction: s.reaction != null ? redactReactionView(s.reaction, seat) : s.reaction,
     pendingMoment: undefined, // 续作只由权威驱动，客户端消费公开的技能选择事件。
     pendingExtraTurn: undefined, // 客户端按回合事件推进。
+    fireWallSeq: undefined, // 分配编号由权威端负责，客户端读城损和归账事件中的编号。
     events: redactEvents(s.events, seat),
     log: s.log.map(projectGameLogLine),
   };
@@ -307,7 +308,7 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *      是公开信息);
  *    · 锦囊族 jinnangReshuffled(座位+洗回张数:弃堆本明置、洗回张数公开,洗后牌序不外传——
  *      比 ADR-0016 保密口径只少不多)/
- *      jinnangAnnounced(出牌本就公开宣布)/jinnangVoided/jinnangInflicted/
+ *      jinnangAnnounced(出牌本就公开宣布)/jinnangVoided/jinnangRestored/jinnangInflicted/
  *      reactionAnswered(应答逐条公开记入战报——ADR-0016「应答记录不裁」,use=false
  *      无手牌信息,use=true 的牌已面明打出)/reactionFailed/
  *      duelResolved(#636/ADR-0030:拼点本就公开信息,座位/点数/胜者全员同见);
@@ -354,6 +355,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "propertyBought":
       case "propertyUpgraded":
       case "propertyDamaged":
+      case "fireWallImpact":
       case "propertyBurningChanged":
       case "propertyBurningTicked":
       case "propertyRejected":
@@ -385,6 +387,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "reactionFailed":
       case "duelResolved": // 参与座位、点数与胜者均公开
       case "jinnangVoided":
+      case "jinnangRestored":
       case "jinnangInflicted":
         return ev;
       default: {

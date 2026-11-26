@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getAudio } from "@app/fx/audio";
 import { TargetActionBar, TargetActionButton } from "./TargetActionBar";
 import { TESTIDS } from "./testids";
@@ -18,6 +18,70 @@ interface ReactionBannerProps {
 }
 
 const ARC_R = 15;
+const REACTION_REMINDER_LEAD_MS = 3000;
+
+/** 跟本座的实际问询计时。作用域保留到权威换窗，重连和暂锁时撤掉在途提醒。 */
+export function useReactionReminder(scope: string | null, answerDeadlineAt: number | null): void {
+  const current = useRef<{
+    scope: string;
+    opened: boolean;
+    armed: boolean;
+    warned: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    const audio = getAudio();
+    if (scope !== (current.current?.scope ?? null)) {
+      audio.stop("reaction");
+      current.current =
+        scope === null ? null : { scope, opened: false, armed: false, warned: false };
+    }
+    const reminder = current.current;
+    if (reminder === null) return;
+    let timeout: ReturnType<typeof setTimeout>;
+    const update = () => {
+      clearTimeout(timeout);
+      const hidden = document.visibilityState === "hidden";
+      if (hidden) reminder.opened = true;
+      if (hidden || answerDeadlineAt === null) {
+        reminder.armed = false;
+        audio.stop("reaction");
+        return;
+      }
+      const remaining = answerDeadlineAt - performance.now();
+      if (remaining <= 0) {
+        reminder.armed = false;
+        audio.stop("reaction");
+        return;
+      }
+      if (!reminder.opened) {
+        reminder.opened = true;
+        audio.play("reactionOpen");
+      }
+      if (remaining > REACTION_REMINDER_LEAD_MS && !reminder.warned) {
+        reminder.armed = true;
+        timeout = setTimeout(update, Math.max(1, remaining - REACTION_REMINDER_LEAD_MS));
+        return;
+      }
+      if (reminder.armed) {
+        reminder.armed = false;
+        reminder.warned = true;
+        audio.play("reactionTick");
+      }
+      timeout = setTimeout(update, Math.max(1, remaining));
+    };
+    const onVisibilityChange = () => {
+      reminder.armed = false;
+      update();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    update();
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearTimeout(timeout);
+    };
+  }, [scope, answerDeadlineAt]);
+}
 
 /** 倒计时从当前窗已过的时刻开始。 */
 export function ReactionBanner({
@@ -39,15 +103,10 @@ export function ReactionBanner({
   const [seconds, setSeconds] = useState(() => Math.ceil((durationMs - elapsedMs) / 1000));
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
-    let previous: number | undefined;
     const beat = () => {
       const remain = Math.max(0, deadlineAt - performance.now());
       const secs = Math.ceil(remain / 1000);
       setSeconds(secs);
-      if (previous != null && secs > 0 && secs <= 5 && secs < previous) {
-        getAudio().play("reactionTick");
-      }
-      previous = secs;
       if (secs > 0) timeout = setTimeout(beat, Math.max(1, remain - (secs - 1) * 1000));
     };
     beat();

@@ -194,8 +194,11 @@
   min-height: 54px;
 }
 
-.home-diagnostic {
-  justify-self: center;
+.home-tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-width: var(--touch-target);
   min-height: var(--touch-target);
   padding-inline: 8px;

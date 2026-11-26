@@ -10,6 +10,7 @@ import { formatMoney } from "@dafung/core/engine/money";
 import type { SnapshotTreasure } from "@app/store/gameStore";
 import { TreasureArt } from "@app/components/card/TreasureArt";
 import { treasureArtId } from "@app/components/card/treasure-art";
+import { getAudio } from "@app/fx/audio";
 import { cn } from "@app/utils/cn";
 import { Sym } from "@app/screens/shared/Sym";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
@@ -97,6 +98,7 @@ export function BankruptcyScroll({
         price: group.price,
       },
     ]);
+    getAudio().play("jinnangSelect");
   };
   const decrease = (group: SaleGroup) => {
     // 只撤回本组最后加选的一件,保留其他组与剩余实物的顺序。

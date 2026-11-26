@@ -64,6 +64,12 @@ export abstract class GameController {
   destroy(): void {
     finishGameDiagnostics(this);
     this.unsubMarching?.();
+    this.discardPresentation();
+  }
+
+  /** 离开或恢复前台时，客户端从当前局面继续演出。 */
+  discardPresentation(): void {
+    this.fx.dropStalledBatch();
   }
 
   get diagnosticInteraction(): Pick<
@@ -88,10 +94,10 @@ export abstract class GameController {
   protected pending = false;
   /** 是否已收首帧整房摘要(入局):起签转入沿检测在此之前不启用。 */
   protected enteredGame = false;
-  /** 事件批表现消费器:骰子/行军/浮字等演出串行播放(播放队列与到达序游标封装在
-   *  内)。两控制器构造同构(引擎 getter + sync 回灌),收归基类单份。 */
+  /** 事件批表现消费器。两种模式共用本座身份和串行播放通路。 */
   protected readonly fx = new SnapshotEffects(
     () => this.engine,
+    () => this.mySeat,
     () => this.sync(),
   );
   /** 上一拍是否处于「我的 Roll 等待态」(起签印的转入沿检测基准)。 */
@@ -198,6 +204,11 @@ export abstract class GameController {
   }
 
   private reactionDeadline: { gameId: string; seq: number; deadlineAt: number } | null = null;
+
+  /** 恢复摘要重新登记当前窗时，先清除上一连接观测到的时刻。 */
+  protected resetReactionTiming(): void {
+    this.reactionDeadline = null;
+  }
 
   /** 到达时投影为本机单调时刻。后续同窗消息只会收紧时限。 */
   protected observeReactionTiming(timing: ReactionTiming | undefined, receivedAt: number): void {

@@ -55,8 +55,8 @@ export const EVENT_TIERS = {
   // ── 回合/胜负族 ──
   gameStarted: {
     fold: "must-fold",
-    fx: "silent",
-    why: "开局批锚:phase=Playing+首动者 activeIndex/roundAnchor,折叠即精确",
+    fx: "presented",
+    why: "开局批锚同步 Playing、首动者与轮次锚点，起兵主题随开局响起",
   },
   setupCompleted: {
     fold: "calibration-only",
@@ -77,8 +77,8 @@ export const EVENT_TIERS = {
   roundEnded: { fold: "must-fold", fx: "silent", why: "轮次锚点主体(roundAnchor)" },
   gameOver: {
     fold: "must-fold",
-    fx: "presented",
-    why: "终局:isOver/winner/winReason/phase/turnPhase;表现=胜利音;异常终局(reason=aborted #642)不播胜利音——作废面板由快照 GameOver 相位驱动挂载,非事件演出",
+    fx: "silent",
+    why: "终局同步胜者、缘由与相位，终局画面和胜利声由卷轴收口",
   },
   // ── 掷骰/行军族 ──
   diceRolled: {
@@ -119,8 +119,13 @@ export const EVENT_TIERS = {
   },
   propertyDamaged: {
     fold: "must-fold",
-    fx: "silent",
-    why: "以权威结算后的城池等级、防御值、燃烧和伤害排行榜更新持有记录",
+    fx: "presented",
+    why: "更新持有记录，按实际扣防、打空都城和降级及其来源呈现",
+  },
+  fireWallImpact: {
+    fold: "declarative",
+    fx: "presented",
+    why: "随施放编号公布最重实际城损，续接同一次火烧连营的逐城归账",
   },
   propertyBurningChanged: {
     fold: "must-fold",
@@ -270,7 +275,12 @@ export const EVENT_TIERS = {
   jinnangVoided: {
     fold: "declarative",
     fx: "presented",
-    why: "份或整计作废宣告，反应锦囊已随最终应答扣账；表现为识破线和浮字",
+    why: "份、整计或链环作废宣告，反应锦囊已随最终应答扣账；份或整计作废随识破线和浮字发声",
+  },
+  jinnangRestored: {
+    fold: "declarative",
+    fx: "presented",
+    why: "根锦囊实际执行前宣布反识破恢复；效果随其自身事件折叠，表现为短回音",
   },
   jinnangInflicted: {
     fold: "must-fold",
@@ -301,8 +311,8 @@ export const EVENT_TIERS = {
   },
   bankruptcySettled: {
     fold: "must-fold",
-    fx: "silent",
-    why: "清偿完成:清待偿债务与交涉,按交割及现金技能结算后的绝对余额落双方现金,避免与 treasureTraded 重复计款",
+    fx: "presented",
+    why: "清偿完成:清待偿债务与交涉,按交割及现金技能结算后的绝对余额落双方现金,避免与 treasureTraded 重复计款;表现=清偿响一次账册合拢,同次交割沿用铜钱交接",
   },
 } as const satisfies {
   readonly [K in GameEventBody["kind"]]: EventTier;

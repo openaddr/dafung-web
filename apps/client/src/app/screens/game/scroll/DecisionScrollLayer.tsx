@@ -3,13 +3,15 @@
 // 命令统一经 controller.dispatchCommand 下发——组件不直接改引擎,与旧 openScroll 体系同构。
 // Wave3(候选5):不再 import getEngine 摸活引擎,城名/地产定义经 getControllerContext。
 // 挂载于 GameScreen #scroll-layer(absolute 覆盖,pointer-events 由各弹层自身开启)。
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { GameCommand } from "@dafung/core/engine/authority";
 import { sellValueOf, type CityTier } from "@dafung/core/engine/economy";
 import { tileIndexOfProperty } from "@dafung/core/engine/board";
 import { Theme } from "@dafung/core/engine/theme";
 import { useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
+import { getAudio } from "@app/fx/audio";
+import { playRecruitmentAfterSupply } from "@app/fx/capital-supply-audio";
 import { useFxStore } from "@app/fx/fxStore";
 import { checkpointGameDiagnostics } from "@app/game-diagnostics";
 import { gameArchiveFailureText } from "@app/game-diagnostic-record";
@@ -144,7 +146,10 @@ export function DecisionScrollLayer({
   // 胜利屏(终榜)的 memo 前提;players 稳定后,弹层各自的值等比较才有着落。
   const players = useStablePlayers(snapshot.players);
   const restarting = useRef(false);
-  const victoryDuelPending = useFxStore((state) => state.victoryDuelGameId === snapshot.gameId);
+  const victoryPreludePending = useFxStore(
+    ({ victoryPresentation }) =>
+      victoryPresentation?.phase === "prelude" && victoryPresentation.gameId === snapshot.gameId,
+  );
   const [restartError, setRestartError] = useState<string | null>(null);
   const restartGame = useCallback(() => {
     if (restarting.current) return;
@@ -181,7 +186,7 @@ export function DecisionScrollLayer({
       if (snapshot.winReason === "aborted") {
         return <VictoryScreen key={snapshot.gameId} winReason="aborted" onRestart={restartGame} />;
       }
-      if (victoryDuelPending) return null;
+      if (victoryPreludePending) return null;
       const winner = players.find((p) => p.id === snapshot.winner);
       if (winner === undefined || snapshot.winReason === "None") {
         throw new Error("终局快照缺胜者或胜因");
@@ -189,6 +194,7 @@ export function DecisionScrollLayer({
       return (
         <VictoryScreen
           key={snapshot.gameId}
+          gameId={snapshot.gameId}
           winner={winner}
           players={players}
           round={snapshot.round}
@@ -345,6 +351,38 @@ export function DecisionScrollLayer({
   })();
 
   const scope = tileDetail !== null && !tileDetail.pickCapital ? null : decisionKey;
+  const visibleDecision =
+    scope !== null &&
+    child !== null &&
+    !parked &&
+    (tileDetail?.pickCapital === true || (interactive && viewSeat === snapshot.decisionOwner));
+  // 同一抉择可短暂收起、失去操作权或被详情盖住，展纸声跟首次呈现走。
+  const announcedDecision = useRef<string | null>(null);
+  const visibleDecisionKey = visibleDecision ? decisionKey : null;
+  const currentDecision = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    currentDecision.current = visibleDecisionKey;
+    return () => {
+      currentDecision.current = null;
+    };
+  }, [visibleDecisionKey]);
+  const { gameId, turnNumber, turnPhase } = snapshot;
+  const playerId = players[viewSeat]?.id;
+  useEffect(() => {
+    if (decisionKey === null) announcedDecision.current = null;
+    if (visibleDecisionKey === null || announcedDecision.current === visibleDecisionKey) return;
+    announcedDecision.current = visibleDecisionKey;
+    const audio = getAudio();
+    if (turnPhase === "AwaitingHeroPick") {
+      if (playerId === undefined) throw new Error("招贤展开时缺少当前座位");
+      const play = audio.defer("scrollOpen");
+      playRecruitmentAfterSupply({ gameId, turn: turnNumber, playerId }, () => {
+        if (currentDecision.current === visibleDecisionKey) play();
+      });
+    } else {
+      audio.play("scrollOpen");
+    }
+  }, [decisionKey, visibleDecisionKey, gameId, turnNumber, turnPhase, playerId]);
 
   if (!map || !ctx) return null;
 

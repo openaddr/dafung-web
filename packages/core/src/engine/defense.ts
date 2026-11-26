@@ -2,7 +2,13 @@
 import type { GameEngine } from "./authority";
 import { tileIndexOfProperty } from "./board";
 import { planCityConquest } from "./city-conquest";
-import { planCityDamageReward, recordCityDamage, type CityReward } from "./city-damage";
+import {
+  planCityDamageReward,
+  recordCityDamage,
+  type CityDamageImpact,
+  type CityDamageOrigin,
+  type CityReward,
+} from "./city-damage";
 import { INITIAL_CITY_LEVEL, MAX_CITY_LEVEL } from "./constants";
 import type { PropertyDef } from "./economy";
 import { emitGameEvent } from "./game-events";
@@ -71,12 +77,15 @@ export type CityDamageOutcome =
 
 export interface CityDamageSettlement {
   outcome: CityDamageOutcome;
+  impact: CityDamageImpact | null;
   rewards: CityReward[];
 }
 
+type DirectFire = Extract<CityDamageOrigin, "fireBlast" | "fireWall">;
+
 type CityDamageSource =
   | { kind: "normal"; player: Player | null }
-  | { kind: "directFire"; player: Player }
+  | { kind: DirectFire; player: Player }
   | { kind: "burning"; player: Player; remaining: CityBurning | null };
 
 /** 扣防并定下归属和奖励，调用侧续接得银和城损时机。 */
@@ -97,8 +106,9 @@ export function applyDirectFireDamage(
   propertyId: string,
   damage: number,
   source: Player,
+  kind: DirectFire,
 ): CityDamageSettlement {
-  return settleCityDamage(g, victim, propertyId, damage, { kind: "directFire", player: source });
+  return settleCityDamage(g, victim, propertyId, damage, { kind, player: source });
 }
 
 /** 扣防与消耗标记一同落账，银两及得银时机由回合收尾逐笔结清。 */
@@ -135,14 +145,14 @@ function settleCityDamage(
       throw new Error(
         `applyCityDamage:城 ${propertyId} 防御为 0 但非打空都城(等级=${h.level},都城=${isCapital})`,
       );
-    return { outcome: { kind: "absorbed", propertyId, tileIndex }, rewards: [] };
+    return { outcome: { kind: "absorbed", propertyId, tileIndex }, impact: null, rewards: [] };
   }
   const actualDamage = Math.min(damage, h.defense);
   h.defense -= actualDamage;
   const breached = h.defense === 0;
   if (breached) {
     h.burning = null;
-  } else if (damageSource.kind === "directFire") {
+  } else if (damageSource.kind === "fireBlast" || damageSource.kind === "fireWall") {
     const previous = h.burning;
     h.burning = {
       sourceSeat: g.players.indexOf(damageSource.player),
@@ -170,16 +180,25 @@ function settleCityDamage(
   const attackerSeat =
     source !== null && source !== victim && !source.isBankrupt ? g.players.indexOf(source) : null;
   if (attackerSeat !== null) recordCityDamage(h, attackerSeat, actualDamage);
+  const lost = h.defense === 0 && !isCapital;
+  const impact = lost
+    ? "conquest"
+    : demolished
+      ? "demolished"
+      : breached
+        ? "capitalBreached"
+        : "hit";
   emitGameEvent(g, ownerSeat, {
     kind: "propertyDamaged",
     propertyId,
     level: h.level,
     defense: h.defense,
+    impact,
+    origin: damageSource.kind,
     burning: h.burning,
     damageRanking: h.damageRanking,
   });
 
-  const lost = h.defense === 0 && !isCapital;
   const conquest = lost ? planCityConquest(g, ownerSeat, h, attackerSeat, tileIndex) : null;
   if (conquest !== null) {
     const newOwner = conquest.toSeat === null ? null : g.players[conquest.toSeat];
@@ -195,7 +214,12 @@ function settleCityDamage(
       levelChanged: false,
       ownerChanged: true,
     });
-    emitGameEvent(g, ownerSeat, { kind: "assetTransferred", propertyId, toSeat: conquest.toSeat });
+    emitGameEvent(g, ownerSeat, {
+      kind: "assetTransferred",
+      propertyId,
+      toSeat: conquest.toSeat,
+      conquest: damageSource.kind,
+    });
   }
 
   const rewards = [];
@@ -203,5 +227,5 @@ function settleCityDamage(
     rewards.push(planCityDamageReward(g, attackerSeat, tileIndex, actualDamage));
   if (conquest !== null) rewards.push(...conquest.rewards);
   const kind = lost ? "lost" : demolished ? "demolished" : "absorbed";
-  return { outcome: { kind, propertyId, tileIndex }, rewards };
+  return { outcome: { kind, propertyId, tileIndex }, impact, rewards };
 }

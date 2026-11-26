@@ -14,6 +14,8 @@ export const TESTIDS = {
   /** 对手席位格(seat=绝对座位号);自机格单挂 seatSelf。 */
   seat: (seat: number) => `seat-${seat}` as const,
   seatCash: (seat: number) => `seat-cash-${seat}` as const,
+  cashFly: (seat: number) => `cash-fly-${seat}` as const,
+  fxSeal: (char: string) => `fx-seal-${char}` as const,
   /** 体力色条,濒耗竭时 low 类转朱砂。 */
   seatStamina: (seat: number) => `seat-stamina-${seat}` as const,
   /** 属性计数(attr ∈ city|hand|gem|hero;值裸排,名词在 aria-label)。 */

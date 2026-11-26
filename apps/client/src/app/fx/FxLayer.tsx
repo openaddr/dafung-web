@@ -16,6 +16,7 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { playerColor, rgba, Theme } from "@dafung/core/engine/theme";
+import { usePrefersReducedMotion } from "@app/hooks/use-media-query";
 import { useGameStore } from "@app/store/gameStore";
 import { TESTIDS } from "@app/screens/game/testids";
 import { BoardHost, boardPxPerUnit, ensureBoardPxPerUnit } from "@app/components/board/boardHost";
@@ -324,6 +325,7 @@ function Floater({
 }
 
 function Seal({ seal }: { seal: SealFx }) {
+  const reducedMotion = usePrefersReducedMotion();
   const shape = POINT_MOTION.seal;
   const glyph = useGlyphBox(seal.char, shape.fontSize, "title");
   const local =
@@ -344,6 +346,12 @@ function Seal({ seal }: { seal: SealFx }) {
       expandEffectBox({ ...local, x: local.x + seal.x, y: local.y + seal.y }, shape.stroke / 2),
       glyph.sealScale,
     );
+  const visible = Boolean(box);
+  const { onLanding } = seal;
+  useLayoutEffect(() => {
+    // 减少动态时直接显示钤定静帧，CSS 不发动画结束事件。
+    if (visible && reducedMotion) onLanding?.();
+  }, [visible, reducedMotion, onLanding]);
   const style = { "--fx-seal-stroke": shape.stroke } as CSSProperties;
   return (
     <>
@@ -367,8 +375,12 @@ function Seal({ seal }: { seal: SealFx }) {
           <g transform={`translate(${seal.x} ${seal.y})`}>
             <g
               className={`fx-svg-seal${seal.tone === "gold" ? " fx-svg-seal-gold" : ""}`}
+              data-testid={TESTIDS.fxSeal(seal.char)}
               style={{
                 animationDuration: `${FX.sealSlamMs}ms, ${FX.sealLingerMs}ms`,
+              }}
+              onAnimationEnd={(event) => {
+                if (event.animationName === "fx-seal-slam") onLanding?.();
               }}
             >
               <rect
@@ -667,6 +679,7 @@ function FlyCoin({ fly }: { fly: CashFlyFx }) {
     <svg
       className="fx-cash-fly"
       data-fx-cash-fly=""
+      data-testid={TESTIDS.cashFly(seat)}
       viewBox="-14 -14 28 28"
       width={28}
       height={28}
@@ -676,9 +689,12 @@ function FlyCoin({ fly }: { fly: CashFlyFx }) {
         offsetPath: geo.path,
         animationDuration: `${geo.ms}ms`,
       }}
-      onAnimationEnd={() => {
+      onAnimationEnd={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const arrived = useFxStore.getState().removeCashFly(fly.id);
+        if (arrived == null) return;
         bumpSeatCash(seat);
-        useFxStore.getState().removeCashFly(fly.id);
+        arrived.onArrival?.();
       }}
     >
       {/* 铜钱雨同款素材语言:泉字金币(金圆底+墨字,#764 复用,色吃 token);

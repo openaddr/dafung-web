@@ -23,12 +23,27 @@
 - **font:kuhei** — 免费商用(站酷字体系列:可商用,不可转售/注册商标)/ 站酷 ZCOOL(站酷酷黑体体验版,© HuXiaoBo 2016) — 364044B(18 分片 woff2;项目语料频次桶 + latin/标点,扫描零缺字) — [source](https://www.zcool.com.cn/special/zcoolfonts)(获取通道:npm @fontpkg/zcool-ku-hei@3.12.0,已验真 name 表 ZCOOL_KuHei) — 2026-10-14
 - **hero:simayi:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)司马懿-经典形象 · wiki 上传者 17981205 — 210233B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=2199) — 2026-08-30 ⚠️ review_required
 - **audio:woodblock** — CC BY-SA 4.0 / Krol111 — 23057B (ogg) — [source](https://commons.wikimedia.org/wiki/File:Blok_music.ogg) — 2026-08-07 ⚠️ review_required
+- **audio:dice-land** — 裁剪 `audio:woodblock` 的首记木击，成品 `playback/woodblock-hit.ogg`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:march-start / audio:halt-latch / audio:stamina-recover** — 项目合成的木滑扣、木门闩和回体上行短音，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:stamina-hit / audio:exhaustion-drum** — 项目合成的体力钝击与下行闷鼓，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
 - **audio:coins-shake** — Public domain / ezwa (pdsounds.org) — 93992B (ogg) — [source](https://commons.wikimedia.org/wiki/File:Shaking_coins_in_palm.ogg) — 2026-08-07
 - **audio:gong-long** — CC0 / stephan — 33725B (ogg;Commons 原件 149KB 已按 50KB 预算裁剪) — [source](https://commons.wikimedia.org/wiki/File:Gong55.ogg) — 2026-08-07
 - **audio:coin** — Public domain / ezwa (pdsounds.org) — 42577B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
-- **audio:drum** — CC0 / Iwan Sounds and DIY — 30454B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
+- **audio:cash-arrival** — 裁剪 `audio:coin` 的到账瞬态，成品 `playback/coin-drop.ogg`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:cash-transfer** — 预混 `audio:coins-shake` 和 `audio:coin`，成品 `playback/cash-transfer.ogg`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:property-purchase** — 预混 `audio:stamp-seal` 和 `audio:coins-shake`，成品 `playback/property-purchase.ogg`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:property-upgrade / audio:pay** — 项目合成的木榫与钱囊音，成品 `playback/property-upgrade.ogg` 与 `playback/pay.ogg`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:city-hit / audio:city-breach / audio:city-conquest** — 项目合成短石击、碎石、城栓与旗帛，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:jinnang-draw / audio:jinnang-announce / audio:jinnang-peek** — 取 `audio:scroll-unroll` 的短段制作入手声、宣布拂纸和窥探翻页，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:jinnang-countered / audio:jinnang-restored** — 项目合成的识破铜扣与反识破回音，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:drum** — CC0 / Iwan Sounds and DIY — 30454B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07。已退役（#1639 改用项目合成的单鼓）。
 - **audio:guqin** — CC0 / Wikimedia Commons — 31017B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
-- **audio:victory** — CC0 / Wikimedia Commons — 52218B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
+- **audio:treasure-pluck / audio:treasure-muted-pluck** — 裁拼 `audio:guqin` 的两处拨弦。闷拨用同源录音低通、收短余韵。成品见 `playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:book-set-down** — 预混 `audio:scroll-unroll` 的纸响和 `audio:stamp-seal` 的低频接触声。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:ledger-close** — 预混 `audio:scroll-unroll` 的叠纸声、`audio:stamp-seal` 的接触声和合成低响，成品 `playback/ledger-close.ogg`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:hero-recruited / audio:skill-learned** — 项目合成甲扣接 `audio:guqin` 短弦，及 `audio:scroll-unroll` 翻页接 `audio:guqin` 收弦。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:victory** — CC0 / Wikimedia Commons — 52218B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07。已退役（#1639 改用与起兵同源的主题）。
+- **audio:game-start / audio:victory-drum / audio:victory-theme** — 项目合成三音主题与单鼓。终局预混 `audio:stamp-seal` 的短段和同主题角句，成品见 `playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
 - **texture:xishan-qingyuan** — Public domain / 夏圭(Xia Gui,南宋) — 195018B (2880×311, image/webp;Commons 全卷扫描 24557×1210 中段裁带,纵向弃顶部印区、横向避开水印印 → webp q80) — [source](https://commons.wikimedia.org/wiki/File%3A%E6%BA%AA%E5%B1%B1%E6%B8%85%E8%BF%9C%E5%9B%BE.jpg) — 2026-08-30 ⚠️ 已退役(2026-10-14 #516:玄墨鎏金方向古画横带下架,深色素材接位;文件已删,条目留档)
 - **hero:huatuo:noname** — noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用 / noname 项目(libccy/noname)打包;原画游卡桌游 — 25220B (350×464 + 头像 151×200, webp) — [source](https://cdn.jsdelivr.net/gh/libccy/noname@master/image/character/huatuo.jpg) — 2026-10-14 ⚠️ 已退役(2026-10-29 #751 画像统一收官:sgs 经典形象在且同规格,noname 版下架;文件已删,条目留档)
 - **hero:caopi:noname** — noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用 / noname 项目(libccy/noname)打包;原画游卡桌游 — 19074B (350×464 + 头像 151×200, webp) — [source](https://cdn.jsdelivr.net/gh/libccy/noname@master/image/character/caopi.jpg) — 2026-10-14 ⚠️ 已退役(2026-10-14 #511 卡面 B 案画像源定档:sgs 十周年原画画质统一胜出;文件已删,条目留档)
@@ -40,6 +55,7 @@
 - **audio:tile-clack** — CC0 / poenia (Freesound) — 7521B (ogg;「Domino_sfx_moveTile」lq 预览) — [source](https://freesound.org/s/745028/) — 2026-10-14 ⚠️ 已退役(2026-10-20 #638 拼点签面单通道收口:拼点双印整线退役,骨牌叩无消费者;文件已删,条目留档)
 - **audio:coins-box** — CC0 / 5thWall (Freesound) — 49874B (ogg;「coins_into_box.wav」lq 预览) — [source](https://freesound.org/s/190945/) — 2026-10-14
 - **audio:rain** — CC0 / Opticreep (Freesound) — 43259B (ogg;「Rain (Field Recording)」lq 预览) — [source](https://freesound.org/s/320520/) — 2026-10-14
+- **audio:bankruptcy-ceremony** — 取 `audio:gong-long`、`audio:rain` 与 `audio:coins-box` 裁成出局仪式的锣、雨和撒币短响，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
 - **treasure:edict** — CC0 1.0 (Met Open Access) / The Metropolitan Museum of Art(藏品 Imperial Decree,清 1806,金;acc. 06.1025) — 84616B (500×454, webp) — [source](https://www.metmuseum.org/art/collection/search/61012) — 2026-10-31
 - **treasure:seal** — CC0 1.0 (Met Open Access) / The Metropolitan Museum of Art(藏品 Seal,清 18 世纪,田黄型冻石兽钮印;acc. 2015.500.6.17) — 10006B (375×375, WebP) · [方裁原型](https://github.com/openaddr/dafung-web/blob/952817c1049e010b269b5876eca864c5ca6e0bca/docs/design/ui-reference/prototype-1409-1411/treasures/art/seal-photo.webp) — [source](https://www.metmuseum.org/art/collection/search/39853) — 2026-10-31
 - **treasure:lychee-photo-retired** — CC0 1.0 (Met Open Access) / The Metropolitan Museum of Art(藏品 Box with lychees,明 16 世纪,剔红荔枝纹漆盒;acc. 2015.500.1.46a, b) — 11896B (500×375, webp) — [source](https://www.metmuseum.org/art/collection/search/40232) — 2026-10-31 ⚠️ 已退役（#1533 替换旧图）
@@ -49,8 +65,9 @@
 - **hero:huatuo:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)华佗-经典形象 · wiki 上传者 359366122 — 216811B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=7870) — 2026-10-29 ⚠️ review_required
 - **hero:taishici:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)太史慈-经典形象 · wiki 上传者 359366122 — 189734B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=8974) — 2026-10-29 ⚠️ review_required
 - **audio:duel-clash** — CC0 / hollandm (Freesound) — 7148B (ogg;「Woodblock-hard.wav」lq 预览) — [source](https://freesound.org/s/692818/) — 2026-10-29
-- **audio:verdict-chime** — CC0 / R0teroktober (Freesound) — 33139B (ogg;「Sound bowl / Singing bowl」lq 预览) — [source](https://freesound.org/s/851382/) — 2026-10-29
-- **audio:halt-horn** — CC0 / nanoPlink (Freesound) — 39135B (ogg;「hunting-horn-bass.wav」lq 预览) — [source](https://freesound.org/s/148645/) — 2026-10-29
+- **audio:verdict-chime** — CC0 / R0teroktober (Freesound) — 33139B (ogg;「Sound bowl / Singing bowl」lq 预览) — 2026-10-29。已退役（#1639 改用同质、等响度的合成磬音）。 [source](https://freesound.org/s/851382/)
+- **audio:verdict-chime-neutral / audio:verdict-chime-win / audio:verdict-chime-lose** — 项目合成单音、上行双音与下行双音，等长段按解码响度配平，成品见 `playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:halt-horn** — CC0 / nanoPlink (Freesound) — 39135B (ogg;「hunting-horn-bass.wav」lq 预览) — [source](https://freesound.org/s/148645/) — 2026-10-29。已退役（#1633 改用项目合成的短木闩）。
 - **texture:pingfutie** — Public domain / Lu Ji — 287244B (1920×909, webp) — [source](https://commons.wikimedia.org/wiki/File%3A%E5%B9%B3%E5%A4%8D%E5%B8%96.png) — 2026-10-31 ⚠️ 已退役（2026-11-20 #1527 首页 B 案改用沙盘画，文件下架并保留来源记录）
 - **texture:gongxian-shanshui** — Public domain / 龚贤(Gong Xian,清) — 149756B (2880×359, webp;Commons 全卷扫描 35195×1987 中段裁带 x8700-24300,弃左题跋尾、纵向弃底部印区 → webp q80) — [source](https://commons.wikimedia.org/wiki/File%3A%E9%BE%9A%E8%B4%A4%E5%B1%B1%E6%B0%B4%E5%9B%BE%E5%8D%B7.jpg) — 2026-10-31
 - **hero:caoren:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)曹仁-经典形象 · wiki 上传者 359366122 — 210874B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=1017) — 2026-11-06 ⚠️ review_required
@@ -76,3 +93,6 @@
 - **treasure:liangce** — 项目生成素材，随本项目使用 / ImageGen（#1533 同底同光静物） — 21956B (384×384, WebP) — 2026-11-20 — [产物](https://github.com/openaddr/dafung-web/blob/442eae0958a72a8148fb67610c508f4f82618933/public/assets/treasures/treasure-liangce.webp) · [生成记录](https://github.com/openaddr/dafung-web/blob/442eae0958a72a8148fb67610c508f4f82618933/docs/design/珍宝画心来源.md#新静物)
 - **treasure:doudai** — CC BY 2.5 / Katorisi — 83212B (460×545, WebP) — 2026-11-07 — [来源](https://commons.wikimedia.org/wiki/File:Hemp-sack%2C_Asabukuro%2C_Japan.jpg) · [许可原文](https://creativecommons.org/licenses/by/2.5/) · 仓内 WebP 采用裁切及绢底取景
 - **treasure:duanxian** — 原入库记录为 The Met 开放获取，馆藏号待核 / The Metropolitan Museum of Art（原入库记录） — 4802B (314×420, WebP) — 2026-11-07 — [来源](https://github.com/openaddr/dafung-web/pull/1172) ⚠️ review_required
+- **audio:lobby-joined** — 项目合成拟音，随本项目使用 — 4347B (Ogg) — 2026-11-26 — [合成配方](../../../../scripts/build-sound-clips.ts)
+- **audio:reconnect-failure** — 项目合成拟音，随本项目使用 — 4361B (Ogg) — 2026-11-26 — [合成配方](../../../../scripts/build-sound-clips.ts)
+- **audio:reaction-open** — 项目合成拟音，随本项目使用 — 4201B (Ogg) — 2026-11-26 — [合成配方](../../../../scripts/build-sound-clips.ts)

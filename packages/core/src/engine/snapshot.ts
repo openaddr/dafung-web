@@ -184,6 +184,8 @@ export interface GameSnapshot {
   heroDiceBonus: number;
   /** 最近分配的反应窗编号，闭窗后也随快照保留。 */
   jinnangSeq: number;
+  /** 权威端最近分配的火烧连营编号。 */
+  fireWallSeq?: number;
   /** 反应窗挂起态(#281,god-view):公告/应答/续结算载荷全部随快照走(ADR-0017,
    *  重放=普通 respondReaction 命令流);可见性由传输层投影(ADR-0016),公开载荷另经
    *  派生字段 reaction 透出。 */
@@ -504,6 +506,13 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => e.jinnangSeq,
     write: (e, s) => {
       e.jinnangSeq = s.jinnangSeq;
+    },
+  },
+  {
+    key: "fireWallSeq",
+    read: (e) => e.fireWallSeq,
+    write: (e, s) => {
+      e.fireWallSeq = s.fireWallSeq;
     },
   },
   {

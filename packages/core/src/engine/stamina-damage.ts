@@ -1,5 +1,6 @@
 // 体力伤害及耗竭。时机应答后从已落账的最后一步继续结算。
 import type { GameEngine } from "./authority";
+import { CITY_DAMAGE_SEVERITY, type CityDamageImpact } from "./city-damage";
 import { settleCityDamageMoments } from "./city-damage-moments";
 import { EXHAUSTION_REST_TURNS } from "./constants";
 import { applyCityDamage } from "./defense";
@@ -31,6 +32,7 @@ export interface ExhaustionCityDamageContinuation {
   remainingPropertyIds: string[];
   downgradedPropertyIds: string[];
   lostPropertyIds: string[];
+  strongestImpact: CityDamageImpact | null;
   after: StaminaDamageSuccessor;
 }
 
@@ -97,6 +99,7 @@ function resolveExhaustion(
     remainingPropertyIds: g.players[seat].properties.map(({ propertyId }) => propertyId),
     downgradedPropertyIds: [],
     lostPropertyIds: [],
+    strongestImpact: null,
     after,
   });
 }
@@ -107,12 +110,19 @@ function resumeExhaustionCityDamage(g: GameEngine, state: ExhaustionCityDamageCo
   const source = sourceSeat === null ? null : g.players[sourceSeat];
   const downgraded = [...state.downgradedPropertyIds];
   const lost = [...state.lostPropertyIds];
+  let strongestImpact = state.strongestImpact;
   for (const [i, propertyId] of remainingPropertyIds.entries()) {
     const holding = findHolding(p, propertyId);
     if (holding == null) continue; // 前一城的时机结算可能已经改变持有关系。
     if (holding.defense === 0 && g.tileIndexOfProperty(propertyId) === p.capitalIndex) continue;
     const settlement = applyCityDamage(g, p, propertyId, holding.defense, source);
-    const { outcome } = settlement;
+    const { outcome, impact } = settlement;
+    if (
+      impact !== null &&
+      (strongestImpact === null ||
+        CITY_DAMAGE_SEVERITY[impact] > CITY_DAMAGE_SEVERITY[strongestImpact])
+    )
+      strongestImpact = impact;
     if (outcome.kind === "demolished") downgraded.push(propertyId);
     if (outcome.kind === "lost") lost.push(propertyId);
     if (
@@ -121,6 +131,7 @@ function resumeExhaustionCityDamage(g: GameEngine, state: ExhaustionCityDamageCo
         remainingPropertyIds: remainingPropertyIds.slice(i + 1),
         downgradedPropertyIds: downgraded,
         lostPropertyIds: lost,
+        strongestImpact,
       })
     )
       return;
@@ -132,6 +143,7 @@ function resumeExhaustionCityDamage(g: GameEngine, state: ExhaustionCityDamageCo
     sourceSeat,
     downgradedPropertyIds: downgraded,
     lostPropertyIds: lost,
+    strongestImpact,
     restTurns: EXHAUSTION_REST_TURNS,
   });
   const continuation: ExhaustionContinuation = {

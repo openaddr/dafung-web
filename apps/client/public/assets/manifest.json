@@ -51,7 +51,10 @@
     "license": "CC0",
     "author": "Iwan Sounds and DIY",
     "fetched_at": "2026-08-07",
-    "review_required": false
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-11-26",
+    "retired_reason": "#1639 胜利卷轴改用项目合成的单鼓"
   },
   "audio:guqin": {
     "path": "assets/audio/guqin-note.ogg",
@@ -65,7 +68,10 @@
     "license": "CC0",
     "author": "Wikimedia Commons",
     "fetched_at": "2026-08-07",
-    "review_required": false
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-11-26",
+    "retired_reason": "#1639 胜利角句与起兵共用项目合成的主题"
   },
   "audio:woodblock": {
     "path": "assets/audio/woodblock-hit.ogg",
@@ -308,7 +314,10 @@
     "license": "CC0",
     "author": "R0teroktober (Freesound,「Sound bowl / Singing bowl」lq ogg 预览直链)",
     "fetched_at": "2026-10-29",
-    "review_required": false
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-11-26",
+    "retired_reason": "#1639 拼点三支判词共用项目合成的磬音"
   },
   "audio:halt-horn": {
     "path": "assets/audio/audio-halt-horn.ogg",
@@ -316,7 +325,9 @@
     "license": "CC0",
     "author": "nanoPlink (Freesound,「hunting-horn-bass.wav」lq ogg 预览直链)",
     "fetched_at": "2026-10-29",
-    "review_required": false
+    "review_required": false,
+    "retired_at": "2026-11-26",
+    "retired_reason": "#1633 由项目合成的短木闩接替驻跸长号角"
   },
   "texture:pingfutie": {
     "path": "assets/textures/texture-pingfutie.webp",

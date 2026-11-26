@@ -336,6 +336,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         break;
       }
       case "propertyBurningTicked":
+      case "fireWallImpact":
         break;
       case "exhaustionResolved": {
         const p = foldTarget(engine, ev);
