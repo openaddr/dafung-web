@@ -2,5 +2,6 @@
 export const GAME_DIAG_TID = {
   dialog: "game-diagnostic-dialog",
   game: (id: string) => `game-diagnostic-game-${id}`,
+  copy: "game-diagnostic-copy",
   save: "game-diagnostic-save",
 } as const;

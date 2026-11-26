@@ -1,22 +1,23 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { loadArchivedGame } from "./gameLogArchive";
 import type { ArchivedGame } from "./game-diagnostic-record";
+import { formatGameDiagnosticSummary } from "./game-diagnostic-summary";
+import { checkpointGameDiagnostics } from "./game-diagnostics";
 
-function buildDiagBundle({
-  gameId,
-  mode,
-  mapId,
-  appVersion,
-  log,
-  capture,
-  archiveFailures,
-}: ArchivedGame) {
-  const missing: Partial<Record<"mapId" | "appVersion" | "capture" | "log" | "perf", string>> = {};
+function buildDiagBundle(
+  { gameId, mode, mapId, appVersion, log, capture, archiveFailures }: ArchivedGame,
+  captureRefreshFailure: string | undefined,
+) {
+  const timeline = capture?.timeline ?? null;
+  const missing: Partial<
+    Record<"mapId" | "appVersion" | "capture" | "log" | "perf" | "timeline", string>
+  > = {};
   if (mapId === null) missing.mapId = "该局未记录地图。";
   if (appVersion === null) missing.appVersion = "该局未记录版本。";
   if (capture === null) missing.capture = "该局未采集客户端现场与运行环境。";
   if (log === null) missing.log = "本机未保存该局的对局日志。";
   if (capture?.perf == null) missing.perf = "本机未保存该局的帧诊。";
+  if (timeline === null) missing.timeline = "该局未采集客户端时间线。";
   return {
     kind: "dafung-diag",
     schemaVersion: 2,
@@ -33,43 +34,35 @@ function buildDiagBundle({
     connection: capture?.connection ?? null,
     errors: capture?.errors ?? null,
     archiveFailures,
+    captureRefreshFailure,
     missing,
     log: log?.lines ?? null,
     perf: capture?.perf ?? null,
+    timeline,
   };
 }
 
-async function requireArchivedGame(gameId: string): Promise<ArchivedGame> {
+async function requireArchivedGame(gameId: string, captureWarning?: string): Promise<ArchivedGame> {
   const record = await loadArchivedGame(gameId);
-  if (record === null) throw new Error("所选对局的诊断记录已失效。");
+  if (record === null) {
+    const reason = "所选对局的诊断记录已失效。";
+    throw new Error(captureWarning === undefined ? reason : `${captureWarning}。${reason}`);
+  }
   return record;
 }
 
-/** 给安卓剪贴板的 Binder 事务留出空间，较大的帧诊通过保存文件取用。 */
-const MAX_CLIPBOARD_BYTES = 400_000;
-
-/** 旧的复制帧诊工具使用所选局的采集记录。 */
-export async function buildDiagPerfText(gameId: string): Promise<string> {
-  const { mode, mapId, appVersion, capture } = await requireArchivedGame(gameId);
-  if (capture === null || capture.perf === null) throw new Error("该局未记录帧诊。");
-  return JSON.stringify({
-    kind: "dafung-diag-perf",
-    schemaVersion: 2,
-    gameId,
-    mode,
-    mapId,
-    appVersion,
-    capturedAt: capture.capturedAt,
-    exportedAt: Date.now(),
-    device: capture.device,
-    perf: capture.perf,
-  });
+function captureRefreshFailure(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  return `当前局现场刷新失败：${detail}`;
 }
 
-export async function copyDiagText(text: string): Promise<void> {
-  if (new TextEncoder().encode(text).byteLength > MAX_CLIPBOARD_BYTES) {
-    throw new Error("帧诊超过剪贴板大小上限，请使用「保存文件」。");
+export async function copyDiagnosticSummary(gameId: string): Promise<void> {
+  try {
+    await checkpointGameDiagnostics(gameId);
+  } catch (error: unknown) {
+    throw new Error(captureRefreshFailure(error), { cause: error });
   }
+  const text = formatGameDiagnosticSummary(await requireArchivedGame(gameId));
   if (isTauri()) {
     const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
     await writeText(text);
@@ -82,8 +75,16 @@ export async function copyDiagText(text: string): Promise<void> {
 }
 
 /** Tauri 的系统对话框可返回 content URI；取消返回 null。 */
-export async function exportDiagnostics(gameId: string): Promise<{ path: string } | null> {
-  const record = await requireArchivedGame(gameId);
+export async function exportDiagnostics(
+  gameId: string,
+): Promise<{ path: string; captureWarning?: string } | null> {
+  let captureWarning: string | undefined;
+  try {
+    await checkpointGameDiagnostics(gameId);
+  } catch (error: unknown) {
+    captureWarning = captureRefreshFailure(error);
+  }
+  const record = await requireArchivedGame(gameId, captureWarning);
   const version = record.appVersion === null ? "" : `-v${record.appVersion}`;
   const fileName = `dafung-diag-${gameId}${version}.json`;
   const [{ save }, { writeTextFile }] = await Promise.all([
@@ -94,7 +95,10 @@ export async function exportDiagnostics(gameId: string): Promise<{ path: string 
     defaultPath: fileName,
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
-  if (path === null) return null;
-  await writeTextFile(path, JSON.stringify(buildDiagBundle(record), null, 2));
-  return { path };
+  if (path === null) {
+    if (captureWarning !== undefined) throw new Error(captureWarning);
+    return null;
+  }
+  await writeTextFile(path, JSON.stringify(buildDiagBundle(record, captureWarning), null, 2));
+  return captureWarning === undefined ? { path } : { path, captureWarning };
 }

@@ -2,18 +2,53 @@ import { SOUND_CLIPS, soundClipUrl, type SoundEvent } from "./sound-clips";
 
 export type { SoundEvent } from "./sound-clips";
 
+export type AudioPlaybackEndReason =
+  | "natural"
+  | "beatFade"
+  | "replaced"
+  | "cancelled"
+  | "muted"
+  | "background"
+  | "failed";
+
+type PlaybackInstance = { readonly instanceId: number; readonly sound: SoundEvent };
+type PlaybackChange =
+  | { readonly kind: "start" }
+  | { readonly kind: "end"; readonly reason: AudioPlaybackEndReason };
+
+export type AudioPlaybackEvent = PlaybackInstance & PlaybackChange & { readonly atMs: number };
+
+const playbackListeners = new Set<(event: AudioPlaybackEvent) => void>();
+let nextPlaybackId = 0;
+
+/** 开播由媒体确认。开播前失败或被收回的实例只报告结束。 */
+export function subscribeAudioPlayback(listener: (event: AudioPlaybackEvent) => void): () => void {
+  playbackListeners.add(listener);
+  return () => {
+    playbackListeners.delete(listener);
+  };
+}
+
+function reportPlayback(instance: PlaybackInstance | null, change: PlaybackChange): void {
+  if (instance === null || playbackListeners.size === 0) return;
+  const event: AudioPlaybackEvent = { ...instance, ...change, atMs: performance.now() };
+  for (const listener of playbackListeners) listener(event);
+}
+
 type PlaybackScope = "reaction" | "presentation" | "all";
 export type PlaybackStopMode = "immediate" | "fade";
 type GainRamp = { from: number; to: number; startAt: number; endAt: number; updatedAt: number };
+type FadeReason = Exclude<AudioPlaybackEndReason, "natural" | "failed">;
 type Timer = ReturnType<typeof setTimeout>;
 type ActivePlayback = {
   url: string;
   volume: number;
   scope: Exclude<PlaybackScope, "all">;
+  instance: PlaybackInstance | null;
   duck: number | GainRamp;
   fadeStart?: Timer;
   handoff?: Timer;
-  release?: GainRamp;
+  release?: GainRamp & { reason: FadeReason };
 };
 
 export interface AudioPlayer {
@@ -109,7 +144,7 @@ export class MediaAudioPlayer implements AudioPlayer {
 
     const isReaction = !auditioning && (event === "reactionOpen" || event === "reactionTick");
     if (isReaction && this.reaction !== null) {
-      this.fadeOut(this.active.get(this.reaction)!);
+      this.fadeOut(this.active.get(this.reaction)!, "replaced");
     }
     const url = soundClipUrl(clip);
     const audio = this.idle.get(url) ?? new Audio(url);
@@ -119,6 +154,10 @@ export class MediaAudioPlayer implements AudioPlayer {
       url,
       volume,
       scope: isReaction ? "reaction" : "presentation",
+      instance:
+        auditioning || event === "jinnangSelect" || event === "lobbyJoined"
+          ? null
+          : { instanceId: ++nextPlaybackId, sound: event },
       duck,
     };
     this.active.set(audio, playback);
@@ -136,24 +175,26 @@ export class MediaAudioPlayer implements AudioPlayer {
       clip.kind === "recording" && !auditioning ? 0.92 + Math.random() * 0.16 : 1;
 
     const fail = (error: unknown) => {
-      if (!this.finish(audio, playback, false)) return;
+      if (!this.finish(audio, playback, "failed")) return;
       console.warn(`[audio] ${event} 播放失败`, error);
       onAuditionComplete?.(false);
     };
     audio.onended = () => {
-      if (this.finish(audio, playback, true)) onAuditionComplete?.(true);
+      if (this.finish(audio, playback, "natural")) onAuditionComplete?.(true);
     };
     audio.onerror = () => fail(audio.error);
     if (endWithinMs !== undefined) {
       const releaseMs = Math.min(SOUND_RELEASE_MS, endWithinMs / 2);
       playback.fadeStart = setTimeout(
-        () => this.fadeOut(playback, releaseMs),
+        () => this.fadeOut(playback, "beatFade", releaseMs),
         endWithinMs - releaseMs,
       );
       // 正常节拍在交棒拍写完最后一步。卡住时由后续混音拍写完再释放。
       playback.handoff = setTimeout(() => this.updateMix(), endWithinMs);
     }
-    void audio.play().catch(fail);
+    void audio.play().then(() => {
+      if (this.active.get(audio) === playback) reportPlayback(playback.instance, { kind: "start" });
+    }, fail);
   }
 
   defer(event: SoundEvent, endWithinMs?: number): () => void {
@@ -164,7 +205,11 @@ export class MediaAudioPlayer implements AudioPlayer {
     };
   }
 
-  private finish(audio: HTMLAudioElement, playback: ActivePlayback, reusable: boolean): boolean {
+  private finish(
+    audio: HTMLAudioElement,
+    playback: ActivePlayback,
+    reason: AudioPlaybackEndReason,
+  ): boolean {
     if (this.active.get(audio) !== playback) return false;
     this.active.delete(audio);
     clearTimeout(playback.fadeStart);
@@ -175,14 +220,15 @@ export class MediaAudioPlayer implements AudioPlayer {
     }
     audio.onended = null;
     audio.onerror = null;
-    if (reusable && !this.idle.has(playback.url)) this.idle.set(playback.url, audio);
+    if (reason === "natural" && !this.idle.has(playback.url)) this.idle.set(playback.url, audio);
     else releaseAudio(audio);
+    reportPlayback(playback.instance, { kind: "end", reason });
     return true;
   }
 
-  private fadeOut(playback: ActivePlayback, duration = SOUND_RELEASE_MS): void {
+  private fadeOut(playback: ActivePlayback, reason: FadeReason, duration = SOUND_RELEASE_MS): void {
     if (playback.release !== undefined) return;
-    playback.release = startGainRamp(1, 0, performance.now(), duration);
+    playback.release = { ...startGainRamp(1, 0, performance.now(), duration), reason };
     clearTimeout(playback.fadeStart);
     this.updateMix();
   }
@@ -209,7 +255,7 @@ export class MediaAudioPlayer implements AudioPlayer {
       if (typeof duck !== "number" && now >= duck.endAt) playback.duck = duck.to;
       audio.volume = playback.volume * duckGain * releaseGain;
       if (release !== undefined && now >= release.endAt) {
-        this.finish(audio, playback, false);
+        this.finish(audio, playback, release.reason);
         continue;
       }
       if (typeof playback.duck !== "number" || release !== undefined) changing = true;
@@ -223,13 +269,19 @@ export class MediaAudioPlayer implements AudioPlayer {
   }
 
   stop(scope: PlaybackScope, mode: PlaybackStopMode = "immediate"): void {
+    // 切后台时演出清理和宿主停声都经过这里，以调用时的可见性归因。
+    const reason = this.muted
+      ? "muted"
+      : document.visibilityState === "hidden"
+        ? "background"
+        : "cancelled";
     if (scope !== "reaction") this.generation++;
     const stopReaction = scope !== "presentation" && this.reaction !== null;
     if (stopReaction) this.reaction = null;
     for (const [audio, playback] of this.active) {
       if (scope !== "all" && scope !== playback.scope) continue;
-      if (mode === "fade") this.fadeOut(playback);
-      else this.finish(audio, playback, false);
+      if (mode === "fade") this.fadeOut(playback, reason);
+      else this.finish(audio, playback, reason);
     }
     if (scope === "all" && mode === "immediate") {
       clearTimeout(this.mixTimer);

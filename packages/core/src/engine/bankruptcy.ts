@@ -229,35 +229,35 @@ export function confirmBankruptcySettle(g: GameEngine, assets: BankruptcyAsset[]
   let proceeds = p.cash;
   for (const asset of assets) {
     if (proceeds >= debt.amount) {
-      g.warn("清偿:已凑足债务,不可再卖");
+      g.warnCommand("settlementAlreadyCovered", "清偿:已凑足债务,不可再卖");
       return;
     }
     if (asset.kind === "treasure") {
       const index = treasures.findIndex((t) => t.id === asset.id);
       if (index < 0) {
-        g.warn(`清偿:珍宝 ${asset.id} 数量不足或不在手中`);
+        g.warnCommand("settlementTreasureUnavailable", `清偿:珍宝 ${asset.id} 数量不足或不在手中`);
         return;
       }
       proceeds += guidePriceOf(treasures.splice(index, 1)[0].level);
     } else if (asset.kind === "property") {
       if (asset.id === capitalId) {
-        g.warn("清偿:都城不可变卖");
+        g.warnCommand("capitalSaleForbidden", "清偿:都城不可变卖");
         return;
       }
       const index = properties.findIndex((h) => h.propertyId === asset.id);
       if (index < 0) {
-        g.warn(`清偿:城 ${asset.id} 不在手中或重复选择`);
+        g.warnCommand("settlementCityUnavailable", `清偿:城 ${asset.id} 不在手中或重复选择`);
         return;
       }
       const holding = properties.splice(index, 1)[0];
       proceeds += sellValueOf(g.catalog.get(holding.propertyId)!, holding.level);
     } else {
-      g.warn("清偿:仅可变卖珍宝与非都城城池");
+      g.warnCommand("settlementInvalidAsset", "清偿:仅可变卖珍宝与非都城城池");
       return;
     }
   }
   if (proceeds < debt.amount) {
-    g.warn("清偿:所选资产不足,请调整预选或明确认破产");
+    g.warnCommand("settlementInsufficient", "清偿:所选资产不足,请调整预选或明确认破产");
     return;
   }
   for (const asset of assets) {

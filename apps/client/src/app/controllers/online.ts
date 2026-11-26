@@ -71,7 +71,6 @@ export class OnlineController extends GameController {
   private ended = false;
   private roomId: string | null = null;
   private seatToken: string | null = null;
-  private sentReactionRequests = 0;
   private pendingReactionRequest: number | undefined;
   /** 归档使用独立的权威日志前缀，水合副本的日志仍由既有状态通路维护。 */
   private gameLog: GameLogPrefix | null = null;
@@ -126,8 +125,8 @@ export class OnlineController extends GameController {
     return this.connectionStatus === "open";
   }
 
-  protected override canAct(): boolean {
-    return this.sessionReady && super.canAct();
+  protected override commandBlockReason(): string | null {
+    return this.sessionReady ? super.commandBlockReason() : "连接未就绪";
   }
 
   private setConnectionStatus(status: NetConnection): void {
@@ -161,46 +160,57 @@ export class OnlineController extends GameController {
 
   // ─── 命令入口:发 WS,状态由服务器广播 snapshot 驱动 ───
   dispatchCommand(cmd: GameCommand): void {
-    if (!this.interactive) return;
-    if (!this.sock?.isOpen) {
+    const reason = this.commandBlockReason();
+    if (reason !== null) {
+      this.observeBlockedCommand(cmd.type, reason);
+      return;
+    }
+    const sock = this.sock;
+    if (!sock?.isOpen) {
+      this.observeBlockedCommand(cmd.type, "连接未就绪");
       useGameStore.getState().pushHint("连接未就绪");
       return;
     }
     this.pending = true;
-    this.pendingReactionRequest =
-      cmd.type === "respondReaction" ? ++this.sentReactionRequests : undefined;
     // UI F3:pending 透传 netStore(HandPanel 读 netStore.pending 显示「行军中…」;
     // 不给基类加 seam,联机/单机经同一 store 字段取态,单机恒 false)。
     useNetStore.getState().setPending(true);
-    this.sock.send(cmdMsg(cmd, this.pendingReactionRequest));
+    this.sendObservedCommand(cmd.type, (id) => {
+      this.pendingReactionRequest = cmd.type === "respondReaction" ? id : undefined;
+      sock.send(cmdMsg(cmd, id));
+    });
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }
 
   /** 自助托管(spec: autopilot):发 WS 消息,生效状态从 seats 广播回读(无乐观更新)。 */
   override setAutoPilot(on: boolean): void {
-    if (!this.sessionReady || !this.sock?.isOpen) {
+    const sock = this.sock;
+    if (!this.sessionReady || !sock?.isOpen) {
+      this.observeBlockedCommand("autoPilot", "连接未就绪");
       useGameStore.getState().pushHint("连接未就绪");
       return;
     }
-    this.sock.send(autoPilotMsg(on));
+    this.sendObservedCommand("autoPilot", (id) => sock.send(autoPilotMsg(on, id)));
   }
 
   /** Setup(PickCapital)落子(L41 联机):发 WS {type:"pickCapital"}——轮次/候选校验
    *  在服务器(room.pickCapital),生效靠广播快照(候选滚换/推进/进 Playing)。
    *  与 dispatchCommand 同用 pending 防连点;托管中不发(服务器 bot 代选)。 */
   override setupPickCapital(tileIndex: number): void {
-    if (!this.sessionReady) return;
-    const e = this._engine;
-    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") return;
-    if (e.currentSetupPlayerIndex !== this.seat) return;
-    if (this.pending || this.autoPilotOn) return;
-    if (!this.sock?.isOpen) {
+    const reason = this.sessionReady ? this.capitalPickBlockReason() : "连接未就绪";
+    if (reason !== null) {
+      this.observeBlockedCommand("pickCapital", reason);
+      return;
+    }
+    const sock = this.sock;
+    if (!sock?.isOpen) {
+      this.observeBlockedCommand("pickCapital", "连接未就绪");
       useGameStore.getState().pushHint("连接未就绪");
       return;
     }
     this.pending = true;
     useNetStore.getState().setPending(true);
-    this.sock.send(pickCapitalMsg(tileIndex));
+    this.sendObservedCommand("pickCapital", (id) => sock.send(pickCapitalMsg(tileIndex, id)));
     this.sync(); // pending 期间锁重复提交
   }
 
@@ -276,6 +286,7 @@ export class OnlineController extends GameController {
     const previous = this.sock;
     this.sock = null;
     previous?.close();
+    this.forgetCommandRequests();
     this.fx.dropStalledBatch();
     this.setConnectionStatus("connecting");
     this.sync();
@@ -296,7 +307,10 @@ export class OnlineController extends GameController {
       // server.ts 恢复登记,见 seenBatches 恢复基线)。
       if (s === "open") {
         this.fx.resetEventFace();
-      } else this.fx.dropStalledBatch();
+      } else {
+        this.forgetCommandRequests();
+        this.fx.dropStalledBatch();
+      }
       this.setConnectionStatus(s === "open" ? "calibrating" : s);
       this.sync();
     });
@@ -313,8 +327,9 @@ export class OnlineController extends GameController {
     });
     sock.onMessage((data) => {
       if (this.sock !== sock) return;
+      const receivedAtMonotonic = performance.now();
       const receivedAt = Date.now();
-      this.onMessage(JSON.parse(data) as ServerMsg, receivedAt);
+      this.onMessage(JSON.parse(data) as ServerMsg, receivedAt, receivedAtMonotonic);
     });
     sock.connect();
   }
@@ -335,6 +350,10 @@ export class OnlineController extends GameController {
     receivedAt: number,
     receivedAtMonotonic = performance.now(),
   ): void {
+    if (msg.type === "commandResult") {
+      this.observeCommandResult(msg, receivedAtMonotonic);
+      return;
+    }
     const load = this.mapLoad;
     if (load?.snapshot && msg.type !== "dismissed" && msg.type !== "error") {
       load.following.push({ msg, receivedAt, receivedAtMonotonic });
@@ -364,7 +383,10 @@ export class OnlineController extends GameController {
         return;
       }
       this.mapLoad = null;
-      if (this._engine.gameId !== msg.gameId) finishGameDiagnostics(this);
+      if (this._engine.gameId !== msg.gameId) {
+        finishGameDiagnostics(this);
+        this.forgetCommandRequests();
+      }
       const { type: _t, reactionTiming, ...snap } = msg;
       // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
       // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
@@ -390,7 +412,7 @@ export class OnlineController extends GameController {
       this.fx.play(prePositions);
       this.checkRollSeal();
       this.sync();
-      this.anchorGameLog(msg, receivedAt);
+      this.anchorGameLog(msg, receivedAt, receivedAtMonotonic);
       // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
       if (!this.enteredGame) {
         this.enteredGame = true;
@@ -399,7 +421,7 @@ export class OnlineController extends GameController {
       return;
     }
     if (msg.type === "gameLog") {
-      this.appendGameLog(msg, receivedAt);
+      this.appendGameLog(msg, receivedAt, receivedAtMonotonic);
       return;
     }
     if (msg.type === "events") {
@@ -447,6 +469,7 @@ export class OnlineController extends GameController {
       useGameStore.getState().setScreen("lobby");
       return;
     }
+    this.observeCommandResult(msg, receivedAtMonotonic);
     // 恢复时收到明确拒绝即终止本次尝试;普通局内命令错误仍沿提示通路。
     if (!this.sessionReady) {
       this.failCalibration(msg.error);
@@ -468,6 +491,7 @@ export class OnlineController extends GameController {
     this.sock = null;
     sock?.close();
     this.mapLoad = null;
+    this.forgetCommandRequests();
     this.fx.dropStalledBatch();
     this.clearPending();
     this.connectionStatus = "failed";
@@ -475,17 +499,24 @@ export class OnlineController extends GameController {
     this.sync();
   }
 
-  private anchorGameLog(msg: SnapshotMsg, receivedAt: number): void {
+  private anchorGameLog(msg: SnapshotMsg, receivedAt: number, receivedAtMonotonic: number): void {
     const identity: GameArchiveIdentity = { gameId: msg.gameId, mode: "online", mapId: msg.mapId };
     this.gameLog = {
       identity,
       length: msg.log.length,
       missing: false,
     };
+    this.observeAuthorityLog({
+      gameId: msg.gameId,
+      at: receivedAtMonotonic,
+      source: "snapshot",
+      offset: 0,
+      count: msg.log.length,
+    });
     void archiveGameLog(identity, msg.log, receivedAt).catch(this.reportArchiveFailure);
   }
 
-  private appendGameLog(msg: GameLogMsg, receivedAt: number): void {
+  private appendGameLog(msg: GameLogMsg, receivedAt: number, receivedAtMonotonic: number): void {
     const prefix = this.gameLog;
     if (!this.sessionReady || prefix === null || prefix.identity.gameId !== msg.gameId) {
       this.reportLogError("收到未校准或非本局的日志增量");
@@ -502,6 +533,13 @@ export class OnlineController extends GameController {
     if (firstNew >= msg.lines.length) return;
     prefix.length = msg.offset + msg.lines.length;
     const lines = firstNew === 0 ? msg.lines : msg.lines.slice(firstNew);
+    this.observeAuthorityLog({
+      gameId: msg.gameId,
+      at: receivedAtMonotonic,
+      source: "tail",
+      offset: expected,
+      count: lines.length,
+    });
     void archiveGameLogTail(prefix.identity, expected, lines, receivedAt).catch(
       this.reportArchiveFailure,
     );

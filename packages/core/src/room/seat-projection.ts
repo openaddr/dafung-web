@@ -10,7 +10,12 @@
 // (个人项目,不考虑旧协议兼容;客户端 network-client.ts 同步改。)
 import type { GameCommand, GameEngine, TurnPhase } from "../engine/authority";
 import type { GameSnapshot } from "../engine/snapshot";
-import type { LogEvent } from "../engine/model";
+import {
+  COMMAND_WARNING_REASONS,
+  isLogWarning,
+  LOG_WARNING_PREFIX,
+  type LogEvent,
+} from "../engine/model";
 import type { ReactionView } from "../engine/reaction-window";
 import type { GameEvent } from "../engine/game-events";
 import { EVENT_TIERS, type EventKind } from "../engine/event-tiers";
@@ -185,6 +190,15 @@ function projectLogCommand(cmd: LoggedCommand): Record<string, unknown> {
   }
 }
 
+/** 回执和座位日志只取显式公开的告警分类。 */
+export function publicLogWarningReason({ warning }: LogEvent): string {
+  if (warning?.kind === "phaseMismatch") {
+    return `阶段不符（需要 ${warning.expected}，当前 ${warning.actual}）`;
+  }
+  if (warning?.kind === "commandGuard") return COMMAND_WARNING_REASONS[warning.code];
+  return "对局产生警告";
+}
+
 /** 座位快照与日志尾段共用一行一行的投影，保持游标与权威日志行序一致。 */
 function projectGameLogLine(line: LogEvent): LogEvent {
   if (line.category === "cmd") {
@@ -203,9 +217,10 @@ function projectGameLogLine(line: LogEvent): LogEvent {
     const count = queried === "" ? 0 : queried.split("+").length;
     return { ...line, detail: `${announcement} queriedCount=${count}` };
   }
-  if (line.detail.startsWith("warn: ")) {
-    const warning = "对局产生警告，原文见服务器日志";
-    return { ...line, brief: `[警告] ${warning}`, detail: `warn: ${warning}` };
+  if (isLogWarning(line)) {
+    const reason = `${publicLogWarningReason(line)}，原文见服务器日志`;
+    const { warning: _warning, ...publicLine } = line;
+    return { ...publicLine, brief: `[警告] ${reason}`, detail: `${LOG_WARNING_PREFIX}${reason}` };
   }
   return line;
 }

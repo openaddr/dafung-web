@@ -5,7 +5,7 @@
 // jinnang-execution/stamina-damage/bankruptcy/treasure-flow/movement-flow/setup-flow/recruitment(见下各 import 区段注释),壳内同名公共方法薄委托。#326 types.ts 解散(ADR-0019 类型随域走):回合状态机类型归本壳,其余各归域模块。
 import { tileIndexOfProperty, type Board, type MovePath } from "./board";
 import type { Dice, DiceRoll } from "./dice";
-import type { Player, LogEvent } from "./model";
+import { LOG_WARNING_PREFIX, type CommandWarningCode, type Player, type LogEvent } from "./model";
 import type { PropertyDef, TransactionResult } from "./economy";
 import type { TreasureDef } from "./treasures";
 import type { LandOutcome, PendingLand } from "./movement-flow";
@@ -834,6 +834,7 @@ export class GameEngine {
     brief: string,
     detail: string,
     amount?: number,
+    warning?: LogEvent["warning"],
   ): void {
     this.log.push({
       ts: Date.now(),
@@ -844,17 +845,33 @@ export class GameEngine {
       detail,
       category,
       amount,
+      ...(warning === undefined ? {} : { warning }),
     });
   }
   assertPhase(expected: TurnPhase, label: string): boolean {
     if (this.turnPhase !== expected) {
-      this.warn(`${label} 在非 ${expected} 阶段(${this.turnPhase})被调用`);
+      this.warn(`${label} 在非 ${expected} 阶段(${this.turnPhase})被调用`, {
+        kind: "phaseMismatch",
+        expected,
+        actual: this.turnPhase,
+      });
       return false;
     }
     return true;
   }
-  warn(msg: string): void {
-    this.logEvent("system", null, `[警告] ${msg}`, `warn: ${msg}`);
+  /** 命令守卫选用固定的公开理由，并保留权威日志的原文。 */
+  warnCommand(code: CommandWarningCode, msg: string): void {
+    this.warn(msg, { kind: "commandGuard", code });
+  }
+  warn(msg: string, warning?: LogEvent["warning"]): void {
+    this.logEvent(
+      "system",
+      null,
+      `[警告] ${msg}`,
+      `${LOG_WARNING_PREFIX}${msg}`,
+      undefined,
+      warning,
+    );
   }
   /** 浮字入队(引擎内部结算时调用;对外消费走 presentation.drainFloaters)。
    *  #319 去 private(ADR-0019 条款 3 内部状态透明):jinnang-execution 域同用。 */

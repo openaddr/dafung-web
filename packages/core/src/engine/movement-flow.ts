@@ -11,7 +11,7 @@
 // openReactionWindow；拦检结算通过 g.marchTraverse/g.settleMarchLanding 续走和落格。
 import type { GameEngine } from "./authority";
 import { computeChoices } from "./choices";
-import { buy, upgrade } from "./economy";
+import { buy, upgrade, type PropertyDef, type TransactionResult } from "./economy";
 import { findHolding } from "./player";
 import { jinnangCardOf } from "./jinnang";
 import { drawJinnangTraced } from "./jinnang-execution";
@@ -20,8 +20,7 @@ import { formatMoney } from "./money";
 import { emitGameEvent, requireMovePath, type LandingResolvedBody } from "./game-events";
 import { CAPITAL_STAMINA_RECOVERY_RATE, SIGN_FACES, STAMINA_MAX } from "./constants";
 import { heroDieFaces } from "./skills";
-import type { Player } from "./model";
-import type { PropertyDef } from "./economy";
+import type { CommandWarningCode, Player } from "./model";
 import type { TileDef } from "./board";
 
 // ── 落格结果类型(#326 types.ts 解散,ADR-0019 类型随域走)──
@@ -266,6 +265,12 @@ export function pendingLandDef(g: GameEngine): PropertyDef {
   return def;
 }
 
+const PROPERTY_TRANSACTION_WARNING = {
+  InsufficientFunds: "propertyInsufficientFunds",
+  NotOwned: "propertyNotOwned",
+  AlreadyMaxLevel: "propertyMaxLevel",
+} satisfies Record<Exclude<TransactionResult["status"], "Ok">, CommandWarningCode>;
+
 /** 购地(决策命令):购入 + 留痕(ADR-0015)+ 战报。 */
 export function buyProperty(g: GameEngine): void {
   if (!g.assertPhase("AwaitingDecision", "BuyProperty")) return;
@@ -290,6 +295,8 @@ export function buyProperty(g: GameEngine): void {
       -def.purchasePrice,
     );
     g.dispatchMoment("PropertyBought", { subject: g.activeIndex, propertyId: def.id }); // 时机·PropertyBought:购城成功尾
+  } else {
+    g.warnCommand(PROPERTY_TRANSACTION_WARNING[r.status], `购地 ${def.id} 失败（${r.status}）`);
   }
   // 交易链终端(买成/拒买):先收尾交易链全部时机派发,再结束回合(链序随 #825 迁移:
   // 探宝已在落格固定事件位先行,链尾零探宝)。
@@ -318,8 +325,10 @@ export function upgradeProperty(g: GameEngine): void {
       `upgrade player=${g.activePlayer.id} prop=${def.id} level=${r.newLevel} cash=${g.activePlayer.cash}`,
     );
     g.dispatchMoment("PropertyUpgraded", { subject: g.activeIndex, propertyId: def.id }); // 时机·PropertyUpgraded:扩军成功(两挂点之一,另一处在公道买卖成交)
+  } else {
+    g.warnCommand(PROPERTY_TRANSACTION_WARNING[r.status], `扩军 ${def.id} 失败（${r.status}）`);
   }
-  // 交易链终端(升成):PropertyUpgraded 派发完后结束回合(探宝已在落格先行,#825)
+  // 交易链终端(升成/拒升):交易处理完后结束回合(探宝已在落格先行,#825)
   g.endTurn();
 }
 

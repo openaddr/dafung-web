@@ -2,21 +2,45 @@
 // 旧基类管 scaffold + fullRender + 卷轴弹层;新基类保留"状态桥"职责——
 // 引擎变化后 syncFromEngine 灌 store,由 React 组件声明式渲染。
 // 弹层/动画/音效是纯表现,归组件与阶段 6 的动画编排器,不进控制器。
-// #433 交互策略上收:「此刻本地玩家能不能点」(canAct)与起签转入沿检测
+// #433 交互策略上收:「此刻本地玩家能不能点」与起签转入沿检测
 // (checkRollSeal)公式单源在本基类——两个控制器只供参数(mySeat/hotSeat/引擎),
 // 改一条交互规则只动一处,杜绝单机/联机行为分叉(此前 interactive 双写且带
 // 「需推理才能确认」的本地隐式假设,恰是本票要消灭的 bug 族)。
-import type { GameEngine } from "@dafung/core/engine/authority";
-import type { GameCommand } from "@dafung/core/engine/authority";
+import type { GameCommand, GameEngine } from "@dafung/core/engine/authority";
 import type { GameDiagnosticCapture } from "@app/game-diagnostic-record";
-import { finishGameDiagnostics } from "@app/game-diagnostics";
+import { finishGameDiagnostics, observeGameDiagnosticState } from "@app/game-diagnostics";
 import { useGameStore } from "@app/store/gameStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { isMarching } from "@app/fx/useMarch";
-import type { ReactionTiming } from "@dafung/core/protocol/wire";
+import type {
+  CommandProcessing,
+  CommandResultMsg,
+  ReactionTiming,
+  ServerMsg,
+} from "@dafung/core/protocol/wire";
 import { shallow } from "zustand/shallow";
 import { reactionQueriesSeat } from "./reaction";
+
+type DiagnosticCommand = GameCommand["type"] | "pickCapital" | "autoPilot";
+type DiagnosticRequest = { gameId: string; id: number; command: DiagnosticCommand };
+type AuthorityLogObservation = {
+  kind: "authorityLog";
+  gameId: string;
+  at: number;
+  offset: number;
+  count: number;
+  source: "snapshot" | "tail";
+};
+type CommandObservation = DiagnosticRequest & { kind: "command"; at: number } & (
+    | { stage: "blocked"; reason: string }
+    | { stage: "sent" }
+    | ({ stage: "result" } & (CommandProcessing | { outcome: "rejected"; reason: string }))
+  );
+
+export type GameControllerDiagnosticEvent = CommandObservation | AuthorityLogObservation;
+
+const MAX_COMMAND_REQUESTS = 128;
 
 /**
  * 游戏控制器:桥接「引擎(或网络)」与「gameStore」。
@@ -63,9 +87,11 @@ export abstract class GameController {
 
   /** 子类须先调用基类，保留退出前的交互现场。 */
   destroy(): void {
-    finishGameDiagnostics(this);
     this.unsubMarching?.();
-    this.discardPresentation();
+    finishGameDiagnostics(this, () => this.discardPresentation());
+    this.diagnosticListeners.clear();
+    this.authorityLogAnchor = null;
+    this.forgetCommandRequests();
   }
 
   /** 离开或恢复前台时，客户端从当前局面继续演出。 */
@@ -88,6 +114,86 @@ export abstract class GameController {
   /** 子类从诊断错误文本中剔除对应传输的凭证。 */
   redactDiagnosticCredentials(message: string): string {
     return message;
+  }
+
+  private readonly diagnosticListeners = new Set<(event: GameControllerDiagnosticEvent) => void>();
+  private readonly commandRequests = new Map<number, DiagnosticRequest>();
+  private nextRequestId = 0;
+  private authorityLogAnchor: AuthorityLogObservation | null = null;
+
+  subscribeDiagnostics(listener: (event: GameControllerDiagnosticEvent) => void): () => void {
+    this.diagnosticListeners.add(listener);
+    const anchor = this.authorityLogAnchor;
+    if (anchor?.gameId === this.engine.gameId) listener(anchor);
+    return () => this.diagnosticListeners.delete(listener);
+  }
+
+  protected observeAuthorityLog(observation: Omit<AuthorityLogObservation, "kind">): void {
+    const event: AuthorityLogObservation = { kind: "authorityLog", ...observation };
+    if (event.source === "snapshot") this.authorityLogAnchor = event;
+    this.publishDiagnostic(event);
+  }
+
+  protected observeBlockedCommand(command: DiagnosticCommand, reason: string): void {
+    const request = { gameId: this.engine.gameId, command, id: ++this.nextRequestId };
+    this.publishDiagnostic({
+      kind: "command",
+      stage: "blocked",
+      at: performance.now(),
+      ...request,
+      reason,
+    });
+  }
+
+  protected sendObservedCommand(command: DiagnosticCommand, send: (id: number) => void): void {
+    const request = { gameId: this.engine.gameId, command, id: ++this.nextRequestId };
+    const at = performance.now();
+    send(request.id);
+    if (this.commandRequests.size === MAX_COMMAND_REQUESTS) {
+      this.commandRequests.delete(this.commandRequests.keys().next().value!);
+    }
+    this.commandRequests.set(request.id, request);
+    this.publishDiagnostic({ kind: "command", stage: "sent", at, ...request });
+  }
+
+  /** 断线没有权威回执，丢弃待配对记录，保留已采集的发送事实。 */
+  protected forgetCommandRequests(): void {
+    this.commandRequests.clear();
+  }
+
+  protected observeCommandResult(
+    msg: CommandResultMsg | Extract<ServerMsg, { type: "error" }>,
+    at: number,
+  ): void {
+    const { requestId } = msg;
+    if (requestId === undefined) return;
+    const request = this.commandRequests.get(requestId);
+    if (request === undefined) return;
+    this.commandRequests.delete(requestId);
+    const event = { kind: "command", stage: "result", at, ...request } as const;
+    if (msg.type === "error") {
+      this.publishDiagnostic({
+        ...event,
+        outcome: "rejected",
+        reason: this.redactDiagnosticCredentials(msg.error),
+      });
+      return;
+    }
+    const { outcome } = msg;
+    if (outcome === "accepted") {
+      this.publishDiagnostic({ ...event, outcome, logOffset: msg.logOffset });
+      return;
+    }
+    const reason = this.redactDiagnosticCredentials(msg.reason);
+    this.publishDiagnostic(
+      outcome === "warning"
+        ? { ...event, outcome, reason, logOffset: msg.logOffset }
+        : { ...event, outcome, reason },
+    );
+  }
+
+  private publishDiagnostic(event: GameControllerDiagnosticEvent): void {
+    for (const listener of this.diagnosticListeners) listener(event);
   }
 
   // ─── 交互策略状态(#433 上收;子类协议面读写)───
@@ -164,29 +270,35 @@ export abstract class GameController {
    *    他座棋子照飞、队列积压不进门,ADR-0029 §4;热座分支无需同款守卫:
    *    decisionOwner 恒为真实座位索引,等值判定对 -1 天然不成立)。 */
   get interactive(): boolean {
-    return this.canAct();
+    return this.commandBlockReason() === null;
   }
 
-  /** interactive 的公式本体(protected:策略属控制器内部,UI 只读 interactive)。 */
-  protected canAct(): boolean {
+  protected commandBlockReason(): string | null {
     const e = this.engine;
-    if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
+    if (e.phase !== "Playing") return "对局未处于进行阶段";
+    if (e.turnPhase === "AwaitingReaction") {
       const pr = e.pendingReaction;
-      if (pr == null) return false;
-      // 未入座显式守卫:被询问集含 -1 匿名占位(联机脱敏批逐字拷贝),未入座必须
-      // 在集合判定前排除,不能指望「座位集只含真实座位」的推理天然保证。
-      if (this.mySeat < 0) return false;
-      // 被询问集公式单源 controllers/reaction.ts(#284)。
-      return !this.pending && reactionQueriesSeat(pr.view, this.mySeat);
+      if (pr == null) return "当前反应窗缺失";
+      // 联机脱敏批可能包含 -1 匿名占位，先排除未入座，再查被询问集。
+      if (this.mySeat < 0) return "尚未入座";
+      if (this.pending) return "已有命令在途";
+      return reactionQueriesSeat(pr.view, this.mySeat) ? null : "本座未受询";
     }
-    return (
-      e.phase === "Playing" &&
-      (this.hotSeat || e.decisionOwner === this.mySeat) &&
-      !e.players[e.decisionOwner]?.isBot &&
-      !this.pending &&
-      !this.autoPilotOn &&
-      !this.fxPlaying
-    );
+    if (!this.hotSeat && e.decisionOwner !== this.mySeat) return "未轮到本座决策";
+    if (e.players[e.decisionOwner]?.isBot) return "当前由 bot 决策";
+    if (this.pending) return "已有命令在途";
+    if (this.autoPilotOn) return "本座托管中";
+    if (this.fxPlaying) return "本座行军仍在演出";
+    return null;
+  }
+
+  protected capitalPickBlockReason(): string | null {
+    const e = this.engine;
+    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") return "非选都阶段";
+    if (e.currentSetupPlayerIndex !== this.mySeat) return "未轮到本座选都";
+    if (this.pending) return "已有命令在途";
+    if (this.autoPilotOn) return "本座托管中";
+    return null;
   }
 
   /** 起签转入沿检测(#188 第 1 步):本地人类座位进入「Roll 等待态」(看门狗/
@@ -247,5 +359,6 @@ export abstract class GameController {
     store.setViewSeat(this.viewSeat);
     store.setInteractive(this.interactive);
     store.setSelfPresenting(this.selfPresenting);
+    observeGameDiagnosticState(this);
   }
 }

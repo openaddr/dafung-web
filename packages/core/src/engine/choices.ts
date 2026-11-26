@@ -658,23 +658,23 @@ export function respondSkillChoice(
   const skill = skillById(pending.skillId);
   if (!isTriggerSkill(skill)) throw new Error(`「你可」待决 ${pending.skillId} 非被动技(数据 bug)`); // 零兜底
   if (seat !== pending.ownerSeat) {
-    g.warn(`respondSkillChoice:座位 ${seat} 非本窗决策者`);
+    g.warnCommand("notSkillDecisionOwner", `respondSkillChoice:座位 ${seat} 非本窗决策者`);
     return;
   }
   let chosenTarget: number | null = null;
   if (use) {
     const target = pending.targetSeat ?? targetSeat;
     if (target == null) {
-      g.warn("respondSkillChoice:发动缺目标座位");
+      g.warnCommand("skillTargetSeatRequired", "respondSkillChoice:发动缺目标座位");
       return;
     }
     if (target === seat) {
-      g.warn("respondSkillChoice:不能指定自己");
+      g.warnCommand("selfTargetForbidden", "respondSkillChoice:不能指定自己");
       return;
     }
     const victim = g.players[target];
     if (victim == null || victim.isBankrupt) {
-      g.warn("respondSkillChoice:目标座位无效");
+      g.warnCommand("invalidTargetSeat", "respondSkillChoice:目标座位无效");
       return;
     }
     chosenTarget = target;

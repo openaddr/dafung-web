@@ -9,6 +9,7 @@
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
 import type { GameCommand, GameEngine, SeatConfig, TurnPhase } from "../engine/authority";
 import { isSingleCjk, MAX_SEAT_COUNT, MIN_SEAT_COUNT } from "../engine/constants";
+import { isLogWarning } from "../engine/model";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../engine/guohao";
 import type { LoadedMap } from "../engine/board-loader";
@@ -22,11 +23,12 @@ import {
   CALIBRATION_EVENT_KINDS,
   CALIBRATION_WINDOWS,
   lobbyView,
+  publicLogWarningReason,
 } from "./seat-projection";
 // wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
 // assembleDownlinkShot 单口(#431,内用 wire 构造函数);元数据指纹仅复用 wire 序列化。
 // 本模块只管排空、校准判定与节流后的发送。
-import { encodeDownlink } from "../protocol/wire";
+import { encodeDownlink, type ReportCommandProcessing } from "../protocol/wire";
 import {
   decisionSeatOf,
   driveBots as driveBotsSession,
@@ -507,6 +509,7 @@ export class RoomRegistry {
     seat: number,
     tileIndex: number,
     onUpdate?: (room: RoomSession) => void,
+    report?: ReportCommandProcessing,
   ): Promise<RoomSession> {
     const room = this.rooms.get(roomId);
     if (!room) throw new RoomError(404, "房间不存在");
@@ -518,10 +521,12 @@ export class RoomRegistry {
       throw new RoomError(400, "seat 非法");
     if (e.currentSetupPlayerIndex !== seat) throw new RoomError(403, "未轮到该座位选都");
     if (!e.offeredCapitals.includes(tileIndex)) throw new RoomError(400, "非本轮候选城");
+    const logOffset = e.log.length;
     const r = e.pickCapital(seat, tileIndex);
     if (!r.ok) throw new RoomError(400, r.reason ?? "选都失败");
     this.persist(room);
     onUpdate?.(room); // 落子结果先推(候选滚换/推进)
+    report?.({ outcome: "accepted", logOffset });
     await this.driveBots(room, onUpdate); // 余下服务器驱动座位接棒(全 bot 驱动房直接跑完进 Playing)
     return room;
   }
@@ -540,6 +545,7 @@ export class RoomRegistry {
     seat: number,
     on: boolean,
     onUpdate?: (room: RoomSession) => void,
+    report?: ReportCommandProcessing,
   ): Promise<RoomSession> {
     const room = this.rooms.get(roomId);
     if (!room || !room.engine) throw new RoomError(409, "对局未开始,不可托管");
@@ -551,6 +557,7 @@ export class RoomRegistry {
     this.observe(room, { ev: "autopilot", seat, on, by: "self" });
     // 托管开关房间行(ADR-0014):机读 detail 供重放调整 bot 驱动座位集(by 分辨触发源)
     const seatGuohao = room.engine.players[seat].guohao;
+    const logOffset = room.engine.log.length;
     this.logRoom(
       room,
       on ? `${seatGuohao} 开启托管,交由电脑代打` : `${seatGuohao} 关闭托管,收回操作`,
@@ -558,6 +565,7 @@ export class RoomRegistry {
     );
     this.persist(room);
     onUpdate?.(room); // 先广播托管状态
+    report?.({ outcome: "accepted", logOffset });
     void this.driveBots(room, onUpdate); // 只调度第一拍,链经注入时钟自续(#529,见方法注)
     return room;
   }
@@ -598,17 +606,36 @@ export class RoomRegistry {
     roomId: string,
     cmd: GameCommand,
     onUpdate?: (room: RoomSession) => void,
+    report?: ReportCommandProcessing,
   ): Promise<void> {
     const room = this.rooms.get(roomId);
-    if (!room || !room.engine) return;
+    if (!room || !room.engine) {
+      report?.({ outcome: "unprocessed", reason: room ? "对局未开始" : "房间不存在" });
+      return;
+    }
+    const { log } = room.engine;
+    const logOffset = log.length;
     const rejection = room.engine.submitCommand(cmd);
     if (rejection !== undefined) {
       this.persist(room); // 拒绝的命令与警告也须归档。
       throw new RoomError(400, rejection);
     }
+    // 只定位本次同步权威处理写出的警告。日志原文可能含牌面。
+    const warning = report ? log.slice(logOffset).findIndex(isLogWarning) : -1;
     this.watchdogs.syncReaction(room, onUpdate);
     this.persist(room);
     onUpdate?.(room); // 人类命令结果先推
+    if (report) {
+      if (warning === -1) report({ outcome: "accepted", logOffset });
+      else {
+        const warningOffset = logOffset + warning;
+        report({
+          outcome: "warning",
+          logOffset: warningOffset,
+          reason: publicLogWarningReason(log[warningOffset]),
+        });
+      }
+    }
     await this.driveBots(room, onUpdate); // bot/托管座位的连锁,逐步 persist+onUpdate
   }
 
@@ -628,9 +655,13 @@ export class RoomRegistry {
     seat: number,
     cmd: GameCommand,
     onUpdate?: (room: RoomSession) => void,
+    report?: ReportCommandProcessing,
   ): Promise<void> {
     const room = this.rooms.get(roomId);
-    if (!room || !room.engine) return; // 房间/对局不存在:与内部通路同口径(WS 断连竞态)
+    if (!room || !room.engine) {
+      report?.({ outcome: "unprocessed", reason: room ? "对局未开始" : "房间不存在" });
+      return;
+    }
     if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
       throw new RoomError(400, "seat 非法"); // 旁观/越界座位不可提交任何游戏命令
     const e = room.engine;
@@ -644,7 +675,7 @@ export class RoomRegistry {
       const owner = decisionSeatOf(e);
       if (seat !== owner) throw new RoomError(403, `未轮到该座位决策(归属:座位 ${owner})`);
     }
-    await this.applyCommand(roomId, cmd, onUpdate);
+    await this.applyCommand(roomId, cmd, onUpdate, report);
   }
 
   // ──────────────────────────── 响亮终局(#642)────────────────────────────

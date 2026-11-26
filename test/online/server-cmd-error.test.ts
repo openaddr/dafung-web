@@ -1,10 +1,5 @@
-// 服务器消息处理器 cmd 分支错误回报(#428,#426 波次):非法命令注入 → 该客户端
-// 收到 error 下行、服务器进程存活。联机端 interactive 判定与服务端结算之间隔一个
-// RTT,多人延迟下竞态非法命令必然出现(如反应窗已闭仍应答、过期快照上的操作);
-// pickCapital/autoPilot 两分支均有 .catch→error 下行(显式向用户报错,零兜底例外①),
-// cmd 分支同口径——引擎 submitCommand 抛错(零兜底契约)必须回报给发送者而非炸进程。
-// 注入手法:respondReaction 替越界座位应答，房间拒绝后回传该次应答的请求号。
-// 真 WS 真 HTTP(子进程起 scripts/server.ts,同 playwright.config webServer 口径);
+// 真实 HTTP/WS 经 wire 分发、房间校验和权威引擎，验证带号诊断回执及原有 error 通道。
+// 另守住权威日志与事件批、校准摘要的下行次序和重连接续。
 // spawn 前预检端口无残孤占位(#594 同主题的 bun:test 版,2026-10-19 实锤:
 // 残孤占 4280 → 健康检查打旧进程、新进程 EADDRINUSE 暴毙 → exitCode 假失败)。
 // 慢例池(测试管线提速批):真进程真 WS 整例实测 3.4s(2026-10-30)——按「单例实测 ≥3s」
@@ -21,7 +16,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { cmdErrorTestPort } from "../../scripts/dev-ports";
 import { OnlineClient } from "../../scripts/online-client";
-import type { GameLogMsg } from "@dafung/core/protocol/wire";
+import { cmdMsg, pickCapitalMsg, type GameLogMsg } from "@dafung/core/protocol/wire";
 
 // 慢例池开关:describe 级 skip 连钩子一起跳(默认池不白起服务器);DAFUNG_SLOW=1 才跑,判据见文件头注。
 const describeSlow = describe.skipIf(!process.env.DAFUNG_SLOW);
@@ -167,44 +162,64 @@ describeSlow("server WS 命令回报与对局日志", () => {
     }
   });
 
-  it("非法反应应答在 error 下行带回请求号，服务器继续服务", async () => {
-    // 建房(2 座,座位 1 bot)→ 选图 → 开局(停在选都三选一)
+  it("编号回执区分未处理、权威告警、拒绝和成功", async () => {
     const created = await post("/room/new", { seats: 2, bot: "1", seed: 42 });
     const roomId = created.roomId as string;
     const token = created.seatToken as string;
     expect(created.ok).toBe(true);
     await post("/room/map", { roomId, seatToken: token, mapId: "guanzhong" });
-    const started = await post("/room/start", { roomId, seatToken: token });
-    expect(started.ok).toBe(true);
-
-    // 座位 0 连接:首连摘要先行
     const ws = await openWs(`ws://127.0.0.1:${PORT}/ws?room=${roomId}&seat=0&token=${token}`);
-    const first = await nextMessage(ws);
-    expect(["snapshot", "lobby"]).toContain(first.type as string);
 
-    // 注入非法命令:respondReaction 携带越界 seat(合法房间只有座位 0/1)
-    ws.send(
-      JSON.stringify({
-        type: "cmd",
-        cmd: { type: "respondReaction", seat: 99, use: false },
+    try {
+      expect((await nextMessage(ws)).type).toBe("lobby");
+      ws.send(cmdMsg({ type: "rollAndMove" }, 5));
+      expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
+        type: "commandResult",
+        requestId: 5,
+        outcome: "unprocessed",
+        reason: "对局未开始",
+      });
+
+      const firstSnapshot = nextMessageOfType(ws, "snapshot");
+      const started = await post("/room/start", { roomId, seatToken: token });
+      expect(started.ok).toBe(true);
+      const first = await firstSnapshot;
+      expect(first.currentSetupPlayerIndex).toBe(0);
+      const firstLogLength = (first.log as unknown[]).length;
+
+      // 非购买阶段，权威只记告警，回执带安全原因和告警序位。
+      ws.send(cmdMsg({ type: "buyProperty" }, 6));
+      expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
+        type: "commandResult",
+        requestId: 6,
+        outcome: "warning",
+        reason: "阶段不符（需要 AwaitingDecision，当前 Roll）",
+        logOffset: firstLogLength + 1,
+      });
+
+      // 替越界座位应答仍被房间拒绝，回到原有 error 通道。
+      ws.send(cmdMsg({ type: "respondReaction", seat: 99, use: false }, 7));
+      expect(await nextMessageOfType(ws, "error")).toEqual({
+        type: "error",
         requestId: 7,
-      }),
-    );
+        error: "非本窗被询问座位,不能应答(更不能替他人应答)",
+      });
 
-    // 该客户端收到 error 下行，并能定位到被拒绝的应答。
-    const err = await nextMessageOfType(ws, "error");
-    expect(err).toMatchObject({ type: "error", requestId: 7 });
-    expect(typeof err.error).toBe("string");
-    expect(err.error as string).not.toBe("");
+      ws.send(pickCapitalMsg((first.offeredCapitals as number[])[0], 8));
+      expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
+        type: "commandResult",
+        requestId: 8,
+        outcome: "accepted",
+        logOffset: firstLogLength + 2,
+      });
 
-    // 进程存活:端口仍应答健康检查(未处理拒绝在 Bun 下默认按进程级错误崩——修复前此处先死于上一断言)
-    await Bun.sleep(300); // 给潜在异步崩溃留出暴露时间
-    const health = await fetch(`${BASE}/health`);
-    expect(health.ok).toBe(true);
-    // 生命周期不变量:beforeAll 成功才进用例体,proc 必已赋值
-    expect(proc!.exitCode).toBeNull();
-
-    ws.close();
+      await Bun.sleep(300); // 给潜在异步崩溃留出暴露时间
+      const health = await fetch(`${BASE}/health`);
+      expect(health.ok).toBe(true);
+      expect(proc!.exitCode).toBeNull();
+    } finally {
+      ws.close();
+    }
   });
 
   it("联机日志从校准锚连续下行，重连归座后继续交付至解散", async () => {
@@ -293,6 +308,11 @@ describeSlow("server WS 命令回报与对局日志", () => {
       const audit = await waitLog(reconnected, "仅追加日志的命令");
       expect(audit.offset).toBe(restored.log.length);
       expect(audit.lines.map((line) => line.category)).toEqual(["cmd", "system"]);
+      expect(audit.lines[1]).toMatchObject({
+        brief: "[警告] 阶段不符（需要 Roll，当前 AwaitingDecision），原文见服务器日志",
+        detail: "warn: 阶段不符（需要 Roll，当前 AwaitingDecision），原文见服务器日志",
+      });
+      expect(audit.lines[1]).not.toHaveProperty("warning");
       expect(await waitLog(host, "同局命令审计")).toEqual(audit);
 
       expect((await post("/room/dismiss", hostAuth)).ok).toBe(true);

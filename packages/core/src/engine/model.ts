@@ -1,6 +1,7 @@
 // 核心领域模型(#326 types.ts 解散,ADR-0019 类型随域走):跨域共用的基础数据形状。
 // 判定标准:谁拥有概念,类型住谁的文件;唯有多域共用、不属于任何单一机制域的
 // 基础记录(Player/PropertyHolding/LogEvent)集中于此。纯数据,无 DOM 依赖。
+import type { TurnPhase } from "./authority";
 import type { CityDamageEntry } from "./city-damage";
 import type { HeroSlot } from "./roster";
 import type { TreasureDef } from "./treasures";
@@ -53,6 +54,37 @@ export interface Player {
   jinnangHandCount: number;
 }
 
+/** 命令守卫允许进回执和座位日志的固定理由。 */
+export const COMMAND_WARNING_REASONS = {
+  notSkillDecisionOwner: "非本窗决策者",
+  skillTargetSeatRequired: "发动缺目标座位",
+  selfTargetForbidden: "不能指定自己",
+  invalidTargetSeat: "目标座位无效",
+  targetStepMismatch: "命令与当前操作步骤不符",
+  targetUnavailable: "所选目标不可用",
+  backUnavailable: "当前操作不能返回上一步",
+  cancelUnavailable: "当前操作无法取消",
+  jinnangUnavailable: "所提交的锦囊当前不可用",
+  heroSkillUnavailable: "所提交的主动技当前不可用",
+  bookStudyUnavailable: "所提交的技能书或研读人选不可用",
+  dismissalWrongPhase: "当前阶段不可遣散名将",
+  dismissalOutsideOwnDecision: "仅行动者自己的决策窗可遣散名将",
+  dismissalDuringSettlement: "清算期间不可主动遣散名将",
+  dismissalUnavailable: "所选名将当前不可遣散",
+  tradeTreasureUnavailable: "所选珍宝不可用于交涉",
+  propertyInsufficientFunds: "银两不足",
+  propertyNotOwned: "未持有该城",
+  propertyMaxLevel: "已满级",
+  settlementAlreadyCovered: "已凑足债务，不可再卖",
+  settlementTreasureUnavailable: "所选珍宝不可用于清偿",
+  capitalSaleForbidden: "都城不可变卖",
+  settlementCityUnavailable: "城池未持有或重复选择",
+  settlementInvalidAsset: "清偿仅可变卖珍宝与非都城城池",
+  settlementInsufficient: "所选资产不足以清偿债务",
+} as const;
+
+export type CommandWarningCode = keyof typeof COMMAND_WARNING_REASONS;
+
 /** 对局日志条目。字段格式、写入点和用途见 docs/reference/对局日志.md。 */
 export interface LogEvent {
   ts: number; // 时间(epoch ms,引擎侧 Date.now())
@@ -77,4 +109,14 @@ export interface LogEvent {
     | "cmd"
     | "room";
   amount?: number; // 仅现金收付(+收入 / -支出);非现金资产估价走 detail value=(#617)
+  /** 权威日志的结构化告警，座位投影只交付公开说明。 */
+  warning?:
+    | { kind: "phaseMismatch"; expected: TurnPhase; actual: TurnPhase }
+    | { kind: "commandGuard"; code: CommandWarningCode };
+}
+
+export const LOG_WARNING_PREFIX = "warn: ";
+
+export function isLogWarning(line: LogEvent): boolean {
+  return line.category === "system" && line.detail.startsWith(LOG_WARNING_PREFIX);
 }

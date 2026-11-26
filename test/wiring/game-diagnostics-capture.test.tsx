@@ -1,8 +1,17 @@
 import { afterAll, afterEach, beforeAll, expect, it, spyOn } from "bun:test";
-import { IDBFactory } from "fake-indexeddb";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
+import {
+  getAudio,
+  MediaAudioPlayer,
+  setAudio,
+  subscribeAudioPlayback,
+  type AudioPlaybackEvent,
+} from "@app/fx/audio";
 import { loadArchivedGame } from "@app/gameLogArchive";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
 import { TESTIDS } from "@app/screens/game/testids";
+import { GAME_DIAG_TID } from "@app/screens/shared/testids";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { GameEngine } from "@dafung/core/engine/authority";
 import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
@@ -14,6 +23,7 @@ import { assembleGameLogDelta, redactSnapshotForSeat } from "@dafung/core/room/s
 import { encodeDownlink, type ReactionTiming, type ServerMsg } from "@dafung/core/protocol/wire";
 import pkg from "../../package.json";
 import rawGuanzhongData from "../../packages/core/maps/guanzhong.json";
+import { installControlledClock } from "./controlled-clock";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 
 const DATA = rawGuanzhongData as MapData;
@@ -42,6 +52,7 @@ let GameScreen: (typeof import("@app/screens/game/GameScreen"))["GameScreen"];
 let originalFetch: typeof fetch;
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
+let controlledClock: ReturnType<typeof installControlledClock> | null = null;
 
 class BoundarySocket implements WebSocketLike {
   readyState = 0;
@@ -104,8 +115,11 @@ afterEach(() => {
   root = null;
   container?.remove();
   container = null;
+  setAudio(null);
   setEngine(null);
   useGameStore.getState().reset();
+  controlledClock?.restore();
+  controlledClock = null;
 });
 
 afterAll(async () => {
@@ -240,6 +254,54 @@ function mountGame(): void {
   });
 }
 
+function clickTestId(testId: string): void {
+  const button = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+  if (button === null) throw new Error(`缺少操作入口 ${testId}`);
+  button.click();
+}
+
+it("卸载诊断观察时归档，正在播放的演出音效继续响", async () => {
+  using _play = spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  setAudio(new MediaAudioPlayer({ preload: false }));
+  const authority = startAuthority();
+  const { sockets } = await join();
+  sockets[0]!.receive(snapshotOf(authority));
+  mountGame();
+  const playback: AudioPlaybackEvent[] = [];
+  const unsubscribe = subscribeAudioPlayback((event) => {
+    if (event.sound === "marchStart") playback.push(event);
+  });
+  try {
+    await act(async () => getAudio().play("marchStart"));
+    await act(async () => root!.unmount());
+    root = null;
+
+    expect(playback).toEqual([expect.objectContaining({ kind: "start" })]);
+    const capture = (await loadArchivedGame(authority.gameId))?.capture;
+    expect(capture?.perf?.stoppedAt).toBeNumber();
+    expect(capture?.timeline?.events).toContainEqual(
+      expect.objectContaining({ kind: "audio", sound: "marchStart", stage: "start" }),
+    );
+  } finally {
+    unsubscribe();
+  }
+});
+
+function startReaction(authority: GameEngine) {
+  while (authority.phase === "Setup") {
+    expect(
+      authority.pickCapital(authority.currentSetupPlayerIndex, authority.offeredCapitals[0]).ok,
+    ).toBe(true);
+  }
+  giveJinnang(authority, 0, ["横征暴敛", "半路杀出"]);
+  giveJinnang(authority, 1, ["识破诡计", "连环计"]);
+  armPhase(authority, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
+  authority.submitCommand({ type: "useJinnang", cardId: "横征暴敛" });
+  const pending = authority.pendingReaction;
+  if (pending == null) throw new Error("布场缺少挂起的反应窗");
+  return pending;
+}
+
 it("选都与反应窗的现场记录本座可执行选项", async () => {
   const { checkpointGameDiagnostics } = await import("@app/game-diagnostics");
   const authority = startAuthority();
@@ -258,23 +320,30 @@ it("选都与反应窗的现场记录本座可执行选项", async () => {
     seat: 1,
     capitalChoices: authority.offeredCapitals,
   });
+  const city = document.querySelector(TESTIDS.city(authority.offeredCapitals[0]));
+  if (city === null) throw new Error("缺少选都候选城");
+  act(() => city.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  expect(document.querySelector(`[data-testid="${TESTIDS.confirmCapitalOk}"]`)).not.toBeNull();
+  act(() => clickTestId(TESTIDS.confirmCapitalCancel));
+  expect(document.querySelector(`[data-testid="${TESTIDS.confirmCapitalOk}"]`)).toBeNull();
+  await checkpointGameDiagnostics(authority.gameId);
+  const capitalTimeline = (await loadArchivedGame(authority.gameId))?.capture?.timeline;
+  expect(
+    capitalTimeline?.events.flatMap((event) =>
+      event.kind === "state" && event.changes.controls
+        ? [event.changes.controls.decisionScroll]
+        : [],
+    ),
+  ).toEqual(["available", "hidden"]);
 
-  while (authority.phase === "Setup") {
-    expect(
-      authority.pickCapital(authority.currentSetupPlayerIndex, authority.offeredCapitals[0]).ok,
-    ).toBe(true);
-  }
-  giveJinnang(authority, 0, ["横征暴敛", "半路杀出"]);
-  giveJinnang(authority, 1, ["识破诡计", "连环计"]);
-  armPhase(authority, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
-  authority.submitCommand({ type: "useJinnang", cardId: "横征暴敛" });
-  const pending = authority.pendingReaction;
-  if (pending == null) throw new Error("布场缺少挂起的反应窗");
+  const pending = startReaction(authority);
   act(() => {
     socket.receive(snapshotOf(authority, { seq: pending.seq, remainingMs: pending.view.windowMs }));
   });
-  const decline = document.querySelector(`[data-testid="${TESTIDS.reactionDecline}"]`);
-  expect(decline !== null).toBe(true);
+  const decline = document.querySelector<HTMLButtonElement>(
+    `[data-testid="${TESTIDS.reactionDecline}"]`,
+  );
+  expect(decline?.disabled).toBe(false);
   await checkpointGameDiagnostics(authority.gameId);
   const client = (await loadArchivedGame(authority.gameId))?.capture?.client;
   expect(client).toMatchObject({
@@ -293,17 +362,166 @@ it("选都与反应窗的现场记录本座可执行选项", async () => {
   expect(JSON.stringify(client)).not.toContain("半路杀出");
   expect(JSON.stringify(client)).not.toContain("连环计");
 
-  const mute = document.querySelector<HTMLElement>(`[data-testid="${TESTIDS.reactionMute}"]`);
-  if (mute === null) throw new Error("缺少反应窗静默入口");
-  act(() => mute.click());
+  act(() => {
+    socket.receive(snapshotOf(authority, { seq: pending.seq, remainingMs: pending.view.windowMs }));
+  });
+  act(() => clickTestId(TESTIDS.reactionMute));
+  expect(document.querySelector(`[data-testid="${TESTIDS.reactionDecline}"]`)).toBeNull();
   await checkpointGameDiagnostics(authority.gameId);
-  expect((await loadArchivedGame(authority.gameId))?.capture?.client).toMatchObject({
+  const capture = (await loadArchivedGame(authority.gameId))?.capture;
+  expect(capture?.client).toMatchObject({
     pending: true,
     reaction: { asked: true, muted: true, playable: [], canDecline: false },
   });
+  const timeline = capture?.timeline;
+  expect(timeline).toMatchObject({
+    timeOrigin: capture?.perf?.timeOrigin,
+    baseline: {
+      state: { turn: { phase: "Setup", decisionOwner: 1 }, controls: { reaction: "hidden" } },
+    },
+    authorityAnchorBeforeStart: { source: "snapshot", offset: 0, count: expect.any(Number) },
+    omitted: 0,
+  });
+  expect(timeline!.authorityAnchorBeforeStart!.at).toBeLessThanOrEqual(timeline!.baseline.at);
+  const changes = timeline!.events.flatMap((event) =>
+    event.kind === "state" ? [event.changes] : [],
+  );
+  expect(changes.flatMap((change) => (change.turn ? [change.turn.turnPhase] : []))).toEqual([
+    "AwaitingReaction",
+  ]);
+  const reactionControls = [
+    timeline!.baseline.state.controls.reaction,
+    ...changes.flatMap((change) => (change.controls ? [change.controls.reaction] : [])),
+  ];
+  expect(reactionControls.filter((state, index) => state !== reactionControls[index - 1])).toEqual([
+    "hidden",
+    "available",
+    "hidden",
+  ]);
+});
+
+it("反应倒计时禁用实际按钮时立即采集入口锁定", async () => {
+  controlledClock = installControlledClock({ monotonic: true });
+  const { checkpointGameDiagnostics } = await import("@app/game-diagnostics");
+  const authority = startAuthority();
+  const pending = startReaction(authority);
+  const { sockets } = await join();
+  sockets[0]!.receive(
+    snapshotOf(authority, { seq: pending.seq, remainingMs: pending.view.windowMs }),
+  );
+  mountGame();
+  const decline = document.querySelector<HTMLButtonElement>(
+    `[data-testid="${TESTIDS.reactionDecline}"]`,
+  );
+  expect(decline?.disabled).toBe(false);
+  await controlledClock.advance(pending.view.windowMs);
+  expect(decline?.disabled).toBe(true);
+  await checkpointGameDiagnostics(authority.gameId);
+  const expired = (await loadArchivedGame(authority.gameId))?.capture;
+  expect(expired?.timeline?.events).toContainEqual(
+    expect.objectContaining({
+      kind: "state",
+      changes: expect.objectContaining({
+        controls: expect.objectContaining({ reaction: "locked" }),
+      }),
+    }),
+  );
+});
+
+async function openDiagnostics(gameId: string) {
+  act(() => clickTestId(TESTIDS.settingsButton));
+  await act(async () => clickTestId(TESTIDS.settingsDiagnostic));
+  return act(async () => loadArchivedGame(gameId));
+}
+
+async function saveDiagnosticFile(target: string): Promise<unknown> {
+  const saved = Promise.withResolvers<unknown>();
+  mockIPC((command, payload) => {
+    if (command === "plugin:dialog|save") return target;
+    if (command === "plugin:fs|write_text_file") {
+      saved.resolve(JSON.parse(new TextDecoder().decode(payload as Uint8Array)) as unknown);
+      return;
+    }
+    throw new Error(`未预期的原生命令 ${command}`);
+  });
+  try {
+    return await act(async () => {
+      clickTestId(GAME_DIAG_TID.save);
+      return saved.promise;
+    });
+  } finally {
+    clearMocks();
+  }
+}
+
+it("在诊断面板直接保存和复制时均刷新当前局", async () => {
+  const authority = startAuthority();
+  const { sockets } = await join();
+  sockets[0]!.receive(snapshotOf(authority));
+  mountGame();
+  await openDiagnostics(authority.gameId);
+
+  const lateError = "打开诊断面板后才收到的错误";
+  act(() => window.dispatchEvent(new ErrorEvent("error", { message: lateError })));
+  const bundle = await saveDiagnosticFile("content://diagnostics/selected.json");
+  expect(bundle).toMatchObject({
+    gameId: authority.gameId,
+    log: expect.arrayContaining([expect.objectContaining({ category: "header" })]),
+    timeline: {
+      timeOrigin: performance.timeOrigin,
+      events: [expect.objectContaining({ kind: "error", message: lateError })],
+    },
+    perf: { timeOrigin: performance.timeOrigin },
+    missing: {},
+  });
+
+  const written = Promise.withResolvers<string>();
+  using _clipboard = spyOn(navigator.clipboard, "writeText").mockImplementation(async (text) => {
+    written.resolve(text);
+  });
+  const copyError = "保存文件之后才收到的错误";
+  await act(async () => {
+    window.dispatchEvent(new ErrorEvent("error", { message: copyError }));
+    clickTestId(GAME_DIAG_TID.copy);
+    await written.promise;
+  });
+  const summary = await written.promise;
+  expect(summary).toContain(`局 ID ${authority.gameId}`);
+  expect(summary).toContain(copyError);
+});
+
+it("保存时刷新归档失败，会注明失败并导出已有记录", async () => {
+  const authority = startAuthority();
+  const { sockets } = await join();
+  sockets[0]!.receive(snapshotOf(authority));
+  mountGame();
+  const previous = await openDiagnostics(authority.gameId);
+  expect(previous?.capture).toBeDefined();
+
+  const put = IDBObjectStore.prototype.put;
+  using _failWrite = spyOn(IDBObjectStore.prototype, "put").mockImplementationOnce(function (
+    this: globalThis.IDBObjectStore,
+    value: unknown,
+    key?: IDBValidKey,
+  ) {
+    const request = put.call(this, value, key);
+    request.addEventListener("success", () => this.transaction.abort());
+    return request;
+  });
+  const target = "content://diagnostics/retained.json";
+  expect(await saveDiagnosticFile(target)).toMatchObject({
+    gameId: authority.gameId,
+    capturedAt: previous!.capture!.capturedAt,
+    captureRefreshFailure: "当前局现场刷新失败：对局归档事务已中止",
+  });
+  const dialog = document.querySelector(`[data-testid="${GAME_DIAG_TID.dialog}"]`);
+  expect(dialog?.textContent).toContain("当前局现场刷新失败");
+  expect(dialog?.textContent).toContain(target);
 });
 
 it("保存离场前的同局交互、报错和帧诊，另起一局各自可取", async () => {
+  using _play = spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  setAudio(new MediaAudioPlayer({ preload: false }));
   const authority = startAuthority();
   while (authority.phase === "Setup") {
     const pick = authority.pickCapital(
@@ -316,20 +534,56 @@ it("保存离场前的同局交互、报错和帧诊，另起一局各自可取"
   giveJinnang(authority, 1, ["横征暴敛"]);
   armPhase(authority, { turnPhase: "AwaitingJinnang", activeIndex: 1 });
   const { controller, sockets } = await join();
-  sockets[0]!.receive(snapshotOf(authority));
+  const initialSocket = sockets[0]!;
+  initialSocket.receive(snapshotOf(authority));
   mountGame();
+  const passButton = `[data-testid="${TESTIDS.actionbarPass}"]`;
+  expect(document.querySelector(passButton)).not.toBeNull();
+  act(() => clickTestId(TESTIDS.jinnangToggle));
+  expect(document.querySelector(passButton)).toBeNull();
+  act(() => clickTestId(TESTIDS.jinnangToggle));
+  await act(async () => getAudio().play("marchStart"));
   Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
   try {
-    document.dispatchEvent(new Event("visibilitychange"));
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
   } finally {
     Reflect.deleteProperty(document, "visibilityState");
   }
   const background = await loadArchivedGame(authority.gameId);
   expect(background?.capture?.client.interactive).toBe(true);
   expect(background?.capture?.perf?.stoppedAt).toBeNull();
+  const backgroundTimeline = background?.capture?.timeline;
+  expect(backgroundTimeline?.baseline.state.controls.jinnang).toBe("available");
+  expect(
+    backgroundTimeline?.events.flatMap((event) =>
+      event.kind === "state" && event.changes.controls ? [event.changes.controls.jinnang] : [],
+    ),
+  ).toEqual(["hidden", "available"]);
+  const march = backgroundTimeline?.events
+    .filter((event) => event.kind === "audio")
+    .filter((event) => event.sound === "marchStart");
+  expect(march).toEqual([
+    expect.objectContaining({ stage: "start", instanceId: expect.any(Number) }),
+    expect.objectContaining({ stage: "end", reason: "background", instanceId: expect.any(Number) }),
+  ]);
+  expect(march![1].instanceId).toBe(march![0].instanceId);
+  expect(march![1].at).toBeLessThanOrEqual(backgroundTimeline!.capturedAt);
+
+  act(() => {
+    initialSocket.disconnect();
+    controller.reconnect();
+    sockets[1]!.open();
+    sockets[1]!.receive(snapshotOf(authority));
+  });
+  await act(async () => getAudio().play("cityConquest"));
 
   act(() => {
     controller.dispatchCommand({ type: "useJinnang", cardId: null });
+    sockets[1]!.receive({
+      type: "error",
+      requestId: 1,
+      error: "令牌失效：token=seat-only-secret wss://diagnostics.test/ws",
+    });
     useGameStore.getState().pushHint("出牌等待回包");
     window.dispatchEvent(
       new ErrorEvent("error", {
@@ -364,6 +618,28 @@ it("保存离场前的同局交互、报错和帧诊，另起一局各自可取"
   expect(firstText).not.toContain("seat-only-secret");
   expect(firstText).not.toContain("wss://diagnostics.test");
   expect(firstText).not.toContain("火烧连营");
+  const events = first?.capture?.timeline?.events;
+  const connections = events?.flatMap((event) =>
+    event.kind === "state" && event.changes.connection ? [event.changes.connection.status] : [],
+  );
+  expect(connections).toEqual(["closed", "gaveUp", "connecting", "calibrating", "open"]);
+  expect(events?.filter((event) => event.kind === "command")).toEqual([
+    expect.objectContaining({ stage: "sent", command: "useJinnang", id: 1 }),
+    expect.objectContaining({
+      stage: "result",
+      id: 1,
+      outcome: "rejected",
+      reason: expect.stringContaining("令牌失效"),
+    }),
+  ]);
+  const conquest = events
+    ?.filter((event) => event.kind === "audio")
+    .filter((event) => event.sound === "cityConquest");
+  expect(conquest).toEqual([
+    expect.objectContaining({ stage: "start", instanceId: expect.any(Number) }),
+    expect.objectContaining({ stage: "end", reason: "cancelled", instanceId: expect.any(Number) }),
+  ]);
+  expect(conquest![1].instanceId).toBe(conquest![0].instanceId);
 
   const next = startAuthority();
   const nextJoin = await join();
@@ -375,6 +651,9 @@ it("保存离场前的同局交互、报错和帧诊，另起一局各自可取"
     client: { phase: "Setup", pending: false },
     errors: [{ message: "房主已解散房间", at: expect.any(Number) }],
     perf: { stoppedAt: expect.any(Number) },
+    timeline: {
+      events: [{ kind: "error", message: "房主已解散房间", at: expect.any(Number) }],
+    },
   });
   expect(JSON.stringify((await loadArchivedGame(authority.gameId))?.capture)).toBe(firstText);
 });

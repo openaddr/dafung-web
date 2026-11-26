@@ -31,7 +31,12 @@ import { reactionChoicesForSeat } from "@app/controllers/reaction";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
-import { checkpointGameDiagnostics, mountGameDiagnostics } from "@app/game-diagnostics";
+import type { GameDiagnosticControl } from "@app/game-diagnostic-timeline";
+import {
+  checkpointGameDiagnostics,
+  mountGameDiagnostics,
+  observeGameDiagnosticControls,
+} from "@app/game-diagnostics";
 import { VERSION } from "../../../version";
 import {
   HandRack,
@@ -108,6 +113,10 @@ function reactionAnnouncement(
 
 function reactionTurnScope(snapshot: GameSnapshot): string {
   return JSON.stringify([snapshot.gameId, snapshot.turnNumber, snapshot.activeIndex]);
+}
+
+function diagnosticControl(visible: boolean, available: boolean): GameDiagnosticControl {
+  return !visible ? "hidden" : available ? "available" : "locked";
 }
 
 type GameEntryProps = {
@@ -496,24 +505,22 @@ function GameScreenLive({
   );
   const reactMuted =
     reactMute?.scope === turnScope && reactionMuted(reactMute.state, snapshot.activeIndex);
-  useEffect(
-    () =>
-      mountGameDiagnostics(controller, snapshot.gameId, VERSION, (state, seat, canAct) => {
-        const choices = reactionChoicesForSeat(state, seat);
-        const muted =
-          reactMute?.scope === reactionTurnScope(state) &&
-          reactionMuted(reactMute.state, state.activeIndex);
-        const canDecline =
-          choices !== null && choices.asked && !choices.answered && !muted && canAct;
-        return {
-          capitalChoices: selectableCapitalTiles(state, seat),
-          reaction:
-            choices === null
-              ? null
-              : { ...choices, muted, canDecline, playable: canDecline ? choices.playable : [] },
-        };
-      }),
-    [controller, snapshot.gameId, reactMute],
+  const readDiagnosticDecisions = useCallback(
+    (state: GameSnapshot, seat: number, canAct: boolean) => {
+      const choices = reactionChoicesForSeat(state, seat);
+      const muted =
+        reactMute?.scope === reactionTurnScope(state) &&
+        reactionMuted(reactMute.state, state.activeIndex);
+      const canDecline = choices !== null && choices.asked && !choices.answered && !muted && canAct;
+      return {
+        capitalChoices: selectableCapitalTiles(state, seat),
+        reaction:
+          choices === null
+            ? null
+            : { ...choices, muted, canDecline, playable: canDecline ? choices.playable : [] },
+      };
+    },
+    [reactMute],
   );
   const lastMutedAnswer = useRef<string | null>(null);
   useEffect(() => {
@@ -739,6 +746,68 @@ function GameScreenLive({
     return `「${cur.guohao}」正在定都(尚余 ${pending} 人)…`;
   })();
 
+  const showJunshiAction = !peeking && junshiUp;
+  const junshiActionCollapsed = rackHidden && !junshiTargeting;
+  const showReactionAction = !peeking && reaction != null && reactionNotice != null;
+  const decisionScrollInteractive = interactive && !peeking;
+  const diagnosticCapital = diagnosticControl(
+    !preparing && !peeking && selectableTiles !== undefined,
+    !connDown && !autopilotOn && !controller.diagnosticInteraction.pending,
+  );
+  const diagnosticJinnang = diagnosticControl(
+    !preparing && showJunshiAction && !junshiActionCollapsed,
+    interactive,
+  );
+  const reactionControl = useRef<GameDiagnosticControl>("hidden");
+  const onReactionLockChange = useCallback(
+    (locked: boolean) => {
+      const reaction = locked ? "locked" : "available";
+      reactionControl.current = reaction;
+      observeGameDiagnosticControls(controller, snapshot.gameId, { reaction });
+    },
+    [controller, snapshot.gameId],
+  );
+  const diagnosticSkillChoice = diagnosticControl(
+    !preparing && skillBanner !== null,
+    !peeking && interactive,
+  );
+  const decisionScrollControl = useRef<GameDiagnosticControl>("hidden");
+  const onDecisionVisibilityChange = useCallback(
+    (visible: boolean) => {
+      const decisionScroll = visible ? "available" : "hidden";
+      decisionScrollControl.current = decisionScroll;
+      observeGameDiagnosticControls(controller, snapshot.gameId, { decisionScroll });
+    },
+    [controller, snapshot.gameId],
+  );
+  const diagnosticTarget =
+    preparing || peeking || activeTargetStep === null ? null : activeTargetStep.domain;
+  useLayoutEffect(
+    () =>
+      mountGameDiagnostics(controller, snapshot.gameId, VERSION, readDiagnosticDecisions, {
+        capital: diagnosticCapital,
+        jinnang: diagnosticJinnang,
+        reaction: !preparing && showReactionAction ? reactionControl.current : "hidden",
+        skillChoice: diagnosticSkillChoice,
+        decisionScroll: preparing ? "hidden" : decisionScrollControl.current,
+        target: diagnosticTarget,
+        peeking,
+        preparing: preparing === true,
+      }),
+    [
+      controller,
+      snapshot.gameId,
+      readDiagnosticDecisions,
+      diagnosticCapital,
+      diagnosticJinnang,
+      showReactionAction,
+      diagnosticSkillChoice,
+      diagnosticTarget,
+      peeking,
+      preparing,
+    ],
+  );
+
   if (reaction != null && reactionDeadlineAt == null)
     throw new Error(`反应窗 ${snapshot.pendingReaction!.seq} 缺少截止时刻`);
   const restoreLocked =
@@ -823,10 +892,11 @@ function GameScreenLive({
               <DecisionScrollLayer
                 snapshot={snapshot}
                 viewSeat={viewSeat}
-                interactive={interactive && !peeking}
+                interactive={decisionScrollInteractive}
                 decisionKey={decisionKey}
                 parked={parkedDecision}
                 tileDetail={tileDetail}
+                onDecisionVisibilityChange={onDecisionVisibilityChange}
               />
             )}
             {inspection !== null && (
@@ -1036,10 +1106,10 @@ function GameScreenLive({
             onCaptureDiagnostic={checkpointGameDiagnostics}
           />
         )}
-        {!peeking && junshiUp && (
+        {showJunshiAction && (
           <ActionBar
             title={junshiTitle}
-            collapsed={rackHidden && !junshiTargeting}
+            collapsed={junshiActionCollapsed}
             detail={seatReason == null ? junshiDetail : `${junshiDetail} · ${seatReason}`}
             primaryAction={junshiPrimaryAction}
             cancelLabel={
@@ -1057,7 +1127,7 @@ function GameScreenLive({
             onBlockedAttempt={() => setPlayNudge((n) => n + 1)}
           />
         )}
-        {!peeking && reaction != null && reactionNotice != null && (
+        {showReactionAction && (
           <ReactionBanner
             key={reactionScope}
             {...reactionNotice}
@@ -1081,6 +1151,7 @@ function GameScreenLive({
               reactCardId != null && (reactTargetStep == null || reactTargets.canConfirm)
             }
             locked={!interactive}
+            onLockChange={preparing ? undefined : onReactionLockChange}
             onConfirm={() => reactRespond(true)}
             onDecline={() => reactRespond(false)}
             onMute={() => {

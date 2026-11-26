@@ -35,6 +35,7 @@ interface DecisionScrollLayerProps {
   /** 城池详情/选都确认流程(spec #107 C5 下沉:状态机在 useCapitalPick,本层只按
    *  请求渲染,不再收 4 个流程 props)。null = 不弹。 */
   tileDetail: TileDetailRequest | null;
+  onDecisionVisibilityChange?: (visible: boolean) => void;
 }
 
 // 地域行标签单源(#828 区域单源化):区名=分组名,唯一源 Theme.groupNames——
@@ -137,6 +138,7 @@ export function DecisionScrollLayer({
   decisionKey,
   parked,
   tileDetail,
+  onDecisionVisibilityChange,
 }: DecisionScrollLayerProps) {
   const controller = getController();
   const showDecision = interactive || parked;
@@ -356,6 +358,9 @@ export function DecisionScrollLayer({
     child !== null &&
     !parked &&
     (tileDetail?.pickCapital === true || (interactive && viewSeat === snapshot.decisionOwner));
+  useLayoutEffect(() => {
+    onDecisionVisibilityChange?.(visibleDecision);
+  }, [onDecisionVisibilityChange, visibleDecision]);
   // 同一抉择可短暂收起、失去操作权或被详情盖住，展纸声跟首次呈现走。
   const announcedDecision = useRef<string | null>(null);
   const visibleDecisionKey = visibleDecision ? decisionKey : null;

@@ -684,25 +684,34 @@ export const engineServer = Bun.serve<WsSeat>({
       void dispatchInbound(
         typeof raw === "string" ? raw : Buffer.from(raw).toString(),
         {
-          cmd: (cmd) => {
+          cmd: (cmd, report) => {
             recordEvent(roomId, { ev: "cmd", seat, cmd: cmd.type });
             // #454:cmd 面座位鉴权——连接只能以本连接座位(seat)提交命令,非决策
             // 归属(非活跃玩家/非反应窗被询问者)403 拒绝并回执 error;校验在 room 层
             // applyCommandFromSeat,与 pickCapital/autoPilot 座位校验同位同款。
-            return registry.applyCommandFromSeat(roomId, seat, cmd, () => broadcast(roomId));
+            return registry.applyCommandFromSeat(
+              roomId,
+              seat,
+              cmd,
+              () => broadcast(roomId),
+              report,
+            );
           },
-          pickCapital: (tileIndex) => {
+          pickCapital: (tileIndex, report) => {
             // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
             recordEvent(roomId, { ev: "pick-capital", seat, tileIndex });
-            return registry.pickCapital(roomId, seat, tileIndex, () => broadcast(roomId));
+            return registry.pickCapital(roomId, seat, tileIndex, () => broadcast(roomId), report);
           },
-          setAutoPilot: (on) => {
+          setAutoPilot: (on, report) => {
             // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
             recordEvent(roomId, { ev: "ws-autopilot", seat, on });
-            return registry.setAutoPilot(roomId, seat, on, () => broadcast(roomId));
+            return registry.setAutoPilot(roomId, seat, on, () => broadcast(roomId), report);
           },
         },
         {
+          sendCommandResult: (frame) => {
+            if (ws.readyState === WebSocket.OPEN) ws.send(frame);
+          },
           // 未知形状引导文案按房间状态给(对局未开始不给期望形状,给状态说明;原 else 分支同款)
           unknownShapeText: registry.get(roomId)?.engine
             ? "expected {type:'cmd',cmd:...}"

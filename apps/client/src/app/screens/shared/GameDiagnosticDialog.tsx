@@ -5,7 +5,7 @@ import { RadioGroup } from "@base-ui/react/radio-group";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
-import { buildDiagPerfText, copyDiagText, exportDiagnostics } from "@app/diagExport";
+import { copyDiagnosticSummary, exportDiagnostics } from "@app/diagExport";
 import {
   gameArchiveFailureText,
   type ArchivedGameSummary,
@@ -106,8 +106,17 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
     setAction({ phase: "saving" });
     try {
       const result = await exportDiagnostics(gameId);
-      if (result === null) setAction({ phase: "idle" });
-      else setAction({ phase: "done", message: `已保存至 ${result.path}` });
+      if (result === null) {
+        setAction({ phase: "idle" });
+      } else if (result.captureWarning === undefined) {
+        if (gameId === current?.gameId) setCaptureError(null);
+        setAction({ phase: "done", message: `已保存至 ${result.path}` });
+      } else {
+        setAction({
+          phase: "done",
+          message: `${result.captureWarning}。已将此前归档保存至 ${result.path}`,
+        });
+      }
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
       setAction({ phase: "error", message: `保存失败：${detail}` });
@@ -117,11 +126,14 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
     }
   };
 
-  const copyPerf = async (gameId: string): Promise<void> => {
+  const copySummary = async (gameId: string): Promise<void> => {
     setAction({ phase: "copying" });
     try {
-      await copyDiagText(await buildDiagPerfText(gameId));
-      setAction({ phase: "done", message: "帧诊已复制。" });
+      await copyDiagnosticSummary(gameId);
+      if (gameId === current?.gameId) setCaptureError(null);
+      const failures = await waitForGameArchive(gameId);
+      setCheckedArchive({ gameId, failures });
+      setAction({ phase: "done", message: "诊断摘要已复制。" });
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
       setAction({ phase: "error", message: `复制失败：${detail}` });
@@ -226,23 +238,24 @@ export function GameDiagnosticDialog({ current, onClose, onBack }: GameDiagnosti
               </Button>
             )}
             <Button
-              disabled={selected === undefined || busy}
-              className="note-btn min-h-10 rounded px-3 font-brush focus-visible:outline-gold disabled:opacity-50"
-              onClick={() => {
-                if (selected !== undefined) void copyPerf(selected.gameId);
-              }}
-            >
-              {action.phase === "copying" ? "复制中…" : "复制帧诊"}
-            </Button>
-            <Button
               data-testid={GAME_DIAG_TID.save}
               disabled={selected === undefined || busy}
-              className="ink-btn min-h-11 rounded px-4 font-brush focus-visible:outline-gold "
+              className="note-btn min-h-10 rounded px-3 font-brush focus-visible:outline-gold disabled:opacity-50"
               onClick={() => {
                 if (selected !== undefined) void saveFile(selected.gameId);
               }}
             >
               {action.phase === "saving" ? "保存中…" : "保存文件"}
+            </Button>
+            <Button
+              data-testid={GAME_DIAG_TID.copy}
+              disabled={selected === undefined || busy}
+              className="ink-btn min-h-11 rounded px-4 font-brush focus-visible:outline-gold "
+              onClick={() => {
+                if (selected !== undefined) void copySummary(selected.gameId);
+              }}
+            >
+              {action.phase === "copying" ? "复制中…" : "复制摘要"}
             </Button>
           </div>
           {(action.phase === "done" || action.phase === "error") && (
