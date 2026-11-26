@@ -4,8 +4,8 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import guanzhongData from "@dafung/core/maps/guanzhong.json" with { type: "json" };
 import { loadMap, type LoadedMap } from "@dafung/core/engine/board-loader";
-import { GameEngine, type EngineConfig, type SeatConfig } from "@dafung/core/engine/authority";
-import { createDice } from "@dafung/core/engine/dice";
+import type { GameEngine, SeatConfig } from "@dafung/core/engine/authority";
+import { createEngine as createCoreEngine } from "@dafung/core/room/room-record";
 import { createBuiltinMapLoader, readMapCatalog } from "../apps/server/src/map-files";
 
 export { statusOf } from "@dafung/core/room/room-status";
@@ -46,17 +46,14 @@ export interface PersistedState {
   config: GameConfig;
 }
 
-/** 全新引擎:构造 +(可选)国号摇骰定序。不落盘。
+/** 全新引擎:构造后可直接启动选都。不落盘。
  *  map 可选:传入则用该地图(联机每房间各持自己的 LoadedMap);省略则用默认关中图(CLI / 单机)。 */
-export function createEngine(config: GameConfig, doDraft = true, map: LoadedMap = MAP): GameEngine {
-  const engine = new GameEngine(
-    map.board,
-    map.catalog,
-    createDice(config.seed),
-    config satisfies EngineConfig,
-  );
-  if (doDraft) engine.doDraftRoll();
-  return engine;
+export function createEngine(
+  config: GameConfig,
+  startSetup = true,
+  map: LoadedMap = MAP,
+): GameEngine {
+  return createCoreEngine(config, startSetup, map);
 }
 
 export function loadEngineAt(path: string): { engine: GameEngine; config: GameConfig } {

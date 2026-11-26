@@ -468,7 +468,7 @@ it("主动破产也完成实际回合并取消额外回合，由存活的旧伤�
 
 it("待接续的额外回合消耗休整的一个跳过，不摸牌", () => {
   const g = makeEngine();
-  g.doDraftRoll();
+  g.beginCapitalSelection();
   while (g.phase === "Setup")
     g.pickCapital(g.currentSetupPlayerIndex, g.firstAvailableCapitalIndex());
   const active = g.activeIndex;

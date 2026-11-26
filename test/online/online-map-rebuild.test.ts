@@ -59,21 +59,22 @@ function lobbyMsg(mapId: string): ServerMsg {
   return { type: "lobby", roomId: "TEST", host: 0, started: false, mapId, seatCount: 3, seats: [] };
 }
 
-/** 服务器侧三座房开局快照(种子 430 复刻 startGame+driveBots:座位 2 自动 bot 先选)。 */
+/** 服务器侧三座房开局快照。种子 27 让座位 2 先为电脑选定新野。 */
 function zhongyuanRoom(): GameEngine {
-  const engine = new GameEngine(ZHONGYUAN.map.board, ZHONGYUAN.map.catalog, createDice(430), {
+  const seed = 27;
+  const engine = new GameEngine(ZHONGYUAN.map.board, ZHONGYUAN.map.catalog, createDice(seed), {
     seats: [
       { name: "座 1", isBot: false },
       { name: "座 2", isBot: false },
       { name: "座 3", isBot: true },
     ],
-    seed: 430,
+    seed,
     mapId: "zhongyuan",
     targetNetWorth: ZHONGYUAN.map.targetNetWorth,
     startingCash: ZHONGYUAN.map.startingCash,
     startingTreasures: 0,
   });
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   for (let i = 0; i < 3 && engine.currentSetupPlayerIndex === 2; i++) {
     engine.aiSetupStepFor(2); // 服务器代选:只驱动 bot 座位,轮到真人即停(与 driveBots 同口径)
   }

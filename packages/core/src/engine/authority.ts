@@ -70,14 +70,14 @@ import {
   settleMarchLanding,
   upgradeProperty,
 } from "./movement-flow";
-// 开局三段式域(#324,ADR-0019):国号设定/点将定序/AI 与服务器代选都/选都三选一/
-// 三候选滚换/入局收尾在 setup-flow.ts,壳内同名公共方法薄委托转发;setup 期骰流顺序
+// 开局域(#324,ADR-0019):国号设定/抽签排选都顺序/AI 与服务器代选都/选都落子/
+// 候选滚换/入局收尾在 setup-flow.ts,壳内同名公共方法薄委托转发;setup 期骰流顺序
 // 敏感(offeredCapitals 随 rngState 序列化,联机/恢复必须一致),域内逐字保留。
 // (#326:shuffle 洗牌辅助的消费方招贤随之迁 recruitment.ts,域侧反向 import,壳不再经手。)
 import {
   aiSetupStep,
   aiSetupStepFor,
-  doDraftRoll,
+  beginCapitalSelection,
   firstAvailableCapitalIndex,
   pickCapital,
   setGuohao,
@@ -95,7 +95,7 @@ import {
   type GameEvent,
 } from "./game-events";
 import { formatMoney } from "./money";
-import { STAMINA_MAX, STARTING_STAMINA } from "./constants";
+import { MAX_SEAT_COUNT, MIN_SEAT_COUNT, STAMINA_MAX, STARTING_STAMINA } from "./constants";
 
 type Catalog = MapCatalog;
 
@@ -291,11 +291,10 @@ export class GameEngine {
 
   activeIndex = 0; // public:供 snapshot/联机序列化(由开局和回合推进维护,外部只读)
   draftOrder: number[] = []; // public:同上
-  draftRolls: number[] = []; // public:同上
   // public:供 snapshot/联机序列化(选都进度需跨进程恢复,否则恢复后无法继续选都)。
   currentDraftIndex = 0;
   takenCapitalIndices = new Set<number>(); // public:同上
-  // 三选一选都(public:供 snapshot/联机序列化):当前选都玩家的 3 候选城(轮到时生成、选定/轮空后滚换);
+  // 选都(public:供 snapshot/联机序列化):当前选都者的候选城(轮到时生成、选定/轮空后滚换);
   // offeredCapitalHistory = 曾进过任何候选集的城(尽量不复用,保证跨玩家候选不重复;剩余不足时退化放行)。
   offeredCapitals: number[] = [];
   offeredCapitalHistory = new Set<number>();
@@ -392,7 +391,8 @@ export class GameEngine {
     // 与 IndexedDB key;不走引擎 rng(不影响确定性,不随快照漂移)。内联于构造器
     // (#325 壳纪律:自由函数定义只许来自 import,壳内不落地函数声明)。
     this.gameId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    if (config.seats.length < 2 || config.seats.length > 8) throw new Error("支持 2–8 个座位。");
+    if (config.seats.length < MIN_SEAT_COUNT || config.seats.length > MAX_SEAT_COUNT)
+      throw new Error(`支持 ${MIN_SEAT_COUNT}–${MAX_SEAT_COUNT} 个座位。`);
     this.players = config.seats.map((s, i) => ({
       id: `p${i}`,
       name: s.name,
@@ -417,8 +417,8 @@ export class GameEngine {
       if (p.guohao) this.usedGuohao.add(p.guohao);
     }
     // 局头行(ADR-0014):日志首行,记全重放要素。座位表记「构造时的原始规格」
-    // (bot 国号可空=由 doDraftRoll 分配)——重放必须复刻同一规格,否则 doDraftRoll
-    // 的国号洗牌消耗的 rng 次数不同,整局骰流漂移。终局国号见下一行「点将定序」。
+    // (未填国号由 beginCapitalSelection 分配)。重放须复刻同一规格,保持国号分配与后续骰流一致。
+    // 分配后的国号见「选都顺序」。
     this.logEvent(
       "header",
       null,
@@ -483,9 +483,9 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 开局:Setup ────────────────────────────
-  // 开局三段式域(#324,ADR-0019 委托式拆分):国号设定(setGuohao)、点将定序
-  // (doDraftRoll)、AI/服务器代选都步进(aiSetupStep/aiSetupStepFor)、选都三选一
-  // (pickCapital)、三候选滚换(rollOfferedCapitals)与入局收尾(finishSetup)均为
+  // 开局域(#324,ADR-0019 委托式拆分):国号设定(setGuohao)、抽签排选都顺序
+  // (beginCapitalSelection)、AI/服务器代选都步进(aiSetupStep/aiSetupStepFor)、选都
+  // (pickCapital)、滚换候选(rollOfferedCapitals)与入局收尾(finishSetup)均为
   // 自由函数,在 setup-flow.ts,首参接引擎实例;aiChooseCapital/pickCapitalInternal/
   // skipCurrentDraftPick 域内自洽不留壳。setup 期骰流顺序敏感(offeredCapitals 候选
   // 随 rngState 序列化,联机/恢复必须一致),域内逐字保留消耗顺序;起手发牌经
@@ -502,10 +502,10 @@ export class GameEngine {
     return setGuohao(this, seatIndex, char);
   }
 
-  /** 推进:为国号空的 bot 座位从字池随机分配(避开已用),然后进入点将定序。
-   *  薄委托 → setup-flow.doDraftRoll。 */
-  doDraftRoll(): void {
-    doDraftRoll(this);
+  /** 补齐空国号，抽签排定选都顺序并开始选都。
+   *  薄委托 → setup-flow.beginCapitalSelection。 */
+  beginCapitalSelection(): void {
+    beginCapitalSelection(this);
   }
 
   /** 当前选都玩家(bots 自动)。返回是否已完成本轮选都(需 UI 再次驱动):
@@ -520,7 +520,7 @@ export class GameEngine {
     return aiSetupStepFor(this, idx);
   }
 
-  /** 选都辅助:当前三候选首城(无则 -1)。集中"可选都城"判定,供人类选都 UI/测试/e2e 复用:
+  /** 选都辅助:当前候选首城(无则 -1)。集中"可选都城"判定,供人类选都 UI/测试/e2e 复用:
    *  薄委托 → setup-flow.firstAvailableCapitalIndex。 */
   firstAvailableCapitalIndex(): number {
     return firstAvailableCapitalIndex(this);

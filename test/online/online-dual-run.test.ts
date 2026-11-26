@@ -89,7 +89,7 @@ interface PublicProjection {
 function publicPlayerOf(p: PlayerRowLike): PublicPlayerRow {
   return {
     id: p.id,
-    // 展示名与 serializeGame 同规则派生(guohao 优先,doDraftRoll 定国号后快照行即国号;
+    // 展示名与 serializeGame 同规则派生(guohao 优先,beginCapitalSelection 定国号后快照行即国号;
     // restore 不回写 live name——客户端引擎 live 名恒占位名,直接比 name 必假红)
     name: p.guohao !== "" ? p.guohao : p.name,
     isBot: p.isBot,
@@ -546,12 +546,12 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     });
   }, 15_000);
 
-  // 固定 seed1 真人门 + 只冻结 guest 的生产退避回调。真 WS 断开后先读每端
+  // 固定 seed 4 真人门 + 只冻结 guest 的生产退避回调。真 WS 断开后先读每端
   // closed/open/进度,显式释放回调再真重拨,不靠 ±30% 时序也不弃试重来。
   it("隔离Playing自动重连:单端断线、生产退避与摘要水合、四向收敛后续局", async () => {
     await withIsolatedPair("held", async (pair) => {
       const [host, guest] = pair.clients;
-      await startIsolatedPair(pair, 2, 1);
+      await startIsolatedPair(pair, 2, 4);
       await finishIsolatedSetup(pair);
       let views = await firstPlayingDecision(pair);
       assertLocalSeats(views);
@@ -617,7 +617,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
         expect(view.net.pending).toBe(false);
         expect(view.net.connectionFailure).toBeNull();
       }
-      // 固定 seed1 首门为 guest 的购地决策,恢复后仅由 guest 放行一次。
+      // 固定 seed 4 首门为 guest 的购地决策,恢复后仅由 guest 放行一次。
       // 传输面直派沿用 #1297 的 headless 输入锁边界,生产编码与服务器鉴权照走。
       const turn = before.turnNumber;
       const eventsBeforeContinuation = views[1].wire.events.length;
@@ -653,7 +653,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
     await withIsolatedPair("automatic", async (pair) => {
       const [host, guest] = pair.clients;
       // 首席人机出连环计时，两名真人的起手均有识破诡计。
-      await startIsolatedPair(pair, 3, 9092, "魏");
+      await startIsolatedPair(pair, 3, 6602, "魏");
       await finishIsolatedSetup(pair);
       let views = await pair.wait("连环计双人类反应窗", (current) =>
         current.every(

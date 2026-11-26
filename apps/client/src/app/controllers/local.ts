@@ -165,7 +165,7 @@ export class LocalController extends GameController {
     // 占位引擎先于建连就位:board/catalog 随真实地图加载,可变状态由首连摘要覆盖。
     this._engine = this.makePlaceholderEngine(map, config.seats.length, config.mapId);
     setEngine(this._engine);
-    // 开局:startGame 同步段建引擎(doDraftRoll)+ driveBots 驱动 bot 选都(配速 0 =
+    // 开局:startGame 同步段建引擎(beginCapitalSelection)+ driveBots 驱动 bot 选都(配速 0 =
     // 同步跑完到轮到人类;配速 >0 = 首步落子后链挂步进定时器)。同步段直抛 = 起兵
     // 失败(App catch 显式报错);引擎未产出 = 同段异常,响亮炸出(零兜底)。
     void this.registry.startGame(

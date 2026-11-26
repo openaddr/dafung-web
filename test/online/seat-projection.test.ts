@@ -378,7 +378,7 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
 
   it("座位日志仅保留公开命令字段，权威警告原文留在服务器", () => {
     const game = makeEngine();
-    game.doDraftRoll();
+    game.beginCapitalSelection();
     const offset = game.log.length;
     const seat = game.currentSetupPlayerIndex;
     const tileIndex = game.offeredCapitals[0];

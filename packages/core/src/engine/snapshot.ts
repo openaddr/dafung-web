@@ -116,13 +116,13 @@ export interface GameSnapshot {
   isOver: boolean;
   winner: string | null;
   winReason: VictoryReason;
+  /** 抽签排定的选都座位顺序。 */
   draftOrder: number[];
-  draftRolls: number[];
   currentDraftIndex: number;
   /** 纯派生:draftOrder[currentDraftIndex]。 */
   currentSetupPlayerIndex: number;
   takenCapitalIndices: number[];
-  // 三选一选都:当前选都玩家的候选城 + 历史候选集(恢复/联机各端保持候选一致)
+  // 当前选都者的候选城及历史候选集(恢复/联机各端保持候选一致)
   offeredCapitals: number[];
   offeredCapitalHistory: number[];
   // 已选国号(联机 Setup 阶段同步,防止重复国号)
@@ -389,13 +389,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => [...e.draftOrder],
     write: (e, s) => {
       e.draftOrder = [...s.draftOrder];
-    },
-  },
-  {
-    key: "draftRolls",
-    read: (e) => [...e.draftRolls],
-    write: (e, s) => {
-      e.draftRolls = [...s.draftRolls];
     },
   },
   {

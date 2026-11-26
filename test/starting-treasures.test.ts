@@ -26,9 +26,9 @@ function makeEngine(seed: number, seatCount: number, startingTreasures: number):
   return new GameEngine(GUANZHONG.board, GUANZHONG.catalog, createDice(seed), cfg);
 }
 
-/** 跑完开局三段式(全 bot:doDraftRoll + aiSetupStep 连锁,末位选都触发 finishSetup)。 */
+/** 跑完开局三段式(全 bot:beginCapitalSelection + aiSetupStep 连锁,末位选都触发 finishSetup)。 */
 function runSetup(e: GameEngine): GameEngine {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 100) {
     const idx = e.currentSetupPlayerIndex;

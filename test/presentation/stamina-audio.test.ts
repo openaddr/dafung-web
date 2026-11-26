@@ -125,7 +125,7 @@ it("归零一击跨放逐应答时，先呈现降级和失城，再以最重城�
 
 it("都城被打空也响碎石，休整中跳回合静默，期满回体发声", async () => {
   const engine = makeEngine();
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   while (engine.phase === "Setup")
     engine.pickCapital(engine.currentSetupPlayerIndex, engine.firstAvailableCapitalIndex());
   const capital = engine.players[1].capitalIndex;

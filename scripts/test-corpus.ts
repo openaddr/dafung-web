@@ -18,7 +18,7 @@ export const CORPUS_MAPS = [
 /** 黄金台账/两跑门语料种子(与 sim-bench 的基准种子 4001-4050 分册,互不混用)。 */
 export const GOLDEN_SEEDS = [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010];
 
-/** 标准 bot 座位表(guohao 留空由 doDraftRoll 从字池分配,与 cli new 同口径)。 */
+/** 标准 bot 座位表(guohao 留空由 beginCapitalSelection 从字池分配,与 cli new 同口径)。 */
 export function botSeats(n: number): SeatConfig[] {
   return Array.from({ length: n }, (_, i) => ({ name: `诸侯 ${i + 1}`, isBot: true }));
 }

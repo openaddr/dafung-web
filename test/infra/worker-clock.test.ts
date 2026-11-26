@@ -74,7 +74,7 @@ describe("RoomRegistry clock 注入(#399:编排节拍经注入时钟)", () => {
     const created = reg.createRoom({
       seatCount: 2,
       botIdx: new Set([1]),
-      hostConfig: { seed: 7 }, // 人类先手(react-helpers 离线核算同源)
+      hostConfig: { seed: 47 }, // 房主首动，摸到的两张都是反应锦囊
     });
     reg.setMap(created.room.roomId, "guanzhong", created.token, new Set(["guanzhong"]));
     await reg.startGame(created.room.roomId, created.token, undefined, () => MAP);

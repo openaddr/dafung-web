@@ -34,7 +34,7 @@ function makeEngine(seed = 1, seats?: SeatConfig[], target = 30000) {
 
 /** 驱动选都到完成(人类选第一个空城,bot 自动)。 */
 function finishSetup(e: GameEngine) {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;
@@ -55,12 +55,16 @@ function finishSetup(e: GameEngine) {
 }
 
 describe("开局三段式", () => {
-  it("doDraftRoll 产出无平局的定序", () => {
-    const e = makeEngine(42);
-    e.doDraftRoll();
+  it("六席在分配国号后按种子随机排列一次", () => {
+    const seats = Array.from({ length: 6 }, (_, i) => ({ name: `P${i + 1}`, isBot: false }));
+    const e = makeEngine(42, seats);
+    e.beginCapitalSelection();
     expect(e.setupPhase).toBe("PickCapital");
-    const rolls = e.snapshot().draftRolls;
-    expect(new Set(rolls).size).toBe(rolls.length);
+    expect(e.snapshot().draftOrder).toEqual([4, 2, 1, 3, 5, 0]);
+    expect(e.currentSetupPlayerIndex).toBe(4);
+    const started = e.snapshot();
+    e.beginCapitalSelection();
+    expect(e.snapshot()).toEqual(started);
   });
 
   it("选都完成进入 Playing,每位玩家都有都城", () => {
@@ -238,15 +242,25 @@ describe("名将(英雄)", () => {
     expect(picker.heroes[0].skillIds.length).toBeGreaterThan(0); // 已授技(#785 槽位):招得之将必带授技
   });
 
-  it("回合计数:全员各行动一次后 round +1", () => {
-    const e = makeEngine(1);
+  it.each([6, 8])("%i 席由首位选都者先行，再按座次走完整轮", (seatCount) => {
+    const seats = Array.from({ length: seatCount }, (_, i) => ({
+      name: `P${i + 1}`,
+      isBot: false,
+    }));
+    const e = makeEngine(42, seats, 100000);
     finishSetup(e);
-    expect(e.round).toBe(1);
-    for (let i = 0; i < e.players.length; i++) {
+    const first = e.draftOrder[0];
+    expect(e.roundAnchor).toBe(first);
+    for (let i = 0; i < seatCount; i++) {
+      expect(e.activeIndex).toBe((first + i) % seatCount);
+      expect(e.round).toBe(1);
+      expect(e.turnNumber).toBe(i + 1);
       passJinnang(e).rollAndMove();
       autoResolve(e);
     }
     expect(e.round).toBe(2);
+    expect(e.activeIndex).toBe(first);
+    expect(e.turnNumber).toBe(seatCount + 1);
   });
 });
 

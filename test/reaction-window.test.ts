@@ -11,7 +11,13 @@ import { HEROES, heroById } from "@dafung/core/engine/heroes";
 import { REACTION_WINDOW_MS } from "@dafung/core/engine/constants";
 import { botReactionDecision } from "@dafung/core/engine/bot";
 import { armHero } from "@dafung/core/engine/testing";
-import { giveJinnang, grantProperty, pinDice, placePlayer } from "@dafung/core/engine/planter";
+import {
+  armPhase,
+  giveJinnang,
+  grantProperty,
+  pinDice,
+  placePlayer,
+} from "@dafung/core/engine/planter";
 import guanzhongData from "../packages/core/maps/guanzhong.json";
 import { loadMap } from "@dafung/core/engine/board-loader";
 
@@ -44,7 +50,7 @@ function makeEngine(seed = 42, seats: SeatConfig[] = SEATS2): GameEngine {
 
 /** 驱动选都到完成(人类选第一个空城,bot 自动)= finishSetup 真实路径。 */
 function finishSetup(e: GameEngine) {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;
@@ -610,11 +616,10 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
       { name: "B", isBot: false, guohao: "蜀" },
       { name: "C", isBot: true, guohao: "吴" },
     ]);
-    const user = e.activePlayer;
-    const userSeat = e.players.indexOf(user);
-    const others = [0, 1, 2].filter((i) => i !== userSeat);
-    const [victimSeat, botSeat] = others; // 人类受害者 + bot 持牌者
-    armUser(e, userSeat, ["火烧连营"]);
+    const victimSeat = 1;
+    const botSeat = 2;
+    armPhase(e, { activeIndex: 0 });
+    armUser(e, 0, ["火烧连营"]);
     setHand(e, botSeat, ["识破诡计"]);
     const victim = e.players[victimSeat];
     const capId = e.board.at(victim.capitalIndex)?.propertyId;

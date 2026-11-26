@@ -8,7 +8,7 @@
 // 对象注入宿主操作面,投影消费方直引 seat-projection.ts(不留再导出转接层)。
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
 import type { GameCommand, GameEngine, SeatConfig, TurnPhase } from "../engine/authority";
-import { isSingleCjk } from "../engine/constants";
+import { isSingleCjk, MAX_SEAT_COUNT, MIN_SEAT_COUNT } from "../engine/constants";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../engine/guohao";
 import type { LoadedMap } from "../engine/board-loader";
@@ -371,7 +371,8 @@ export class RoomRegistry {
    *  重名前缀不在此时处理——开局 startGame 统一走 resolveGuohaoClash 演算。 */
   createRoom(config: CreateRoomConfig): { room: RoomSession; seat: number; token: string } {
     const { seatCount, botIdx, hostConfig, guohao } = config;
-    if (!(seatCount >= 2 && seatCount <= 8)) throw new RoomError(400, "seats 必须 2-8");
+    if (!Number.isInteger(seatCount) || seatCount < MIN_SEAT_COUNT || seatCount > MAX_SEAT_COUNT)
+      throw new RoomError(400, `seats 必须为 ${MIN_SEAT_COUNT}–${MAX_SEAT_COUNT} 的整数`);
     if (botIdx.has(0)) throw new RoomError(400, "host(Seat 0)必须是真人");
     if (guohao != null && !isSingleCjk(guohao.trim())) throw new RoomError(400, "国号需为单个汉字");
     const roomId = this.newRoomId();
@@ -435,9 +436,8 @@ export class RoomRegistry {
     return room;
   }
 
-  /** host 开局:构造引擎(doDraftRoll 自动国号)后停在 Setup·PickCapital(L41:真人
-   *  各自在自己屏幕三选一,经 WS pickCapital 落子;bot/托管座位由 driveBots 代选,
-   *  全 bot 驱动房自动跑完进 Playing)。首帧 onUpdate 即 Setup 态(含首位选都者三候选)。
+  /** host 开局:构造引擎，补齐国号并排定选都顺序后进入 Setup·PickCapital。真人经 WS
+   *  pickCapital 落子，bot/托管座位由 driveBots 代选。首帧 onUpdate 含首位选都者的候选。
    *  onUpdate:开局首帧 + 每个 bot 步后调(逐步直播,保留原 server.ts 行为)。
    *  mapProvider:按 mapId 返回 LoadedMap(服务器加载内置地图后注入;ADR-0007:
    *  room.ts 不读 fs)。startGame 前必须 setMap,否则 400"请先选择地图"。
@@ -494,12 +494,12 @@ export class RoomRegistry {
       }),
     );
     this.persist(room);
-    onUpdate?.(room); // 开局首帧(Setup 态:offeredCapitals=首位选都者三候选)
+    onUpdate?.(room); // 开局首帧(Setup 态:offeredCapitals=首位选都者的候选)
     await this.driveBots(room, onUpdate); // bot/托管座位先驱动(全 bot 驱动房自动进 Playing)
     return room;
   }
 
-  /** 真人选都落子(L41):校验「轮到该座位 + tileIndex ∈ 三候选」后引擎落子;
+  /** 真人选都落子(L41):校验「轮到该座位 + tileIndex 属于当前候选」后引擎落子;
    *  选完由引擎滚换下一位候选,余下 bot/托管座位 driveBots 接力。
    *  轮次/候选校验与 engine.pickCapital 同源(消息透传),这里补 HTTP 语义状态码。 */
   async pickCapital(

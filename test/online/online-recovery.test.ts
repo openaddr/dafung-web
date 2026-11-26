@@ -117,17 +117,18 @@ function serveRoom(fields: NetRoomFields, seat = 1): void {
 }
 
 function authority(): GameEngine {
-  const engine = new GameEngine(MAP.board, MAP.catalog, createDice(1), {
+  const seed = 2;
+  const engine = new GameEngine(MAP.board, MAP.catalog, createDice(seed), {
     seats: [
       { name: "甲", isBot: false },
       { name: "乙", isBot: false },
     ],
-    seed: 1,
+    seed,
     startingCash: MAP.startingCash,
     startingTreasures: 0,
     targetNetWorth: MAP.targetNetWorth,
   });
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   return engine;
 }
 

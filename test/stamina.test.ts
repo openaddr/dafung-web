@@ -131,9 +131,9 @@ describe("耗竭全自动结算(#131):外敌乘虚+休整", () => {
   });
 });
 
-/** 轻量开局:只把相位推到 Playing(都城由 doDraftRoll 后的 aiSetup/手动定),不断言选都细节。 */
+/** 轻量开局:只把相位推到 Playing(都城由 beginCapitalSelection 后的 aiSetup/手动定),不断言选都细节。 */
 function finishSetupLite(e: GameEngine) {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;

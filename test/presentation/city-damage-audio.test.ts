@@ -41,7 +41,7 @@ it.each([
   { defense: 1, sound: "cityBreach" },
 ])("火攻把都城防御值从 $defense 扣低时播放 $sound", async ({ defense, sound }) => {
   const engine = makeEngine();
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   while (engine.phase === "Setup")
     engine.pickCapital(engine.currentSetupPlayerIndex, engine.firstAvailableCapitalIndex());
   const capital = engine.players[1].capitalIndex;

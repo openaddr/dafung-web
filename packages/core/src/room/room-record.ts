@@ -37,9 +37,13 @@ export interface RoomRecord {
 }
 
 /** 全新引擎(引擎构造三行;调用点恒显式传图,无默认图分支)。 */
-export function createEngine(config: EngineConfig, doDraft: boolean, map: LoadedMap): GameEngine {
+export function createEngine(
+  config: EngineConfig,
+  startSetup: boolean,
+  map: LoadedMap,
+): GameEngine {
   const engine = new GameEngine(map.board, map.catalog, createDice(config.seed), config);
-  if (doDraft) engine.doDraftRoll();
+  if (startSetup) engine.beginCapitalSelection();
   return engine;
 }
 

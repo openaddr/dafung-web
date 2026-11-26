@@ -283,8 +283,7 @@ export const YINGZI_SKILL_ID = "yingzi";
 /** 持有英姿者骰面数 +1(第七面 = DEFAULT_DIE_FACES+1 = 7),否则六面。
  *  持有状态从**麾下槽位已授技**(HeroSlot.skillIds)推导——与冷却账同族(同一份槽位态),
  *  不入快照(免双源):快照已有槽位 skillIds,面数随查随得,恢复/联机天然一致;
- *  骰值本身照常走既有 RNG 快照通路。适用该玩家全部掷骰(行军/拼点双掷/探宝拼点双骰);
- *  开局定序掷骰发生在招募前(麾下恒空),天然六面(setup-flow 不接本口)。 */
+ *  骰值本身照常走既有 RNG 快照通路。适用该玩家全部掷骰(行军/拼点双掷/探宝拼点双骰)。 */
 export function heroDieFaces(e: GameEngine, seat: number): number {
   const p = e.players[seat];
   if (p == null) throw new Error(`heroDieFaces:座位 ${seat} 不存在(共 ${e.players.length} 席)`);

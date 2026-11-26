@@ -1,12 +1,11 @@
-// 开局三段式域(#324,ADR-0019 委托式拆分):国号设定(setGuohao)、点将定序
-// (doDraftRoll)、AI/服务器代选都步进(aiSetupStep/aiSetupStepFor)、选都三选一
-// (pickCapital)、三候选滚换(rollOfferedCapitals)与入局收尾(finishSetup)。
+// 开局域(#324,ADR-0019 委托式拆分):国号设定(setGuohao)、抽签排选都顺序
+// (beginCapitalSelection)、AI/服务器代选都步进(aiSetupStep/aiSetupStepFor)、选都
+// (pickCapital)、滚换候选(rollOfferedCapitals)与入局收尾(finishSetup)。
 // 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;GameEngine 侧保留同名公共
 // 方法薄委托(authority.ts「开局:Setup」区段),aiChooseCapital/pickCapitalInternal/
 // skipCurrentDraftPick 域内自洽不留壳。
-// 联机一致性纪律(开发陷阱清单,逐字保留零重排):setup 期骰流顺序敏感——
-// offeredCapitals 候选随 rngState 序列化,国号占用冲突处理与 AI 选都的骰流消耗
-// 顺序不得改动,e2e 种子演算与联机恢复都依赖它。
+// 开局依次使用同一骰流分配国号、排列座位和生成候选。选都顺序与候选随 rngState
+// 序列化，供联机和恢复继续使用。
 import type { GameEngine } from "./authority";
 import { shuffle } from "./dice"; // Fisher-Yates 单源(#787 起随授技掷骰落骰子域,叶子模块)
 import { GUOHAO_POOL } from "./theme";
@@ -37,8 +36,8 @@ export function setGuohao(g: GameEngine, seatIndex: number, char: string): boole
   return true;
 }
 
-/** 推进:为国号空的 bot 座位从字池随机分配(避开已用),然后进入点将定序。 */
-export function doDraftRoll(g: GameEngine): void {
+/** 补齐空国号，抽签排定选都顺序并生成首位候选。 */
+export function beginCapitalSelection(g: GameEngine): void {
   if (g.setupPhase !== "Guohao") return;
   beginGameEventBatch(g); // 事件流(#375):开局驱动步=一次转移,入口开新批
   // 给 guohao 为空者分配(bot 或漏填的人类)
@@ -57,27 +56,19 @@ export function doDraftRoll(g: GameEngine): void {
       }
     }
   }
-  // 摇骰定序,平局重摇。d6 只有 6 面:n<=6 重摇至无平局(有上限);
-  // n>6(DEV 可达 30)不可能全异 → 接受并列、按玩家序破平,确保终止、不死循环。
-  const n = g.players.length;
-  const rolls = Array.from({ length: n }, () => 0);
-  const canBeAllDistinct = n <= 6;
-  for (let attempt = 0; attempt < 50; attempt++) {
-    for (let i = 0; i < n; i++) rolls[i] = g.dice.rollDie();
-    if (!canBeAllDistinct || new Set(rolls).size === n) break;
-  }
-  g.draftRolls = rolls;
-  g.draftOrder = g.players.map((_, i) => i).sort((a, b) => rolls[b] - rolls[a] || a - b);
+  g.draftOrder = shuffle(
+    g.players.map((_, seat) => seat),
+    g.dice.nextFloat,
+  );
   g.logEvent(
     "setup",
     null,
-    "点将定序:" +
-      g.draftOrder.map((i) => `${g.players[i].guohao || g.players[i].name}(${rolls[i]})`).join("→"),
-    `draftRolls=${JSON.stringify(rolls)} order=${JSON.stringify(g.draftOrder)}`,
+    "选都顺序:" + g.draftOrder.map((seat) => g.players[seat].guohao).join("→"),
+    `draftOrder=${JSON.stringify(g.draftOrder)}`,
   );
   g.setupPhase = "PickCapital";
   g.currentDraftIndex = 0;
-  rollOfferedCapitals(g); // 为首位选都玩家生成三候选
+  rollOfferedCapitals(g);
 }
 
 /** 当前选都玩家(bots 自动)。返回是否已完成本轮选都(需 UI 再次驱动)。 */
@@ -192,7 +183,7 @@ function pickCapitalInternal(
   if (g.currentDraftIndex >= g.players.length) {
     g.dispatchMoment("SetupComplete", { subject: playerIndex }); // 时机·SetupComplete:最后一位选都落子成功、finishSetup 收尾前
     finishSetup(g);
-  } else rollOfferedCapitals(g); // 为下一位选都玩家滚换三候选
+  } else rollOfferedCapitals(g);
   return { ok: true };
 }
 
@@ -245,13 +236,13 @@ function rollOfferedCapitals(g: GameEngine): void {
   }
   g.offeredCapitals = chosen.map((t) => t.index);
   for (const i of g.offeredCapitals) g.offeredCapitalHistory.add(i);
-  // 三候选生成入日志(ADR-0014 补洞:候选集是 rng 产物,重放/复盘都要可见)
+  // 候选集是骰流产物，记入日志供复盘(ADR-0014)。
   const pickerIdx = g.currentSetupPlayerIndex;
   const picker = pickerIdx >= 0 ? g.players[pickerIdx] : null;
   g.logEvent(
     "setup",
     picker?.guohao ?? null,
-    `${picker?.guohao ?? "待定"} 择都三候选:${chosen.map((t) => `「${t.name}」`).join("")}`,
+    `${picker?.guohao ?? "待定"} 选都候选:${chosen.map((t) => `「${t.name}」`).join("")}`,
     `offerCapitals player=${picker?.id ?? "-"} tiles=[${g.offeredCapitals.join(",")}] names=${chosen.map((t) => t.name).join("|")}`,
   );
 }
@@ -260,7 +251,7 @@ function finishSetup(g: GameEngine): void {
   g.setupPhase = "Done";
   g.phase = "Playing";
   g.turnPhase = "Roll";
-  g.activeIndex = g.draftOrder[0] ?? 0;
+  g.activeIndex = g.draftOrder[0];
   g.roundAnchor = g.activeIndex; // 固定轮次锚点,不随破产漂移
   g.turnNumber = 1;
   g.treasureDeck = createTreasureDeck(); // 初始化珍宝牌堆

@@ -3,7 +3,7 @@
 // 掷骰调用方显式传参,本文件不查技能(叶子模块零反向依赖)。钉骰契约(planter.ts
 // pinDice):钉值 > 本次掷骰面数 = 消费点响亮炸点名(7 仅持英姿可达)。
 
-/** 缺省骰面数(六面;开局定序掷骰等不经技能面数的通用语义)。 */
+/** 缺省骰面数（六面）。 */
 export const DEFAULT_DIE_FACES = 6;
 
 /** 单骰掷骰结果(移动步数 = die)。 */
@@ -38,7 +38,7 @@ export interface Dice {
   /** 掷骰:faces 缺省 = DEFAULT_DIE_FACES(六面);掷骰调用方按 skills.heroDieFaces
    *  显式传参(持英姿者 7,#1390)。 */
   roll(faces?: number): DiceRoll;
-  /** 返回 1–面数,供掷骰定序/拼点复用(faces 语义同 roll)。 */
+  /** 返回 1–面数，供拼点等单骰结算复用（faces 语义同 roll）。 */
   rollDie(faces?: number): number;
   nextFloat(): number;
   /** 当前 PRNG 内部状态(供 CLI/联机跨进程续掷)。 */
@@ -61,7 +61,7 @@ export function createDice(seed?: number): Dice {
   };
 }
 
-/** Fisher-Yates 洗牌(rng 注入,确定性,不改入参——返回打乱副本):开局点将国号分配
+/** Fisher-Yates 洗牌(rng 注入,确定性,返回打乱副本):开局分配国号与排列选都顺序
  *  (setup-flow)/招贤候选序(recruitment)/授技子集抽取(roster.rollGrantedSkills)
  *  共用单源。放骰子域:消费方(roster)与其上游(锦囊域)有环,叶子模块承接共用件。 */
 export function shuffle<T>(arr: readonly T[], rng: () => number): T[] {

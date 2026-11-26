@@ -2,7 +2,14 @@
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@dafung/core/engine/authority";
 import { createDice } from "@dafung/core/engine/dice";
-import { armHero, setStamina, setCash, setBot, armPhase } from "@dafung/core/engine/planter";
+import {
+  armHero,
+  setStamina,
+  setCash,
+  setBot,
+  armPhase,
+  setJinnangPiles,
+} from "@dafung/core/engine/planter";
 import { skillMarksOf, heroSlotOf } from "@dafung/core/engine/roster";
 import { botAct, botSkillChoiceDecision } from "@dafung/core/engine/bot";
 import guanzhongData from "../packages/core/maps/guanzhong.json";
@@ -37,7 +44,7 @@ function makeEngine3(seed = 7): GameEngine {
 
 /** 轻量开局:只把相位推到 Playing(同 stamina.test 布景;不断言选都细节)。 */
 function finishSetupLite(e: GameEngine) {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;
@@ -213,6 +220,7 @@ describe("行殇(#1377 AC4):耗竭可选 +1,缓兵之计不触发", () => {
     finishSetupLite(e);
     armPhase(e, { activeIndex: 0 });
     armHero(e, 1, "caopi", ["xingshang"]);
+    setJinnangPiles(e, ["横征暴敛"], []);
     expect(e.damageStamina(0, 100, null)).toBe(0);
     expect(e.players[0].skipTurns).toBe(2);
     expect(e.pendingSkillChoices).toEqual([
@@ -319,6 +327,7 @@ describe("bot 两策略(#1377 AC7):行殇恒发,放逐满发目标=身价领跑�
     armPhase(e, { activeIndex: 0 });
     setBot(e, 1, true);
     armHero(e, 1, "caopi", ["xingshang"]);
+    setJinnangPiles(e, ["横征暴敛"], []);
     e.damageStamina(0, 100, null);
     expect(e.turnPhase).toBe("AwaitingSkillChoice");
     botAct(e); // 驱动器泵(bot/托管同口)

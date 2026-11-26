@@ -35,7 +35,7 @@ const kinds = (events: GameEvent[]) => events.map((ev) => ev.kind);
 
 /** 驱动选都到完成并清手牌(与 game-events.test.ts 同款垫子)。 */
 function finishSetup(e: GameEngine): void {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;

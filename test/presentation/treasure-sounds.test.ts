@@ -74,10 +74,10 @@ it("求书入册的书册声随得印落定", async () => {
 
 it.each([
   ["成功", 1, "treasureGain ", ["treasure"]],
-  ["落空", 6, "treasureMiss ", []],
+  ["落空", 14, "treasureMiss ", []],
 ] as const)("探宝%s时按实际结果呈现得印和声音", async (_outcome, seed, trail, sounds) => {
   const engine = makeEngine(seed);
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   for (let i = 0; i < engine.players.length; i++) {
     engine.pickCapital(engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
   }

@@ -11,7 +11,7 @@
     "id": "zhongyuan",
     "name": "中原争霸",
     "file": "zhongyuan.json",
-    "desc": "8 城小环,快节奏短局,适合 2 人速战",
+    "desc": "八城小环，八人局每位诸侯各占一座都城",
     "tileCount": 8,
     "targetNetWorth": 30000
   }

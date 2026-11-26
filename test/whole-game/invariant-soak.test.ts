@@ -37,7 +37,7 @@ function makeEngine(seed: number, seatCount: number): GameEngine {
 }
 
 function driveSetup(e: GameEngine): void {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 100) {
     if (e.currentSetupPlayerIndex < 0) break;

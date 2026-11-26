@@ -73,7 +73,7 @@ function promptFor(
   if (phase === "Setup") {
     if (setupPhase === "Guohao") return `${who} 选国号(cmd 不支持,用 new 时 seats 带入)`;
     if (setupPhase === "PickCapital") {
-      return `${guohao} 选都(三选一,见 status.offeredCapitals):pick-capital <tileIndex>(auto-setup 自动跑完)`;
+      return `${guohao} 选都(候选见 status.offeredCapitals):pick-capital <tileIndex>(auto-setup 自动跑完)`;
     }
     return `${who} 开局中…`;
   }

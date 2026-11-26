@@ -94,7 +94,9 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
     await registry.pickCapital(
       room.roomId,
       engine.currentSetupPlayerIndex,
-      engine.offeredCapitals.find((index) => index < 9 || index > 15)!,
+      engine.offeredCapitals.find(
+        (index) => (index < 9 || index > 15) && engine.board.at(index).event !== "hero",
+      )!,
     );
   }
   await registry.applyCommand(room.roomId, { type: "useJinnang", cardId: null });

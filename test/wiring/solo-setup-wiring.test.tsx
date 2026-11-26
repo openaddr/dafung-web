@@ -109,7 +109,7 @@ it("选图变更响一次纸扣，预选、重复点选与取消保持安静", a
   expect(onMapChange).not.toHaveBeenCalled();
 });
 
-it("关闭字盘保留手写国号，快选回填并在起兵成功后记为预设", async () => {
+it("起兵默认六席，字盘回填国号并在起兵成功后记为预设", async () => {
   const sounds = recordAudio();
   const { SoloSetupScreen, GUOHAO_PREF_KEY } = setup;
   const onStart = mock(async (_config: SetupConfig) => true).mockResolvedValueOnce(false);
@@ -140,7 +140,6 @@ it("关闭字盘保留手写国号，快选回填并在起兵成功后记为预�
   expect(find(TID.seatRow(0))?.textContent).toContain("巴");
   expect(sounds).toEqual(["jinnangSelect"]);
 
-  await click(`${TID.seatCount}-minus`);
   await click(`${TID.target}-60000`);
   await click(`${TID.target}-60000`);
   expect(sounds).toEqual(["jinnangSelect", "jinnangSelect"]);
@@ -151,6 +150,9 @@ it("关闭字盘保留手写国号，快选回填并在起兵成功后记为预�
       { name: "诸侯1", isBot: false, guohao: "巴" },
       { name: "诸侯2", isBot: true },
       { name: "诸侯3", isBot: true },
+      { name: "诸侯4", isBot: true },
+      { name: "诸侯5", isBot: true },
+      { name: "诸侯6", isBot: true },
     ],
     targetNetWorth: 60000,
     mapId: "guanzhong",
@@ -158,8 +160,10 @@ it("关闭字盘保留手写国号，快选回填并在起兵成功后记为预�
   expect(localStorage.getItem(GUOHAO_PREF_KEY)).toBe("楚");
   expect(find(TID.startGame)?.hasAttribute("disabled")).toBe(false);
 
+  await click(`${TID.seatCount}-minus`);
   await click(TID.startGame);
   expect(onStart).toHaveBeenCalledTimes(2);
+  expect(onStart.mock.calls[1][0].seats).toHaveLength(5);
 
   await act(async () => root.render(null));
   await act(async () => root.render(render()));

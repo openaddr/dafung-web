@@ -37,7 +37,7 @@ function makeEngine(seed: number): GameEngine {
 
 /** 驱动选都到完成(bot 自动)。 */
 function finishSetup(e: GameEngine): void {
-  e.doDraftRoll();
+  e.beginCapitalSelection();
   let guard = 0;
   while (e.phase === "Setup" && guard++ < 50) e.aiSetupStep();
 }

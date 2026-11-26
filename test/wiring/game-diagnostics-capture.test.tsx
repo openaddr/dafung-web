@@ -137,7 +137,7 @@ function startAuthority(): GameEngine {
     startingCash: MAP.startingCash,
     startingTreasures: MAP.startingTreasures,
   });
-  engine.doDraftRoll();
+  engine.beginCapitalSelection();
   return engine;
 }
 
