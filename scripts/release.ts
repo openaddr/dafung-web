@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { assertApkSource, buildApk, readApkConfig, withApkBuildLock } from "./android-apk";
+import { reportCommandResult } from "./command-log";
 
 const REPO = "openaddr/dafung-web";
 const RELEASES = `repos/${REPO}/releases`;
@@ -336,12 +337,16 @@ async function release(): Promise<void> {
   }
   const assets = buildOnly ? "arm64 APK" : "arm64 APK 与服务端发布包";
   console.log(`[release] commit=${commit} tag=${tag};${assets}`);
-  if (flags.has("--dry-run")) return;
+  if (flags.has("--dry-run")) {
+    reportCommandResult(`${buildOnly ? "apk" : "release"} · 预检通过 · ${tag} · ${assets}`);
+    return;
+  }
 
-  await withApkBuildLock(config.buildRoot, commit, async () => {
+  const result = await withApkBuildLock(config.buildRoot, commit, async () => {
     const out = buildOnly ? join(releaseOut, "apk") : releaseOut;
     mkdirSync(out, { recursive: true });
     let report: ReturnType<typeof buildApk>;
+    let publication = "";
     if (buildOnly) {
       report = buildApk(config, commit, tag, out);
     } else {
@@ -358,15 +363,19 @@ async function release(): Promise<void> {
         prepared.reused,
       );
       Object.assign(report, published);
+      publication = ` · ${draft ? "草稿" : "发布"} ${published.releaseUrl} · 服务端包 ${prepared.archive.path}`;
       console.log(`[release] ${published.downloadUrl}`);
       console.log(
         `[release] ${published.serverArchive.downloadUrl};SHA256=${published.serverArchive.sha256}`,
       );
     }
     assertAssetUnchanged(report.apk, report);
-    writeFileSync(resolve(out, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
+    const receipt = resolve(out, "report.json");
+    writeFileSync(receipt, `${JSON.stringify(report, null, 2)}\n`);
     console.log(`[release] 完成:${report.apk};SHA256=${report.sha256}`);
+    return `${buildOnly ? "apk" : "release"} · ${tag} · APK ${report.apk}${publication} · 回执 ${receipt}`;
   });
+  reportCommandResult(result);
 }
 
 if (import.meta.main) {

@@ -39,7 +39,10 @@ testRelease(
     const stable =
       'import { test, expect } from "bun:test";\n// test.only("注释")\ntest("稳定", () => expect("test.only").toBe("test.only"));';
     writeFileSync(file, stable);
-    expect(run(root, "test").code).toBe(0);
+    const passed = run(root, "test");
+    expect(passed.code, passed.output).toBe(0);
+    expect(passed.output).toContain("1 通过 · 0 跳过");
+    expect(passed.output).not.toContain("(pass) 稳定");
     writeFileSync(file, stable + '\ntest.only("聚焦", () => {});');
     const focused = run(root, "test");
     expect(focused.code, focused.output).not.toBe(0);
@@ -61,6 +64,24 @@ testRelease(
   },
   20_000,
 );
+
+testRelease("失败摘要保留首个失败断言，完整输出可按日志路径读取", () => {
+  const root = fixture();
+  writeFileSync(
+    join(root, "test/fixture.test.ts"),
+    'import { test, expect } from "bun:test";\ntest("首个失败", () => expect(1).toBe(2));\ntest("嘈杂用例", () => console.error("detail-lead-" + "x".repeat(12000)));',
+  );
+  const failed = run(root, "test");
+  expect(failed.code, failed.output).toBe(1);
+  expect(failed.output).toContain("首个失败");
+  expect(failed.output).toContain("test/fixture.test.ts");
+  expect(failed.output).toContain("expect(received).toBe(expected)");
+  expect(failed.output).not.toContain("detail-lead-");
+  const log = /完整日志 (.+)$/m.exec(failed.output)?.[1];
+  expect(log).toBeDefined();
+  roots.push(log!);
+  expect(readFileSync(join(log!, "stderr.log"), "utf8")).toContain("detail-lead-");
+});
 
 testRelease(
   "Bun 零执行不冒充完整验证",

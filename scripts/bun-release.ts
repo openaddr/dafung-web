@@ -1,9 +1,11 @@
 // Bun 放行守门(#1438/#1439):完整入口禁筛选,选检仅接受显式 --files 精确文件。
 // 裸 bun test 仍可定向诊断,package 的 test/test:slow 才声明完整放行。
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { createReadStream, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 import { stripVTControlCharacters } from "node:util";
 import ts from "typescript";
+import { readLogTail, reportCommandResult, runLoggedCommand } from "./command-log";
 
 const args = process.argv.slice(2).map((arg) => arg.replaceAll("\\", "/"));
 const files = args[0] === "--files" ? args.slice(1) : [];
@@ -110,36 +112,74 @@ function checkDirectory(dir: string): void {
     else if (/\.[cm]?[jt]sx?$/.test(entry.name)) checkFocus(path);
   }
 }
-checkDirectory("test");
-const child = Bun.spawn([process.execPath, "test", ...files], {
-  stdin: "inherit",
-  stdout: "pipe",
-  stderr: "pipe",
-});
-async function tee(
-  stream: ReadableStream<Uint8Array>,
-  target: NodeJS.WriteStream,
-): Promise<string> {
-  let tail = "";
-  const reader = stream.getReader();
-  for (;;) {
-    const { value: chunk, done } = await reader.read();
-    if (done) break;
-    target.write(chunk);
-    tail = (tail + Buffer.from(chunk).toString()).slice(-4096);
+async function firstTestFailure(path: string): Promise<string> {
+  const input = createReadStream(path);
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  let file = "";
+  let location = "";
+  let reason = "";
+  let firstError = "";
+  try {
+    for await (const raw of lines) {
+      const line = stripVTControlCharacters(raw);
+      const heading = /^((?:[A-Za-z]:)?[^:]+\.test\.tsx?):$/.exec(line);
+      if (heading) {
+        file = heading[1]!.replaceAll("\\", "/");
+        location = "";
+        reason = "";
+      }
+      if (/^\s*(?:error|\w*Error): /.test(line)) {
+        reason = line.trim().slice(0, 360);
+        if (!firstError) firstError = reason;
+      }
+      const frame = /^(\s+at .+):(\d+:\d+)\)?$/.exec(line);
+      if (!location && file && frame?.[1]?.replaceAll("\\", "/").endsWith(file)) {
+        location = `${file}:${frame[2]}`;
+      }
+      if (line.startsWith("(fail) ")) {
+        const name = line
+          .slice(7)
+          .replace(/ \[[\d.]+ms\]$/, "")
+          .slice(0, 220);
+        return [location || file, name, reason].filter(Boolean).join(" · ");
+      }
+      if (/^\((?:pass|skip|todo)\) /.test(line)) {
+        location = "";
+        reason = "";
+      }
+    }
+  } finally {
+    lines.close();
+    input.destroy();
   }
-  return tail;
+  return firstError;
 }
-const [stdout, stderr, code] = await Promise.all([
-  tee(child.stdout, process.stdout),
-  tee(child.stderr, process.stderr),
-  child.exited,
-]);
-if (code !== 0) process.exit(code);
-const summary = [...stripVTControlCharacters(stdout + stderr).matchAll(/^\s*(\d+) pass\r?$/gm)].at(
-  -1,
-);
-if (!summary || Number(summary[1]) === 0) {
-  console.error("[bun-release] 零执行或缺少 Bun 通过汇总,不构成所选范围放行。");
-  process.exit(1);
+
+try {
+  checkDirectory("test");
+  const { code, elapsedMs, failedToStart, log } = await runLoggedCommand([
+    process.execPath,
+    "test",
+    ...files,
+  ]);
+  if (code !== 0) {
+    const detail = failedToStart
+      ? (await readLogTail(log.stderr)).trim().slice(0, 360)
+      : await firstTestFailure(log.stderr);
+    console.error(`[test] 失败 · ${detail || `Bun 退出 ${code}`} · 完整日志 ${log.dir}`);
+    process.exitCode = code;
+  } else {
+    const summary = await readLogTail(log.stderr, 4096);
+    const passed = [...summary.matchAll(/^[ \t]*(\d+) pass\r?$/gm)].at(-1)?.[1];
+    const skipped = [...summary.matchAll(/^[ \t]*(\d+) skip\r?$/gm)].at(-1)?.[1] ?? "0";
+    if (!passed || Number(passed) === 0) {
+      throw new Error(`零执行或缺少 Bun 通过汇总，不构成所选范围放行 · 完整日志 ${log.dir}`);
+    }
+    reportCommandResult(
+      `test · ${passed} 通过 · ${skipped} 跳过 · ${(elapsedMs / 1000).toFixed(1)} 秒 · 完整日志 ${log.dir}`,
+    );
+  }
+} catch (error) {
+  console.error(`[test] 失败 · ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
 }
