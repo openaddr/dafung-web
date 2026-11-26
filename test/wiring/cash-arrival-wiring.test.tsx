@@ -48,7 +48,7 @@ function makeEngine(): GameEngine {
 }
 
 function mountPresentation(engine: GameEngine) {
-  const clock = installControlledClock();
+  const clock = installControlledClock({ monotonic: true });
   const host = document.body.appendChild(document.createElement("div"));
   const root = createRoot(host);
   const effects = new SnapshotEffects(
@@ -56,11 +56,18 @@ function mountPresentation(engine: GameEngine) {
     () => null,
   );
   const played: Array<string | null> = [];
+  const active = new Set<HTMLMediaElement>();
   const play = spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (
     this: HTMLMediaElement,
   ) {
     played.push(this.getAttribute("src"));
+    active.add(this);
     return Promise.resolve();
+  });
+  const pause = spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(function (
+    this: HTMLMediaElement,
+  ) {
+    active.delete(this);
   });
   setAudio(new MediaAudioPlayer());
   act(() => {
@@ -81,6 +88,8 @@ function mountPresentation(engine: GameEngine) {
   });
   return {
     played,
+    active,
+    advance: clock.advance,
     async present(events: GameEvent[]) {
       await act(async () => {
         stashEventBatch(events);
@@ -101,6 +110,7 @@ function mountPresentation(engine: GameEngine) {
       useNetStore.getState().reset();
       setAudio(null);
       play.mockRestore();
+      pause.mockRestore();
       host.remove();
       clock.restore();
     },
@@ -182,6 +192,30 @@ it.each(["断线", "吸附", "换图"] as const)(
     expect(view.played).toEqual([]);
   },
 );
+
+it("吸附让已响的归账短声渐出，同时丢掉过时的归账", async () => {
+  const engine = makeEngine();
+  grantProperty(engine, 0, "prop-youzhou", 1);
+  using view = mountPresentation(engine);
+  await view.present(closeRound(engine));
+  finishCashFly(cashFly(0));
+  const [coin] = view.active;
+  const startVolume = coin.volume;
+
+  setSnapPin(true);
+  try {
+    await view.present(closeRound(engine));
+  } finally {
+    setSnapPin(false);
+  }
+  expect(view.active.has(coin)).toBe(true);
+  await view.advance(48);
+  expect(coin.volume).toBeGreaterThan(0);
+  expect(coin.volume).toBeLessThan(startVolume);
+  await view.advance(150);
+  expect(view.active.has(coin)).toBe(false);
+  expect(view.played).toEqual([soundClipUrl(SOUND_CLIPS.coin)]);
+});
 
 function armCityLossChoice(engine: GameEngine, seat: number): Disposable {
   const choice: TriggerSkill = {

@@ -3,19 +3,40 @@ import { SOUND_CLIPS, soundClipUrl, type SoundEvent } from "./sound-clips";
 export type { SoundEvent } from "./sound-clips";
 
 type PlaybackScope = "reaction" | "presentation" | "all";
-type ActivePlayback = { volume: number; cutoff?: ReturnType<typeof setTimeout> };
+export type PlaybackStopMode = "immediate" | "fade";
+type GainRamp = { from: number; to: number; startAt: number; endAt: number };
+type Timer = ReturnType<typeof setTimeout>;
+type ActivePlayback = {
+  url: string;
+  volume: number;
+  scope: Exclude<PlaybackScope, "all">;
+  duck: number | GainRamp;
+  deadlineAt?: number;
+  fadeStart?: Timer;
+  cutoff?: Timer;
+  release?: GainRamp;
+};
 
 export interface AudioPlayer {
   /** 可选的时限从开播拍起算，只约束这一声。 */
   play(event: SoundEvent, endWithinMs?: number): void;
   /** 捕获当前演出。作废或静音后，延迟发声失效。 */
   defer(event: SoundEvent, endWithinMs?: number): () => void;
-  stop(scope: PlaybackScope): void;
+  stop(scope: PlaybackScope, mode?: PlaybackStopMode): void;
   setMuted(muted: boolean): void;
   dispose(): void;
 }
 
 const REACTION_DUCK_GAIN = 0.35;
+const REACTION_ATTACK_MS = 32;
+const REACTION_RELEASE_MS = 144;
+const SOUND_RELEASE_MS = 112;
+const MIX_STEP_MS = 16;
+
+function gainAt(ramp: GainRamp, now: number): number {
+  const progress = Math.min(1, (now - ramp.startAt) / (ramp.endAt - ramp.startAt));
+  return ramp.from + (ramp.to - ramp.from) * progress;
+}
 
 function releaseAudio(audio: HTMLAudioElement): void {
   audio.onended = null;
@@ -32,6 +53,7 @@ export class MediaAudioPlayer implements AudioPlayer {
   private readonly idle = new Map<string, HTMLAudioElement>();
   private readonly active = new Map<HTMLAudioElement, ActivePlayback>();
   private reaction: HTMLAudioElement | null = null;
+  private mixTimer: Timer | undefined;
   private generation = 0;
   private lastMarchStart: number | null = null;
   private marchRapidCount = 0;
@@ -74,17 +96,24 @@ export class MediaAudioPlayer implements AudioPlayer {
     }
 
     const isReaction = !auditioning && (event === "reactionOpen" || event === "reactionTick");
-    if (isReaction) this.stop("reaction");
+    if (isReaction && this.reaction !== null) {
+      this.fadeOut(this.reaction, this.active.get(this.reaction)!);
+    }
     const url = soundClipUrl(clip);
     const audio = this.idle.get(url) ?? new Audio(url);
     this.idle.delete(url);
-    const playback: ActivePlayback = { volume };
+    const duck = isReaction || this.reaction === null ? 1 : REACTION_DUCK_GAIN;
+    const playback: ActivePlayback = {
+      url,
+      volume,
+      scope: isReaction ? "reaction" : "presentation",
+      duck,
+    };
     this.active.set(audio, playback);
+    audio.volume = volume * duck;
     if (isReaction) {
       this.reaction = audio;
-      this.applyVolumes();
-    } else {
-      audio.volume = this.reaction === null ? volume : volume * REACTION_DUCK_GAIN;
+      this.setDuckGain(REACTION_DUCK_GAIN, REACTION_ATTACK_MS);
     }
 
     audio.currentTime = 0;
@@ -94,30 +123,25 @@ export class MediaAudioPlayer implements AudioPlayer {
     audio.playbackRate =
       clip.kind === "recording" && !auditioning ? 0.92 + Math.random() * 0.16 : 1;
 
-    const finish = (reusable: boolean) => {
-      if (this.active.get(audio) !== playback) return false;
-      this.active.delete(audio);
-      clearTimeout(playback.cutoff);
-      if (audio === this.reaction) {
-        this.reaction = null;
-        this.applyVolumes();
-      }
-      audio.onended = null;
-      audio.onerror = null;
-      if (reusable && !this.idle.has(url)) this.idle.set(url, audio);
-      else releaseAudio(audio);
-      return true;
-    };
     const fail = (error: unknown) => {
-      if (!finish(false)) return;
+      if (!this.finish(audio, playback, false)) return;
       console.warn(`[audio] ${event} 播放失败`, error);
       onAuditionComplete?.(false);
     };
     audio.onended = () => {
-      if (finish(true)) onAuditionComplete?.(true);
+      if (this.finish(audio, playback, true)) onAuditionComplete?.(true);
     };
     audio.onerror = () => fail(audio.error);
-    if (endWithinMs !== undefined) playback.cutoff = setTimeout(() => finish(false), endWithinMs);
+    if (endWithinMs !== undefined) {
+      const deadlineAt = performance.now() + endWithinMs;
+      const releaseMs = Math.min(SOUND_RELEASE_MS, endWithinMs / 2);
+      playback.deadlineAt = deadlineAt;
+      playback.fadeStart = setTimeout(
+        () => this.fadeOut(audio, playback, deadlineAt),
+        endWithinMs - releaseMs,
+      );
+      playback.cutoff = setTimeout(() => this.finish(audio, playback, false), endWithinMs);
+    }
     void audio.play().catch(fail);
   }
 
@@ -129,25 +153,94 @@ export class MediaAudioPlayer implements AudioPlayer {
     };
   }
 
-  private applyVolumes(): void {
-    for (const [audio, { volume }] of this.active) {
-      audio.volume =
-        this.reaction === null || audio === this.reaction ? volume : volume * REACTION_DUCK_GAIN;
+  private finish(audio: HTMLAudioElement, playback: ActivePlayback, reusable: boolean): boolean {
+    if (this.active.get(audio) !== playback) return false;
+    this.active.delete(audio);
+    clearTimeout(playback.fadeStart);
+    clearTimeout(playback.cutoff);
+    if (audio === this.reaction) {
+      this.reaction = null;
+      this.setDuckGain(1, REACTION_RELEASE_MS);
+    }
+    audio.onended = null;
+    audio.onerror = null;
+    if (reusable && !this.idle.has(playback.url)) this.idle.set(playback.url, audio);
+    else releaseAudio(audio);
+    return true;
+  }
+
+  private fadeOut(
+    audio: HTMLAudioElement,
+    playback: ActivePlayback,
+    requestedEnd = performance.now() + SOUND_RELEASE_MS,
+  ): void {
+    const now = performance.now();
+    const endAt = Math.min(requestedEnd, playback.deadlineAt ?? requestedEnd);
+    if (playback.release !== undefined && playback.release.endAt <= endAt) return;
+    if (endAt <= now) {
+      this.finish(audio, playback, false);
+      return;
+    }
+    const from = playback.release === undefined ? 1 : gainAt(playback.release, now);
+    playback.release = { from, to: 0, startAt: now, endAt };
+    clearTimeout(playback.fadeStart);
+    // 仪式的截止计时器保留在原来的队列次序，先于同拍开始的下一段演出。
+    if (playback.deadlineAt !== endAt) {
+      clearTimeout(playback.cutoff);
+      playback.deadlineAt = endAt;
+      playback.cutoff = setTimeout(() => this.finish(audio, playback, false), endAt - now);
+    }
+    this.updateMix();
+  }
+
+  private setDuckGain(target: number, duration: number): void {
+    const now = performance.now();
+    for (const playback of this.active.values()) {
+      if (playback.scope === "reaction") continue;
+      const duck = playback.duck;
+      if (typeof duck !== "number" && duck.to === target) continue;
+      const from = typeof duck === "number" ? duck : gainAt(duck, now);
+      playback.duck =
+        from === target ? target : { from, to: target, startAt: now, endAt: now + duration };
+    }
+    this.updateMix();
+  }
+
+  private updateMix(): void {
+    const now = performance.now();
+    let changing = false;
+    for (const [audio, playback] of this.active) {
+      const { duck, release } = playback;
+      if (typeof duck !== "number" && now >= duck.endAt) playback.duck = duck.to;
+      const duckGain = typeof duck === "number" ? duck : gainAt(duck, now);
+      const releaseGain = release === undefined ? 1 : gainAt(release, now);
+      audio.volume = playback.volume * duckGain * releaseGain;
+      if (typeof playback.duck !== "number" || (release !== undefined && now < release.endAt))
+        changing = true;
+    }
+    if (changing && this.mixTimer === undefined) {
+      this.mixTimer = setTimeout(() => {
+        this.mixTimer = undefined;
+        this.updateMix();
+      }, MIX_STEP_MS);
     }
   }
 
-  stop(scope: PlaybackScope): void {
+  stop(scope: PlaybackScope, mode: PlaybackStopMode = "immediate"): void {
     if (scope !== "reaction") this.generation++;
-    const wasDucked = this.reaction !== null;
-    for (const [audio, { cutoff }] of this.active) {
-      const channel = audio === this.reaction ? "reaction" : "presentation";
-      if (scope !== "all" && scope !== channel) continue;
-      this.active.delete(audio);
-      clearTimeout(cutoff);
-      if (channel === "reaction") this.reaction = null;
-      releaseAudio(audio);
+    const stopReaction = scope !== "presentation" && this.reaction !== null;
+    if (stopReaction) this.reaction = null;
+    for (const [audio, playback] of this.active) {
+      if (scope !== "all" && scope !== playback.scope) continue;
+      if (mode === "fade") this.fadeOut(audio, playback);
+      else this.finish(audio, playback, false);
     }
-    if (wasDucked && this.reaction === null) this.applyVolumes();
+    if (scope === "all" && mode === "immediate") {
+      clearTimeout(this.mixTimer);
+      this.mixTimer = undefined;
+    } else if (stopReaction) {
+      this.setDuckGain(1, REACTION_RELEASE_MS);
+    }
   }
 
   setMuted(muted: boolean): void {

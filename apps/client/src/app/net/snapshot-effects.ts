@@ -18,7 +18,7 @@
 // console.debug + __dafung.fxCatchup。
 import type { GameEngine } from "@dafung/core/engine/authority";
 import type { GameEvent } from "@dafung/core/engine/game-events";
-import { getAudio } from "@app/fx/audio";
+import { getAudio, type PlaybackStopMode } from "@app/fx/audio";
 import { discardCapitalRecruitment } from "@app/fx/capital-supply-audio";
 import type { CashArrivalCue, PresentationEvent } from "@app/fx/presentation";
 import { useFxStore } from "@app/fx/fxStore";
@@ -131,7 +131,10 @@ export class SnapshotEffects {
     this.cancelQueuedPlayback();
   }
 
-  private cancelQueuedPlayback(keepIncome?: CashArrivalCue): void {
+  private cancelQueuedPlayback(
+    keepIncome?: CashArrivalCue,
+    soundExit: PlaybackStopMode = "immediate",
+  ): void {
     for (const chunk of this.queued) chunk.voided = true;
     this.victoryPreludeAbort?.abort();
     this.victoryPreludeAbort = null;
@@ -139,7 +142,7 @@ export class SnapshotEffects {
     discardCityRewardCues(this.getEngine());
     dismissInFlightPresentation();
     this.fxSink.discardCashFlights(keepIncome);
-    getAudio().stop("all");
+    getAudio().stop("all", soundExit);
     useFxStore.getState().setVictoryPresentation(null);
   }
 
@@ -207,7 +210,7 @@ export class SnapshotEffects {
     const income = victory === undefined ? undefined : cityIncomeCueFor(engine, victory.round);
     if (gameOver) {
       if (income !== undefined && lastTurnStart < 0) this.carryQueuedIncome(income, presentation);
-      this.cancelQueuedPlayback(income);
+      this.cancelQueuedPlayback(income, victory === undefined ? "immediate" : "fade");
       finishPresentation();
       abandonAllMarches();
     }
@@ -304,7 +307,7 @@ export class SnapshotEffects {
     this.pendingFireWallRewards = new WeakMap();
     this.fxSink.discardCashFlights();
     discardCapitalRecruitment();
-    getAudio().stop("presentation");
+    getAudio().stop("presentation", "fade");
     abandonAllMarches();
   }
 }

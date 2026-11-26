@@ -244,13 +244,20 @@ it("本座可答时响开窗和一次末段提醒，反识破另起，后台错�
 
   click(q(el, TESTIDS.jinnangCard("识破诡计"))!);
   click(q(el, TESTIDS.seatTarget(0))!);
+  const previousReminder = reminders[1].media;
+  const previousVolume = previousReminder.volume;
   click(q(el, TESTIDS.reactionConfirm)!);
-  expect(reminders[1].media.hasAttribute("src")).toBe(false);
+  expect(previousReminder.hasAttribute("src")).toBe(true);
   completeCommand();
   // 原出牌者即时反识破。只有回到本座的后续窗再响一次。
   expect(snap().reaction?.cardId).toBe("识破诡计");
   expect(q(el, TESTIDS.reactionDecline)?.hasAttribute("disabled")).toBe(false);
   expect(sounded()).toEqual([opening, late, opening]);
+  await advance(48);
+  expect(previousReminder.volume).toBeGreaterThan(0);
+  expect(previousReminder.volume).toBeLessThan(previousVolume);
+  await advance(112);
+  expect(previousReminder.hasAttribute("src")).toBe(false);
   const visibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
   const setVisibility = (value: DocumentVisibilityState) =>
     act(() => {

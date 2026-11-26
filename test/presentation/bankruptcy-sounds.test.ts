@@ -98,7 +98,7 @@ function declareExit() {
 }
 
 function observeMedia() {
-  const clock = installControlledClock();
+  const clock = installControlledClock({ monotonic: true });
   const active = new Map<HTMLMediaElement, string | null>();
   const played: { src: string | null; alreadyPlaying: (string | null)[] }[] = [];
   const play = spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (
@@ -121,6 +121,7 @@ function observeMedia() {
   return {
     advance: clock.advance,
     played,
+    volumes: () => new Map([...active].map(([element, src]) => [src, element.volume])),
     [Symbol.dispose]() {
       setAudio(null);
       setCatchupScale(1);
@@ -149,7 +150,16 @@ it("追帧中的出局锣雨在起拍、铜钱在撒落拍，仪式交棒前停�
   expect(media.played.map((play) => play.src)).toEqual([gong, rain, coins]);
 
   getAudio().play("reactionTick");
-  await media.advance(CEREMONY.settleMs - CEREMONY.coinsAtMs);
+  const untilSettle = CEREMONY.settleMs - CEREMONY.coinsAtMs;
+  await media.advance(untilSettle - 125);
+  const beforeFade = media.volumes();
+  await media.advance(100);
+  const fading = media.volumes();
+  for (const src of [gong, rain]) {
+    expect(fading.get(src)).toBeGreaterThan(0);
+    expect(fading.get(src)).toBeLessThan(beforeFade.get(src)!);
+  }
+  await media.advance(25);
   await playing;
   expect(media.played[4]).toEqual({
     src: soundClipUrl(SOUND_CLIPS.coin),
