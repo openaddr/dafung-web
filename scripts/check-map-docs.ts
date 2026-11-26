@@ -1,65 +1,49 @@
-// 地图数值的文档对账门禁(#480 收官 retro):改地图(删辅路/+珍宝城/移除整图)
-// 后,docs 里残留的「N 格 / N 城」旧数值是历史性漏网——code-review 抓过一次
-// (rules/03「42 格 30 城」、GLOSSARY「主环 42 格」),本检查把它机器化。
-//
-// 规则:
-// 1. index.json 每张图的 tileCount 必须等于实际城池数(#826 全城池制:每格都是城池)。
-// 2. GLOSSARY.md 与 docs/reference/rules/*.md 中出现的「N 格」「N 城」数值
-//    (两位数以上,过滤「一格」类噪声)必须与某张现存地图的实际值一致——
-//    改了图没改文档,这里红。
-// 口径:index.json 的 tileCount = 城池数(#476 起;#826 全城池制后恒等于格数)。
-// 已知局限:一位数(如中原图「8 城」)不在扫描范围;新地图加位数后此处同步。
+// 校验地图清单的派生字段，以及现行规则文档所引用的地图格数。
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { loadMap } from "@dafung/core/engine/board-loader";
+import { readPackagedMaps } from "./packaged-maps";
 
-const root = process.cwd();
-const index = JSON.parse(readFileSync(join(root, "packages/core/maps/index.json"), "utf8")) as {
-  id: string;
-  file: string;
-  tileCount: number;
-  desc: string;
-}[];
-
+const root = resolve(import.meta.dir, "..");
+const mapsDir = join(root, "packages/core/maps");
+const { catalog } = readPackagedMaps(mapsDir);
 const errors: string[] = [];
-const actualGrids = new Set<number>();
-const actualCities = new Set<number>();
+const mapSizes = new Set<number>();
 
-for (const entry of index) {
-  const data = JSON.parse(readFileSync(join(root, "packages/core/maps", entry.file), "utf8")) as {
-    tiles: { type?: string }[];
-  };
-  const grid = data.tiles.length;
-  const cities = data.tiles.filter((t) => !t.type || t.type === "Property").length;
-  actualGrids.add(grid);
-  actualCities.add(cities);
-  if (entry.tileCount !== cities) {
+for (const entry of catalog) {
+  const map = loadMap(JSON.parse(readFileSync(join(mapsDir, entry.file), "utf8")));
+  mapSizes.add(map.tiles.length);
+  if (entry.tileCount !== map.tiles.length) {
+    errors.push(`地图「${entry.id}」清单 tileCount=${entry.tileCount}，实际为 ${map.tiles.length}`);
+  }
+  if (entry.targetNetWorth !== map.targetNetWorth) {
     errors.push(
-      `index.json「${entry.id}」tileCount=${entry.tileCount} ≠ 实际城池数 ${cities}(共 ${grid} 格)`,
+      `地图「${entry.id}」清单 targetNetWorth=${entry.targetNetWorth}，图内为 ${map.targetNetWorth}`,
     );
   }
 }
 
-const scan = (file: string, text: string) => {
-  // 前置排除 # 与数字同时跳过工单号(#1389 城指向)及其数字后缀。
-  for (const m of text.matchAll(/(?<![#\d])(\d{2,})\s*(格|城)/g)) {
-    const n = Number(m[1]);
-    if (!actualGrids.has(n) && !actualCities.has(n)) {
-      errors.push(
-        `${file}:「${m[0]}」与现存地图的实际格数/城数(#[${[...actualGrids]}] 格 / #[${[...actualCities]}] 城)对不上`,
-      );
+const rulesDir = "docs/reference/rules";
+const docs = [
+  "GLOSSARY.md",
+  ...readdirSync(join(root, rulesDir))
+    .filter((file) => file.endsWith(".md"))
+    .map((file) => join(rulesDir, file)),
+];
+// 只匹配多位数地图规模，区分「1 格」之类日常行军距离。
+for (const file of docs) {
+  for (const match of readFileSync(join(root, file), "utf8").matchAll(
+    /(?<![#\d])(\d{2,})\s*(格|城)/g,
+  )) {
+    if (!mapSizes.has(Number(match[1]))) {
+      errors.push(`${file}：「${match[0]}」没有对应的现行地图格数`);
     }
   }
-};
-
-scan("GLOSSARY.md", readFileSync(join(root, "GLOSSARY.md"), "utf8"));
-const rulesDir = join(root, "docs/reference/rules");
-for (const f of readdirSync(rulesDir)) {
-  if (f.endsWith(".md")) scan(`docs/reference/rules/${f}`, readFileSync(join(rulesDir, f), "utf8"));
 }
 
 if (errors.length > 0) {
-  console.error("[map-docs] 地图数值对账失败:");
-  for (const e of errors) console.error("  - " + e);
-  process.exit(1);
+  console.error(`[map-docs] 地图对账失败\n${errors.join("\n")}`);
+  process.exitCode = 1;
+} else {
+  console.log(`[map-docs] ${catalog.length} 张图的清单和规模对账通过`);
 }
-console.log(`[map-docs] OK:${index.length} 张图 tileCount/城池数一致,docs 数值无残留旧值。`);

@@ -1,7 +1,4 @@
-// 配色与动效单源生成器:从 core/theme.ts 的 Theme/Motion 对象生成 Tailwind v4 @theme token 文件。
-// 唯一源 = theme.ts。改色/改节奏只改 theme.ts,然后 `bun run gen:theme` 重新生成 tokens.css。
-// 产出:src/app/styles/tokens.css(--color-* / --font-* / --dur-* / --ease-*),由 app.css @import。
-// core/ 零 DOM 依赖的红线不破:本脚本属构建工具(scripts/),不进 core。
+// 从公共包的 Theme 与 Motion 生成客户端 Tailwind token。
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +13,7 @@ const toHex = ({ r, g, b }: { r: number; g: number; b: number }) =>
 const kebab = (s: string) => s.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
 
 const lines: string[] = [
-  "/* ⚠️ 自动生成,勿手改 — 来源 src/core/theme.ts(Theme + Motion),运行 `bun run gen:theme` 再生成 */",
+  "/* ⚠️ 自动生成,勿手改 — 来源 @dafung/core/engine/theme（Theme 与 Motion）,运行 `bun run gen:theme` 再生成 */",
   "@theme {",
 ];
 

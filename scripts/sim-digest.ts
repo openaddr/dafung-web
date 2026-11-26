@@ -3,9 +3,10 @@
 // 诊断取证;③单局耗时记录(完成门证据)。驱动/摘要单源在 whole-game.ts/state-digest.ts,
 // 本文件只做参数解析与呈现(严格解析,非法当场抛,零兜底,同 sim-batch 口径)。
 //
-// 用法:bun scripts/sim-digest.ts <seed> [--map <id>] [--seats <2-4>] [--json <path>]
+// 用法:bun scripts/sim-digest.ts <seed> [--map <id>] [--seats <人数>] [--json <path>]
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { MAX_SEAT_COUNT, MIN_SEAT_COUNT, STANDARD_SEAT_COUNT } from "@dafung/core/engine/constants";
 import { builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import { runWholeGame } from "./whole-game";
 import type { SeatConfig } from "@dafung/core/engine/authority";
@@ -33,15 +34,15 @@ for (let i = 0; i < argv.length; i++) {
 }
 if (positionals.length !== 1)
   throw new Error(
-    `用法:bun scripts/sim-digest.ts <seed> [--map <id>] [--seats <2-4>] [--json <path>]`,
+    `用法:bun scripts/sim-digest.ts <seed> [--map <id>] [--seats <人数>] [--json <path>]`,
   );
 const SEED = intValue(positionals[0], "seed");
 const mapId = flags.get("map") ?? builtinMapCatalog()[0].id;
 const map = loadBuiltinMapById(mapId);
 const seatsRaw = flags.get("seats");
-const SEATS_N = seatsRaw !== undefined ? intValue(seatsRaw, "--seats") : 4;
-if (!(SEATS_N >= 2 && SEATS_N <= 4))
-  throw new Error(`--seats 必须 2-4(国号池四家),收到:${SEATS_N}`);
+const SEATS_N = seatsRaw !== undefined ? intValue(seatsRaw, "--seats") : STANDARD_SEAT_COUNT;
+if (SEATS_N < MIN_SEAT_COUNT || SEATS_N > MAX_SEAT_COUNT)
+  throw new Error(`--seats 必须为 ${MIN_SEAT_COUNT}–${MAX_SEAT_COUNT} 的整数，收到 ${SEATS_N}`);
 const JSON_OUT = flags.get("json");
 
 // ── 跑局 + 计时 ──

@@ -1,23 +1,24 @@
 // bot 自对弈批量模拟:一条命令跑 N 局全 bot 对局,stdout 输出统计分布
 //
-// 用法:bun scripts/sim-batch.ts [局数=50] [起始seed=1000] [--map <id>] [--seats <2-4>] [--verbose]
+// 用法:bun scripts/sim-batch.ts [局数=50] [起始seed=1000] [--map <id>] [--seats <人数>] [--verbose]
 //
 // 配置口径(全部取当前 master 真实配置,零硬编码兜底):
 //   地图 = --map 显式给定;缺省 = 内置清单 maps/index.json 首项(与 cli.ts 同口径,清单空当场抛)。
 //   起手现金/目标身价 = 地图顶层必配值(ADR-0041:引擎无缺省,loadMap 校验)。
-//   扩展包 = 与 cli/server 同口径装载 ./extensions(真实对局含扩展名将,名将池不残缺)。
+//   扩展包经服务端加载器登记。
 //
 // 驱动与观测:整局循环单源在 whole-game.ts driveToEnd(#1161 收敛;botAct 裸调仍是
 // bot 行为单源 #580);本脚本经 onStep 钩子逐步读引擎事件批(批界 = botAct 入口,#375)。
 //
 // 统计口径:
 //   对局面 = 终局率 / 局长(轮)分布 / 终局方式 / 最终身价分布 / 破产人次;
-//   技能侧(#1119 技能扩展地图)= 授技分布(全表含 0 次,授 0=池饿死)/ 击发统计(被动+主动+每授击发率)/ 终局构筑多样性;
+//   技能侧(#1119 技能扩展地图)= 招募授技次数 / 主动与触发技的击发次数/ 终局构筑多样性;
 //   经济动作计数(#1121 数值校准分母)= 购城/升级/珍宝成交 局均频率。
 //
 // 退出码:引擎抛错 = 发现 bug,逐 seed 报告且进程非零;回合上限未终局 = 平衡发现
 // (响亮上报,不算工具故障)。两者都看「终局率」行。
 import { resolve } from "node:path";
+import { MAX_SEAT_COUNT, MIN_SEAT_COUNT, STANDARD_SEAT_COUNT } from "@dafung/core/engine/constants";
 import { loadExtensionPackages } from "../apps/server/src/extension-loader";
 import { SKILLS, isTriggerSkill } from "@dafung/core/engine/skills";
 import { driveToEnd } from "./whole-game";
@@ -67,11 +68,11 @@ const SEED0 = positionals.length > 1 ? intValue(positionals[1], "起始 seed") :
 const mapId = flags.get("map") ?? builtinMapCatalog()[0].id;
 const map = loadBuiltinMapById(mapId);
 const seatsRaw = flags.get("seats");
-const SEATS_N = seatsRaw !== undefined ? intValue(seatsRaw, "--seats") : 4;
-if (!(SEATS_N >= 2 && SEATS_N <= 4))
-  throw new Error(`--seats 必须 2-4(国号池四家),收到:${SEATS_N}`);
+const SEATS_N = seatsRaw !== undefined ? intValue(seatsRaw, "--seats") : STANDARD_SEAT_COUNT;
+if (SEATS_N < MIN_SEAT_COUNT || SEATS_N > MAX_SEAT_COUNT)
+  throw new Error(`--seats 必须为 ${MIN_SEAT_COUNT}–${MAX_SEAT_COUNT} 的整数，收到 ${SEATS_N}`);
 
-/** 回合上限(单玩家回合数;4 席 ≈ 750 轮):防永动局的测量口径,触顶 = 未终局,响亮上报。 */
+/** 回合上限，按全桌回合编号。触顶时报未终局。 */
 const TURN_CAP = 3000;
 
 // ── 座位与构造参数(全 bot;guohao 留空由 beginCapitalSelection 从字池分配,与 cli new 同口径)──
@@ -276,7 +277,7 @@ const skillRows = SKILLS.map((d) => {
     per: g > 0 ? (f + a) / g : 0,
   };
 }).sort((x, y) => y.g - x.g || y.f - x.f || x.id.localeCompare(y.id));
-console.log(`授技与击发(全表 ${SKILLS.length} 条含 0 次;授 0=池饿死信号 · 授多发 0=摆设技):`);
+console.log("招募授技次数与全场技能击发次数（研读获得的技能不计作招募授技）：");
 for (const r of skillRows)
   console.log(
     `  [${r.isPassive ? "被动" : "主动"}] ${r.id.padEnd(12)} ${r.name} 授 ${String(r.g).padStart(4)} · 发 ${String(r.f).padStart(5)} · 每授 ${r.per.toFixed(2)}`,
@@ -288,7 +289,6 @@ const topBuild = [...buildAgg.entries()].sort((a, b) => b[1] - a[1])[0] ?? ["—
 console.log(
   `终局构筑: ${buildAgg.size} 种 / ${buildInstances} 席 · 众数「${topBuild[0]}」×${topBuild[1]}(${((topBuild[1] / Math.max(buildInstances, 1)) * 100).toFixed(0)}%)`,
 );
-console.log(`技能书/遣散刷书场景待对应功能落地后接入(数值票验收跑)。`);
 
 // ── 崩溃收账(引擎/数据 bug = 进程非零;平衡发现不算工具故障)──
 if (crashed.length > 0) {

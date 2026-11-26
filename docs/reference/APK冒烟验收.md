@@ -1,6 +1,6 @@
-# APK 冒烟验收与真机交接
+# APK 冒烟验收历史记录
 
-本记录对应 [#1440](https://github.com/openaddr/dafung-web/issues/1440)。工具只证明指定 APK 在指定安卓设备上的安装、版本核对、启动及取证;物理真机人工检查沿用 [#215](https://github.com/openaddr/dafung-web/issues/215),不另立人工票。复跑前提与入口见 [开发与测试](../how-to/开发与测试.md#apk-设备冒烟)。
+本页归档 2026-11-14 对 [#1440](https://github.com/openaddr/dafung-web/issues/1440) 的模拟器验收证据。现行工具与设备验收入口见[开发与测试](../how-to/开发与测试.md#apk-设备冒烟)。
 
 ## 2026-11-14 构建来源
 

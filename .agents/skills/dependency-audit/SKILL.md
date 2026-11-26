@@ -28,9 +28,9 @@ description: 死代码体检(刻意低频):bunx knip 找未用文件/依赖/导�
 
 ## 判读口径
 
-- `src/app/components/ui/**` 的导出**永远忽略**:shadcn CLI 管理的底件,导出即 API 面,清理制造上游 diff 噪声。
+- [UI 底件目录](../../../apps/client/src/app/components/ui/)的导出**永远忽略**:shadcn CLI 管理的底件,导出即 API 面,清理制造上游 diff 噪声。
 - 组件 Props/interface 的未用导出价值低,随桶文件顺手处理,不单独立票。
-- `src/core/` 是重点:core 导出收缩不改行为,但逐个确认非在途工单预留面,删除后过 `bun run check:core` + 全量单测。
+- [公共引擎](../../../packages/core/src/engine/)是重点:core 导出收缩不改行为,但逐个确认非在途工单预留面,删除后过 `bun run check:core` + 全量单测。
 - scripts/ 共享层(engine-helpers/room/room-persistence)的导出是 CLI/服务器候补接口,倾向真死,顺手工单删。
 - **常量/时距/编排族(timings 类)盲区——test/ 在 knip 消费图里是入口,「仅测试消费」的导出主跑判不死**:节拍族重构(如 #398 编排退役、#735 配速)合入后的体检,对该族文件**逐导出**做「无过滤全扫 + 排除 test/ 后逐条判词」(排除式过滤词的 grep 会吞命中,全扫口径见台账「现行 knip 配置口径」注)。被测试钉着(如快照组钉「>0」)却无生产消费 = 判尸,**连钉子一起删**——空壳钉子反而让人误以为有闸在看(#398 后 `BOT.stepDelayMs`/`AUTOPILOT.idleMs` 空壳存活两月,#735 清算实锤)。
 - **不要用 `knip --production` 补这个盲区**(2026-10-28 证伪):--production 视角下 vite/playwright 配置加载失败(devDep 不可见),`@app` 别名解析全断,活生产函数(clientView/redactSnapshotForSeat 一类)整批误报,清单不可判读。

@@ -23,7 +23,13 @@ import { emitGameEvent } from "./game-events";
 import { resumePendingMoment } from "./moment-stages";
 import type { HeroPick } from "./recruitment";
 import { guidePriceOf, isSkillBook } from "./treasures";
-import { jinnangCardOf, isReactionCard, TARGET_DOMAIN_STAGES, type JinnangEffect } from "./jinnang";
+import {
+  FIRE_WALL_RANGE,
+  jinnangCardOf,
+  isReactionCard,
+  TARGET_DOMAIN_STAGES,
+  type JinnangEffect,
+} from "./jinnang";
 
 /** 已接入结算的锦囊效果种类(#122/T2 起逐票点亮;#281 反应牌 counter/ambush 经反应窗结算,
  *  同属已接入)。新增 effect.kind 而未接结算案时:灰置路径仍在(此计暂未启用)。 */
@@ -298,7 +304,7 @@ export function fireWallCenterTargets(e: GameEngine): FireWallCenterTarget[] {
  *  propertyId null 的半成品格不入)。「一份=一座受击城」:识破份清单、火烧结算、
  *  bot 打分同读此口。immune=有主但为打空都城(1 级防御 0)——对火焰伤害免疫
  *  (defense.applyCityDamage 吸收),不算受击份(bot 不计命中),但仍在溅射面内
- *  (挨了打只是被吸收,果分战报照记)。确定性:中心→前方 1 格→前方 2 格(格序)。 */
+ *  (挨了打只是被吸收,果分战报照记)。按距火源的顺序处理。 */
 export interface FireWallBurnCity {
   tileIndex: number;
   propertyId: string;
@@ -314,7 +320,7 @@ export function fireWallSplashCities(e: GameEngine, centerTileIndex: number): Fi
   for (const tile of e.board.tiles) {
     if (tile.propertyId == null) continue;
     const forward = e.board.forwardDistance(centerTileIndex, tile.index);
-    if (forward > 2) continue; // 溅射距离门:中心+前方 1、2 格
+    if (forward > FIRE_WALL_RANGE) continue;
     const owner = e.findOwner(tile.propertyId);
     const holding = owner == null ? null : findHolding(owner, tile.propertyId);
     if (owner != null && holding == null)

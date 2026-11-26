@@ -78,6 +78,11 @@ if (check === "build" && process.env.ADVANCE_BASE) {
         [
           "lint",
           "check:fmt",
+          "check:links",
+          "check:rule-docs",
+          "check:retired",
+          "check:map-docs",
+          "check:fake-bold",
           "build",
           "test",
           "typecheck:scripts",
@@ -194,8 +199,11 @@ testMerge(
     expect(readFileSync(join(root, "tmp/checks.log"), "utf8").trim().split("\n")).toEqual([
       "lint",
       "check:fmt",
+      "check:links",
+      "check:rule-docs",
       "build",
       "test",
+      "check:retired",
       "canary",
     ]);
     expect(readFileSync(join(root, "tmp/remote.log"), "utf8")).toContain('"push"');
@@ -423,7 +431,7 @@ testMerge(
     const result = merge(root, {}, ["packages/core/src/engine/stamina-damage.ts"]);
     expect(result.code, result.output).toBe(0);
     const checks = readFileSync(join(root, "tmp/checks.log"), "utf8").trim().split("\n");
-    for (const name of ["check:core", "check:goldens", "check:sim-bench"])
+    for (const name of ["check:rule-docs", "check:core", "check:goldens", "check:sim-bench"])
       expect(checks.filter((check) => check === name)).toHaveLength(1);
   },
   30_000,

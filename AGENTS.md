@@ -1,6 +1,6 @@
 # dafung-web — 群雄逐鹿(三国大富翁)
 
-TypeScript + Vite + React 三国大富翁：公共逻辑在 `packages/core/`，联机服务器在 `apps/server/`，安卓客户端在 `apps/client/`。支持单机人机对战与 WebSocket 联机。玩家端正式交付为 Tauri 安卓 APK，验收移动横屏 844×390。网页只作开发及明确请求的单次排查。**不考虑前后兼容，需要重构直接改。**
+TypeScript + Vite + React 三国大富翁：公共逻辑在 `packages/core/`，联机服务器在 `apps/server/`，安卓客户端在 `apps/client/`。支持单机人机对战与 WebSocket 联机。玩家端正式交付为 Tauri 安卓 APK，按[移动端形态](./docs/design/DESIGN.md#47-移动端形态)验收。网页只作开发及明确请求的单次排查。**不考虑前后兼容，需要重构直接改。**
 
 **产品只面向移动端**：只设计、实现和验证安卓触屏所需功能；PC 专属快捷键、鼠标交互、布局和兼容问题不保留、不新增、不投入排查。移动端软键盘、系统返回、无障碍与不同尺寸的安卓屏幕仍须支持；电脑上的构建、服务端和开发工具照常保留。
 
@@ -18,12 +18,12 @@ TypeScript + Vite + React 三国大富翁：公共逻辑在 `packages/core/`，�
 
 ## 事实源地图
 
-- 游戏规则与数值(权威=`packages/core/src/engine/`):[rules 十页](./docs/reference/rules/README.md)
+- 游戏规则与数值见[规则手册](./docs/reference/rules/README.md)。
 - 领域词汇(定名与弃用名):[GLOSSARY.md](./GLOSSARY.md)
 - 代码文件职责速查:[代码地图](./docs/reference/代码地图.md)
 - 探索领域或变更决策前：[领域文档](./docs/agents/domain.md)、[docs/adr/](./docs/adr/)
 - 视觉/交互设计(改 UI 前必读):[DESIGN.md](./docs/design/DESIGN.md)
-- 文档风格与发版时机:[文档规约](./docs/how-to/文档规约.md)
+- 文档落点与同步见[文档规约](./docs/how-to/文档规约.md)。
 - 联机架构:[联机架构](./docs/explanation/联机架构.md)
 - 部署:[部署服务器](./docs/how-to/部署服务器.md)
 - 对局日志:[对局日志](./docs/reference/对局日志.md)
@@ -33,7 +33,7 @@ TypeScript + Vite + React 三国大富翁：公共逻辑在 `packages/core/`，�
 
 **缺失与错误直接暴露，禁止静默兜底/容错。**
 
-- 禁硬编码默认值兜底:可配置项唯一事实源是配置本身(默认地图=`maps/index.json` 首项,清单空直接抛错)。
+- 可配置项直接读取配置，缺失或错误时报告。
 - 禁 `catch {}` 吞错;`??`/`?.` 链式兜底同审——数据缺失是 bug,不是回退借口。
 - 禁「理论上到不了」式防御分支;真到了就是求解逻辑有 bug,崩出来。
 - 例外:①显式向用户报错的 catch(UI setError/pushHint);②纯 UI 空态展示(如「暂无可用地图」)——正常业务态。
@@ -55,21 +55,11 @@ TypeScript + Vite + React 三国大富翁：公共逻辑在 `packages/core/`，�
 
 ## 完成定义(DoD)
 
-改动**玩家可见机制**(相位、数值、牌、事件、地图字段、操作流程)时,**同一 PR 内**必须:
-
-- [ ] 回填 `docs/reference/rules/` 对应规则页(数值带符号名锚点,禁写行号)
-- [ ] 新术语登记 [GLOSSARY.md](./GLOSSARY.md)
-- [ ] README 文档地图与受影响文档链接有效
+改动玩家可见机制或公开契约时，在同一 PR 更新[对应说明](./docs/how-to/文档规约.md#信息放在哪)。玩法更新回填[规则手册](./docs/reference/rules/README.md)，新术语登记在[术语表](./GLOSSARY.md)。文档入口与受影响的引用一起核对。
 
 ## 关键文件
 
-各文件职责速查见 [代码地图](./docs/reference/代码地图.md)。三条高频路由:
-
-- 名将、技能与珍宝的数据声明在 `core/heroes.ts` / `core/skills.ts` / `core/treasures.ts`;
-- 改配色 = 单源 `core/theme.ts`,改后跑 `bun run gen:theme`,不手改 tokens.css;
-- 测试与单次辅助的选择器 = 各屏 `testids.ts` 单源,勿硬编码字符串。
-
-联机协议面五个单源(动协议前先看代码地图):`seat-projection.ts` / `wire.ts` / `event-batch.ts` / `room-record.ts` / `watchdogs.ts`。
+按[代码地图](./docs/reference/代码地图.md)定位数据声明和协议入口。改配色或动效参数按[设计参数配方](./docs/how-to/开发与测试.md#更新设计参数)执行。测试和单次辅助使用各屏 `testids.ts`。
 
 ## 开发陷阱速查(守门类;口径与数值一律查 [rules](./docs/reference/rules/README.md))
 
@@ -88,7 +78,7 @@ TypeScript + Vite + React 三国大富翁：公共逻辑在 `packages/core/`，�
 - **回归例**:每修一个真实 bug 配 1–3 个不修必挂的直接回归,先红再绿;体量与修动成比例,禁镜像实现。基建真火证据可在 PR 说明。
 - **场景构造**:无浏览器测试与单次辅助均复用 `core/planter.ts` 具名种植件;字段构造不复活 force,引擎公共命令直接调用。
 - **开工前 freshness**:每轮续作先 `bun run check:freshness`,过期先重定基。
-- **PR 本地门槛**：lint 零 warning、格式、build、完整默认池及开发指南中的受影响领域追加门全绿。共享类型变更先 typecheck 盘点消费点。
+- **PR 本地门槛**：按[本地验证](./docs/how-to/开发与测试.md#按生产变更选择本地验证)收口。共享类型变更先 typecheck 盘点消费点。
 - **杀进程先验名**:tasklist 验名,只杀本次拉起的进程;用户 VPN `aurora_slim` 永不清理。
 
 ## Agent 工作流

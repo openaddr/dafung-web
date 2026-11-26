@@ -1,7 +1,6 @@
 # 素材来源与授权(CREDITS)
 
-本文件汇总 `public/assets/` 下所有素材的来源与授权。外部素材由 `scripts/fetch-asset.ts` 自动追加，项目生成素材入库时在条目末尾登记。登记办法见[纹理素材](textures/README.md)。
-对应机器可读清单:`public/assets/manifest.json`(`id → {path, source, license, author, fetched_at}`)。
+这里记录客户端素材的来源与授权，机器可读字段见[素材清单](manifest.json)。外部素材由[素材工具](../../../../scripts/fetch-asset.ts)追加记录，项目生成素材的登记见[纹理素材](textures/README.md)。
 各试听条目使用的录音见[音效素材表](audio/README.md#试听条目与录音来源)。
 
 ## 授权纪律

@@ -1,13 +1,12 @@
-// 伪加粗残尾检查(2026-11-01,#955 retro 落地):五族离线镜像全是 400 单字重,任何
-// 500-700 声明 = 浏览器合成加粗,小字号笔画糊死内白(DESIGN §4.3 伪加粗规约)。
+// 扫描会触发合成粗体的字重声明。字体约束见 DESIGN 的字体规范。
 // 清零史:CSS 侧 #936 拔 14 处,TSX 工具类 #955 拔 15 处(探查代理还漏报过
 // SoloSetupScreen 214 行,靠实施期 grep 兜住)——两次人工走查都靠「记得扫」,本脚本
-// 把清零口径变成一条命令:字重工具类与 500-700 声明,src/ 全扫,命中即红。
+// 把清零口径变成一条命令:扫描客户端的字重工具类与 500–900 声明。
 //
 // 豁免口径:同一行带清理叙事标记(退役/拔除/清尾/规约/实锤/翻面)= 历史叙事或
 // 清理记录本身,合法保留——与 check-retired-phrases 的翻面标记同款约定。
 //
-// 范围:jj 跟踪集 src/ 下 .ts/.tsx/.css(UI 真相源;test/scripts 不渲染字体)。
+// 范围:jj 跟踪的客户端 .ts/.tsx/.css。
 // 用法:bun scripts/check-fake-bold.ts
 // 退出码:0=全绿;1=有残留;2=自身运行出错
 
@@ -30,7 +29,7 @@ function jj(...jjArgs: string[]): string {
 const PATTERNS: { re: RegExp; note: string }[] = [
   { re: /\bfont-(bold|semibold|extrabold|black|medium)\b/, note: "字重工具类" },
   { re: /\bfont-\[(?:bold|[5-9]00)\]/, note: "任意值字重类" },
-  { re: /font-[Ww]eight\s*[:=]\s*[{"']?\s*(?:bold["']?|[5-9]00)/, note: "500-700/bold 声明" },
+  { re: /font-[Ww]eight\s*[:=]\s*[{"']?\s*(?:bold["']?|[5-9]00)/, note: "500–900 或 bold 声明" },
 ];
 
 // 行内清理叙事标记:命中即视为历史叙事,合法保留(同 check-retired 约定)
@@ -40,7 +39,8 @@ const files = jj("file", "list")
   .split("\n")
   .filter(Boolean)
   .map((p) => p.replace(/\\/g, "/"))
-  .filter((f) => /^src\/.+\.(ts|tsx|css)$/.test(f));
+  .filter((f) => /^apps\/client\/src\/.+\.(ts|tsx|css)$/.test(f));
+if (files.length === 0) throw new Error("[fake-bold] 未找到客户端源文件，请检查扫描路径");
 
 type Hit = { file: string; line: number; note: string; text: string };
 const hits: Hit[] = [];
@@ -57,13 +57,11 @@ for (const file of files) {
 }
 
 if (hits.length === 0) {
-  console.log(`[fake-bold] 全绿:${files.length} 个 src 文件,伪加粗零残留(五族皆 400 单字重)。`);
+  console.log(`[fake-bold] 全绿:${files.length} 个客户端源文件，伪加粗零残留。`);
   process.exit(0);
 }
 for (const hit of hits) {
   console.error(`${hit.file}:${hit.line} → ${hit.note}\n    ${hit.text.trim()}`);
 }
-console.error(
-  `[fake-bold] ${hits.length} 处伪加粗残留——五族皆 400 单字重,字重声明即合成加粗(DESIGN §4.3 规约);清理叙事行请带退役/拔除/清尾标记。`,
-);
+console.error(`[fake-bold] ${hits.length} 处可能触发合成粗体的声明。字体规则见 DESIGN §4.3。`);
 process.exit(1);

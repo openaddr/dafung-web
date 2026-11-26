@@ -1,4 +1,4 @@
-// 文档死链检查(2026-10-11):全仓 md 相对链接 + 锚点校验。
+// 校验跟踪的 Markdown 相对链接及标题锚点。主分支源码引用须使用相对链接。
 // 缘起:DoD「全仓库无死链」一直靠肉眼;路径迁移大扫除已三轮(#367 目录归拢、
 // ADR-0021 对局日志归档、#460 CONTEXT→GLOSSARY 改名),引用清扫复盘里两轮
 // 漏网都靠人肉复读兜底。本脚本把「清扫后残留」从仪式变成一条命令:文档重 PR
@@ -111,6 +111,10 @@ for (const file of mdFiles) {
       // CommonMark 允许 <目标> 包裹(含空格/括号的路径);剥掉再判
       const target = match[3].replace(/^</, "");
       if (!target) continue;
+      if (/^https:\/\/github\.com\/openaddr\/dafung-web\/(?:blob|tree)\/master\//.test(target)) {
+        dead.push({ file, line: i + 1, target, reason: "本仓当前文件使用相对链接" });
+        continue;
+      }
       if (/^(https?:|mailto:)/.test(target)) continue;
       // 裸词目标(无 / . #)不判:数学记法 `[0,4](对家顶中)` 一类散文括号形似链接;
       // 真相对链接至少含路径分隔/扩展名/锚点之一
