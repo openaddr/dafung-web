@@ -6,6 +6,7 @@ import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
 import { OnlineController } from "@app/controllers/online";
+import type { GameControllerDiagnosticEvent } from "@app/controllers/controller";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
 import { getEngine, useGameStore } from "@app/store/gameStore";
 import { getController, setController } from "@app/controllers/registry";
@@ -328,6 +329,7 @@ describe("OnlineController 原座恢复", () => {
     expect(JSON.parse(current.sent[0]!)).toEqual({
       type: "pickCapital",
       tileIndex: engine.offeredCapitals[0]!,
+      requestId: expect.any(Number),
     });
 
     while (engine.phase === "Setup") {
@@ -350,12 +352,17 @@ describe("OnlineController 原座恢复", () => {
     expect(controller.autoPilotOn).toBe(true);
     expect(controller.interactive).toBe(false);
     controller.setAutoPilot(false);
-    expect(JSON.parse(third.sent[0]!)).toEqual({ type: "autoPilot", on: false });
+    expect(JSON.parse(third.sent[0]!)).toEqual({
+      type: "autoPilot",
+      on: false,
+      requestId: expect.any(Number),
+    });
     hydrate(third, engine);
     controller.dispatchCommand({ type: "useJinnang", cardId: null });
     expect(JSON.parse(third.sent[1]!)).toEqual({
       type: "cmd",
       cmd: { type: "useJinnang", cardId: null },
+      requestId: expect.any(Number),
     });
   });
 
@@ -377,6 +384,10 @@ describe("OnlineController 原座恢复", () => {
     });
     const respond = { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" } as const;
     const latest = () => JSON.parse(socket.sent.at(-1)!) as Extract<InboundMsg, { type: "cmd" }>;
+    const observations: GameControllerDiagnosticEvent[] = [];
+    controller.subscribeDiagnostics((event) => observations.push(event));
+    const outcomes = () =>
+      observations.filter((event) => event.kind === "command" && event.stage === "result");
 
     controller.dispatchCommand({ ...respond, target: { kind: "city", id: 1 } });
     expect(useNetStore.getState().pending).toBe(true);
@@ -390,14 +401,28 @@ describe("OnlineController 原座恢复", () => {
     expect(useNetStore.getState().pending).toBe(false);
     expect(useGameStore.getState().interactive).toBe(true);
     expect(controller.engine.snapshot().reaction).toEqual(reaction);
+    expect(outcomes()).toMatchObject([{ id: requestId, outcome: "rejected", reason: "错份" }]);
 
     controller.dispatchCommand({ ...respond, target: { kind: "seat", id: 1 } });
     socket.receive(rejectedFrame);
     expect(useNetStore.getState().pending).toBe(true);
-    engine.submitCommand(latest().cmd);
+    const accepted = latest();
+    const logOffset = engine.log.length;
+    engine.submitCommand(accepted.cmd);
     socket.receive(JSON.parse(eventsMsg(redactEvents(engine.gameEvents, 1))));
     expect(controller.engine.snapshot().reaction).toBeNull();
     expect(controller.engine.players[1].jinnangHand).toEqual([]);
+    expect(outcomes()).toHaveLength(1);
+    socket.receive({
+      type: "commandResult",
+      requestId: accepted.requestId!,
+      outcome: "accepted",
+      logOffset,
+    });
+    expect(outcomes()).toMatchObject([
+      { id: requestId, outcome: "rejected" },
+      { id: accepted.requestId, outcome: "accepted", logOffset },
+    ]);
   });
 
   it("未开局大厅以当前lobby完成校准,再次耗尽仍可恢复且销毁后不复活", async () => {

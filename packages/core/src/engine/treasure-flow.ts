@@ -90,7 +90,7 @@ export function resolveTreasureOwner(
 
   const tIdx = owner.treasures.findIndex((t) => t.id === action.treasureId);
   if (tIdx < 0) {
-    g.warn(`珍宝 ${action.treasureId} 不在手中`);
+    g.warnCommand("tradeTreasureUnavailable", `珍宝 ${action.treasureId} 不在手中`);
     return;
   }
   const guidePrice = guidePriceOf(owner.treasures[tIdx].level);

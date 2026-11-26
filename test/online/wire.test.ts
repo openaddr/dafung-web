@@ -85,6 +85,29 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
     expect(seen).toEqual([cmd, 3, { on: true }]);
   });
 
+  it("已编号的三族命令都带回各自的处理回执", async () => {
+    const ops = noCallOps();
+    expect(await dispatchInbound(cmdMsg({ type: "rollAndMove" }, 7), ops)).toEqual({
+      ok: true,
+      requestId: 7,
+    });
+    expect(await dispatchInbound(pickCapitalMsg(3, 8), ops)).toEqual({
+      ok: true,
+      requestId: 8,
+    });
+    expect(
+      await dispatchInbound(autoPilotMsg(true, 9), {
+        ...ops,
+        setAutoPilot: () => Promise.reject(new Error("对局未开始,不可托管")),
+      }),
+    ).toEqual({
+      ok: false,
+      reason: "rejected",
+      message: "对局未开始,不可托管",
+      requestId: 9,
+    });
+  });
+
   it("入向归一(#580):autoPilot 只收 on——带冗余 speed 的报文按 {on} 接受(非兼容代码,字段不参与形状)", async () => {
     const seen: { on: boolean }[] = [];
     const ops: InboundOps = {

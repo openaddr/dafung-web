@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getAudio } from "@app/fx/audio";
 import { TargetActionBar, TargetActionButton } from "./TargetActionBar";
 import { TESTIDS } from "./testids";
@@ -12,6 +12,7 @@ interface ReactionBannerProps {
   deadlineAt: number;
   confirmEnabled: boolean;
   locked: boolean;
+  onLockChange?: (locked: boolean) => void;
   onConfirm: () => void;
   onDecline: () => void;
   onMute: () => void;
@@ -92,6 +93,7 @@ export function ReactionBanner({
   deadlineAt,
   confirmEnabled,
   locked,
+  onLockChange,
   onConfirm,
   onDecline,
   onMute,
@@ -113,6 +115,9 @@ export function ReactionBanner({
     return () => clearTimeout(timeout);
   }, [deadlineAt]);
   const disabled = locked || seconds === 0;
+  useLayoutEffect(() => {
+    onLockChange?.(disabled);
+  }, [disabled, onLockChange]);
 
   return (
     <TargetActionBar

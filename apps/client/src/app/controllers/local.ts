@@ -23,7 +23,7 @@ import { archiveEngineLog } from "@app/gameLogArchive";
 import { stashEventBatch } from "@app/net/event-feed";
 import { foldEventBatch } from "@app/net/event-fold";
 import { e2eBotStepMs, e2eReactionWindowMs } from "@app/fx/timings";
-import { createMemorySocketPair, type SeatTransport } from "@app/net/transport";
+import { createMemorySocketPair, type MemoryHostEnd, type SeatTransport } from "@app/net/transport";
 import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
 import { BOT_STEP_MS, STALL_ABORT_MS } from "@dafung/core/engine/timings";
 // 房间编排双运行时同构(scripts/room.ts 零 node 依赖,见该文件「运行时同构原语」节):
@@ -37,6 +37,7 @@ import {
   autoPilotMsg,
   cmdMsg,
   dispatchInbound,
+  errorMsg,
   pickCapitalMsg,
   type ServerMsg,
 } from "@dafung/core/protocol/wire";
@@ -182,7 +183,7 @@ export class LocalController extends GameController {
     const pair = createMemorySocketPair(created.seat);
     this.sock = pair.client;
     pair.client.onMessage((data) => this.onMessage(JSON.parse(data) as ServerMsg));
-    pair.host.onClientMessage((data) => this.hostDispatch(data));
+    pair.host.onClientMessage((data) => this.hostDispatch(data, pair.host));
     this.registry.connectSeat(this.roomId, created.seat, created.token, pair.host);
     this.requireRoomSeat(); // connectSeat 同步下发首帧,构造交出前必须已水合本座。
   }
@@ -238,9 +239,13 @@ export class LocalController extends GameController {
 
   // ─── 命令入口(上行经内存双工,与联机 WS 同一条 wire 编码)───
   dispatchCommand(cmd: GameCommand): void {
-    if (!this.interactive) return; // 非本地决策时忽略(引擎自身也有相位守卫,双保险)
+    const reason = this.commandBlockReason();
+    if (reason !== null) {
+      this.observeBlockedCommand(cmd.type, reason);
+      return;
+    }
     this.pending = true;
-    this.sock.send(cmdMsg(cmd));
+    this.sendObservedCommand(cmd.type, (id) => this.sock.send(cmdMsg(cmd, id)));
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }
 
@@ -248,18 +253,19 @@ export class LocalController extends GameController {
    *  编排(room.pickCapital),生效靠下行拍(候选滚换/推进/进 Playing)。相位字段读
    *  水合副本;Setup 字段由共享校准窗的快照覆盖。 */
   override setupPickCapital(tileIndex: number): void {
-    const e = this._engine;
-    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") return;
-    if (e.currentSetupPlayerIndex !== this.seat) return;
-    if (this.pending || this.autoPilotOn) return;
+    const reason = this.capitalPickBlockReason();
+    if (reason !== null) {
+      this.observeBlockedCommand("pickCapital", reason);
+      return;
+    }
     this.pending = true;
-    this.sock.send(pickCapitalMsg(tileIndex));
+    this.sendObservedCommand("pickCapital", (id) => this.sock.send(pickCapitalMsg(tileIndex, id)));
     this.sync();
   }
 
   /** 自助托管:发 {type:"autoPilot"},生效态从下行快照房间字段回读(无乐观更新,联机同构)。 */
   override setAutoPilot(on: boolean): void {
-    this.sock.send(autoPilotMsg(on));
+    this.sendObservedCommand("autoPilot", (id) => this.sock.send(autoPilotMsg(on, id)));
   }
 
   /** 销毁 = 进程内房间解散(看门狗/传输面残表随 dismissRoom 一并清)+ 端点关闭
@@ -326,7 +332,12 @@ export class LocalController extends GameController {
     }
     if (msg.type === "dismissed") return; // 单机解散由 destroy 主动发起,无远端解散
     if (msg.type === "gameLog") throw new Error("单机日志应由权威引擎直接归档");
-    useGameStore.getState().pushHint(msg.error);
+    this.observeCommandResult(msg, receivedAtMonotonic);
+    if (msg.type === "error") {
+      useGameStore.getState().pushHint(msg.error);
+      this.pending = false;
+      this.sync();
+    }
   }
 
   /** 下行房间字段投影(applyRoomFields 同联机,落点控制器私有,见字段注)。 */
@@ -335,31 +346,26 @@ export class LocalController extends GameController {
   }
 
   // ─── 宿主侧消息分发(= server.ts ws message 处理器的进程内对应物,同一 codec 本体)───
-  /** 上行解析+分发收口 wire.dispatchInbound(#429):三族消息一个本体,双写退役。
-   *  错误按类送通道(两传输面只管送达的 seam):rejected(编排校验失败,如非法命令
-   *  竞态)→ pushHint + 解锁 pending(联机 error 下行的单机直达);badJson/unknownShape
-   *  在内存面结构上不可能(上行只经 wire 构造函数发出),真出现 = 自身 bug,照炸
-   *  (零兜底,不静默吞成提示)。 */
-  private hostDispatch(raw: string): void {
-    void dispatchInbound(raw, {
-      cmd: (cmd) =>
-        this.registry.applyCommand(this.roomId, cmd, () =>
-          this.registry.transportBroadcast(this.roomId),
-        ),
-      pickCapital: (tileIndex) =>
-        this.registry.pickCapital(this.roomId, this.seat, tileIndex, () =>
-          this.registry.transportBroadcast(this.roomId),
-        ),
-      setAutoPilot: (on) =>
-        this.registry.setAutoPilot(this.roomId, this.seat, on, () =>
-          this.registry.transportBroadcast(this.roomId),
-        ),
-    }).then((result) => {
+  /** 单机与联机经相同的编解码和回执形状，结构性上行失败显式暴露。 */
+  private hostDispatch(raw: string, host: MemoryHostEnd): void {
+    const broadcast = () => this.registry.transportBroadcast(this.roomId);
+    const send = (frame: string) => {
+      if (host.open) host.send(frame);
+    };
+    void dispatchInbound(
+      raw,
+      {
+        cmd: (cmd, report) => this.registry.applyCommand(this.roomId, cmd, broadcast, report),
+        pickCapital: (tileIndex, report) =>
+          this.registry.pickCapital(this.roomId, this.seat, tileIndex, broadcast, report),
+        setAutoPilot: (on, report) =>
+          this.registry.setAutoPilot(this.roomId, this.seat, on, broadcast, report),
+      },
+      { sendCommandResult: send },
+    ).then((result) => {
       if (result.ok) return;
       if (result.reason === "rejected") {
-        useGameStore.getState().pushHint(result.message);
-        this.pending = false;
-        this.sync();
+        send(errorMsg(result.message, result.requestId));
         return;
       }
       throw new Error(`hostDispatch:上行消息结构性失败(${result.reason}):${result.message}`);

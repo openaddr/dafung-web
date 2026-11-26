@@ -26,25 +26,28 @@ import { emitGameEvent } from "./game-events";
  * 联机侧座位归属校验在房间编排层(applyCommandFromSeat,与一切命令同闸)。 */
 export function dismissHero(g: GameEngine, heroId: string): void {
   if (g.phase !== "Playing") {
-    g.warn(`遣散:对局 ${g.phase} 期不可遣散`);
+    g.warnCommand("dismissalWrongPhase", `遣散:对局 ${g.phase} 期不可遣散`);
     return;
   }
   if (g.decisionOwner !== g.activeIndex) {
-    g.warn("遣散:当前决策窗不归行动者本人(自己回合随时可点,他座决策窗除外)");
+    g.warnCommand(
+      "dismissalOutsideOwnDecision",
+      "遣散:当前决策窗不归行动者本人(自己回合随时可点,他座决策窗除外)",
+    );
     return;
   }
   if (g.turnPhase === "AwaitingBankruptcySettle") {
-    g.warn("遣散:清算期间不可主动遣散名将");
+    g.warnCommand("dismissalDuringSettlement", "遣散:清算期间不可主动遣散名将");
     return;
   }
   if (g.turnPhase === "AwaitingSkillChoice" && g.pendingSkillChoices[0]?.heroId === heroId) {
-    g.warn("遣散:请先应答此名将的待决技能");
+    g.warnCommand("dismissalUnavailable", "遣散:请先应答此名将的待决技能");
     return;
   }
   const p = g.activePlayer;
   const idx = p.heroes.findIndex((slot) => slot.heroId === heroId);
   if (idx < 0) {
-    g.warn(`遣散:名将 ${heroId} 不在麾下`);
+    g.warnCommand("dismissalUnavailable", `遣散:名将 ${heroId} 不在麾下`);
     return;
   }
   const hero = heroById(heroId);

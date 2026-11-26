@@ -190,7 +190,7 @@ export function resolveJinnang(
 
   if (back === true) {
     if (pending?.stage !== "two-b" || cardId !== pending.cardId || targets != null || cancel) {
-      g.warn("当前锦囊目标段不能返回上一步");
+      g.warnCommand("backUnavailable", "当前锦囊目标段不能返回上一步");
       return;
     }
     g.pendingJinnang = { ...pending, stage: "two-a" };
@@ -203,7 +203,7 @@ export function resolveJinnang(
       cancelPendingSkill(g);
       return;
     }
-    g.warn(`技能目标段内收到锦囊命令:${cardId}`);
+    g.warnCommand("targetStepMismatch", `技能目标段内收到锦囊命令:${cardId}`);
     return;
   }
 
@@ -230,7 +230,7 @@ export function resolveJinnang(
       targets.length > flow.selection.max ||
       new Set(targets).size !== targets.length
     ) {
-      g.warn(`目标段命令与载荷不符:${cardId}`);
+      g.warnCommand("targetStepMismatch", `目标段命令与载荷不符:${cardId}`);
       return;
     }
     // 所有目标都必须出现在本步可用选项中。
@@ -241,7 +241,7 @@ export function resolveJinnang(
         !Number.isInteger(target) ||
         !choices.some((o) => o.available && (isCity ? o.targetTileIndex : o.targetSeat) === target)
       ) {
-        g.warn(`目标不可用:${isCity ? "城格" : "座位"} ${target}`);
+        g.warnCommand("targetUnavailable", `目标不可用:${isCity ? "城格" : "座位"} ${target}`);
         return;
       }
     }
@@ -259,7 +259,7 @@ export function resolveJinnang(
     }
     const [first] = pending.picked;
     if (!jinnangTargetOk(g, userSeat, first, def.effect).ok) {
-      g.warn(`首选目标不可用:座位 ${first}`);
+      g.warnCommand("targetUnavailable", `首选目标不可用:座位 ${first}`);
       return;
     }
     g.pendingJinnang = null;
@@ -269,7 +269,7 @@ export function resolveJinnang(
 
   // ── 卡牌段 ──
   if (cancel) {
-    g.warn("当前没有可取消的锦囊目标段");
+    g.warnCommand("cancelUnavailable", "当前没有可取消的锦囊目标段");
     return;
   }
   if (cardId == null) {
@@ -279,12 +279,15 @@ export function resolveJinnang(
   }
   const def = jinnangCardOf(cardId);
   if (!p.jinnangHand.includes(cardId)) {
-    g.warn(`${p.guohao} 手中无锦囊【${def.id}】`);
+    g.warnCommand("jinnangUnavailable", `${p.guohao} 手中无锦囊【${def.id}】`);
     return;
   }
   const option = computeChoices(g, "AwaitingJinnang").find((o) => o.id === cardId);
   if (!option?.available) {
-    g.warn(`${p.guohao} 锦囊【${def.id}】不可用:${option?.reason ?? "未知原因"}`);
+    g.warnCommand(
+      "jinnangUnavailable",
+      `${p.guohao} 锦囊【${def.id}】不可用:${option?.reason ?? "未知原因"}`,
+    );
     return;
   }
   // 目标段分流读声明表 TARGET_DOMAIN_STAGES(#1067):stages 0=无目标段(self 自指/
@@ -408,7 +411,7 @@ export function resolveHeroSkill(
 ): void {
   if (!g.assertPhase("AwaitingJinnang", "resolveHeroSkill")) return;
   if (g.pendingJinnang) {
-    g.warn(`锦囊目标段内收到技能命令:${heroId}·${skillId}`);
+    g.warnCommand("targetStepMismatch", `锦囊目标段内收到技能命令:${heroId}·${skillId}`);
     return;
   }
   const p = g.activePlayer;
@@ -432,7 +435,7 @@ export function resolveHeroSkill(
       !targets ||
       targets.length !== SINGLE_TARGET.max
     ) {
-      g.warn(`技能目标段命令与载荷不符:${heroId}·${skillId}`);
+      g.warnCommand("targetStepMismatch", `技能目标段命令与载荷不符:${heroId}·${skillId}`);
       return;
     }
     const [target] = targets;
@@ -440,7 +443,10 @@ export function resolveHeroSkill(
     // id=c<tileIndex>,拼接单源 choices.cityTargetOptionId)
     const wantId = skill.target === "city" ? cityTargetOptionId(target) : `t${target}`;
     if (!computeChoices(g, "AwaitingJinnang").some((o) => o.id === wantId && o.available)) {
-      g.warn(`目标不可用:${skill.target === "city" ? "城格" : "座位"} ${target}`);
+      g.warnCommand(
+        "targetUnavailable",
+        `目标不可用:${skill.target === "city" ? "城格" : "座位"} ${target}`,
+      );
       return;
     }
     g.pendingSkill = null;
@@ -452,7 +458,7 @@ export function resolveHeroSkill(
   // ── 卡牌段:发动 ──
   const skill = activeSkillOf(p, heroId, skillId);
   if (!skill) {
-    g.warn(`${p.guohao} 无此主动技:${heroId}·${skillId}`);
+    g.warnCommand("heroSkillUnavailable", `${p.guohao} 无此主动技:${heroId}·${skillId}`);
     return;
   }
   // 可用性随选项集归一(#817 实例化:每实例一选项,available=本实例冷却就绪);
@@ -461,7 +467,10 @@ export function resolveHeroSkill(
     (o) => o.id === skillOptionId(heroId, skillId),
   );
   if (!option?.available) {
-    g.warn(`${p.guohao} 主动技【${skill.name}】不可用:${option?.reason ?? "未知原因"}`);
+    g.warnCommand(
+      "heroSkillUnavailable",
+      `${p.guohao} 主动技【${skill.name}】不可用:${option?.reason ?? "未知原因"}`,
+    );
     return;
   }
   if (skill.target !== "none") {
@@ -673,22 +682,28 @@ export function settleJinnangExit(g: GameEngine): void {
 export function resolveBookSkill(g: GameEngine, treasureId: string, heroId: string): void {
   if (!g.assertPhase("AwaitingJinnang", "resolveBookSkill")) return;
   if (g.pendingJinnang || g.pendingSkill) {
-    g.warn(`目标段内收到用书命令:${treasureId}`);
+    g.warnCommand("targetStepMismatch", `目标段内收到用书命令:${treasureId}`);
     return;
   }
   const p = g.activePlayer;
   const book = p.treasures.find((t) => t.id === treasureId);
   if (book == null || !isSkillBook(book)) {
-    g.warn(`${p.guohao} 手中无此技能书:${treasureId}`);
+    g.warnCommand("bookStudyUnavailable", `${p.guohao} 手中无此技能书:${treasureId}`);
     return;
   }
   const learners = skillBookLearners(p, book.skillId);
   if (learners.length === 0) {
-    g.warn(`${p.guohao} 无可学者:麾下无人「池含 ${book.skillId} 且未习得」`);
+    g.warnCommand(
+      "bookStudyUnavailable",
+      `${p.guohao} 无可学者:麾下无人「池含 ${book.skillId} 且未习得」`,
+    );
     return;
   }
   if (!learners.some((slot) => slot.heroId === heroId)) {
-    g.warn(`${p.guohao} 用书目标不可学:${heroId}(可学者单源 skillBookLearners)`);
+    g.warnCommand(
+      "bookStudyUnavailable",
+      `${p.guohao} 用书目标不可学:${heroId}(可学者单源 skillBookLearners)`,
+    );
     return;
   }
   p.treasures.splice(

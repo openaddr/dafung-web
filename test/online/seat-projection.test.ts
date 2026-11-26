@@ -20,11 +20,21 @@ import { MAP } from "../../scripts/engine-helpers";
 import type { RoomPersistence } from "@dafung/core/room/room-persistence";
 import type { RoomRecord } from "@dafung/core/room/room-record";
 import type { LoadedMap } from "@dafung/core/engine/board-loader";
-import { GameEngine, type SeatConfig } from "@dafung/core/engine/authority";
+import { GameEngine, type GameCommand, type SeatConfig } from "@dafung/core/engine/authority";
+import { cmdMsg, dispatchInbound } from "@dafung/core/protocol/wire";
 import type { GameEvent, GameEventBody } from "@dafung/core/engine/game-events";
 import type { MovePath } from "@dafung/core/engine/board";
 import { createDice } from "@dafung/core/engine/dice";
-import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
+import {
+  armDebt,
+  armHero,
+  armLanding,
+  armPhase,
+  giveJinnang,
+  placePlayer,
+  setCash,
+  setStamina,
+} from "@dafung/core/engine/planter";
 import { foldEventBatch } from "@app/net/event-fold";
 import { reactionQueriesSeat } from "@app/controllers/reaction";
 
@@ -300,7 +310,7 @@ async function roomAtPlaying() {
     await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
   // 保证 host 手牌有内容可断言(起手 1 张之外再补)
   e.drawJinnang(0, 2);
-  return { reg, roomId };
+  return { reg, roomId, token: created.token };
 }
 
 describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
@@ -375,12 +385,101 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
     expect(visible).not.toContain("queried=p1");
     expect(visible).toContain("queriedCount=1");
     expect(visible).toContain("jinnangCancel player=p0");
-    expect(visible).toContain("[警告]");
+    expect(visible).toContain("[警告] 命令与当前操作步骤不符");
     expect(visible).toContain("jinnangUse player=p0 card=横征暴敛");
     const authority = JSON.stringify(game.log);
-    expect(authority).toContain("连环计");
+    expect(authority).toContain("warn: 目标段命令与载荷不符:连环计");
     expect(authority).toContain("半路杀出");
     expect(authority).toContain("queried=p1");
+  });
+
+  it("编号回执和座位日志给出公开的权威拒绝理由", async () => {
+    const { reg, roomId, token } = await roomAtPlaying();
+    const game = reg.get(roomId)!.engine!;
+
+    async function expectWarning(
+      cmd: GameCommand,
+      requestId: number,
+      reason: string,
+      detail: string,
+    ): Promise<string> {
+      const seat = game.decisionOwner;
+      const offset = game.log.length;
+      const receipts: unknown[] = [];
+      function unexpectedCommand(): never {
+        throw new Error("预期对局命令");
+      }
+      const result = await dispatchInbound(
+        cmdMsg(cmd, requestId),
+        {
+          cmd: (message, report) =>
+            reg.applyCommandFromSeat(roomId, seat, message, undefined, report),
+          pickCapital: unexpectedCommand,
+          setAutoPilot: unexpectedCommand,
+        },
+        { sendCommandResult: (raw) => receipts.push(JSON.parse(raw) as unknown) },
+      );
+      expect(result).toEqual({ ok: true, requestId });
+      expect(receipts).toEqual([
+        { type: "commandResult", requestId, outcome: "warning", reason, logOffset: offset + 1 },
+      ]);
+      const projected = redactSnapshotForSeat(game.snapshot(), 1 - seat).log.slice(offset);
+      expect(assembleGameLogDelta(game, offset, 15)?.lines).toEqual(projected);
+      expect(projected[1]).toMatchObject({ detail: `warn: ${reason}，原文见服务器日志` });
+      expect(projected[1]).not.toHaveProperty("warning");
+      expect(game.log[offset + 1].detail).toBe(detail);
+      return JSON.stringify(projected);
+    }
+
+    try {
+      const buyerSeat = game.activeIndex;
+      const turnNumber = game.turnNumber;
+      const city = MAP.properties.find(
+        ({ id, purchasePrice }) => purchasePrice > 0 && game.findOwner(id) === null,
+      );
+      if (city === undefined) throw new Error("缺少可用于购地的无主城");
+      setCash(game, buyerSeat, 0);
+      placePlayer(game, buyerSeat, game.tileIndexOfProperty(city.id));
+      armPhase(game, { turnPhase: "AwaitingDecision" });
+      armLanding(game, { kind: "PropertyAvailable", propertyId: city.id });
+      await expectWarning(
+        { type: "buyProperty" },
+        85,
+        "银两不足",
+        `warn: 购地 ${city.id} 失败（InsufficientFunds）`,
+      );
+      expect(game.findOwner(city.id)).toBeNull();
+      expect(game.players[buyerSeat].cash).toBe(0);
+      expect(game.pendingLand).toBeNull();
+      expect(game.activeIndex).toBe(1 - buyerSeat);
+      expect(game.turnNumber).toBe(turnNumber + 1);
+
+      const seat = game.activeIndex;
+      armHero(game, seat, "caopi", ["fangzhu"]);
+      setStamina(game, seat, 30);
+      await expectWarning(
+        { type: "respondSkillChoice", seat, use: true, targetSeat: game.players.length },
+        86,
+        "目标座位无效",
+        "warn: respondSkillChoice:目标座位无效",
+      );
+      expect(game.turnPhase).toBe("AwaitingSkillChoice");
+      game.respondSkillChoice(seat, false);
+
+      const capitalId = game.board.at(game.activePlayer.capitalIndex).propertyId;
+      if (capitalId === null) throw new Error("开局后缺少都城");
+      armDebt(game, game.activePlayer.cash + 1, null);
+      const projected = await expectWarning(
+        { type: "confirmBankruptcySettle", assets: [{ kind: "property", id: capitalId }] },
+        87,
+        "都城不可变卖",
+        "warn: 清偿:都城不可变卖",
+      );
+      expect(projected).not.toContain(capitalId);
+      expect(game.turnPhase).toBe("AwaitingBankruptcySettle");
+    } finally {
+      reg.dismissRoom(roomId, token);
+    }
   });
 
   it("座位日志仅保留公开命令字段，权威警告原文留在服务器", () => {

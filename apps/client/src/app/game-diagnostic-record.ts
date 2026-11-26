@@ -2,6 +2,7 @@ import type { LogEvent } from "@dafung/core/engine/model";
 import type { ReactionView } from "@dafung/core/engine/reaction-window";
 import type { GameSnapshot } from "@dafung/core/engine/snapshot";
 import type { FrameDiagDump } from "./frameDiag";
+import type { GameDiagnosticTimelineDump } from "./game-diagnostic-timeline";
 import type { NetConnection } from "./store/netStore";
 
 export interface GameArchiveIdentity {
@@ -51,6 +52,8 @@ export interface GameDiagnosticCapture {
   connection: { roomId: string; status: NetConnection; failure: string | null } | null;
   errors: { at: number; message: string }[];
   perf: FrameDiagDump | null;
+  /** 旧归档没有采集时间线。 */
+  timeline?: GameDiagnosticTimelineDump;
 }
 
 export interface ArchivedGameSummary extends GameArchiveIdentity {

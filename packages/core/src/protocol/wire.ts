@@ -9,8 +9,8 @@
 //   解析 + 分发,**错误回报是返回值的一部分**(InboundResult),任何失败都不抛出到
 //   传输层之外——传输面(adapter)只负责把失败送到各自通道:WS = error 消息下行,
 //   内存 = pushHint(结构性失败在内存面属自身 bug,adapter 自行抛出,零兜底)。
-// - 下行(ServerMsg)六族:lobby / snapshot / gameLog 由 seat-projection 装配,
-//   events / dismissed / error 由本模块封装。redaction 归属在 seat-projection。
+// - 下行(ServerMsg):lobby / snapshot / gameLog 由 seat-projection 装配,
+//   events / commandResult / dismissed / error 由本模块封装。redaction 归属在 seat-projection。
 // - 穷尽纪律:dispatch 对 InboundMsg 穷尽 switch(新增消息类型漏分支 = 编译红,
 //   default 收 never),与 seat-projection redactEvents 同机器。
 import type { GameCommand } from "../engine/authority";
@@ -21,20 +21,21 @@ import type { LobbyView } from "../room/seat-projection";
 
 // ──────────────────────────── 上行:union + 编码 ────────────────────────────
 /** 上行消息(线上形状):autoPilot 只载开关(#580 速度分档已删,无归一)。 */
-export type InboundMsg =
-  | { type: "cmd"; cmd: GameCommand; requestId?: number }
+export type InboundMsg = (
+  | { type: "cmd"; cmd: GameCommand }
   | { type: "pickCapital"; tileIndex: number }
-  | { type: "autoPilot"; on: boolean };
+  | { type: "autoPilot"; on: boolean }
+) & { requestId?: number };
 
 /** 上行编码(客户端发送端单源;手写判别字面量 = 双写复辟)。 */
 export function cmdMsg(cmd: GameCommand, requestId?: number): string {
   return JSON.stringify({ type: "cmd" as const, cmd, requestId });
 }
-export function pickCapitalMsg(tileIndex: number): string {
-  return JSON.stringify({ type: "pickCapital" as const, tileIndex });
+export function pickCapitalMsg(tileIndex: number, requestId?: number): string {
+  return JSON.stringify({ type: "pickCapital" as const, tileIndex, requestId });
 }
-export function autoPilotMsg(on: boolean): string {
-  return JSON.stringify({ type: "autoPilot" as const, on });
+export function autoPilotMsg(on: boolean, requestId?: number): string {
+  return JSON.stringify({ type: "autoPilot" as const, on, requestId });
 }
 
 // ──────────────────────────── 下行:union + 构造 ────────────────────────────
@@ -60,6 +61,16 @@ export interface GameLogMsg {
   capturedAt: number;
 }
 
+/** 权威处理编号命令的诊断回执。明确拒绝沿带编号的 error 下行。 */
+export type CommandProcessing =
+  | { outcome: "accepted"; logOffset: number }
+  | { outcome: "warning"; logOffset: number; reason: string }
+  | { outcome: "unprocessed"; reason: string };
+
+export type ReportCommandProcessing = (result: CommandProcessing) => void;
+
+export type CommandResultMsg = { type: "commandResult"; requestId: number } & CommandProcessing;
+
 /** lobby/snapshot 共带的房间字段(产出单源 seat-projection 的 clientView/lobbyView;
  *  客户端 netStore 的 NetRoomFields 从此别名投影,不再手抄同形接口)。 */
 export interface WireRoomFields {
@@ -83,6 +94,7 @@ export type ServerMsg =
   | SnapshotMsg
   | EventBatchMsg
   | GameLogMsg
+  | CommandResultMsg
   | { type: "dismissed"; roomId: string }
   | { type: "error"; error: string; requestId?: number };
 
@@ -108,9 +120,9 @@ export function encodeDownlink(msg: ServerMsg): string {
 /** 上行执行面:每族消息一个执行器(传输面注入,绑定各自的房间/座位/广播回调;
  *  RoomRegistry 公共入口在两侧是同一份,差异只在绑定参数)。 */
 export interface InboundOps {
-  cmd(cmd: GameCommand): Promise<unknown> | unknown;
-  pickCapital(tileIndex: number): Promise<unknown> | unknown;
-  setAutoPilot(on: boolean): Promise<unknown> | unknown;
+  cmd(cmd: GameCommand, report?: ReportCommandProcessing): Promise<unknown> | unknown;
+  pickCapital(tileIndex: number, report?: ReportCommandProcessing): Promise<unknown> | unknown;
+  setAutoPilot(on: boolean, report?: ReportCommandProcessing): Promise<unknown> | unknown;
 }
 
 /** 上行分发结果——错误回报是返回值的一部分,不抛到传输层之外:
@@ -120,7 +132,7 @@ export interface InboundOps {
  *  - rejected:ops 执行抛错(房间编排 RoomError / 引擎零兜底 TypeError 等,
  *    文本原样透传给发送者)。 */
 export type InboundResult =
-  | { ok: true }
+  | { ok: true; requestId?: number }
   | { ok: false; reason: "badJson"; message: string }
   | { ok: false; reason: "unknownShape"; message: string }
   | { ok: false; reason: "rejected"; message: string; requestId?: number };
@@ -132,20 +144,20 @@ const UNKNOWN_SHAPE_TEXT = "expected {type:'cmd',cmd:...}";
 function parseInboundMsg(m: unknown): InboundMsg | null {
   if (typeof m !== "object" || m === null) return null;
   const r = m as Record<string, unknown>;
+  const { requestId } = r;
+  if (
+    requestId !== undefined &&
+    (typeof requestId !== "number" || !Number.isSafeInteger(requestId) || requestId < 1)
+  )
+    return null;
   if (r.type === "cmd" && r.cmd) {
-    const { requestId } = r;
-    if (
-      requestId !== undefined &&
-      (typeof requestId !== "number" || !Number.isSafeInteger(requestId) || requestId < 1)
-    )
-      return null;
     return { type: "cmd", cmd: r.cmd as GameCommand, requestId };
   }
   if (r.type === "pickCapital" && typeof r.tileIndex === "number") {
-    return { type: "pickCapital", tileIndex: r.tileIndex };
+    return { type: "pickCapital", tileIndex: r.tileIndex, requestId };
   }
   if (r.type === "autoPilot" && typeof r.on === "boolean") {
-    return { type: "autoPilot", on: r.on };
+    return { type: "autoPilot", on: r.on, requestId };
   }
   return null;
 }
@@ -156,7 +168,7 @@ function parseInboundMsg(m: unknown): InboundMsg | null {
 export async function dispatchInbound(
   raw: string,
   ops: InboundOps,
-  opts?: { unknownShapeText?: string },
+  opts?: { unknownShapeText?: string; sendCommandResult?: (raw: string) => void },
 ): Promise<InboundResult> {
   let m: unknown;
   try {
@@ -172,16 +184,28 @@ export async function dispatchInbound(
       message: opts?.unknownShapeText ?? UNKNOWN_SHAPE_TEXT,
     };
   }
+  const { requestId } = msg;
+  const request = requestId === undefined ? {} : { requestId };
+  const sendCommandResult = opts?.sendCommandResult;
+  const report: ReportCommandProcessing | undefined =
+    requestId !== undefined && sendCommandResult !== undefined
+      ? (outcome) => {
+          // 内存上行同步，回执等发送端返回后再交付，与 WS 收发顺序一致。
+          queueMicrotask(() =>
+            sendCommandResult(encodeDownlink({ type: "commandResult", requestId, ...outcome })),
+          );
+        }
+      : undefined;
   try {
     switch (msg.type) {
       case "cmd":
-        await ops.cmd(msg.cmd);
+        await ops.cmd(msg.cmd, report);
         break;
       case "pickCapital":
-        await ops.pickCapital(msg.tileIndex);
+        await ops.pickCapital(msg.tileIndex, report);
         break;
       case "autoPilot":
-        await ops.setAutoPilot(msg.on);
+        await ops.setAutoPilot(msg.on, report);
         break;
       default: {
         // 穷尽机器:InboundMsg 新增成员漏分支 = 编译红(default 收 never)。
@@ -190,13 +214,12 @@ export async function dispatchInbound(
       }
     }
   } catch (err) {
-    const requestId = msg.type === "cmd" ? msg.requestId : undefined;
     return {
       ok: false,
       reason: "rejected",
       message: err instanceof Error ? err.message : String(err),
-      ...(requestId !== undefined && { requestId }),
+      ...request,
     };
   }
-  return { ok: true };
+  return { ok: true, ...request };
 }
