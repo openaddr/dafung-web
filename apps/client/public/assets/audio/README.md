@@ -1,15 +1,64 @@
-# 音效素材(public/assets/audio)
+# 音效录音与成品
 
-音效事件、素材、音量和收尾都在 [sound-clips.ts](../../../src/app/fx/sound-clips.ts) 登记。根目录 ogg 是录音素材，`playback/` 中是录音的裁剪成品和程序合成的短音。游戏通过 HTML 媒体元素播放。
+首页「音效试听」与对局共用 42 条成品。每条都使用网络录音，经裁剪、均衡、移调或叠加制成。根目录的 Ogg 是录音素材，`playback/` 存放可直接播放的成品。事件、文件和播放音量见 [sound-clips.ts](../../../src/app/fx/sound-clips.ts)。
 
-修改裁剪或合成配方后，安装 ffmpeg 并从仓库根运行 `bun scripts/build-sound-clips.ts`，提交修改过的成品。日常构建使用仓内成品。
+## 试听条目与录音来源
 
-## 授权与登记
+| 试听条目 | 使用的录音 |
+| --- | --- |
+| 选择纸扣、卷轴展开、锦囊入手、出牌拂纸、窥探翻页 | [展开卷纸][paper] |
+| 入房软木扣、驻跸门闩、扩军 | [木门把手扣合][latch] |
+| 重连提示、开窗轻叩、末段提醒 | [轻叩陶杯][ceramic] |
+| 石印 | [钤印][seal] |
+| 起兵主题、称帝落印与角句 | [圆号实录][horn]。称帝时加[钤印][seal] |
+| 骰签落定 | [木块敲击][woodblock] |
+| 行军起步 | [木柜滑动][slide]、[木门把手扣合][latch] |
+| 拼点合击 | [硬木块敲击][clash] |
+| 判词磬·中性、判词磬·己胜、判词磬·己败 | [敲击颂钵][bowl] |
+| 购地成交 | [钤印][seal]、[掌中摇硬币][coinshake] |
+| 城池受击 | [石击][stone] |
+| 破防 | [碎石][crash]、[大鼓][drum] |
+| 攻陷 | [断木][splinter]、[旗帛拍动][cloth]、[木门把手扣合][latch]、[大鼓][drum] |
+| 银两归账 | [硬币落到木地板][coin] |
+| 独立失银 | [布料拍动][cloth]、[掌中摇硬币][coinshake] |
+| 铜钱交接 | [硬币落到木地板][coin]、[掌中摇硬币][coinshake] |
+| 账册合拢 | [展开卷纸][paper]、[钤印][seal]、[木门把手扣合][latch] |
+| 识破铜扣、反识破回音 | [金属搭扣][clasp]、[敲击颂钵][bowl] |
+| 探得珍宝、窃得珍宝 | [古琴《醉渔唱晚》][qin] |
+| 书册入案 | [展开卷纸][paper]、[钤印][seal] |
+| 招将成功 | [金属皮带扣][buckle]、[古琴《醉渔唱晚》][qin] |
+| 习得技能 | [展开卷纸][paper]、[古琴《醉渔唱晚》][qin] |
+| 体力损耗、体力耗竭、终局单鼓 | [大鼓][drum] |
+| 恢复体力 | [敲击颂钵][bowl] |
+| 倒旗起锣 | [锣声][gong] |
+| 雨声铺底 | [雨声实录][rain] |
+| 撒币短响 | [硬币入盒][coinsbox] |
 
-- 人工账本:`public/assets/CREDITS.md`;机器账本:`public/assets/manifest.json`(`id → {path, source, license, author, fetched_at}`)。
-- 来源:Wikimedia Commons(CC0 / Public Domain / CC-BY)与 Freesound(CC0)为主,逐条经接口核实直链、授权、作者、字节数;标 `review_required` 的条目在 APK 公开发布前必须人工复核(授权纪律见 CREDITS.md)。
-- 入库走 `scripts/fetch-asset.ts` 管线(与图片/字体/画像同一条),不手放裸文件。
+## 维护
 
-## 目录现状
+改配方后，从仓库根运行 `bun scripts/build-sound-clips.ts [音效事件 ...]` 生成并提交对应成品。脚本用 ffmpeg 读已登记的录音，常规构建直接使用仓内成品。
 
-录音文件沿用历史名称，如 `audio-rain.ogg`、`coin-drop.ogg` 和 `gong-long.ogg`。素材退役后删除文件，CREDITS 和 manifest 保留来源及退役记录。
+新增外部录音用 [fetch-asset.ts](../../../../../scripts/fetch-asset.ts) 入库。作者与授权见 [CREDITS.md](../CREDITS.md)，机器账本见 [manifest.json](../manifest.json)。退役后删录音文件，保留来源记录。
+
+[paper]: https://freesound.org/s/710764/
+[latch]: https://freesound.org/s/104019/
+[ceramic]: https://freesound.org/s/706536/
+[seal]: https://freesound.org/s/759526/
+[horn]: https://freesound.org/s/373255/
+[woodblock]: https://commons.wikimedia.org/wiki/File:Blok_music.ogg
+[slide]: https://freesound.org/s/364103/
+[clash]: https://freesound.org/s/692818/
+[bowl]: https://freesound.org/s/271370/
+[coinshake]: https://commons.wikimedia.org/wiki/File:Shaking_coins_in_palm.ogg
+[stone]: https://freesound.org/s/431019/
+[crash]: https://freesound.org/s/711657/
+[drum]: https://freesound.org/s/375259/
+[splinter]: https://freesound.org/s/774268/
+[cloth]: https://freesound.org/s/844390/
+[coin]: https://commons.wikimedia.org/wiki/File:Coin_dropped_on_wooden_floor.ogg
+[clasp]: https://freesound.org/s/822397/
+[qin]: https://commons.wikimedia.org/wiki/File:Guqin-Zuiyu_Changwan.ogg
+[buckle]: https://freesound.org/s/331719/
+[gong]: https://commons.wikimedia.org/wiki/File:Gong55.ogg
+[rain]: https://freesound.org/s/320520/
+[coinsbox]: https://freesound.org/s/190945/
