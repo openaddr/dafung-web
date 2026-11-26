@@ -122,29 +122,6 @@ function woodKnock(output: Float32Array, pitch: number, volume: number, offset: 
   tone(output, pitch * 1.83, 0.042, volume * 0.23, offset, true);
 }
 
-function stoneKnock(output: Float32Array, pitch: number, volume: number, offset: number) {
-  tap(output, 0.049, 2200, volume * 0.45, offset);
-  tone(output, pitch, 0.075, volume, offset, true);
-  tone(output, pitch * 2.41, 0.036, volume * 0.37, offset, true);
-}
-
-/** 旗帛展开的摩擦声，固定噪声与两段起伏保持每次生成一致。 */
-function flagFlap(output: Float32Array, offset: number, volume: number) {
-  const start = Math.round(offset * rate);
-  const frames = Math.round(0.235 * rate);
-  let seed = 4321;
-  let cloth = 0;
-  for (let i = 0; i < frames; i++) {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    const noise = seed / 0x80000000 - 1;
-    cloth += 0.14 * (noise - cloth);
-    const progress = i / frames;
-    const swell = Math.sin(Math.PI * progress);
-    const flutter = 0.56 - 0.44 * Math.cos(4 * Math.PI * progress);
-    output[start + i] += master * volume * swell * flutter * (0.84 * cloth + 0.16 * noise);
-  }
-}
-
 // 沿用同一段古琴录音的两处拨弦起音。
 const guqin = { file: "guqin-note.ogg", lowAt: 3.168, highAt: 1.168 };
 
@@ -265,23 +242,20 @@ const synth: Partial<Record<SoundEvent, () => Float32Array>> = {
       woodKnock(out, 245, 0.36, 0.105);
     }),
   cityHit: () =>
-    render(0.087, (out) => {
-      stoneKnock(out, 630, 0.27, 0);
+    render(0.169, (out) => {
+      mixRecording(out, "audio-stone-impact.ogg", 0.024, 0.169, 0.15, 0, 4400);
     }),
   cityBreach: () =>
-    render(0.245, (out) => {
-      stoneKnock(out, 335, 0.5, 0);
-      tone(out, 152, 0.13, 0.21, 0.007, true);
-      stoneKnock(out, 710, 0.18, 0.055);
-      stoneKnock(out, 525, 0.135, 0.102);
-      tap(out, 0.093, 1250, 0.15, 0.126);
+    render(0.63, (out) => {
+      mixRecording(out, "audio-stone-crash.ogg", 0.003, 0.63, 0.25, 0, 5200);
+      tone(out, 182, 0.159, 0.2, 0.008, true);
     }),
   cityConquest: () =>
-    render(0.33, (out) => {
-      woodKnock(out, 207, 0.61, 0);
-      tap(out, 0.045, 2460, 0.36, 0.012);
-      tone(out, 136, 0.12, 0.33, 0.035, true);
-      flagFlap(out, 0.079, 0.31);
+    render(0.6, (out) => {
+      woodKnock(out, 212, 0.56, 0.004);
+      tone(out, 146, 0.19, 0.24, 0.018, true);
+      mixRecording(out, "audio-gate-splinter.ogg", 1.643, 0.256, 0.48, 0, 7200);
+      mixRecording(out, "audio-flag-flaps.ogg", 1.364, 0.55, 0.51, 0.05, 5400);
     }),
   treasure: () =>
     render(0.345, (out) => {

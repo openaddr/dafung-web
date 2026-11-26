@@ -32,7 +32,7 @@ export function useReactionReminder(scope: string | null, answerDeadlineAt: numb
   useEffect(() => {
     const audio = getAudio();
     if (scope !== (current.current?.scope ?? null)) {
-      audio.stop("reaction");
+      audio.stop("reaction", "fade");
       current.current =
         scope === null ? null : { scope, opened: false, armed: false, warned: false };
     }
@@ -45,13 +45,13 @@ export function useReactionReminder(scope: string | null, answerDeadlineAt: numb
       if (hidden) reminder.opened = true;
       if (hidden || answerDeadlineAt === null) {
         reminder.armed = false;
-        audio.stop("reaction");
+        audio.stop("reaction", hidden ? "immediate" : "fade");
         return;
       }
       const remaining = answerDeadlineAt - performance.now();
       if (remaining <= 0) {
         reminder.armed = false;
-        audio.stop("reaction");
+        audio.stop("reaction", "fade");
         return;
       }
       if (!reminder.opened) {

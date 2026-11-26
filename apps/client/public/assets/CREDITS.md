@@ -33,7 +33,7 @@
 - **audio:cash-transfer** — 预混 `audio:coins-shake` 和 `audio:coin`，成品 `playback/cash-transfer.ogg`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
 - **audio:property-purchase** — 预混 `audio:stamp-seal` 和 `audio:coins-shake`，成品 `playback/property-purchase.ogg`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
 - **audio:property-upgrade / audio:pay** — 项目合成的木榫与钱囊音，成品 `playback/property-upgrade.ogg` 与 `playback/pay.ogg`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
-- **audio:city-hit / audio:city-breach / audio:city-conquest** — 项目合成短石击、碎石、城栓与旗帛，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
+- **audio:city-hit / audio:city-breach / audio:city-conquest** — 短石击取 `audio:stone-impact`，破防取 `audio:stone-crash` 配低响，攻陷取 `audio:gate-splinter` 与 `audio:flag-flaps` 配木击。裁剪并保留录音的衰减，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
 - **audio:jinnang-draw / audio:jinnang-announce / audio:jinnang-peek** — 取 `audio:scroll-unroll` 的短段制作入手声、宣布拂纸和窥探翻页，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
 - **audio:jinnang-countered / audio:jinnang-restored** — 项目合成的识破铜扣与反识破回音，成品见 `audio/playback/`。2026-11-26。 [生成脚本](../../../../scripts/build-sound-clips.ts)
 - **audio:drum** — CC0 / Iwan Sounds and DIY — 30454B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07。已退役（#1639 改用项目合成的单鼓）。
@@ -96,3 +96,7 @@
 - **audio:lobby-joined** — 项目合成拟音，随本项目使用 — 4347B (Ogg) — 2026-11-26 — [合成配方](../../../../scripts/build-sound-clips.ts)
 - **audio:reconnect-failure** — 项目合成拟音，随本项目使用 — 4361B (Ogg) — 2026-11-26 — [合成配方](../../../../scripts/build-sound-clips.ts)
 - **audio:reaction-open** — 项目合成拟音，随本项目使用 — 4201B (Ogg) — 2026-11-26 — [合成配方](../../../../scripts/build-sound-clips.ts)
+- **audio:stone-impact** — CC0 / CamoMano (Freesound) — 6814B (ogg;「Stone hit」lq 预览) — [source](https://freesound.org/s/431019/) — 2026-11-26
+- **audio:stone-crash** — CC0 / discofield (Freesound) — 23547B (ogg;「Stone crash」lq 预览) — [source](https://freesound.org/s/711657/) — 2026-11-26
+- **audio:gate-splinter** — CC0 / loganzsound (Freesound) — 32141B (ogg;「wood_tear」lq 预览) — [source](https://freesound.org/s/774268/) — 2026-11-26
+- **audio:flag-flaps** — CC0 / Maraboop (Freesound) — 52697B (ogg;「Cloth flaps」lq 预览) — [source](https://freesound.org/s/844390/) — 2026-11-26

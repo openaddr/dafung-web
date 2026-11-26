@@ -616,7 +616,7 @@ function GameScreenLive({
   const reactionShare = reactTargets.selected[0];
   const reactRespond = (use: boolean) => {
     if (!interactive) return;
-    getAudio().stop("reaction");
+    getAudio().stop("reaction", "fade");
     dispatchCommand({
       type: "respondReaction",
       seat: selfSeat,

@@ -561,5 +561,37 @@
     "author": "The Metropolitan Museum of Art（原入库记录）",
     "fetched_at": "2026-11-07",
     "review_required": true
+  },
+  "audio:stone-impact": {
+    "path": "assets/audio/audio-stone-impact.ogg",
+    "source": "https://freesound.org/s/431019/",
+    "license": "CC0",
+    "author": "CamoMano (Freesound,「Stone hit」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:stone-crash": {
+    "path": "assets/audio/audio-stone-crash.ogg",
+    "source": "https://freesound.org/s/711657/",
+    "license": "CC0",
+    "author": "discofield (Freesound,「Stone crash」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:gate-splinter": {
+    "path": "assets/audio/audio-gate-splinter.ogg",
+    "source": "https://freesound.org/s/774268/",
+    "license": "CC0",
+    "author": "loganzsound (Freesound,「wood_tear」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:flag-flaps": {
+    "path": "assets/audio/audio-flag-flaps.ogg",
+    "source": "https://freesound.org/s/844390/",
+    "license": "CC0",
+    "author": "Maraboop (Freesound,「Cloth flaps」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
   }
 }
