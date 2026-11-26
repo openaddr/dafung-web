@@ -4,21 +4,20 @@ export type { SoundEvent } from "./sound-clips";
 
 type PlaybackScope = "reaction" | "presentation" | "all";
 export type PlaybackStopMode = "immediate" | "fade";
-type GainRamp = { from: number; to: number; startAt: number; endAt: number };
+type GainRamp = { from: number; to: number; startAt: number; endAt: number; updatedAt: number };
 type Timer = ReturnType<typeof setTimeout>;
 type ActivePlayback = {
   url: string;
   volume: number;
   scope: Exclude<PlaybackScope, "all">;
   duck: number | GainRamp;
-  deadlineAt?: number;
   fadeStart?: Timer;
-  cutoff?: Timer;
+  handoff?: Timer;
   release?: GainRamp;
 };
 
 export interface AudioPlayer {
-  /** 可选的时限从开播拍起算，只约束这一声。 */
+  /** 可选的交棒时限从开播拍起算。主线程恢复后，已响的声音继续渐出。 */
   play(event: SoundEvent, endWithinMs?: number): void;
   /** 捕获当前演出。作废或静音后，延迟发声失效。 */
   defer(event: SoundEvent, endWithinMs?: number): () => void;
@@ -36,6 +35,19 @@ const MIX_STEP_MS = 16;
 function gainAt(ramp: GainRamp, now: number): number {
   const progress = Math.min(1, (now - ramp.startAt) / (ramp.endAt - ramp.startAt));
   return ramp.from + (ramp.to - ramp.from) * progress;
+}
+
+function startGainRamp(from: number, to: number, now: number, duration: number): GainRamp {
+  return { from, to, startAt: now, endAt: now + duration, updatedAt: now };
+}
+
+function advanceGain(ramp: GainRamp, now: number): number {
+  // 卡顿期间没有写入音量。恢复后最多补一拍，其余量随后的混音拍逐步应用。
+  const skippedMs = Math.max(0, now - ramp.updatedAt - MIX_STEP_MS);
+  ramp.startAt += skippedMs;
+  ramp.endAt += skippedMs;
+  ramp.updatedAt = now;
+  return gainAt(ramp, now);
 }
 
 function releaseAudio(audio: HTMLAudioElement): void {
@@ -97,7 +109,7 @@ export class MediaAudioPlayer implements AudioPlayer {
 
     const isReaction = !auditioning && (event === "reactionOpen" || event === "reactionTick");
     if (isReaction && this.reaction !== null) {
-      this.fadeOut(this.reaction, this.active.get(this.reaction)!);
+      this.fadeOut(this.active.get(this.reaction)!);
     }
     const url = soundClipUrl(clip);
     const audio = this.idle.get(url) ?? new Audio(url);
@@ -118,7 +130,7 @@ export class MediaAudioPlayer implements AudioPlayer {
 
     audio.currentTime = 0;
     audio.muted = false;
-    // 录音轻微变调避免重复触发听感单调。合成的高低音有固定含义。
+    // 原声拟音轻微变调。预混成品保留已编排的音高关系。
     audio.preservesPitch = false;
     audio.playbackRate =
       clip.kind === "recording" && !auditioning ? 0.92 + Math.random() * 0.16 : 1;
@@ -133,14 +145,13 @@ export class MediaAudioPlayer implements AudioPlayer {
     };
     audio.onerror = () => fail(audio.error);
     if (endWithinMs !== undefined) {
-      const deadlineAt = performance.now() + endWithinMs;
       const releaseMs = Math.min(SOUND_RELEASE_MS, endWithinMs / 2);
-      playback.deadlineAt = deadlineAt;
       playback.fadeStart = setTimeout(
-        () => this.fadeOut(audio, playback, deadlineAt),
+        () => this.fadeOut(playback, releaseMs),
         endWithinMs - releaseMs,
       );
-      playback.cutoff = setTimeout(() => this.finish(audio, playback, false), endWithinMs);
+      // 正常节拍在交棒拍写完最后一步。卡住时由后续混音拍写完再释放。
+      playback.handoff = setTimeout(() => this.updateMix(), endWithinMs);
     }
     void audio.play().catch(fail);
   }
@@ -157,7 +168,7 @@ export class MediaAudioPlayer implements AudioPlayer {
     if (this.active.get(audio) !== playback) return false;
     this.active.delete(audio);
     clearTimeout(playback.fadeStart);
-    clearTimeout(playback.cutoff);
+    clearTimeout(playback.handoff);
     if (audio === this.reaction) {
       this.reaction = null;
       this.setDuckGain(1, REACTION_RELEASE_MS);
@@ -169,27 +180,10 @@ export class MediaAudioPlayer implements AudioPlayer {
     return true;
   }
 
-  private fadeOut(
-    audio: HTMLAudioElement,
-    playback: ActivePlayback,
-    requestedEnd = performance.now() + SOUND_RELEASE_MS,
-  ): void {
-    const now = performance.now();
-    const endAt = Math.min(requestedEnd, playback.deadlineAt ?? requestedEnd);
-    if (playback.release !== undefined && playback.release.endAt <= endAt) return;
-    if (endAt <= now) {
-      this.finish(audio, playback, false);
-      return;
-    }
-    const from = playback.release === undefined ? 1 : gainAt(playback.release, now);
-    playback.release = { from, to: 0, startAt: now, endAt };
+  private fadeOut(playback: ActivePlayback, duration = SOUND_RELEASE_MS): void {
+    if (playback.release !== undefined) return;
+    playback.release = startGainRamp(1, 0, performance.now(), duration);
     clearTimeout(playback.fadeStart);
-    // 仪式的截止计时器保留在原来的队列次序，先于同拍开始的下一段演出。
-    if (playback.deadlineAt !== endAt) {
-      clearTimeout(playback.cutoff);
-      playback.deadlineAt = endAt;
-      playback.cutoff = setTimeout(() => this.finish(audio, playback, false), endAt - now);
-    }
     this.updateMix();
   }
 
@@ -199,9 +193,8 @@ export class MediaAudioPlayer implements AudioPlayer {
       if (playback.scope === "reaction") continue;
       const duck = playback.duck;
       if (typeof duck !== "number" && duck.to === target) continue;
-      const from = typeof duck === "number" ? duck : gainAt(duck, now);
-      playback.duck =
-        from === target ? target : { from, to: target, startAt: now, endAt: now + duration };
+      const from = typeof duck === "number" ? duck : gainAt(duck, duck.updatedAt);
+      playback.duck = from === target ? target : startGainRamp(from, target, now, duration);
     }
     this.updateMix();
   }
@@ -211,12 +204,15 @@ export class MediaAudioPlayer implements AudioPlayer {
     let changing = false;
     for (const [audio, playback] of this.active) {
       const { duck, release } = playback;
+      const duckGain = typeof duck === "number" ? duck : advanceGain(duck, now);
+      const releaseGain = release === undefined ? 1 : advanceGain(release, now);
       if (typeof duck !== "number" && now >= duck.endAt) playback.duck = duck.to;
-      const duckGain = typeof duck === "number" ? duck : gainAt(duck, now);
-      const releaseGain = release === undefined ? 1 : gainAt(release, now);
       audio.volume = playback.volume * duckGain * releaseGain;
-      if (typeof playback.duck !== "number" || (release !== undefined && now < release.endAt))
-        changing = true;
+      if (release !== undefined && now >= release.endAt) {
+        this.finish(audio, playback, false);
+        continue;
+      }
+      if (typeof playback.duck !== "number" || release !== undefined) changing = true;
     }
     if (changing && this.mixTimer === undefined) {
       this.mixTimer = setTimeout(() => {
@@ -232,7 +228,7 @@ export class MediaAudioPlayer implements AudioPlayer {
     if (stopReaction) this.reaction = null;
     for (const [audio, playback] of this.active) {
       if (scope !== "all" && scope !== playback.scope) continue;
-      if (mode === "fade") this.fadeOut(audio, playback);
+      if (mode === "fade") this.fadeOut(playback);
       else this.finish(audio, playback, false);
     }
     if (scope === "all" && mode === "immediate") {
