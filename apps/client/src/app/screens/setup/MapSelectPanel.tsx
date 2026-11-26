@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import type { MapEntry, MapSource } from "@dafung/core/engine/map-source";
 import type { MapData } from "@dafung/core/engine/board-loader";
 import { formatMoney } from "@dafung/core/engine/money";
+import { getAudio } from "@app/fx/audio";
 import { getMapSource } from "@app/map-sources";
 import { useMapCatalog } from "./useMapCatalog";
 import { Dialog, DialogContent } from "@app/components/ui/dialog";
@@ -174,6 +175,7 @@ export function MapSelectPanel({
   const displayError = error ?? previewError;
 
   const pick = (entry: MapEntry) => {
+    if (entry.id !== picked) getAudio().play("jinnangSelect");
     setPicked(entry.id);
     setPreviewLoading(true);
     setPreview(null);

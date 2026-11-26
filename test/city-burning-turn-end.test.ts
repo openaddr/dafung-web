@@ -1,4 +1,7 @@
 import { afterEach, expect, it } from "bun:test";
+import { extractBatchEvents } from "@app/fx/event-extract";
+import { present, type PendingFireWallRewards } from "@app/fx/orchestrator";
+import { createMemorySink } from "@app/fx/sinks";
 import { foldEventBatch } from "@app/net/event-fold";
 import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
 import { loadMap } from "@dafung/core/engine/board-loader";
@@ -20,7 +23,7 @@ import {
 import { SKILLS, type TriggerSkill } from "@dafung/core/engine/skills";
 import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 import guanzhong from "../packages/core/maps/guanzhong.json";
-import { cmdMsg, type InboundMsg } from "@dafung/core/protocol/wire";
+import { cmdMsg, eventsMsg, type InboundMsg, type EventBatchMsg } from "@dafung/core/protocol/wire";
 
 const { board, catalog } = loadMap(guanzhong);
 const CITY = "prop-jinyang";
@@ -101,6 +104,128 @@ function playJinnang(g: GameEngine, cardId: string, target: number): void {
   submit(g, { type: "useJinnang", cardId });
   submit(g, { type: "useJinnang", cardId, targets: [target] });
 }
+
+it("火烧连营断在城损抉择时，恢复后只奏一处实际攻陷，随后归账", async () => {
+  const g = makeEngine();
+  armPhase(g, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+  grantProperty(g, 1, CITY, 2);
+  setDefense(g, 1, CITY, 1);
+  grantProperty(g, 1, LATER_CITY, 1);
+  setDefense(g, 1, LATER_CITY, 4);
+  grantProperty(g, 2, "prop-liaodong", 1);
+  const choice = grantTestSkill(
+    "test-fire-wall-city-choice",
+    "PropertyDemolished",
+    "during",
+    defineChoiceEffect("PropertyDemolished", offerChoice),
+  );
+  armHero(g, 1, "zhangxingcai", [choice]);
+  giveJinnang(g, 0, ["火烧连营"]);
+  const replica = replicaOf(g, 1);
+  const sink = createMemorySink();
+  const pendingFireWallRewards: PendingFireWallRewards = new WeakMap();
+  const play = (events: GameEvent[]) =>
+    present(extractBatchEvents(replica, events), sink, { pendingFireWallRewards });
+  const downlink = (engine: GameEngine) => {
+    const batch = JSON.parse(eventsMsg(redactEvents(engine.gameEvents, 1))) as EventBatchMsg;
+    foldEventBatch(replica, batch.events);
+    return batch.events;
+  };
+
+  submit(g, { type: "useJinnang", cardId: "火烧连营" });
+  downlink(g);
+  submit(g, { type: "useJinnang", cardId: "火烧连营", targets: [TILE] });
+  const beforeChoice = downlink(g);
+  expect(replica.turnPhase).toBe("AwaitingSkillChoice");
+  expect(replica.decisionOwner).toBe(1);
+  expect(replica.players[0].cash).toBe(10005);
+  expect(findHolding(replica.players[1], CITY)).toMatchObject({ level: 1, defense: 40 });
+  expect(findHolding(replica.players[1], LATER_CITY)).toMatchObject({ defense: 4 });
+  await play(beforeChoice);
+
+  const restored = makeEngine();
+  restored.restoreFromSnapshot(json(g.snapshot()));
+  submit(restored, { type: "respondSkillChoice", seat: 1, use: false });
+  const afterChoice = downlink(restored);
+  expect(replica.turnPhase).toBe(restored.turnPhase);
+  expect(replica.findOwner(LATER_CITY)).toBe(replica.players[0]);
+  expect(replica.players[0].cash).toBe(restored.players[0].cash);
+  const damage = beforeChoice
+    .concat(afterChoice)
+    .filter((event) => event.kind === "propertyDamaged");
+  expect(damage).toMatchObject([
+    { propertyId: CITY, impact: "demolished" },
+    { propertyId: LATER_CITY, impact: "conquest" },
+    { propertyId: "prop-liaodong", impact: "hit" },
+  ]);
+  expect(beforeChoice.filter((event) => event.kind === "fireWallImpact")).toEqual([]);
+  expect(afterChoice.filter((event) => event.kind === "fireWallImpact")).toMatchObject([
+    { propertyId: LATER_CITY, impact: "conquest" },
+  ]);
+  expect(sink.calls.filter(({ op }) => op === "sound" || op === "cashFly")).toEqual([]);
+
+  await play(afterChoice);
+  expect(
+    sink.calls.filter(
+      (call) =>
+        call.op === "cashFly" ||
+        call.op === "sound" ||
+        (call.op === "announceTile" && call.ownerChanged),
+    ),
+  ).toMatchObject([
+    { op: "announceTile", tileIndex: 2, ownerColorIndex: 0, ownerChanged: true },
+    { op: "sound", event: "cityConquest" },
+    { op: "cashFly", amount: restored.players[0].cash - 10000, arrivalCues: [{ event: "coin" }] },
+  ]);
+});
+
+it("城损时机先移走后一座城时，火烧连营保留先前的实际破防", async () => {
+  const g = makeEngine();
+  armPhase(g, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+  grantProperty(g, 1, CITY, 2);
+  setDefense(g, 1, CITY, 1);
+  grantProperty(g, 2, LATER_CITY, 1);
+  setDefense(g, 2, LATER_CITY, 1);
+  const choice = grantTestSkill(
+    "test-fire-wall-no-longer-owned-choice",
+    "PropertyDemolished",
+    "during",
+    defineChoiceEffect("PropertyDemolished", offerChoice),
+  );
+  const exhaust = grantTestSkill(
+    "test-fire-wall-no-longer-owned-exhaust",
+    "PropertyDemolished",
+    "after",
+    (engine) => {
+      engine.damageStamina(2, 100, null);
+      return true;
+    },
+  );
+  armHero(g, 1, "zhangxingcai", [choice, exhaust]);
+
+  playJinnang(g, "火烧连营", TILE);
+  const sink = createMemorySink();
+  const pendingFireWallRewards: PendingFireWallRewards = new WeakMap();
+  const play = () => present(extractBatchEvents(g, g.gameEvents), sink, { pendingFireWallRewards });
+  await play();
+  expect(g.decisionOwner).toBe(1);
+  expect(g.findOwner(LATER_CITY)).toBe(g.players[2]);
+
+  submit(g, { type: "respondSkillChoice", seat: 1, use: false });
+  expect(g.findOwner(LATER_CITY)).toBeNull();
+  const impact = g.gameEvents.filter((event) => event.kind === "fireWallImpact");
+  expect(impact).toMatchObject([{ propertyId: CITY, impact: "demolished" }]);
+
+  await play();
+  expect(
+    sink.calls.filter(
+      (call) => call.op === "cashFly" || (call.op === "sound" && call.event === "cityBreach"),
+    ),
+  ).toMatchObject([
+    { op: "sound", event: "cityBreach" },
+    { op: "cashFly", amount: 5, arrivalCues: [{ event: "coin" }] },
+  ]);
+});
 
 it("从点火后的下一实际回合计时，跳过的座位不计，续火仍在原定回合扣防", () => {
   const g = makeEngine();

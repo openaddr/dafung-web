@@ -3,6 +3,7 @@ import { Button } from "@base-ui/react/button";
 import { useLayoutEffect, useRef } from "react";
 import type { MapSource } from "@dafung/core/engine/map-source";
 import { formatMoney } from "@dafung/core/engine/money";
+import { getAudio } from "@app/fx/audio";
 import { InkBreathe, SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { useMapCatalog } from "@app/screens/setup/useMapCatalog";
 import { HOME_TID } from "./testids";
@@ -84,7 +85,10 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
             ref={selected ? selectedRef : undefined}
             data-testid={HOME_TID.mapStripItem(entry.id)}
             aria-pressed={selected}
-            onClick={() => onSelect(entry.id)}
+            onClick={() => {
+              if (!selected) getAudio().play("jinnangSelect");
+              onSelect(entry.id);
+            }}
             className="home-map-card"
           >
             <span className="home-map-name">{entry.name}</span>

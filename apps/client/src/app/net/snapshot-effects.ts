@@ -18,12 +18,25 @@
 // console.debug + __dafung.fxCatchup。
 import type { GameEngine } from "@dafung/core/engine/authority";
 import type { GameEvent } from "@dafung/core/engine/game-events";
-import type { PresentationEvent } from "@app/fx/presentation";
+import { getAudio } from "@app/fx/audio";
+import { discardCapitalRecruitment } from "@app/fx/capital-supply-audio";
+import type { CashArrivalCue, PresentationEvent } from "@app/fx/presentation";
 import { useFxStore } from "@app/fx/fxStore";
 import { createEngineSink } from "@app/fx/sinks";
-import { anchorMarches, extractBatchEvents } from "@app/fx/event-extract";
+import {
+  anchorMarches,
+  cityIncomeCueFor,
+  discardCityRewardCues,
+  extractBatchEvents,
+  lastTurnStartIndex,
+} from "@app/fx/event-extract";
 import { abandonAllMarches } from "@app/fx/useMarch";
-import { finishPresentation, present } from "@app/fx/orchestrator";
+import {
+  dismissInFlightPresentation,
+  finishPresentation,
+  present,
+  type PendingFireWallRewards,
+} from "@app/fx/orchestrator";
 import { delay, FX, setCatchupScale } from "@app/fx/timings";
 import { isSnapPinned, LagCalibrator } from "@app/fx/catchup";
 import { useNetStore } from "@app/store/netStore";
@@ -34,8 +47,7 @@ interface QueuedChunk {
   /** 入队时刻(校准辅尺基准:批龄 = 出队时刻 − 本值)。 */
   readonly enqueuedAt: number;
   readonly events: PresentationEvent[];
-  /** 作废标记(边界生命周期语义,非容错):断线/重连边界把「旧演出无因果意义」
-   *  (ADR-0020 决策 4)落到待播块上——出队检查即弃,不判档不播放。 */
+  /** 生命周期边界统一作废旧演出，出队或事件之间检查。 */
   voided: boolean;
 }
 
@@ -60,11 +72,17 @@ export class SnapshotEffects {
   private readonly queued = new Set<QueuedChunk>();
   /** 表现出口:全坐标化(ADR-0029/#608)后 sink 零引擎依赖,无状态可换——单例形状。 */
   private readonly fxSink = createEngineSink();
+  private pendingFireWallRewards: PendingFireWallRewards = new WeakMap();
+  private victoryPreludeAbort: AbortController | null = null;
   /** 队列排空(忙→闲)回调:OnlineController 用来补一次 sync,放出被锁的 interactive。 */
   private readonly onIdle: (() => void) | null;
   private readonly getEngine: () => GameEngine;
 
-  constructor(getEngine: () => GameEngine, onIdle?: () => void) {
+  constructor(
+    getEngine: () => GameEngine,
+    private readonly getSelfSeat: () => number | null,
+    onIdle?: () => void,
+  ) {
     this.getEngine = getEngine;
     this.onIdle = onIdle ?? null;
   }
@@ -85,13 +103,10 @@ export class SnapshotEffects {
     this.fxSink.stampSeal(pos.x, pos.y, "签");
   }
 
-  /** 断线边界:把当前到达序标记为已入队——断线前收到但未随快照消费的暂存批,
-   *  重连后不补播(状态已由重连快照整体重建,旧演出无因果意义)。在途行军会话
-   *  一并作废(#609 单写者),队列中未开播块全部打作废标记(#610 出队检查即弃);
-   *  校准判据态复位、追帧倍率回 1(旧积压已随边界作废,落后度从零重观察)。 */
+  /** 断线、前后台切换和离局时对齐到达序，收回旧演出并重新观察积压。 */
   dropStalledBatch(): void {
+    this.cancelQueuedPlayback();
     abandonAllMarches();
-    this.voidAllQueued();
     this.enqueuedBatchSeq = useNetStore.getState().eventBatchSeq;
     this.calibrator.reset();
     setCatchupScale(1);
@@ -103,26 +118,71 @@ export class SnapshotEffects {
    *  dropStalledBatch)。状态唯一来源 = 紧随其后的整房摘要。
    *  与 dropStalledBatch(断线边界,游标对齐作废)成对使用:closed 时对齐、open 时归零。 */
   resetEventFace(): void {
+    this.cancelQueuedPlayback();
     abandonAllMarches();
-    this.voidAllQueued();
     this.enqueuedBatchSeq = 0;
     this.calibrator.reset();
     setCatchupScale(1);
     useNetStore.getState().resetEventFace();
   }
 
-  /** 换图边界(OnlineController.rebuildForMap 调用,ADR-0029 §2 边界作废同族):
-   *  棋盘几何整体更换,已提取未播块烤的是旧板坐标(不变量①提取即定格),出队即弃。
-   *  与 dropStalledBatch/resetEventFace 的差别:只作废待播块——入队游标不动(批到达
-   *  序连续,新图批照常消费)、判据态与追帧倍率不复位(积压治理与棋盘身份正交)。 */
+  /** 换图时收回旧棋盘上的演出，保留到达序和追帧判据。 */
   voidQueuedForBoardSwap(): void {
-    this.voidAllQueued();
+    this.cancelQueuedPlayback();
   }
 
-  /** 待播块全体作废:出队检查即弃(已开播的在途块不在此列——present 事件边界的
-   *  收队语义归终局封场,本作废只覆盖「从未开播」的块)。 */
-  private voidAllQueued(): void {
+  private cancelQueuedPlayback(keepIncome?: CashArrivalCue): void {
     for (const chunk of this.queued) chunk.voided = true;
+    this.victoryPreludeAbort?.abort();
+    this.victoryPreludeAbort = null;
+    this.pendingFireWallRewards = new WeakMap();
+    discardCityRewardCues(this.getEngine());
+    dismissInFlightPresentation();
+    this.fxSink.discardCashFlights(keepIncome);
+    getAudio().stop("all");
+    useFxStore.getState().setVictoryPresentation(null);
+  }
+
+  private carryQueuedIncome(income: CashArrivalCue, presentation: PresentationEvent[]): void {
+    if (this.fxSink.hasLaunchedCash(income)) return;
+    // 技能应答可在下行到达前批尚未开播时结束本轮，只接回第一笔待播的收入。
+    for (const chunk of this.queued) {
+      if (chunk.voided) continue;
+      const payment = chunk.events.find((ev) => ev.kind === "cashDelta" && ev.sound === income);
+      if (payment === undefined) continue;
+      presentation.unshift(payment);
+      return;
+    }
+  }
+
+  private stageVictory(
+    gameId: string,
+    presentation: PresentationEvent[],
+    income: CashArrivalCue | undefined,
+  ) {
+    const pending = { phase: "prelude", gameId } as const;
+    const audio = getAudio();
+    const scroll = {
+      phase: "scroll",
+      gameId,
+      playDrum: audio.defer("victoryDrum"),
+      playTheme: audio.defer("victory"),
+    } as const;
+    const abort = new AbortController();
+    this.victoryPreludeAbort = abort;
+    const duelStart = presentation.findIndex((ev) => ev.kind === "duelSigns" && ev.forVictory);
+    const cutoff = duelStart < 0 ? presentation.length : duelStart;
+    const prelude = presentation.slice(0, cutoff);
+    const waitForIncome =
+      income === undefined
+        ? undefined
+        : this.fxSink.waitForCashArrival(
+            income,
+            abort.signal,
+            prelude.some((ev) => ev.kind === "cashDelta" && ev.sound === income),
+          );
+    useFxStore.getState().setVictoryPresentation(pending);
+    return { pending, scroll, abort, prelude, duels: presentation.slice(cutoff), waitForIncome };
   }
 
   /** 每帧 snapshot(hydrate)后调用:把 netStore 暂存的事件批直译为表现并入队播放。
@@ -134,28 +194,26 @@ export class SnapshotEffects {
     this.enqueuedBatchSeq = net.eventBatchSeq;
     const engine = this.getEngine();
     const events: GameEvent[] = net.lastEvents;
-    const victory = events.find((event) => event.kind === "gameOver" && event.reason !== "aborted");
-    // 合并批可能含过期回合。只留下实际判胜回合的演出，胜利号角由胜利卷轴播放。
-    const liveEvents = victory
-      ? events.filter(
-          (event) =>
-            event.turn === victory.turn &&
-            event.round === victory.round &&
-            event.kind !== "gameOver",
-        )
-      : events;
+    const gameOver = events.find((event) => event.kind === "gameOver");
+    const victory = gameOver?.reason === "aborted" ? undefined : gameOver;
+    // 跳座也推进回合编号。同次收尾串过跳座时，从最后实际开始的回合保留演出。
+    const lastTurnStart = victory ? lastTurnStartIndex(events) : -1;
+    const liveEvents = lastTurnStart > 0 ? events.slice(lastTurnStart) : events;
     // 提取与行军锚定同步完成(anchorMarches 须先于 React 渲染终态,否则棋子闪现终点
     // 再被拽回);行军 keyframes 随表现事件直传 sink(不变量①提取即定格,播放零引擎
     // 读取)——队列期间引擎被后续快照整体 hydrate 也不影响在途序列,合并批多段行军各播各段。
-    const presentation = extractBatchEvents(engine, liveEvents, prePositions);
+    const presentation = extractBatchEvents(engine, liveEvents, prePositions, this.getSelfSeat());
     const gameId = engine.gameId;
-    if (victory) {
+    const income = victory === undefined ? undefined : cityIncomeCueFor(engine, victory.round);
+    if (gameOver) {
+      if (income !== undefined && lastTurnStart < 0) this.carryQueuedIncome(income, presentation);
+      this.cancelQueuedPlayback(income);
       finishPresentation();
-      this.voidAllQueued();
       abandonAllMarches();
     }
-    if (presentation.length === 0) return; // 无表现(纯状态批):不占用表现锁,不计落后
-    if (victory) useFxStore.getState().setVictoryDuelGameId(gameId);
+    if (gameOver?.reason === "aborted" || (victory === undefined && presentation.length === 0))
+      return;
+    const finale = victory === undefined ? null : this.stageVictory(gameId, presentation, income);
     anchorMarches(presentation, this.fxSink);
     const chunk: QueuedChunk = {
       batchSeq: net.eventBatchSeq,
@@ -165,49 +223,52 @@ export class SnapshotEffects {
     };
     this.queued.add(chunk);
     this.pendingChunks++;
-    const settle = () => {
+    const settle = (completed: boolean) => {
       this.queued.delete(chunk);
       this.pendingChunks--;
       const fx = useFxStore.getState();
-      if (victory && fx.victoryDuelGameId === gameId) {
-        fx.setVictoryDuelGameId(null);
+      if (finale !== null) {
+        finale.abort.abort();
+        if (this.victoryPreludeAbort === finale.abort) this.victoryPreludeAbort = null;
+        if (fx.victoryPresentation === finale.pending) {
+          fx.setVictoryPresentation(completed && !chunk.voided ? finale.scroll : null);
+        }
       }
-      if (this.pendingChunks === 0) this.onIdle?.(); // 忙→闲:放出被锁的 interactive
+      if (this.pendingChunks === 0 && !chunk.voided) this.onIdle?.();
     };
     this.fxQueue = this.fxQueue
       .then(async () => {
-        if (!victory) {
+        if (finale === null) {
           await this.dequeueChunk(chunk);
         } else if (!chunk.voided) {
-          // 终局批保留完整演出节奏，入账飞行结束才亮签或胜利卷轴。
+          // 终局批保留完整演出节奏，第一枚当轮归账铜钱抵达才接判胜拼点。
           setCatchupScale(1);
           const isCurrent = () =>
-            !chunk.voided && useFxStore.getState().victoryDuelGameId === gameId;
-          const duelStart = presentation.findIndex(
-            (event) => event.kind === "duelSigns" && event.forVictory === true,
-          );
-          const cutoff = duelStart < 0 ? presentation.length : duelStart;
-          const prelude = presentation.slice(0, cutoff);
-          await present(prelude, this.fxSink, isCurrent);
+            !chunk.voided && useFxStore.getState().victoryPresentation === finale.pending;
+          const options = {
+            isCurrent,
+            forVictory: true,
+            pendingFireWallRewards: this.pendingFireWallRewards,
+          };
+          await present(finale.prelude, this.fxSink, options);
           if (isCurrent()) {
-            const hasCityIncome = liveEvents.some(
-              (event) => event.kind === "cashChanged" && event.reason === "city-income",
-            );
-            if (hasCityIncome) await delay(FX.cashFlyMs);
-            else if (prelude.some((event) => event.kind === "cityBurned")) {
+            if (finale.waitForIncome !== undefined) await finale.waitForIncome;
+            else if (finale.prelude.some((event) => event.kind === "cityBurned")) {
               await delay(FX.burningPulseMs);
             }
           }
-          await present(presentation.slice(cutoff), this.fxSink, isCurrent);
+          await present(finale.duels, this.fxSink, options);
         }
       })
-      .then(settle)
-      .catch((err) => {
-        // 表现层异常必须暴露(零兜底):响亮记错并照常收队——任由拒绝传播会毒化队列
-        // (后续所有批次不再播放、interactive 永锁),静默吞掉更是掩 bug。
-        settle();
-        console.error("[SnapshotEffects] 表现播放异常:", err);
-      });
+      .then(
+        () => settle(true),
+        (err) => {
+          // 表现层异常必须暴露(零兜底):响亮记错并照常收队——任由拒绝传播会毒化队列
+          // (后续所有批次不再播放、interactive 永锁),静默吞掉更是掩 bug。
+          settle(false);
+          console.error("[SnapshotEffects] 表现播放异常:", err);
+        },
+      );
   }
 
   /** 出队点判档(#610 落地挂点,present 前):瞬空钉住(#1254)一律走吸附档;其余按
@@ -219,10 +280,7 @@ export class SnapshotEffects {
     if (chunk.voided) return; // 边界作废:出队检查即弃(会话已由边界统一收回)
     // 瞬空钉直接走吸附档,不进入产品落后度判据;只弃未播演出、棋子直切声明式终态。
     // 实体与写入口见 catchup.setSnapPin,默认关闭,使用边界见 ADR-0065。
-    if (isSnapPinned()) {
-      abandonAllMarches();
-      return;
-    }
+    if (isSnapPinned()) return this.snapChunk(chunk);
     const net = useNetStore.getState();
     const decision = this.calibrator.observe({
       gapBatches: net.eventBatchSeq - this.enqueuedBatchSeq + this.queued.size,
@@ -233,9 +291,20 @@ export class SnapshotEffects {
       // 未播锚定统一作废:此前各批 play() 拍预塞的会话此刻全部属于「未开播」(出队
       // 点上无在途动画——fxQueue 串行),收回后棋子直切声明式终态;后续块若落回线下
       // 照常 present,其行军因会话已亡经单写者规则哑火(旧演出无因果意义,不拽回重走)。
-      abandonAllMarches();
-      return;
+      return this.snapChunk(chunk);
     }
-    await present(chunk.events, this.fxSink);
+    await present(chunk.events, this.fxSink, {
+      isCurrent: () => !chunk.voided,
+      pendingFireWallRewards: this.pendingFireWallRewards,
+    });
+  }
+
+  private snapChunk(chunk: QueuedChunk): void {
+    this.queued.delete(chunk);
+    this.pendingFireWallRewards = new WeakMap();
+    this.fxSink.discardCashFlights();
+    discardCapitalRecruitment();
+    getAudio().stop("presentation");
+    abandonAllMarches();
   }
 }

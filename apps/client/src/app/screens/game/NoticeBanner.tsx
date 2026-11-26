@@ -51,8 +51,7 @@ export function NoticeBanner({ occupied, ...props }: WaitingBarProps & { occupie
         <WaitingBar {...props} />
       )}
       {notice?.kind === "halt" && (
-        // 都城停条带(#732 降格;#958 起槽内唯一瞬态带件):原全屏漆金宣告改条带级;
-        // 号角音保留(sink 侧),震屏/编排时长按条带级校准(timings.ts)
+        // 都城停条带首次开槽同拍响门闩，编排时长沿用条带级节拍。
         <div
           key={notice.id}
           className="fx-halt-banner"

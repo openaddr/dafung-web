@@ -2,7 +2,9 @@
 // #1421:底层 open 仍处于 calibrating,权威摘要校准完成才撤横幅;恢复动作只调
 // 调用方提供的控制器公共行为。渲染/让位共用 useConnDown 与固定体高,不读 token。
 import { Button } from "@base-ui/react/button";
-import { useNetStore } from "@app/store/netStore";
+import { useEffect, useRef } from "react";
+import { getAudio } from "@app/fx/audio";
+import { useNetStore, type NetConnection } from "@app/store/netStore";
 import { TESTIDS } from "@app/screens/game/testids";
 
 /** 横幅渲染与两屏让位的共同单源:仅未入座/校准完成时不在场。 */
@@ -13,6 +15,21 @@ export function useConnDown(): boolean {
 
 /** 不含 safe-top:上下各 8px + 44px 主行动;各态同高,让位不随文案抖动。 */
 export const CONN_BANNER_BODY_H = 60;
+
+function needsConnectionAction(connection: NetConnection): boolean {
+  return connection === "gaveUp" || connection === "failed";
+}
+
+/** 大厅和对局可同时预绘，连接提示音由 App 的单一宿主发出。 */
+export function ConnectionFailureSound() {
+  const retryable = useNetStore((s) => !s.dismissed && needsConnectionAction(s.connection));
+  const announced = useRef(false);
+  useEffect(() => {
+    if (retryable && !announced.current) getAudio().play("reconnectFailure");
+    announced.current = retryable;
+  }, [retryable]);
+  return null;
+}
 
 interface ConnectionBannerProps {
   onReconnect: () => void;
@@ -27,7 +44,7 @@ export function ConnectionBanner({ onReconnect, onExit }: ConnectionBannerProps)
   const connDown = useConnDown();
   if (!connDown) return null;
   const gaveUp = connection === "gaveUp";
-  const retryable = gaveUp || connection === "failed";
+  const retryable = needsConnectionAction(connection);
   const message =
     connection === "calibrating"
       ? "连接已建立，正在校准局面…"

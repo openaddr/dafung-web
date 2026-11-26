@@ -12,4 +12,4 @@
 
 ## 目录现状
 
-11 个 ogg,两代命名并存:2026-10 批起新素材带 `audio-` 前缀(coins-box / rain;同批 tile-clack 已随 #638 拼点双印退役),更早的以事件语义命名(如 `coin-drop.ogg`、`gong-long.ogg`),不做批量改名。素材退役后删文件,CREDITS/manifest 条目标「已退役」留档。
+录音文件沿用历史名称，如 `audio-rain.ogg`、`coin-drop.ogg` 和 `gong-long.ogg`。素材退役后删除文件，CREDITS 和 manifest 保留来源及退役记录。

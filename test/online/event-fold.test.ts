@@ -49,11 +49,13 @@ const MAP = loadMap(guanzhongData);
 const CHANGAN = 0;
 const LUOYANG = MAP.board.tiles.find((t) => t.propertyId === "prop-luoyang")!.index;
 
-function makeEngine(seed = 7): GameEngine {
-  const seats: SeatConfig[] = [
+function makeEngine(
+  seed = 7,
+  seats: SeatConfig[] = [
     { name: "A", isBot: false, guohao: "魏" },
     { name: "B", isBot: false, guohao: "蜀" },
-  ];
+  ],
+): GameEngine {
   const cfg: EngineConfig = {
     seats,
     targetNetWorth: 30000,
@@ -234,6 +236,51 @@ describe("额外回合的联机命令与事件批", () => {
       turnNumber: 2,
       turnPhase: "Roll",
     });
+  });
+
+  it("一份恢复后另有反识破窗时，存档续答随根计实际发银公布恢复", () => {
+    const seats = ["魏", "蜀", "吴", "汉"].map((guohao) => ({
+      name: guohao,
+      guohao,
+      isBot: false,
+    }));
+    let authority = makeEngine(7, seats);
+    armPhase(authority, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    giveJinnang(authority, 0, ["横征暴敛", "识破诡计"]);
+    for (const seat of [1, 2, 3]) giveJinnang(authority, seat, ["识破诡计"]);
+    const replica = makeEngine(7, seats);
+    replica.restoreFromSnapshot(
+      JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), 0))),
+    );
+    const submit = (command: GameCommand) => submitAndFold(authority, replica, 0, command);
+    const counter = (seat: number, shareSeat?: number) =>
+      submit({ type: "respondReaction", seat, use: true, cardId: "识破诡计", shareSeat });
+    const decline = () => submit({ type: "respondReaction", seat: 3, use: false });
+
+    submit({ type: "useJinnang", cardId: "横征暴敛" });
+    counter(1, 1);
+    counter(2, 2);
+    decline();
+    counter(0);
+    decline();
+    const beforeLast = decline();
+    expect(authority.pendingReaction?.view.userSeat).toBe(2);
+    expect(beforeLast.map(({ kind }) => kind)).not.toContain("jinnangRestored");
+    expect(replica.players.map(({ cash }) => cash)).toEqual([10000, 10000, 10000, 10000]);
+
+    const saved = JSON.parse(JSON.stringify(authority.snapshot()));
+    authority = makeEngine(7, seats);
+    authority.restoreFromSnapshot(saved);
+    const result = decline();
+    const firstCash = result.findIndex(({ kind }) => kind === "cashChanged");
+    expect(result.slice(firstCash - 2, firstCash)).toMatchObject([
+      { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 2 },
+      { kind: "jinnangRestored", cardId: "横征暴敛", seat: 0 },
+    ]);
+    expect(replica.players.map(({ cash }) => cash)).toEqual([10400, 9800, 10000, 9800]);
+    expect(replica.players.map(({ cash }) => cash)).toEqual(
+      authority.players.map(({ cash }) => cash),
+    );
   });
 });
 

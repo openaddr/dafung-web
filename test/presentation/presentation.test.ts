@@ -28,7 +28,16 @@ import {
 } from "../../apps/client/src/app/fx/presentation";
 import { testEngine, armHero } from "@dafung/core/engine/testing";
 import { HEROES } from "@dafung/core/engine/heroes";
-import { giveTreasure, setCash } from "@dafung/core/engine/planter";
+import {
+  armHero as plantHero,
+  armPhase,
+  giveJinnang,
+  giveTreasure,
+  grantProperty,
+  pinDice,
+  placePlayer,
+  setCash,
+} from "@dafung/core/engine/planter";
 
 const MAP = loadMap(guanzhongData);
 
@@ -84,6 +93,31 @@ beforeEach(() => {
 
 // ─────────────── 事件批直译:引擎真实转移批 ───────────────
 describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
+  it("本座实际经过及抵达己城的连续摸牌在落位后合响一次", async () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    const seat = e.activeIndex;
+    for (const id of ["prop-jieting", "prop-xianyang", "prop-liangzhou"]) {
+      grantProperty(e, seat, id, 1);
+    }
+    placePlayer(e, seat, 13); // 汉中 → 街亭 → 咸阳 → 凉州。
+    pinDice(e, "march", [3]);
+    const pre = e.players.map((p) => p.position);
+    e.submitCommand({ type: "rollAndMove" });
+    expect(e.gameEvents.filter((ev) => ev.kind === "jinnangDrawn")).toHaveLength(3);
+
+    const heardAfterMarch = async (selfSeat: number) => {
+      const sink = createMemorySink();
+      await present(extractBatchEvents(e, e.gameEvents, pre, selfSeat), sink);
+      return sink.calls.flatMap((c) => {
+        if (c.op === "march") return ["march"];
+        return c.op === "sound" && c.event === "jinnangDraw" ? [c.event] : [];
+      });
+    };
+    expect(await heardAfterMarch(seat)).toEqual(["march", "jinnangDraw"]);
+    expect(await heardAfterMarch(1 - seat)).toEqual(["march"]);
+  });
+
   it("rollAndMove:掷骰事件带头(die=引擎 lastRoll),行军紧随;事件顺序=骰子→行军→浮字", () => {
     const e = makeEngine(7);
     finishSetup(e);
@@ -152,7 +186,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     if (text?.kind === "textFloat") expect(text.text).toBe("驻跸补给");
   });
 
-  it("买城成功(ADR-0015):据章 → buy 音 → 宣告(易主维度)→ 价款浮字", () => {
+  it("买城成功时声音贴据章，易主宣告后显示价款", () => {
     const e = makeEngine(7, undefined, 999999); // 大目标:防 endTurn 提前终局干扰常规路径
     finishSetup(e);
     const p = e.activePlayer;
@@ -169,6 +203,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     if (seal?.kind === "sealStamped") {
       expect(seal.char).toBe("据");
       expect(seal.tileIndex).toBe(tile.index);
+      expect(seal.sound).toBe("buy");
     }
     const pcIdx = ks.indexOf("propertyChanged");
     const pc = events[pcIdx];
@@ -179,19 +214,15 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
       expect(pc.ownerChanged).toBe(true);
       expect(pc.ownerColorIndex).toBe(0);
     }
-    // 相对序:据章 → buy 音 → 宣告(音效在前、宣告紧随)→ 价款浮字
-    expect(ks.indexOf("sealStamped")).toBeLessThan(ks.indexOf("sound"));
-    expect(pcIdx).toBeGreaterThan(ks.indexOf("sound"));
+    expect(pcIdx).toBeGreaterThan(ks.indexOf("sealStamped"));
     const priceFloater = events.find(
       (ev) =>
         (ev.kind === "cashDelta" || ev.kind === "supplyRain") && ev.amount === -def.purchasePrice,
     );
     expect(priceFloater).toBeDefined();
+    expect(priceFloater).not.toHaveProperty("sound");
     expect(pcIdx).toBeLessThan(ks.indexOf("cashDelta"));
-    // 铜钱声每批至多一次,且只缀在正收入浮字前(购地纯支出:无铜钱声);
-    // 价款浮字的交易提示已由 buy 音承担,pay 被压制防双声(2026-10 音效审计)
-    expect(ks.filter((k) => k === "sound").length).toBe(1);
-    expect(events.some((ev) => ev.kind === "sound" && ev.event === "pay")).toBe(false);
+    expect(ks).not.toContain("sound");
   });
 
   it("决策被拒(银两不足):无据章/buy 音/宣告(零兜底:无成交事件不播出)", () => {
@@ -209,7 +240,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     expect(events.some((ev) => ev.kind === "sound" && ev.event === "buy")).toBe(false);
   });
 
-  it("扩军成功(ADR-0015):upgrade 音在前、宣告紧随(等级维度)", () => {
+  it("扩军成功时声音跟随等级宣告", () => {
     const e = makeEngine(7, undefined, 999999);
     finishSetup(e);
     const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)!;
@@ -228,17 +259,15 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     if (e.turnPhase !== "AwaitingDecision") return;
     const events = stepEvents(e, () => e.submitCommand({ type: "upgradeProperty" }));
     const ks = kinds(events);
-    const si = events.findIndex((ev) => ev.kind === "sound" && ev.event === "upgrade");
-    expect(si).toBeGreaterThanOrEqual(0);
-    const pi = ks.indexOf("propertyChanged");
-    expect(pi).toBeGreaterThan(si); // 音效在前、宣告紧随(ADR-0015 排序约定)
-    const pc = events[pi];
-    if (pc.kind === "propertyChanged") {
+    const pc = events.find((ev) => ev.kind === "propertyChanged");
+    expect(pc).toBeDefined();
+    if (pc?.kind === "propertyChanged") {
       expect(pc.tileIndex).toBe(tile.index);
       expect(pc.level).toBe(3); // Lv2 → Lv3
       expect(pc.levelChanged).toBe(true);
       expect(pc.ownerChanged).toBe(false);
       expect(pc.ownerColorIndex).toBe(0);
+      expect(pc.sound).toBe("upgrade");
     }
     expect(ks).not.toContain("sealStamped"); // 扩军不盖章(「据」章是买城的)
   });
@@ -259,8 +288,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
         assets: [{ kind: "treasure", id: "t1" }],
       }),
     );
-    expect(sellEvents.some((ev) => ev.kind === "sound" && ev.event === "coin")).toBe(true);
-    expect(kinds(sellEvents)).toContain("cashDelta");
+    expect(sellEvents).toContainEqual(expect.objectContaining({ kind: "cashDelta", amount: 600 }));
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
@@ -270,7 +298,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     const settleEvents = stepEvents(e, () => e.submitCommand({ type: "declareBankruptcy" }));
     expect(p.isBankrupt).toBe(true);
     // 破产批:清算资产逐城易主(#385)→ 易主宣告(都城回无主,归属色=null);
-    // playerBankrupt → bankrupt 音;末位独存即终局,gameOver → victory 压轴。
+    // playerBankrupt 播放破产仪式，随后终局由胜利卷轴接手。
     const pc = settleEvents.find((ev) => ev.kind === "propertyChanged");
     expect(pc).toBeDefined();
     if (pc?.kind === "propertyChanged") {
@@ -281,7 +309,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     }
     expect(settleEvents.some((ev) => ev.kind === "sound" && ev.event === "bankrupt")).toBe(false);
     // S7 破产仪式(#513):playerBankrupt → bankruptCeremony(倒旗/墨渍/撒币三拍由
-    // sink 编排,三音随拍发起);末位独存即终局,gameOver → victory 压轴。
+    // sink 编排，三音随拍发起)。
     const ceremony = settleEvents.find((ev) => ev.kind === "bankruptCeremony");
     expect(ceremony).toBeDefined();
     if (ceremony?.kind === "bankruptCeremony") {
@@ -290,7 +318,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
       expect(ceremony.x).toBe(pos.x);
       expect(ceremony.y).toBe(pos.y);
     }
-    expect(settleEvents[settleEvents.length - 1]).toEqual({ kind: "sound", event: "victory" });
+    expect(settleEvents.at(-1)).toEqual(ceremony);
   });
 
   it("浮字事件携带提取期解析的逻辑坐标(锚玩家位置)", () => {
@@ -353,7 +381,7 @@ describe("事件→动效映射表(合成批)", () => {
     expect(sink.calls).toEqual([{ op: "burningPulse", tileIndex: tile.index, marks: 1 }]);
   });
 
-  it("cashChanged:负向=金额浮字;正向=浮字且批内先缀一声铜钱;supply=铜钱雨(#826 起纳税随雨落币随税关退役)", () => {
+  it("独立失银贴金额发声，补给的固定铜钱雨随归账发声", () => {
     const e = E();
     const out = synth(e, [
       { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -200, reason: "stock" },
@@ -362,8 +390,6 @@ describe("事件→动效映射表(合成批)", () => {
     const pos0 = e.board.positionOf(e.players[0].position);
     const pos1 = e.board.positionOf(e.players[1].position);
     expect(out).toEqual([
-      { kind: "sound", event: "coin" }, // 首个正收入浮字前缀一声
-      { kind: "sound", event: "pay" }, // 负向浮字对位缀一声付出(收叮付闷)
       {
         kind: "cashDelta",
         playerId: e.players[0].id,
@@ -371,6 +397,7 @@ describe("事件→动效映射表(合成批)", () => {
         x: pos0.x,
         y: pos0.y,
         atTile: e.players[0].position,
+        sound: "pay",
       },
       {
         kind: "supplyRain",
@@ -379,25 +406,33 @@ describe("事件→动效映射表(合成批)", () => {
         x: pos1.x,
         y: pos1.y,
         atTile: e.players[1].position,
+        sound: { event: "coin" },
       },
     ]);
   });
 
-  it("cashChanged 纯负向批:pay 前缀、无铜钱声(收叮付闷,反馈对位)", () => {
+  it("连环计的国库款和赔付分别发声，横征的汇总款只在收款方交接", () => {
     const e = E();
+    const cash = { kind: "cashChanged", round: 1, turn: 1 } as const;
     const out = synth(e, [
-      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -200, reason: "stock" },
+      { ...cash, seat: 1, delta: 300, reason: "duel" },
+      { ...cash, seat: 1, delta: 10, reason: "skill" },
+      { ...cash, seat: 1, delta: -400, reason: "duel", counterpartSeat: 0 },
+      { ...cash, seat: 0, delta: 400, reason: "duel", counterpartSeat: 1 },
+      { ...cash, seat: 1, delta: -200, reason: "levyAll", counterpartSeat: 0 },
+      { ...cash, seat: 0, delta: 200, reason: "levyAll" },
     ]);
-    expect(out[0]).toEqual({ kind: "sound", event: "pay" });
-    expect(out.some((ev) => ev.kind === "sound" && ev.event === "coin")).toBe(false);
-    const plain = synth(e, [
-      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -50, reason: "stock" },
+    expect(out.map((ev) => ev.kind === "cashDelta" && [ev.amount, ev.sound])).toEqual([
+      [300, { event: "coin" }],
+      [10, { event: "coin" }],
+      [-400, undefined],
+      [400, { event: "cashTransfer" }],
+      [-200, undefined],
+      [200, { event: "cashTransfer" }],
     ]);
-    const floater = plain.find((ev) => ev.kind === "cashDelta");
-    expect(floater).toMatchObject({ amount: -50 });
   });
 
-  it("treasureGained:漆金「得」印钤宝物城 + treasure 音(S7 探宝拼点得半);traded/bankrupt/gameOver 直通", () => {
+  it("得宝、交割与破产直译表现，终局交给胜利卷轴", () => {
     const e = E();
     const gain = synth(e, [
       { kind: "treasureGained", seat: 0, round: 1, turn: 1, treasureId: "t1" },
@@ -410,9 +445,10 @@ describe("事件→动效映射表(合成批)", () => {
       y: gainPos.y,
       char: "得",
       tone: "gold",
+      sound: "treasure",
     });
-    expect(gain[1]).toEqual({ kind: "sound", event: "treasure" });
-    // 交割两清:铜钱声 → 付出闷响(买家付款对位)→ 买家付款浮字 → 卖家收款浮字(缀声排在批内首个浮字前)
+    expect(gain).toHaveLength(1);
+    // 付款方只有浮字，收款方在抵达时播交接。
     expect(
       synth(e, [
         {
@@ -425,10 +461,11 @@ describe("事件→动效映射表(合成批)", () => {
           treasureId: "t",
           price: 120,
         },
-      ]).map((ev) =>
-        ev.kind === "cashDelta" ? ev.amount : ev.kind === "sound" ? ev.event : ev.kind,
-      ),
-    ).toEqual(["coin", "pay", -120, 120]);
+      ]).map((ev) => ev.kind === "cashDelta" && [ev.amount, ev.sound]),
+    ).toEqual([
+      [-120, undefined],
+      [120, { event: "cashTransfer" }],
+    ]);
     // 破产(S7):仪式事件(三拍 sink 编排,extract 侧不再直出 bankrupt 音)
     expect(
       synth(e, [{ kind: "playerBankrupt", seat: 1, round: 1, turn: 1, creditorSeat: null }]),
@@ -442,7 +479,7 @@ describe("事件→动效映射表(合成批)", () => {
     ]);
     expect(
       synth(e, [{ kind: "gameOver", seat: 0, round: 1, turn: 1, reason: "TargetNetWorth" }]),
-    ).toEqual([{ kind: "sound", event: "victory" }]);
+    ).toEqual([]);
   });
 
   it("capitalSelected:筑章 + 建城宣告(易主维度);assetLiquidated(property):浮字 + 回无主宣告", () => {
@@ -477,6 +514,7 @@ describe("事件→动效映射表(合成批)", () => {
       x: capPos.x,
       y: capPos.y,
       char: "筑",
+      sound: "stamp",
     });
     if (out[1].kind === "propertyChanged") {
       expect(out[1].ownerChanged).toBe(true);
@@ -485,7 +523,7 @@ describe("事件→动效映射表(合成批)", () => {
     } else {
       throw new Error("capitalSelected 应产建城宣告");
     }
-    // 变卖:持有离手(回无主),直译按无归属解析;正收入浮字先缀一声铜钱
+    // 变卖:持有离手(回无主),直译按无归属解析。
     e.players[0].properties = [];
     const out2 = synth(e, [
       {
@@ -497,10 +535,10 @@ describe("事件→动效映射表(合成批)", () => {
         amount: 200,
       },
     ]);
-    expect(out2.map((ev) => ev.kind)).toEqual(["sound", "cashDelta", "propertyChanged"]);
-    if (out2[2].kind === "propertyChanged") {
-      expect(out2[2].ownerColorIndex).toBeNull(); // 变卖给银行=回无主
-      expect(out2[2].ownerChanged).toBe(true);
+    expect(out2.map((ev) => ev.kind)).toEqual(["cashDelta", "propertyChanged"]);
+    if (out2[1].kind === "propertyChanged") {
+      expect(out2[1].ownerColorIndex).toBeNull(); // 变卖给银行=回无主
+      expect(out2[1].ownerChanged).toBe(true);
     } else {
       throw new Error("变卖城池应产回无主宣告");
     }
@@ -710,11 +748,15 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
         sourceSeat: null,
         downgradedPropertyIds: [propId],
         lostPropertyIds: [],
+        strongestImpact: "demolished",
         restTurns: 2,
       },
     ]);
-    expect(downgrade.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      `体力耗竭（伤害来源：无），外敌乘虚而入，「${name}」降 1 级，卧床休整两回合`,
+    expect(downgrade).toMatchObject([
+      {
+        kind: "staminaExhausted",
+        text: `体力耗竭（伤害来源：无），外敌乘虚而入，「${name}」降 1 级，卧床休整两回合`,
+      },
     ]);
     const loss = synth(e, [
       {
@@ -725,11 +767,15 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
         sourceSeat: 0,
         downgradedPropertyIds: [],
         lostPropertyIds: [propId],
+        strongestImpact: "conquest",
         restTurns: 2,
       },
     ]);
-    expect(loss.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      `体力耗竭（伤害来源：魏），外敌乘虚而入，「${name}」失守，卧床休整两回合`,
+    expect(loss).toMatchObject([
+      {
+        kind: "staminaExhausted",
+        text: `体力耗竭（伤害来源：魏），外敌乘虚而入，「${name}」失守，卧床休整两回合`,
+      },
     ]);
     // 休整期满回满(reason=rest):体力浮字点明出处(既有 delta 宣告同通路)
     const rest = synth(e, [
@@ -745,7 +791,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     const out = synth(e, [
       { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: 50, reason: "skill" },
     ]);
-    expect(out.map((ev) => ev.kind)).toEqual(["sound", "cashDelta"]); // 正收入缀铜钱声
+    expect(out).toMatchObject([{ kind: "cashDelta", amount: 50, sound: { event: "coin" } }]);
   });
 
   it("落格定音(S7 #513→#826):全城池制下落格不拍 landPulse(据章即定音;生产点随功能格退役而删)", () => {
@@ -1016,6 +1062,62 @@ function extractLevyStep(seed = 7): { e: GameEngine; events: PresentationEvent[]
 }
 
 describe("出牌指示线(#281/P2-E,事件批直译)", () => {
+  it("同批横征的转账接声，前一动作擂鼓仍随施展浮字响拂纸", async () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    plantHero(e, 0, "zhangxingcai", ["leigu"]);
+    giveJinnang(e, 0, ["横征暴敛"]);
+    e.submitCommand({ type: "useHeroSkill", heroId: "zhangxingcai", skillId: "leigu" });
+    const drum = [...e.gameEvents];
+    e.submitCommand({ type: "useJinnang", cardId: "横征暴敛" });
+
+    const sink = createMemorySink();
+    await present(extractBatchEvents(e, [...drum, ...e.gameEvents]), sink);
+    const sounds = sink.calls.filter((c) => c.op === "sound");
+    expect(sounds).toEqual([{ op: "sound", event: "jinnangAnnounce" }]);
+    expect(sink.calls[sink.calls.indexOf(sounds[0]) + 1]).toMatchObject({
+      op: "textFloater",
+      text: expect.stringContaining("施展【擂鼓】"),
+    });
+    expect(sink.calls.find((c) => c.op === "cashFly")).toMatchObject({
+      arrivalCues: [{ event: "cashTransfer" }],
+    });
+  });
+
+  it.each([1, 2, 3])("反识破链有 %i 环时只播最终有效结果", async (links) => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    giveJinnang(e, 0, links > 1 ? ["缓兵之计", "识破诡计"] : ["缓兵之计"]);
+    giveJinnang(e, 1, links === 3 ? ["识破诡计", "识破诡计"] : ["识破诡计"]);
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    e.submitCommand({ type: "useJinnang", cardId: "缓兵之计" });
+    stepEvents(e, () => e.submitCommand({ type: "useJinnang", cardId: "缓兵之计", targets: [1] }));
+
+    const sink = createMemorySink();
+    const settle = (seat: number) =>
+      present(
+        stepEvents(e, () =>
+          e.submitCommand({ type: "respondReaction", seat, use: true, cardId: "识破诡计" }),
+        ),
+        sink,
+      );
+    const heard = () =>
+      sink.calls.flatMap((call) => {
+        if (call.op === "textFloater" && call.text.includes("下回合无法行动")) return ["中计"];
+        return call.op === "sound" &&
+          (call.event === "jinnangCountered" || call.event === "jinnangRestored")
+          ? [call.event]
+          : [];
+      });
+    for (let link = 1; link <= links; link++) {
+      await settle(link % 2);
+      if (link < links) expect(heard()).toEqual([]);
+    }
+    expect(heard()).toEqual(links === 2 ? ["jinnangRestored", "中计"] : ["jinnangCountered"]);
+    expect(e.players[1].skipTurns).toBe(links === 2 ? 1 : 0);
+  });
+
   it("全体域出牌:每名其他存活者一段线,端点=使用者/目标棋盘坐标;线先于文案浮字", () => {
     const { e, events } = extractLevyStep();
     const plays = events.filter((ev) => ev.kind === "jinnangPlayed");
@@ -1299,7 +1401,6 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     const sink = createMemorySink();
     await present(
       [
-        { kind: "sound", event: "upgrade" },
         {
           kind: "propertyChanged",
           tileIndex: 9,
@@ -1307,12 +1408,12 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
           ownerColorIndex: 1,
           levelChanged: true,
           ownerChanged: false,
+          sound: "upgrade",
         },
       ],
       sink,
     );
     expect(sink.calls).toEqual([
-      { op: "sound", event: "upgrade" },
       {
         op: "announceTile",
         tileIndex: 9,
@@ -1321,6 +1422,7 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
         levelChanged: true,
         ownerChanged: false,
       },
+      { op: "sound", event: "upgrade" },
     ]);
   });
 
@@ -1359,37 +1461,43 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     expect(ops.indexOf("jinnangLine")).toBeGreaterThan(ops.indexOf("duelSigns"));
   });
 
-  it("overlay 互斥(#849 棒2):浮字后随掷骰签面时,浮字延后到收场补发", async () => {
+  it("浮字和独立失银声同在签面收场后补发", async () => {
     const sink = createMemorySink();
     await present(
       [
         { kind: "textFloat", playerId: "p1", text: "中【缓兵之计】", x: 5, y: 6, atTile: null },
+        { kind: "cashDelta", playerId: "p1", amount: -120, x: 5, y: 6, atTile: null, sound: "pay" },
         { kind: "diceRolled", die: 4 },
       ],
       sink,
     );
-    expect(sink.calls.map((c) => c.op)).toEqual(["dice", "textFloater"]);
+    expect(sink.calls.map((c) => c.op)).toEqual(["dice", "textFloater", "floater", "sound"]);
+    expect(sink.calls[3]).toEqual({ op: "sound", event: "pay" });
   });
 
-  it("横幅错位(#849 棒2):cast 批内随 reactionOpen 的指示线不在即拍落线,错位窗后补发", async () => {
+  it("出牌开窗时，公开演出错开指示线且不响本座开窗声", async () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    giveJinnang(e, 0, ["横征暴敛"]);
+    giveJinnang(e, 1, ["识破诡计"]);
+    const events = stepEvents(e, () => e.submitCommand({ type: "useJinnang", cardId: "横征暴敛" }));
     const sink = createMemorySink();
-    // cast 批真形:宣布线(浮字略)+ reactionOpen 音(识破窗挂点)——线错位到横幅
-    // 亮相后 ~250ms,横幅入场铺开段不再吞线。
-    await present(
-      [
-        {
-          kind: "jinnangPlayed",
-          playerId: "p1",
-          cardId: "火烧连营",
-          lines: [{ x1: 0, y1: 0, x2: 8, y2: 8 }],
-        },
-        { kind: "sound", event: "reactionOpen" },
-      ],
-      sink,
-    );
-    expect(sink.calls.some((c) => c.op === "jinnangLine")).toBe(false); // 不即发
-    await new Promise((r) => setTimeout(r, 450)); // 错位窗 scStage(250) + 余量
-    expect(sink.calls.filter((c) => c.op === "jinnangLine").length).toBe(1); // 错位窗后补发
+    const clock = withGlobal(globalThis).install({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      expect(e.turnPhase).toBe("AwaitingReaction");
+      await present(events, sink);
+      expect(sink.calls).not.toContainEqual({ op: "sound", event: "reactionOpen" });
+      expect(sink.calls).not.toContainEqual({ op: "sound", event: "jinnangAnnounce" });
+      expect(sink.calls.some((c) => c.op === "jinnangLine")).toBe(false);
+      clock.tick(250);
+      expect(sink.calls.slice(-2)).toEqual([
+        { op: "sound", event: "jinnangAnnounce" },
+        expect.objectContaining({ op: "jinnangLine" }),
+      ]);
+    } finally {
+      clock.uninstall();
+    }
   });
 });
 
@@ -1480,7 +1588,10 @@ describe("SnapshotEffects 事件批消费游标(#385 联机通路)", () => {
     useFxStore.getState().resetFx();
     const e = makeEngine(7);
     finishSetup(e);
-    const fx = new SnapshotEffects(() => e);
+    const fx = new SnapshotEffects(
+      () => e,
+      () => null,
+    );
     const batch: GameEvent[] = [
       { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -5, reason: "stock" },
     ];
@@ -1501,7 +1612,10 @@ describe("SnapshotEffects 事件批消费游标(#385 联机通路)", () => {
     useFxStore.getState().resetFx();
     const e = makeEngine(7);
     finishSetup(e);
-    const fx = new SnapshotEffects(() => e);
+    const fx = new SnapshotEffects(
+      () => e,
+      () => null,
+    );
     useNetStore
       .getState()
       .pushEventBatch([
@@ -1573,7 +1687,10 @@ describe("行军单写者:per-id 会话与顶替/段队列(#609,ADR-0029 不变�
   it("重连边界清会话:dropStalledBatch/resetEventFace 作废全部在途行军接管", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const fx = new SnapshotEffects(() => e);
+    const fx = new SnapshotEffects(
+      () => e,
+      () => null,
+    );
     anchor([
       moved("pX", marchFrames({ x: 0, y: 0 }, { x: 1, y: 0 })),
       moved("pY", marchFrames({ x: 0, y: 2 }, { x: 1, y: 2 })),

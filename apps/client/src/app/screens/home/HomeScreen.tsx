@@ -1,4 +1,4 @@
-// 组件收口:模式、地图、手册与诊断入口沿用 Base UI Button。
+// 组件收口:模式、地图、手册、试听与诊断入口沿用 Base UI Button。
 import { Button } from "@base-ui/react/button";
 import { useEffect, useState } from "react";
 import type { MapSource } from "@dafung/core/engine/map-source";
@@ -11,6 +11,7 @@ import { TID } from "@app/screens/setup/testids";
 import { useMapName } from "@app/screens/setup/useMapName";
 import { GameDiagnosticDialog } from "@app/screens/shared/GameDiagnosticDialog";
 import { Sym } from "@app/screens/shared/Sym";
+import { SoundMenu } from "@app/screens/sound/SoundBoard";
 import { HOME_TID } from "./testids";
 import { MapStrip } from "./MapStrip";
 import { VERSION } from "../../../version";
@@ -37,6 +38,7 @@ export function HomeScreen({
   const [showMapSelect, setShowMapSelect] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [soundOpen, setSoundOpen] = useState(false);
   const isShortLandscape = useIsShortLandscape();
   const mapName = useMapName(mapSource, selectedMapId);
 
@@ -111,17 +113,29 @@ export function HomeScreen({
             </Button>
           )}
 
-          <Button
-            data-testid={HOME_TID.diagExport}
-            onClick={() => setDiagOpen(true)}
-            className="home-diagnostic"
-          >
-            对局诊断
-          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              data-testid={HOME_TID.soundAudition}
+              aria-haspopup="dialog"
+              onClick={() => setSoundOpen(true)}
+              className="home-tool"
+            >
+              <Sym name="sound" />
+              音效试听
+            </Button>
+            <Button
+              data-testid={HOME_TID.diagExport}
+              onClick={() => setDiagOpen(true)}
+              className="home-tool"
+            >
+              对局诊断
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className="home-version">v{VERSION}</div>
+      {soundOpen && <SoundMenu onClose={() => setSoundOpen(false)} />}
       {diagOpen && <GameDiagnosticDialog onClose={() => setDiagOpen(false)} />}
       {!isShortLandscape && showMapSelect && (
         <MapSelectPanel

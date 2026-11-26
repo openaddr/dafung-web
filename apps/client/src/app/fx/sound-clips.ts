@@ -4,56 +4,84 @@ export type SoundClip =
       kind: "recording";
       file: string;
       volume?: number;
-      trim?: { stopAt: number; releaseMs: number };
+      trim?: { startAt?: number; stopAt: number; releaseMs: number };
     }
-  | { kind: "synth"; file: string };
-
-const WOODBLOCK = {
-  kind: "recording",
-  file: "woodblock-hit.ogg",
-  trim: { stopAt: 0.65, releaseMs: 200 },
-} as const;
+  | { kind: "synth" | "mix"; file: string };
 
 const clips = {
-  diceLand: WOODBLOCK,
-  marchStart: { kind: "synth", file: "march-start.ogg" },
-  coin: { kind: "recording", file: "coin-drop.ogg" },
-  pay: { kind: "synth", file: "pay.ogg" },
-  stamp: { kind: "recording", file: "stamp-seal.ogg" },
-  buy: {
+  diceLand: {
     kind: "recording",
-    file: "coins-shake.ogg",
-    trim: { stopAt: 1.6, releaseMs: 300 },
+    file: "woodblock-hit.ogg",
+    trim: { startAt: 0.008, stopAt: 0.13, releaseMs: 32 },
   },
-  upgrade: WOODBLOCK,
-  treasure: { kind: "recording", file: "guqin-note.ogg" },
-  bankrupt: { kind: "recording", file: "gong-long.ogg" },
-  victory: { kind: "recording", file: "victory-fanfare.ogg" },
-  victoryDrum: { kind: "recording", file: "drum-roll.ogg" },
+  marchStart: { kind: "synth", file: "march-start.ogg" },
+  haltLatch: { kind: "synth", file: "halt-latch.ogg" },
+  staminaHit: { kind: "synth", file: "stamina-hit.ogg" },
+  staminaRecover: { kind: "synth", file: "stamina-recover.ogg" },
+  exhaustionDrum: { kind: "synth", file: "exhaustion-drum.ogg" },
+  coin: {
+    kind: "recording",
+    file: "coin-drop.ogg",
+    volume: 0.5,
+    trim: { startAt: 0.552, stopAt: 0.734, releaseMs: 40 },
+  },
+  pay: { kind: "synth", file: "pay.ogg" },
+  stamp: {
+    kind: "recording",
+    file: "stamp-seal.ogg",
+    trim: { startAt: 0.284, stopAt: 0.57, releaseMs: 100 },
+  },
+  buy: { kind: "mix", file: "property-purchase.ogg" },
+  cashTransfer: { kind: "mix", file: "cash-transfer.ogg" },
+  upgrade: { kind: "synth", file: "property-upgrade.ogg" },
+  cityHit: { kind: "synth", file: "city-hit.ogg" },
+  cityBreach: { kind: "synth", file: "city-breach.ogg" },
+  cityConquest: { kind: "synth", file: "city-conquest.ogg" },
+  treasure: { kind: "mix", file: "treasure-pluck.ogg" },
+  treasureStolen: { kind: "mix", file: "treasure-muted-pluck.ogg" },
+  bookSetDown: { kind: "mix", file: "book-set-down.ogg" },
+  heroRecruited: { kind: "mix", file: "hero-recruited.ogg" },
+  skillLearned: { kind: "mix", file: "skill-learned.ogg" },
+  ledgerClose: { kind: "mix", file: "ledger-close.ogg" },
+  bankrupt: {
+    kind: "recording",
+    file: "gong-long.ogg",
+    trim: { stopAt: 2.35, releaseMs: 620 },
+  },
+  gameStart: { kind: "synth", file: "game-start.ogg" },
+  victoryDrum: { kind: "synth", file: "victory-drum.ogg" },
+  victory: { kind: "mix", file: "victory-theme.ogg" },
   scrollOpen: {
     kind: "recording",
     file: "scroll-unroll.ogg",
-    trim: { stopAt: 1.8, releaseMs: 300 },
+    volume: 0.6,
+    trim: { startAt: 1.584, stopAt: 1.88, releaseMs: 120 },
   },
-  jinnangDraw: WOODBLOCK,
+  jinnangDraw: { kind: "mix", file: "jinnang-draw.ogg" },
   jinnangSelect: { kind: "synth", file: "jinnang-select.ogg" },
-  coinsBox: { kind: "recording", file: "audio-coins-box.ogg" },
+  jinnangAnnounce: { kind: "mix", file: "jinnang-announce.ogg" },
+  jinnangCountered: { kind: "synth", file: "jinnang-countered.ogg" },
+  jinnangRestored: { kind: "synth", file: "jinnang-restored.ogg" },
+  jinnangPeek: { kind: "mix", file: "jinnang-peek.ogg" },
+  lobbyJoined: { kind: "synth", file: "lobby-joined.ogg" },
+  reconnectFailure: { kind: "synth", file: "reconnect-failure.ogg" },
+  coinsBox: {
+    kind: "recording",
+    file: "audio-coins-box.ogg",
+    volume: 0.26,
+    trim: { startAt: 0.695, stopAt: 0.88, releaseMs: 65 },
+  },
   rain: {
     kind: "recording",
     file: "audio-rain.ogg",
-    volume: 0.15,
-    trim: { stopAt: 3, releaseMs: 600 },
+    volume: 0.08,
+    trim: { stopAt: 2.38, releaseMs: 680 },
   },
-  haltGong: { kind: "recording", file: "audio-halt-horn.ogg" },
   duelClash: { kind: "recording", file: "audio-duel-clash.ogg" },
-  verdictChime: {
-    kind: "recording",
-    file: "audio-verdict-chime.ogg",
-    trim: { stopAt: 1.6, releaseMs: 400 },
-  },
+  verdictChime: { kind: "synth", file: "verdict-chime.ogg" },
   verdictChimeWin: { kind: "synth", file: "verdict-chime-win.ogg" },
   verdictChimeLose: { kind: "synth", file: "verdict-chime-lose.ogg" },
-  reactionOpen: WOODBLOCK,
+  reactionOpen: { kind: "synth", file: "reaction-open.ogg" },
   reactionTick: { kind: "synth", file: "reaction-tick.ogg" },
 } satisfies Record<string, SoundClip>;
 
@@ -61,6 +89,6 @@ export type SoundEvent = keyof typeof clips;
 export const SOUND_CLIPS: Readonly<Record<SoundEvent, SoundClip>> = clips;
 
 export function soundClipUrl(clip: SoundClip): string {
-  const directory = clip.kind === "synth" || clip.trim ? "playback/" : "";
+  const directory = clip.kind !== "recording" || clip.trim ? "playback/" : "";
   return `/assets/audio/${directory}${clip.file}`;
 }

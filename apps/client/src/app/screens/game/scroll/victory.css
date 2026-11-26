@@ -142,14 +142,11 @@
   animation-delay: 0.6s;
 }
 
-/* ── R3-C8(#95) 称帝朱砂印:450ms stamp 锣声的画面锚点。
-   0.45s 与 .victory-step-* 的阶梯字面量同理是刻意节拍(与组件里锣声定时同帧),保留字面量;
-   时长缓动引 tokens(#88 落地同款):--dur-fast 快落 + --ease-out-back 过冲回弹,
-   scale(1.8→1) 借 back 过冲得"砸下"手感,再带一次自上而下 4px 落下位移。── */
+/* 称帝朱印到位时接落印声和短角句。 */
 @keyframes victory-stamp-in {
   0% {
     opacity: 0;
-    transform: scale(1.8) translateY(-4px);
+    transform: var(--victory-stamp-start, scale(1.8) translateY(-4px));
   }
   100% {
     opacity: 1;
@@ -488,9 +485,12 @@ p.victory-capital {
   .victory-anim-overlay,
   .victory-anim-title,
   .victory-step,
-  .victory-stamp-seal,
   .victory-step-btn {
     animation: none;
+  }
+  .victory-stamp-seal {
+    --victory-stamp-start: none;
+    animation-timing-function: step-end;
   }
   .victory-anim-title {
     text-shadow: none;

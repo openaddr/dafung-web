@@ -5,6 +5,7 @@ import { formatMoney } from "@dafung/core/engine/money";
 import { getMapSource } from "@app/map-sources";
 import { useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
+import { getAudio } from "@app/fx/audio";
 import { UI } from "@app/fx/timings";
 import type { OnlineController } from "@app/controllers/online";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
@@ -47,6 +48,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const mapId = useNetStore((s) => s.mapId);
   const seats = useNetStore((s) => s.seats);
   const dismissed = useNetStore((s) => s.dismissed);
+  const ready = useNetStore((s) => s.connection === "open");
   const hint = useNetStore((s) => s.hint);
   const hintLevel = useNetStore((s) => s.hintLevel);
   const pushHint = useNetStore((s) => s.pushHint);
@@ -57,6 +59,12 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   );
   const [busy, setBusy] = useState(false);
   const [showMapSelect, setShowMapSelect] = useState(false);
+  const announcedRoom = useRef<string | null>(null);
+  useEffect(() => {
+    if (!roomId || !ready || dismissed || announcedRoom.current === roomId) return;
+    announcedRoom.current = roomId;
+    getAudio().play("lobbyJoined");
+  }, [roomId, ready, dismissed]);
   // W2:房间码「已复制」小态(1s 自清;不用 pushHint——那是错误/流程通道,复制是即时确认)
   const [copied, setCopied] = useState(false);
   // S-5:内置图源每渲染 new 会致 MapSelectPanel 重复拉取;useMemo 缓存(组件生命周期内不变)

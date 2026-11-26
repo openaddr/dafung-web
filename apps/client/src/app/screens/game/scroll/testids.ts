@@ -57,6 +57,7 @@ export const SCROLL_TESTIDS = {
   victoryScreen: "victory-screen",
   victoryTitle: "victory-title",
   victorySub: "victory-sub",
+  victorySeal: "victory-seal",
   victoryInfo: "victory-info",
   /** E4(#16):终榜一行(身价降序 + 破产标注)。 */
   victoryStandings: "victory-standings",

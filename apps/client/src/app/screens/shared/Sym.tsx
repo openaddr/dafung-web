@@ -10,8 +10,8 @@ import type { ReactNode } from "react";
 type SymName =
   | "back"
   | "sound"
-  | "muted"
   | "play"
+  | "stop"
   | "close"
   | "minus"
   | "expand"
@@ -21,8 +21,7 @@ type SymName =
 const PATHS: Record<SymName, ReactNode> = {
   // 返回 ←:所有「返回/回退」按钮统一用此,勿混近义形
   back: <path d="M11 4 L5 8 L11 12 M5 8 H15" fill="none" />,
-  // 静音(开音)♪:符尾+音头+笔杆。现役唯一消费=音效试听台 SoundBoard(dev 工具);
-  // 对局内静音入口=设置弹层「音效」开关(Base UI Switch,无符号,#700 旧顶栏退役)
+  // 音符 ♪:首页音效试听入口。
   sound: (
     <>
       <path d="M8 12.5 V3.5 L15 2 V11" fill="none" />
@@ -30,17 +29,9 @@ const PATHS: Record<SymName, ReactNode> = {
       <ellipse cx="13" cy="11.1" rx="2.2" ry="1.7" />
     </>
   ),
-  // 已静音 ♪̶:♪ + 组合删除线;消费同 ♪(仅 SoundBoard)
-  muted: (
-    <>
-      <path d="M8 12.5 V3.5 L15 2 V11" fill="none" />
-      <ellipse cx="6" cy="12.6" rx="2.2" ry="1.7" />
-      <ellipse cx="13" cy="11.1" rx="2.2" ry="1.7" />
-      <path d="M3 14 L18 1" fill="none" />
-    </>
-  ),
-  // 播放 ▶:SoundBoard 试听钮(editor 专属用途已随 #947 退役,试听台复用此符)
+  // 音效试听的播放和停止。
   play: <path d="M6 2.5 L17 8 L6 13.5 Z" />,
+  stop: <rect x="6.5" y="3.5" width="9" height="9" rx="1" />,
   // 关闭 ×:凡可放弃的卷轴均显示——详情类(TileDetailScroll)与可关只读面板(珍宝
   // 交涉访客视角/战报抽屉)必须保留;必须决策的卷轴(购地/扩军/招贤/破产/交涉城主)
   // 不渲染(不传 onClose,hideClose 仅为此保留)

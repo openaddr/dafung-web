@@ -1,5 +1,7 @@
 // 关键接线:真实组件与控制器验证命令/状态或私密信息通路,不验证几何和演出。
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { AudioProvider } from "@app/fx/AudioProvider";
+import { SOUND_CLIPS, soundClipUrl } from "@app/fx/sound-clips";
 import * as tauriApp from "@tauri-apps/api/app";
 import * as tauriCore from "@tauri-apps/api/core";
 // bun 测试进程无 Vite define:GameScreen 全图经 SettingsDialog 触达 version.ts,其
@@ -92,12 +94,12 @@ let root: Root | null = null;
 let clock: ReturnType<typeof installControlledClock> | null = null;
 
 /** act() 内挂 GameScreen;卸载统一走 afterEach。 */
-function mount(): HTMLElement {
+function mount(content = <GameScreen />): HTMLElement {
   container = document.createElement("div");
   document.body.appendChild(container);
   act(() => {
     root = createRoot(container!);
-    root.render(<GameScreen />);
+    root.render(content);
   });
   return container;
 }
@@ -108,6 +110,7 @@ function mount(): HTMLElement {
 function startGame(
   plant: (e: GameEngine) => void,
   deferCommands = false,
+  content?: React.ReactElement,
 ): {
   el: HTMLElement;
   engine: GameEngine;
@@ -122,7 +125,7 @@ function startGame(
   act(() => {
     c.resync();
   });
-  const el = mount();
+  const el = mount(content);
   return {
     el,
     engine: e,
@@ -147,6 +150,126 @@ function click(el: Element): void {
     el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
 }
+
+function recordMediaPlayback() {
+  const sounds: (string | null)[] = [];
+  const play = spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (
+    this: HTMLMediaElement,
+  ) {
+    sounds.push(this.getAttribute("src"));
+    return Promise.resolve();
+  });
+  return { sounds, [Symbol.dispose]: () => play.mockRestore() };
+}
+
+it("选中锦囊响轻纸扣，提交待权威回应时没有出牌声", async () => {
+  using media = recordMediaPlayback();
+  const { el } = startGame(
+    (e) => {
+      giveJinnang(e, 0, ["横征暴敛"]);
+      armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    },
+    true,
+    <AudioProvider>
+      <GameScreen />
+    </AudioProvider>,
+  );
+  media.sounds.length = 0;
+  const card = q(el, TESTIDS.jinnangCard("横征暴敛"))!;
+  click(card);
+  click(card); // 取消选中。
+  click(card);
+  click(q(el, TESTIDS.actionbarPlay)!);
+  const select = soundClipUrl(SOUND_CLIPS.jinnangSelect);
+  expect(media.sounds).toEqual([select, select]);
+  await settle();
+});
+
+it("挂载既有手牌、重开牌架和手牌校准均不补播入手音", async () => {
+  using media = recordMediaPlayback();
+  const { el, writeEngine } = startGame(
+    (e) => {
+      giveJinnang(e, 0, ["连环计"]);
+      armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    },
+    false,
+    <AudioProvider>
+      <GameScreen />
+    </AudioProvider>,
+  );
+  click(q(el, TESTIDS.jinnangToggle)!);
+  click(q(el, TESTIDS.jinnangToggle)!);
+  writeEngine((e) => giveJinnang(e, 0, ["连环计", "连环计"]));
+  await settle();
+  expect(media.sounds).toEqual([]);
+});
+
+it("本座可答时响开窗和一次末段提醒，反识破另起，后台错过的提醒不补播", async () => {
+  clock = installControlledClock({ monotonic: true });
+  const { advance } = clock;
+  const opening = soundClipUrl(SOUND_CLIPS.reactionOpen);
+  const late = soundClipUrl(SOUND_CLIPS.reactionTick);
+  const reminders: { source: string; media: HTMLMediaElement }[] = [];
+  using _play = spyOn(HTMLMediaElement.prototype, "play").mockImplementation(function (
+    this: HTMLMediaElement,
+  ) {
+    const source = this.getAttribute("src");
+    if (source === opening || source === late) reminders.push({ source, media: this });
+    return Promise.resolve();
+  });
+  const { el, writeEngine, snap, completeCommand } = startGame(
+    (e) => {
+      for (let seat = 0; seat < e.players.length; seat++) giveJinnang(e, seat, []);
+      giveJinnang(e, 0, ["识破诡计", "识破诡计"]);
+      giveJinnang(e, 1, ["横征暴敛", "识破诡计"]);
+      armPhase(e, { activeIndex: 1, turnPhase: "AwaitingJinnang" });
+    },
+    true,
+    <AudioProvider>
+      <GameScreen />
+    </AudioProvider>,
+  );
+  reminders.length = 0;
+  const sounded = () => reminders.map(({ source }) => source);
+  const remainingWindow = () => snap().reaction!.windowMs;
+  writeEngine((e) => e.submitCommand({ type: "useJinnang", cardId: "横征暴敛" }));
+  expect(q(el, TESTIDS.reactionDecline)?.hasAttribute("disabled")).toBe(false);
+  expect(sounded()).toEqual([opening]);
+  await advance(remainingWindow() - 3001);
+  expect(sounded()).toEqual([opening]);
+  await advance(1);
+  expect(sounded()).toEqual([opening, late]);
+  await advance(1000);
+  expect(sounded()).toEqual([opening, late]);
+
+  click(q(el, TESTIDS.jinnangCard("识破诡计"))!);
+  click(q(el, TESTIDS.seatTarget(0))!);
+  click(q(el, TESTIDS.reactionConfirm)!);
+  expect(reminders[1].media.hasAttribute("src")).toBe(false);
+  completeCommand();
+  // 原出牌者即时反识破。只有回到本座的后续窗再响一次。
+  expect(snap().reaction?.cardId).toBe("识破诡计");
+  expect(q(el, TESTIDS.reactionDecline)?.hasAttribute("disabled")).toBe(false);
+  expect(sounded()).toEqual([opening, late, opening]);
+  const visibility = Object.getOwnPropertyDescriptor(document, "visibilityState");
+  const setVisibility = (value: DocumentVisibilityState) =>
+    act(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, value });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  try {
+    setVisibility("hidden");
+    expect(reminders[2].media.hasAttribute("src")).toBe(false);
+    await advance(remainingWindow() - 2500);
+    setVisibility("visible");
+    expect(q(el, TESTIDS.reactionDecline)?.hasAttribute("disabled")).toBe(false);
+    await advance(1000);
+    expect(sounded()).toEqual([opening, late, opening]);
+  } finally {
+    if (visibility === undefined) Reflect.deleteProperty(document, "visibilityState");
+    else Object.defineProperty(document, "visibilityState", visibility);
+  }
+});
 
 it("锦囊详情显示功能标签和牌面效果，不提示已取消的出牌限制", async () => {
   const { el } = startGame((engine) => {
@@ -358,7 +481,12 @@ const modalQ = (id: string): Element | null => q(document, id);
 /** 表现消费腿(头注「表现消费腿」节):当前转移批 → 表现事件 → 真编排器 → 真 sink
  *  → fxStore。命令批已由 dispatchCommand 内 sync 落进快照(events=当前转移批)。 */
 async function presentCommandFx(engine: GameEngine): Promise<void> {
-  const presentation = extractBatchEvents(engine, useGameStore.getState().snapshot!.events);
+  const presentation = extractBatchEvents(
+    engine,
+    useGameStore.getState().snapshot!.events,
+    undefined,
+    0,
+  );
   await act(async () => {
     await present(presentation, createEngineSink());
   });
@@ -424,14 +552,14 @@ beforeAll(async () => {
         return;
       }
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
-      this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
+      this.resync(); // 权威应答开启新窗时，截止时刻随当前窗同步。
     }
     completeCommand(): void {
       if (this.pendingCommand == null) throw new Error("接线测试:没有待回包命令");
       this.e.submitCommand(this.pendingCommand);
       this.pendingCommand = null;
       this.pending = false;
-      this.sync();
+      this.resync();
     }
     // 测试侧重灌口(protected sync 的公开面;直写引擎后调)。
     resync(): void {
@@ -783,16 +911,38 @@ describe("军情密探即时窥探弹层(自 react-jinnang-peek 迁入,#1315 批
   // 令口;弹层由真 peekApplied 事件批经表现消费腿(头注专节)驱动——关闭走内容区点击
   // (「点击任意处关闭」口径,closePeek 同步清 store,零定时器;遮罩/Esc 路归底件,
   // 退场协议已由模板族他例覆盖)。
-  it("主路径:打出→窥探弹层出现→目标牌名可见→关闭后无残留", async () => {
-    const { el, engine } = startGame((e) => {
-      giveJinnang(e, 0, ["军情密探"]); // 己方窥探牌(种植判词:发指定牌无公共通路)
-      giveJinnang(e, 1, ["火烧连营", "求贤令"]); // 被窥者手牌钉两张(弹层内容断言口)
+  it("军情密探只在本座实际打开窥探弹层时响一次，关闭即逝", async () => {
+    using media = recordMediaPlayback();
+    const { el, engine, writeEngine } = startGame(
+      (e) => {
+        giveJinnang(e, 0, ["军情密探"]);
+        giveJinnang(e, 1, ["军情密探", "火烧连营", "求贤令"]);
+        giveJinnang(e, 2, []);
+        giveJinnang(e, 3, []);
+        armPhase(e, { activeIndex: 1, turnPhase: "AwaitingJinnang" });
+      },
+      false,
+      <AudioProvider>
+        <GameScreen />
+      </AudioProvider>,
+    );
+    writeEngine((e) => {
+      e.submitCommand({ type: "useJinnang", cardId: "军情密探" });
+      e.submitCommand({ type: "useJinnang", cardId: "军情密探", targets: [2] });
     });
+    media.sounds.length = 0;
+    await presentCommandFx(engine);
+    await settle();
+    expect(modalQ(TESTIDS.peekModal)).toBeNull();
+    expect(media.sounds).toEqual([soundClipUrl(SOUND_CLIPS.jinnangAnnounce)]);
+
+    writeEngine((e) => armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" }));
     click(q(el, TESTIDS.jinnangCard("军情密探"))!);
     click(q(document, TESTIDS.actionbarPlay)!);
     expect(q(el, TESTIDS.seatTarget(1))).not.toBeNull(); // 目标段就位(席位点击层)
     click(q(el, TESTIDS.seatTarget(1))!);
     click(q(document, TESTIDS.actionbarTarget)!);
+    media.sounds.length = 0;
     await presentCommandFx(engine);
     await settle();
     // 弹层出现:目标牌名可见(PileShell 壳 Portal 在 body,竖笺牌面横排)
@@ -800,6 +950,8 @@ describe("军情密探即时窥探弹层(自 react-jinnang-peek 迁入,#1315 批
     if (modal == null) throw new Error("接线测试:窥探弹层未挂载(peekApplied 表现链断)");
     expect(q(modal, TESTIDS.peekCard("火烧连营"))).not.toBeNull();
     expect(q(modal, TESTIDS.peekCard("求贤令"))).not.toBeNull();
+    const flip = soundClipUrl(SOUND_CLIPS.jinnangPeek);
+    expect(media.sounds).toEqual([flip]);
     // 引擎侧:窥探零账本(持续窗口字段随 #575 删除,快照无此键——负向回归锁,
     // 死代码台账立案面;类型面已无此键,按 Record 探针读)
     const rawSnap = useGameStore.getState().snapshot as unknown as Record<string, unknown>;
@@ -810,6 +962,7 @@ describe("军情密探即时窥探弹层(自 react-jinnang-peek 迁入,#1315 批
     // 无残留:关闭即清,零复现(窥探无任何客户端状态,引擎零账本)
     expect(modalQ(TESTIDS.peekModal)).toBeNull();
     expect(modalQ(TESTIDS.peekCard("火烧连营"))).toBeNull();
+    expect(media.sounds).toEqual([flip]);
   });
 });
 

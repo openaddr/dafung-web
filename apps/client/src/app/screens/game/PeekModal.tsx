@@ -11,20 +11,28 @@
 // ADR-0016)——单机(内存直连)与联机(per-seat 投影)同一事件通路,演出自洽。
 // 样式在 peek-modal.css(经 Portal 渲染在 body,.game-layout 罩不到——peek-* 前缀
 // 防串扰,pile-*/war-* 同先例)。
-import type { CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { jinnangCardOf } from "@dafung/core/engine/jinnang";
 import { JinnangCardBack, JinnangCardFace } from "@app/components/card/JinnangCardFace";
-import { useFxStore } from "@app/fx/fxStore";
+import { getAudio } from "@app/fx/audio";
+import { useFxStore, type PeekFx } from "@app/fx/fxStore";
 import { PileShell } from "./PileModal";
 import { TESTIDS } from "./testids";
 import "./peek-modal.css";
 
-/** 窥探弹层:fxStore.peek 驱动(表现事件 peekRevealed → sink.revealPeek),本组件
- *  只做「viewer 自门 + 壳与内容装配」;关闭一律 closePeek(清 store,零残留)。 */
+// 同一份演出即使重挂，翻页声也只随首次打开。关闭后记录可随演出一起回收。
+const playedPeeks = new WeakSet<PeekFx>();
+
+/** 窥探弹层由 peekRevealed 驱动。阅览权与打开时的翻页声均只给窥方。 */
 export function PeekModal({ selfSeat }: { selfSeat: number }) {
-  const peek = useFxStore((s) => s.peek);
+  const peek = useFxStore((s) => (s.peek?.viewerSeat === selfSeat ? s.peek : null));
   const closePeek = useFxStore((s) => s.closePeek);
-  if (peek == null || peek.viewerSeat !== selfSeat) return null;
+  useEffect(() => {
+    if (peek == null || playedPeeks.has(peek)) return;
+    playedPeeks.add(peek);
+    getAudio().play("jinnangPeek");
+  }, [peek]);
+  if (peek == null) return null;
   const cardName = jinnangCardOf(peek.cardId).id; // 目录回查:未知 id 当场抛错(数据 bug)
   return (
     <PileShell

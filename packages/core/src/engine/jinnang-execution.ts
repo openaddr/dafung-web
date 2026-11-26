@@ -5,6 +5,7 @@
 // 公共方法薄委托(authority.ts);反应窗域(reaction-window.ts)续结算经 g.executeJinnang/
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
 import type { GameEngine } from "./authority";
+import { CITY_DAMAGE_SEVERITY, type CityDamageImpact } from "./city-damage";
 import { settleCityDamageMoments } from "./city-damage-moments";
 import {
   activeSkillOf,
@@ -74,11 +75,14 @@ export interface PendingHeroSkill {
 
 export interface FireWallContinuation {
   kind: "fireWall";
+  castSeq: number;
   userSeat: number;
   cardId: string;
   center: number;
   damage: number;
   remainingCities: { propertyId: string; tileIndex: number }[];
+  /** 已结算的最重城损，随城损时机或得银选择一起保存。 */
+  strongest: { propertyId: string; impact: CityDamageImpact } | "published" | null;
 }
 
 export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
@@ -612,7 +616,7 @@ function fireBlastOnCity(
   const cityName = g.board.at(tileIndex).name;
   const h = findHolding(victim, propId);
   if (h == null) throw new Error(`火攻目标城 ${propId} 不在 ${victim.guohao} 名下(状态机 bug)`); // 零兜底
-  const settlement = applyDirectFireDamage(g, victim, propId, damage, user);
+  const settlement = applyDirectFireDamage(g, victim, propId, damage, user, "fireBlast");
   const { outcome } = settlement;
   const resultTxt =
     outcome.kind === "lost"
@@ -970,13 +974,17 @@ function fireWallStrike(
   const remainingCities = fireWallSplashCities(g, center)
     .filter(({ tileIndex }) => !exempt?.has(tileIndex))
     .map(({ propertyId, tileIndex }) => ({ propertyId, tileIndex }));
+  const castSeq = g.fireWallSeq === undefined ? 1 : g.fireWallSeq + 1;
+  g.fireWallSeq = castSeq;
   settleFireWallCities(g, {
     kind: "fireWall",
+    castSeq,
     userSeat,
     cardId: def.id,
     center,
     damage: def.effect.damage,
     remainingCities,
+    strongest: null,
   });
 }
 
@@ -986,8 +994,9 @@ export function resumeFireWall(g: GameEngine, state: FireWallContinuation): void
 }
 
 function settleFireWallCities(g: GameEngine, state: FireWallContinuation): void {
-  const { userSeat, cardId, center, damage, remainingCities } = state;
+  const { castSeq, userSeat, cardId, center, damage, remainingCities } = state;
   const user = g.players[userSeat];
+  let strongest = state.strongest;
   for (const [i, { propertyId, tileIndex }] of remainingCities.entries()) {
     const name = g.board.at(tileIndex).name;
     const victim = g.findOwner(propertyId);
@@ -1004,8 +1013,20 @@ function settleFireWallCities(g: GameEngine, state: FireWallContinuation): void 
     const ownerSeat = g.players.indexOf(victim);
     const h = findHolding(victim, propertyId);
     if (h == null) throw new Error(`火烧连营目标城 ${propertyId} 不在 ${victim.guohao} 名下`);
-    const settlement = applyDirectFireDamage(g, victim, propertyId, damage, user);
-    const { outcome } = settlement;
+    const settlement = applyDirectFireDamage(g, victim, propertyId, damage, user, "fireWall");
+    const { outcome, impact } = settlement;
+    if (strongest !== "published" && impact !== null) {
+      if (
+        strongest === null ||
+        CITY_DAMAGE_SEVERITY[impact] > CITY_DAMAGE_SEVERITY[strongest.impact]
+      )
+        strongest = { propertyId, impact };
+      // 攻陷已经达到最高档，公布后继续按余城的实时归属结算。
+      if (strongest.impact === "conquest" || i + 1 === remainingCities.length) {
+        emitGameEvent(g, userSeat, { kind: "fireWallImpact", castSeq, ...strongest });
+        strongest = "published";
+      }
+    }
     const holding = outcome.kind === "lost" ? null : h;
     const resultTxt =
       holding === null
@@ -1025,10 +1046,13 @@ function settleFireWallCities(g: GameEngine, state: FireWallContinuation): void 
       settleCityDamageMoments(g, ownerSeat, settlement, {
         ...state,
         remainingCities: remainingCities.slice(i + 1),
+        strongest,
       })
     )
       return;
   }
+  if (strongest !== "published" && strongest !== null)
+    emitGameEvent(g, userSeat, { kind: "fireWallImpact", castSeq, ...strongest });
 }
 
 /** 求贤令：名将已尽则折现，麾下满编时把授技印成书，其余情况骰选一名入麾下。 */

@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // 模块求值读构建期注入的 __APP_VERSION__——按生产同一值源(package.json CalVer)先行
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
+import { setAudio } from "@app/fx/audio";
 import { UI } from "@app/fx/timings";
 import { SHORT_LANDSCAPE_QUERY } from "@app/hooks/use-media-query";
 import { SCROLL_TESTIDS as T } from "@app/screens/game/scroll/testids";
@@ -19,12 +20,14 @@ import { heroById } from "@dafung/core/engine/heroes";
 import { formatMoney } from "@dafung/core/engine/money";
 import { applyPlant, type PlantOp } from "@dafung/core/engine/planter";
 import { guidePriceOf, makeSkillBook } from "@dafung/core/engine/treasures";
+import type { Window as HappyDomWindow } from "happy-dom";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
 import rawGuanzhongData from "../../packages/core/maps/guanzhong.json";
 import { installControlledClock } from "./controlled-clock";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
+import { recordAudio } from "./record-audio";
 (globalThis as Record<string, unknown>).__APP_VERSION__ = pkg.version;
 
 /** 晚绑模块型(late binding,红线见头注第 0 步;type-of-import 类型面静态引用,
@@ -209,6 +212,9 @@ beforeAll(async () => {
   const screenMod = await import("@app/screens/game/GameScreen");
   const registryMod = await import("@app/controllers/registry");
   const ctrlMod = await import("@app/controllers/controller");
+  const { extractBatchEvents } = await import("@app/fx/event-extract");
+  const { createEngineSink } = await import("@app/fx/sinks");
+  const { present } = await import("@app/fx/orchestrator");
   GameScreen = screenMod.GameScreen;
   setController = registryMod.setController;
   // 注册带地图(生产 setController(controller, map) 同款):DecisionScrollLayer/
@@ -239,6 +245,7 @@ beforeAll(async () => {
       const result = this.e.pickCapital(this.e.currentSetupPlayerIndex, tileIndex);
       if (!result.ok) throw new Error(`接线测试:选都被拒(${result.reason})`);
       this.sync();
+      void present(extractBatchEvents(this.e, this.e.snapshot().events), createEngineSink());
     }
     // 测试侧重灌口(protected sync 的公开面;种植后调)。
     resync(): void {
@@ -263,6 +270,7 @@ afterEach(async () => {
   }
   if (container != null) container.remove();
   container = null;
+  setAudio(null);
   setController(null); // registry 换局销毁契约:控制器随例释放,不留活口
   useGameStore.getState().reset();
   useNetStore.getState().reset();
@@ -276,6 +284,52 @@ afterAll(async () => {
   await new Promise((r) => setTimeout(r, 0));
   await releaseHappyDom();
 });
+
+it.each(["no-preference", "reduce"] as const)(
+  "定都卷轴首次展纸，筑章实际钤定只响一次（%s）",
+  async (motion) => {
+    const device = (window as unknown as HappyDomWindow).happyDOM.settings.device;
+    device.prefersReducedMotion = motion;
+    try {
+      const { el, engine, snap, writeEngine } = startGame([], false);
+      writeEngine((authority) => {
+        while (authority.currentSetupPlayerIndex !== 0) {
+          if (!authority.aiSetupStep()) throw new Error("选都未推进到本座");
+        }
+      });
+      const candidate = engine.offeredCapitals[0]!;
+      const city = el.querySelector(TESTIDS.city(candidate))!;
+      const sounds = recordAudio();
+
+      click(city);
+      expect(sounds).toEqual(["scrollOpen"]);
+      click(docQ(TESTIDS.confirmCapitalCancel)!);
+      click(city);
+      expect(sounds).toEqual(["scrollOpen"]);
+      click(docQ(TESTIDS.confirmCapitalOk)!);
+      expect(snap().players[0].capitalIndex).toBe(candidate);
+
+      await settle();
+      const seal = q(el, TESTIDS.fxSeal("筑"));
+      if (!seal) throw new Error("定都后缺少筑章");
+      if (motion === "no-preference") {
+        expect(sounds).not.toContain("stamp");
+        act(() => {
+          for (let i = 0; i < 2; i++) {
+            seal.dispatchEvent(
+              new AnimationEvent("animationend", { animationName: "fx-seal-slam", bubbles: true }),
+            );
+          }
+        });
+      }
+      expect(sounds.filter((sound) => sound === "stamp")).toEqual(["stamp"]);
+    } finally {
+      act(() => {
+        device.prefersReducedMotion = "no-preference";
+      });
+    }
+  },
+);
 
 describe("城池待决策卷轴", () => {
   it.each([
@@ -412,6 +466,7 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(window.innerWidth).toBeGreaterThan(window.innerHeight);
     expect(window.matchMedia(SHORT_LANDSCAPE_QUERY).matches).toBe(false);
     const handles = startGame();
+    const sounds = recordAudio();
     const propertyId = plantTrade(handles);
     const { engine, snap } = handles;
     const cityName = engine.board.tiles.find((tile) => tile.propertyId === propertyId)!.name;
@@ -420,6 +475,7 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(docQ(T.treasureModeFair)!.textContent).toBe("公道买卖");
     expect(docQ(T.treasureModePremium)!.textContent).toBe("坐地起价");
     click(docQ(T.treasureModeFair)!);
+    expect(sounds).toEqual(["scrollOpen"]);
     const pick = () => docQ(T.treasurePick);
     expect(pick()).not.toBeNull();
     expect(pick()!.textContent).toContain(`成交后${cityOutcome}`);
@@ -436,6 +492,8 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(confirm().hasAttribute("disabled")).toBe(true); // 未预选不可成交
     // 点选=金描边上浮:aria-pressed 翻真 + 价签转「成交 · 至 N 两」
     click(item());
+    click(item());
+    expect(sounds).toEqual(["scrollOpen", "jinnangSelect"]);
     expect(item().getAttribute("aria-pressed")).toBe("true");
     expect(item().textContent).toContain(`成交 · 至 ${formatMoney(guidePriceOf(3))}`);
     expect(actionArea().querySelector('[aria-live="polite"]')!.textContent).toBe(
@@ -495,13 +553,15 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
 
 describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
   it("点空白让出棋盘，查城后恢复清算预选且全程无命令", async () => {
-    const { el, engine, snap } = startGame([
+    const { el, engine, snap, plant } = startGame([
       { kind: "armPhase", activeIndex: 0 },
       { kind: "setCash", seat: 0, cash: 0 },
       { kind: "giveTreasure", seat: 0, treasures: [makeSkillBook("jixing")] },
-      { kind: "armDebt", amount: 1000, creditor: null },
     ]);
+    const sounds = recordAudio();
+    plant({ kind: "armDebt", amount: 1000, creditor: null });
     await settle();
+    expect(sounds).toEqual(["scrollOpen"]);
 
     const commands = engine.log.filter((line) => line.category === "cmd").length;
     const asset = () => docQ(T.bankruptcyAsset("treasure", "skillbook-jixing"))!;
@@ -511,6 +571,7 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     viewport!.scrollTop = 32;
     expect(docQ(TESTIDS.modalBackdrop)).not.toBeNull();
     click(asset());
+    expect(sounds).toEqual(["scrollOpen", "jinnangSelect"]);
     click(docQ(TESTIDS.modalBackdrop)!);
     await settle();
     expect(docQ(T.bankruptcyScroll)?.closest("[hidden]") != null).toBe(true);
@@ -528,8 +589,10 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(docQ(T.bankruptcyScroll)?.closest("[hidden]") == null).toBe(true);
     expect(assetViewport()?.scrollTop).toBe(32);
     expect(asset().getAttribute("aria-pressed")).toBe("true");
+    click(asset());
     expect(snap().pendingDebt?.amount).toBe(1000);
     expect(engine.log.filter((line) => line.category === "cmd")).toHaveLength(commands);
+    expect(sounds).toEqual(["scrollOpen", "jinnangSelect"]);
   });
 
   it("从认破产确认框最小化整栈，恢复确认；新债务换掉已失效的抉择", async () => {

@@ -6,13 +6,15 @@
 // 他图房则是目录查无当场炸。本文件钉死时序门:水合前(enteredGame=false)的下行批
 // 不折叠、不即刻播演出——批照常暂存,同 flush 的校准快照承载状态,表现消费游标随
 // 快照帧推进(直译基于水合后引擎,座位/坐标可用)。全程注入消息,零网络零浏览器。
-import { describe, it, expect } from "bun:test";
+import { afterEach, beforeEach, describe, it, expect } from "bun:test";
 import { GameEngine } from "@dafung/core/engine/authority";
 import { createDice } from "@dafung/core/engine/dice";
 import { loadMap, type LoadedMap, type MapData } from "@dafung/core/engine/board-loader";
 import type { GameSnapshot } from "@dafung/core/engine/snapshot";
 import type { GameEvent } from "@dafung/core/engine/game-events";
 import { OnlineController } from "@app/controllers/online";
+import { setEngine, useGameStore } from "@app/store/gameStore";
+import { useNetStore } from "@app/store/netStore";
 import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
 
 const GUANZHONG: { map: LoadedMap; data: MapData } = {
@@ -78,8 +80,21 @@ function guanzhongRoomSnapshot(): { msg: Record<string, unknown>; botCapitalInde
 }
 
 describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
+  let controller: OnlineController;
+
+  beforeEach(() => {
+    controller = new OnlineController(GUANZHONG.map, "guanzhong");
+  });
+
+  afterEach(() => {
+    controller.destroy();
+    setEngine(null);
+    useGameStore.getState().reset();
+    useNetStore.getState().reset();
+  });
+
   it("水合前的 events 批不折叠进占位壳:状态由随后的校准快照承载,全程无抛", () => {
-    const c = new OnlineController(GUANZHONG.map, "guanzhong"); // 占位壳:2 座(缺省),同图隔离座位变量
+    const c = controller; // 占位壳:2 座(缺省),同图隔离座位变量
     const x = c as unknown as TestAccess;
     expect(x.enteredGame).toBe(false);
 
@@ -100,7 +115,7 @@ describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
   });
 
   it("水合后的 events 批照常折叠(门只开在水合前)", () => {
-    const c = new OnlineController(GUANZHONG.map, "guanzhong");
+    const c = controller;
     const x = c as unknown as TestAccess;
     x.onMessage(guanzhongRoomSnapshot().msg); // 先水合(3 座)
     expect(x.enteredGame).toBe(true);
