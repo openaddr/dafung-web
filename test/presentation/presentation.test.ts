@@ -8,6 +8,7 @@ import { withGlobal } from "@sinonjs/fake-timers";
 import { FX } from "../../apps/client/src/app/fx/timings";
 import { GameEngine } from "@dafung/core/engine/authority";
 import type { EngineConfig, SeatConfig } from "@dafung/core/engine/authority";
+import { TOKEN_SLOT_OFFSETS } from "@dafung/core/engine/constants";
 import { createDice } from "@dafung/core/engine/dice";
 import { beginGameEventBatch, type GameEvent } from "@dafung/core/engine/game-events";
 import guanzhongData from "../../packages/core/maps/guanzhong.json";
@@ -88,7 +89,7 @@ function kinds(events: PresentationEvent[]): string[] {
 }
 
 beforeEach(() => {
-  resetFxOrchestration(); // 跨批游标(锦囊宣布)与表现 store 归零
+  resetFxOrchestration();
 });
 
 // ─────────────── 事件批直译:引擎真实转移批 ───────────────
@@ -1127,11 +1128,13 @@ describe("出牌指示线(#281/P2-E,事件批直译)", () => {
     const others = e.players.filter((p) => p !== e.players[0]);
     expect(play.lines.length).toBe(others.length);
     const from = e.board.positionOf(e.players[0].position);
+    const to = e.board.positionOf(others[0].position);
+    const slot = TOKEN_SLOT_OFFSETS[0];
     expect(play.lines[0]).toEqual({
-      x1: from.x,
-      y1: from.y,
-      x2: e.board.positionOf(others[0].position).x,
-      y2: e.board.positionOf(others[0].position).y,
+      x1: from.x + slot.x,
+      y1: from.y + slot.y,
+      x2: to.x + slot.x,
+      y2: to.y + slot.y,
     });
     const lineIdx = events.indexOf(play);
     const textIdx = events.findIndex((ev) => ev.kind === "textFloat");
@@ -1156,39 +1159,34 @@ describe("出牌指示线(#281/P2-E,事件批直译)", () => {
     expect(events.some((ev) => ev.kind === "jinnangPlayed")).toBe(false);
   });
 
-  it("识破(AOE 拆份):jinnangVoided(shareSeat) 直译线=应答者→被保份,字报免于", () => {
+  it("识破按份保护指向诸侯棋子，判词报免于", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const events = synth(e, [
-      { kind: "jinnangVoided", seat: 1, round: 1, turn: 1, cardId: "横征暴敛", shareSeat: 0 },
+      {
+        kind: "jinnangVoided",
+        seat: 1,
+        round: 1,
+        turn: 1,
+        cardId: "横征暴敛",
+        result: { kind: "share", target: { kind: "seat", id: 0 } },
+      },
     ]);
     const play = events.find((ev) => ev.kind === "jinnangPlayed");
     expect(play).toBeDefined();
     if (play?.kind === "jinnangPlayed") {
       const from = e.board.positionOf(e.players[1].position);
       const to = e.board.positionOf(e.players[0].position);
-      expect(play.lines[0]).toEqual({ x1: from.x, y1: from.y, x2: to.x, y2: to.y });
+      const slot = TOKEN_SLOT_OFFSETS[0];
+      expect(play.lines[0]).toEqual({
+        x1: from.x + slot.x,
+        y1: from.y + slot.y,
+        x2: to.x + slot.x,
+        y2: to.y + slot.y,
+      });
     }
     const text = events.find((ev) => ev.kind === "textFloat");
     if (text?.kind === "textFloat") expect(text.text).toContain("免于【横征暴敛】");
-  });
-
-  it("识破(连环计全计作废):跨批宣布游标衔接——线指回被拆计使用者", () => {
-    const e = makeEngine(7);
-    finishSetup(e);
-    // 批 1:使用者(座 0)宣布连环计(指向座 1)
-    synth(e, [
-      { kind: "jinnangAnnounced", seat: 0, round: 1, turn: 1, cardId: "连环计", targetSeats: [1] },
-    ]);
-    // 批 2:座 1 应答识破 → jinnangVoided(无 shareSeat)
-    const out = synth(e, [{ kind: "jinnangVoided", seat: 1, round: 1, turn: 1, cardId: "连环计" }]);
-    const play = out.find((ev) => ev.kind === "jinnangPlayed");
-    expect(play).toBeDefined();
-    if (play?.kind === "jinnangPlayed") {
-      const from = e.board.positionOf(e.players[1].position);
-      const to = e.board.positionOf(e.players[0].position);
-      expect(play.lines[0]).toEqual({ x1: from.x, y1: from.y, x2: to.x, y2: to.y });
-    }
   });
 
   it("present 播放:jinnangPlayed 每段线一次 spawnJinnangLine(memorySink 逐段录制)", async () => {
@@ -1202,33 +1200,6 @@ describe("出牌指示线(#281/P2-E,事件批直译)", () => {
   });
 });
 
-// ─────────────── 跨批宣布游标生命周期(#430 票项 3)───────────────
-describe("跨批宣布游标生命周期(#430 票项 3)", () => {
-  it("同引擎跨批衔接:宣布批与识破批分离时,识破线仍指回被拆计使用者", () => {
-    const e = makeEngine(7);
-    finishSetup(e);
-    synth(e, [
-      { kind: "jinnangAnnounced", seat: 0, round: 1, turn: 1, cardId: "连环计", targetSeats: [1] },
-    ]);
-    const out = synth(e, [{ kind: "jinnangVoided", seat: 1, round: 1, turn: 2, cardId: "连环计" }]);
-    expect(out.some((ev) => ev.kind === "jinnangPlayed")).toBe(true); // 游标跨批存活
-  });
-
-  it("换引擎即新游标:旧局宣布不泄入新局(手工 reset 配对退役后,reset 忘调类 bug 结构性消失)", () => {
-    const ea = makeEngine(7);
-    finishSetup(ea);
-    synth(ea, [
-      { kind: "jinnangAnnounced", seat: 0, round: 1, turn: 1, cardId: "连环计", targetSeats: [1] },
-    ]);
-    const eb = makeEngine(9); // 新一局 = 新引擎实例,游标必须全新
-    finishSetup(eb);
-    const out = synth(eb, [
-      { kind: "jinnangVoided", seat: 1, round: 1, turn: 1, cardId: "连环计" },
-    ]);
-    expect(out.some((ev) => ev.kind === "jinnangPlayed")).toBe(false); // 旧局游标不得越局
-  });
-});
-
 // ─────────────── 播放器 present + memorySink(顺序=事件数组顺序)───────────────
 describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
   it("串行播放:骰子 → 行军 → 浮字 → 回合宣告,顺序与事件数组一致", async () => {
@@ -1236,19 +1207,7 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     await present(
       [
         { kind: "diceRolled", die: 5 },
-        {
-          kind: "tokenMoved",
-          playerId: "p1",
-          keyframes: [
-            {
-              points: [
-                { x: 0, y: 0 },
-                { x: 7, y: 8 },
-              ],
-              flow: [{ x: 0, y: 0 }],
-            },
-          ],
-        },
+        moved("p1", marchFrames({ x: 0, y: 0 }, { x: 7, y: 8 })),
         { kind: "cashDelta", playerId: "p1", amount: -120, x: 10, y: 20, atTile: 1 },
         { kind: "turnBanner", guohao: "蜀", colorIndex: 1, round: 1 },
       ],
@@ -1434,31 +1393,25 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
 
   // ── overlay 互斥与横幅错位(#849 棒2):同步件(jline/floater/cashFly)的下发时序 ──
   it("overlay 互斥(#849 棒2):拦检线与拼点签面同批时,线延后到签面收场补发", async () => {
-    const sink = createMemorySink();
-    // 拦检真形:reactionAnswered 线(jinnangPlayed)与 duelResolved(duelSigns)同批,
-    // 线原制即发即忘被 z-45 签面幕整个盖住——补发拍=签面收场后。
-    await present(
-      [
-        {
-          kind: "jinnangPlayed",
-          playerId: "p0",
-          cardId: "半路杀出",
-          lines: [{ x1: 1, y1: 2, x2: 3, y2: 4 }],
-        },
-        {
-          kind: "duelSigns",
-          sides: [
-            { seat: 0, playerId: "p0", guohao: "魏", colorIndex: 0, roll: 6 },
-            { seat: 1, playerId: "p1", guohao: "蜀", colorIndex: 1, roll: 1 },
-          ],
-          winnerSeat: 0,
-        },
-      ],
-      sink,
+    const e = makeEngine(7, undefined, 999999);
+    armPhase(e, { phase: "Playing", activeIndex: 0, turnPhase: "Roll" });
+    placePlayer(e, 0, 14);
+    placePlayer(e, 1, 15);
+    grantProperty(e, 1, "prop-xianyang", 2);
+    giveJinnang(e, 1, ["半路杀出"]);
+    pinDice(e, "march", [2]);
+    pinDice(e, "duel", [6, 1]);
+    e.submitCommand({ type: "rollAndMove" });
+    const events = stepEvents(e, () =>
+      e.submitCommand({ type: "respondReaction", seat: 1, use: true, cardId: "半路杀出" }),
     );
-    const ops = sink.calls.map((c) => c.op);
-    expect(ops).toContain("jinnangLine");
-    expect(ops.indexOf("jinnangLine")).toBeGreaterThan(ops.indexOf("duelSigns"));
+
+    const sink = createMemorySink();
+    await present(events, sink);
+    const ops = sink.calls.map((call) => call.op);
+    expect(
+      ops.filter((op) => op === "duelSigns" || op === "jinnangLine" || op === "march"),
+    ).toEqual(["duelSigns", "jinnangLine", "march"]);
   });
 
   it("浮字和独立失银声同在签面收场后补发", async () => {
@@ -1532,8 +1485,8 @@ describe("终局封场 finishPresentation(present 事件边界收队)", () => {
     };
     const events: PresentationEvent[] = [
       { kind: "diceRolled", die: 3 },
-      { kind: "tokenMoved", playerId: "p1", keyframes: kfOf(2) },
-      { kind: "tokenMoved", playerId: "p2", keyframes: kfOf(5) },
+      moved("p1", kfOf(2)),
+      moved("p2", kfOf(5)),
       { kind: "turnBanner", guohao: "蜀", colorIndex: 1, round: 1 },
     ];
     const done = present(events, sinkGate);
@@ -1553,7 +1506,7 @@ describe("终局封场 finishPresentation(present 事件边界收队)", () => {
     finishPresentation();
     await present(
       [
-        { kind: "tokenMoved", playerId: "p9", keyframes: kfOf(3) },
+        moved("p9", kfOf(3)),
         { kind: "cashDelta", playerId: "p9", amount: 5, x: 0, y: 0, atTile: 3 },
       ],
       sink,
@@ -1636,6 +1589,7 @@ function marchFrames(...pts: Array<{ x: number; y: number }>): MarchSegmentFrame
 const moved = (playerId: string, keyframes: MarchSegmentFrames[]): PresentationEvent => ({
   kind: "tokenMoved",
   playerId,
+  start: { tileIndex: 0, position: keyframes[0].points[0] },
   keyframes,
 });
 

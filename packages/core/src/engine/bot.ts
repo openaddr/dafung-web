@@ -2,7 +2,12 @@
 // 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
 import type { GameEngine, TurnPhase } from "./authority";
 import type { Player } from "./model";
-import type { PendingReaction } from "./reaction-window";
+import {
+  reactionTargetSeat,
+  type JinnangReactionView,
+  type ReactionAnswer,
+  type ReactionTarget,
+} from "./reaction-window";
 import { jinnangCardOf } from "./jinnang";
 import {
   activeSkillOf,
@@ -137,13 +142,8 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
   }
 }
 
-/** 反应窗决策出口(#281):use=true 携牌 id;识破根窗 AOE 另携被保护份座位(自保=自己);
- *  反识破链环不带份(争夺份随窗,#571)。 */
-interface ReactionDecision {
-  use: boolean;
-  cardId?: string;
-  shareSeat?: number;
-}
+/** 反应窗决策按公告要求携带被护城格或座位。 */
+type ReactionDecision = Omit<ReactionAnswer, "seat">;
 
 /** 识破估损常数与推导(#281 bot 口径,#299 对表去写死):只影响 bot 出牌倾向,不影响引擎语义。
  *  counterCardValue=一张防御牌留到手的价值底价(估损不抵底价就不拆;无真实数值表可读,
@@ -220,88 +220,39 @@ function counterLossEstimate(
   }
 }
 
-/** 识破估损视点(#281/#571):估损座位+根牌+应答份+城指向域的被护城格(估损入口)。 */
+/** 根计的估损视点与公告中的对象。 */
 interface CounterHarm {
   estimateSeat: number;
   rootCardId: string;
-  shareSeat?: number;
-  /** 城指向域(#1389):被保护的受击城 tileIndex(估损=该城的火烧损失)。 */
-  shareTile?: number;
+  target?: ReactionTarget;
 }
 
-/** 城指向域读取受击城份的城主与城 id(#1389):份恒为有主城,失配=状态机 bug(零兜底)。 */
-function cityShareOf(engine: GameEngine, tileIndex: number): { ownerSeat: number; propId: string } {
-  const propId = engine.board.at(tileIndex).propertyId;
-  if (propId == null) throw new Error(`bot 识破判据:城份格 ${tileIndex} 无城(状态机 bug)`); // 零兜底
-  const owner = engine.findOwner(propId);
-  if (owner == null) throw new Error(`bot 识破判据:城份 ${propId} 无主(受击城恒有主,状态机 bug)`); // 零兜底
-  return { ownerSeat: engine.players.indexOf(owner), propId };
-}
-
-/** 反应窗「伤我利」判据(#281 自保口径的 #571 泛化):公告的牌站住会伤到 seat 的利益,
- *  返回估损视点(估损座位+根牌+应答份);与己无关返回 null。
- *  - 根窗(payload.jinnang):公告锦囊落我份 → 视点=自己(估损=被击损失);
- *    城指向域(#1389)份=受击城,我名下受击城里挑估损最高的一座护(并列 tileIndex 小,
- *    确定性;bot 只护己城,他城被烧不拆);
- *  - 链环 protects=true(识破站住=根计被拆):我是链根使用者才伤(救计),估损视点=
- *    争夺份(根计在那份上的效果幅度≈我的得利损失;连环计无份按自席取 victim 视点保守值;
- *    城指向域争夺份=城,视点=城主座位、估损=该城火烧损失);
- *  - 链环 protects=false(识破被反=根计恢复受击):恢复的份落我头上才伤(护),视点=自己
- *    (城指向域=恢复的城份城主是我)。 */
-function counterHarmOf(engine: GameEngine, pr: PendingReaction, seat: number): CounterHarm | null {
-  if (pr.payload.kind === "jinnang") {
-    if (pr.view.kind !== "jinnang") return null; // jinnang 载荷必挂 jinnang 窗(状态机不变量)
-    const domain = jinnangCardOf(pr.view.cardId).targetDomain;
-    if (domain === "one-city") {
-      // 城指向域(#1389):view.targetSeats=受击城 tileIndex 清单(座位域的座位判据不适用,
-      // 座位数与城格数可能撞值)——只护我名下的受击城,择估损最高者
-      const mine = pr.view.targetSeats
-        .filter((tile) => cityShareOf(engine, tile).ownerSeat === seat)
-        .map((tile) => ({ tile, loss: cityFireLossEstimate(engine, seat, tile) }))
-        .sort((a, b) => b.loss - a.loss || a.tile - b.tile);
-      if (mine.length === 0) return null;
-      return {
-        estimateSeat: seat,
-        rootCardId: pr.view.cardId,
-        shareSeat: mine[0]!.tile,
-        shareTile: mine[0]!.tile,
-      };
-    }
-    if (!pr.view.targetSeats.includes(seat)) return null;
-    return { estimateSeat: seat, rootCardId: pr.view.cardId, shareSeat: seat };
+/** 只按权威公告估算根计的损益。反识破可救己计，也可护根计恢复后再次受击的己份。 */
+function counterHarmOf(
+  engine: GameEngine,
+  view: JinnangReactionView,
+  seat: number,
+): CounterHarm | null {
+  const { kind, ids } = view.targets;
+  const rootCardId = view.counter === undefined ? view.cardId : view.counter.rootCardId;
+  if (view.counter?.protects) {
+    if (view.counter.rootUserSeat !== seat) return null;
+    // 救己计的估损取争夺对象上的效果，连环计沿用全计估值。
+    if (ids.length !== 1) return { estimateSeat: seat, rootCardId };
+    const target = { kind, id: ids[0] };
+    return { estimateSeat: reactionTargetSeat(engine, target), rootCardId, target };
   }
-  if (pr.payload.kind !== "counter") return null; // march 窗另有分支,到不了这里
-  const { root, shareSeat, protects } = pr.payload;
-  const rootDomain = jinnangCardOf(root.cardId).targetDomain;
-  if (protects) {
-    if (root.userSeat !== seat) return null; // 别人的计被拆,与己无关
-    if (rootDomain === "one-city" && shareSeat != null) {
-      // 城指向域:争夺份=城,视点=城主座位、估损=该城的火烧损失
-      const { ownerSeat } = cityShareOf(engine, shareSeat);
-      return {
-        estimateSeat: ownerSeat,
-        rootCardId: root.cardId,
-        shareSeat,
-        shareTile: shareSeat,
-      };
-    }
-    return { estimateSeat: shareSeat ?? seat, rootCardId: root.cardId, shareSeat };
+  if (kind === "city") {
+    const mine = ids
+      .map((id) => ({ kind, id }))
+      .filter((target) => reactionTargetSeat(engine, target) === seat)
+      .map((target) => ({ target, loss: cityFireLossEstimate(engine, seat, target.id) }))
+      .sort((a, b) => b.loss - a.loss || a.target.id - b.target.id);
+    if (mine.length === 0) return null;
+    return { estimateSeat: seat, rootCardId, target: mine[0].target };
   }
-  if (rootDomain === "one-city") {
-    // 城指向域:恢复的城份城主是我才伤(shareSeat 缺省=中心城,同席位域「缺省=唯一份」形制)
-    const tile = shareSeat ?? root.targets[0];
-    const { ownerSeat } = cityShareOf(engine, tile);
-    if (ownerSeat !== seat) return null;
-    return { estimateSeat: seat, rootCardId: root.cardId, shareSeat: tile, shareTile: tile };
-  }
-  const restored =
-    rootDomain === "all-others" || rootDomain === "one"
-      ? (shareSeat ?? root.targets[0])
-      : rootDomain === "self"
-        ? root.userSeat
-        : undefined; // two-others:恢复=两目标进拼点,份不定位
-  if (restored != null ? restored !== seat : !root.targets.includes(seat)) return null;
-  return { estimateSeat: seat, rootCardId: root.cardId, shareSeat };
+  if (!ids.includes(seat)) return null;
+  return { estimateSeat: seat, rootCardId, target: { kind, id: seat } };
 }
 
 /** 反应窗决策(#281,#571 泛化):纯函数,不掷骰不改状态,确定性(引擎即席代答、驱动器
@@ -323,20 +274,21 @@ export function botReactionDecision(engine: GameEngine, seat: number): ReactionD
     return { use: false };
   }
   // 识破诡计:只护己利(#571)
-  const harm = counterHarmOf(engine, pr, seat);
+  const harm = counterHarmOf(engine, pr.view, seat);
   if (harm == null) return { use: false };
+  const { estimateSeat, rootCardId, target } = harm;
   if (
-    counterLossEstimate(engine, harm.estimateSeat, harm.rootCardId, harm.shareTile) <=
-    EST_COUNTER_CARD_VALUE
+    counterLossEstimate(
+      engine,
+      estimateSeat,
+      rootCardId,
+      target?.kind === "city" ? target.id : undefined,
+    ) <= EST_COUNTER_CARD_VALUE
   )
     return { use: false };
   const cardId = me.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "counter");
   if (cardId == null) return { use: false };
-  // 根窗 AOE 携自保份(#281;城指向域=被护城份 tileIndex,#1389);链环应答不带份——
-  // 争夺份随窗载荷(#571)
-  return pr.payload.kind === "jinnang"
-    ? { use: true, cardId, shareSeat: harm.shareSeat ?? seat }
-    : { use: true, cardId };
+  return pr.view.targets.requiresSelection ? { use: true, cardId, target } : { use: true, cardId };
 }
 
 /** 「你可」待决决策(#1377,与 botReactionDecision 同形制:纯函数、不掷骰、确定性,

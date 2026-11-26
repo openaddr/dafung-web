@@ -601,7 +601,11 @@ export class RoomRegistry {
   ): Promise<void> {
     const room = this.rooms.get(roomId);
     if (!room || !room.engine) return;
-    room.engine.submitCommand(cmd);
+    const rejection = room.engine.submitCommand(cmd);
+    if (rejection !== undefined) {
+      this.persist(room); // 拒绝的命令与警告也须归档。
+      throw new RoomError(400, rejection);
+    }
     this.watchdogs.syncReaction(room, onUpdate);
     this.persist(room);
     onUpdate?.(room); // 人类命令结果先推

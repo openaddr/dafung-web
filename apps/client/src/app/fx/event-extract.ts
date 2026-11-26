@@ -13,8 +13,8 @@
 // 截短——与单机 remainingMarchPath 同一公式;对不上的路径不播动画、不做 diff 重建。
 import type { GameEngine } from "@dafung/core/engine/authority";
 import type { GameEvent, GameEventBody } from "@dafung/core/engine/game-events";
-import type { MovePath } from "@dafung/core/engine/board";
-import { tileIndexOfProperty } from "@dafung/core/engine/board";
+import type { BoardPos, MovePath } from "@dafung/core/engine/board";
+import { tileAtIndex, tileIndexOfProperty } from "@dafung/core/engine/board";
 import type { CityDamageImpact, CityRewardReceipt } from "@dafung/core/engine/city-damage";
 import { INITIAL_CITY_LEVEL } from "@dafung/core/engine/constants";
 import type { Player } from "@dafung/core/engine/model";
@@ -27,7 +27,6 @@ import {
   eventSeat,
   eventSeatPlayer,
   heroDefOf,
-  type AnnounceCursor,
   type FxPresentedKind,
 } from "@dafung/core/engine/event-tiers";
 import { tokenSlotOffset } from "@app/components/board/tokenSlots";
@@ -43,19 +42,14 @@ import type {
   DuelSide,
   FxSink,
   MarchSegmentFrames,
+  MarchStart,
   PresentationEvent,
   PropertyChangedEvent,
   SealSound,
 } from "./presentation";
 
-/** 跨批宣布游标(形状单源 core/event-tiers AnnounceCursor,#430 票项 3):最近一次锦囊
- *  宣布(识破线指回被拆计的使用者/目标用——jinnangVoided 不带被拆方座位,ReactionAnswered
- *  亦无指向;反应窗「宣布批 → 应答批」跨批因果由此衔接)。
- *  生命周期 = 引擎实例(一局一实例):WeakMap 键控注册表让换局/换图天然拿到全新游标,
- *  无需任何手工 reset 配对(reset 忘调类 bug 结构性消失);旧模块级 let 与
- *  resetEventExtractCursors 的手工配对已退役,游标在提取链内显式对象传递。 */
+/** 归账线索随引擎实例跨批保存。 */
 interface ExtractCursors {
-  lastAnnounce: AnnounceCursor | null;
   /** 归账音按末尾一拨持城收益的轮次跨批续接。 */
   cityIncome: { round: number; cue: CashArrivalCue } | null;
   cityRewards: Map<string, CashArrivalCue>;
@@ -69,7 +63,6 @@ function cursorsOf(engine: GameEngine): ExtractCursors {
   let cursors = cursorsByEngine.get(engine);
   if (cursors == null) {
     cursors = {
-      lastAnnounce: null,
       cityIncome: null,
       cityRewards: new Map(),
       fireWallReward: null,
@@ -116,21 +109,20 @@ function tileOfProperty(engine: GameEngine, propertyId: string): number {
   return tileIndexOfProperty(engine.board, propertyId);
 }
 
-/** 拼点线演出件(C10 收口):jinnangPlayed 的「施计者→目标」单段线——识破拆计
- *  (jinnangVoided)与半路杀出(reactionAnswered)两 case 曾逐字双抄。 */
-function jinnangLine(
-  engine: GameEngine,
-  seat: number,
-  target: number,
+/** 指示线端点在提取时定格。 */
+function jinnangLines(
+  playerId: string,
   cardId: string,
+  from: BoardPos,
+  targets: readonly BoardPos[],
+  sound?: SoundEvent,
 ): PresentationEvent {
-  const from = engine.board.positionOf(engine.players[seat].position);
-  const to = engine.board.positionOf(engine.players[target].position);
   return {
     kind: "jinnangPlayed",
-    playerId: engine.players[seat].id,
+    playerId,
     cardId,
-    lines: [{ x1: from.x, y1: from.y, x2: to.x, y2: to.y }],
+    lines: targets.map((to) => ({ x1: from.x, y1: from.y, x2: to.x, y2: to.y })),
+    ...(sound !== undefined && { sound }),
   };
 }
 
@@ -174,25 +166,26 @@ function textFloater(
   text: string,
   sound?: SoundEvent,
 ): Extract<PresentationEvent, { kind: "textFloat" }> {
-  return {
-    kind: "textFloat",
-    playerId: engine.players[seat].id,
-    text,
-    ...(sound !== undefined && { sound }),
-    ...playerAnchor(engine, seat),
-  };
+  return textFloaterAtTile(engine, seat, text, engine.players[seat].position, sound);
 }
 
 /** 浮字事件(文案类,锚指定格——拦检失败等锚事发现场的文案,不锚玩家自身)。 */
-function textFloaterAtTile(engine: GameEngine, seat: number, text: string, tileIndex: number) {
+function textFloaterAtTile(
+  engine: GameEngine,
+  seat: number,
+  text: string,
+  tileIndex: number,
+  sound?: SoundEvent,
+): Extract<PresentationEvent, { kind: "textFloat" }> {
   const pos = engine.board.positionOf(tileIndex);
   return {
-    kind: "textFloat" as const,
+    kind: "textFloat",
     playerId: engine.players[seat].id,
     text,
     x: pos.x,
     y: pos.y,
     atTile: tileIndex,
+    ...(sound !== undefined && { sound }),
   };
 }
 
@@ -369,20 +362,21 @@ function marchEvent(
   engine: GameEngine,
   seat: number,
   ev: { tileIndex: number; path: MovePath },
-  prePosition: number | null,
+  start: MarchStart | null,
 ): PresentationEvent | null {
   const player = engine.players[seat];
   const path = ev.path;
   if (path.landIndex !== ev.tileIndex) return null; // 对不上:不播动画,不重建 diff
   // 落点比较用事件自带字段(#597 Q3 零成本修正:旧实现取批终 player.position)
-  if (prePosition == null || prePosition === ev.tileIndex) return null;
-  const onPath = path.from === prePosition || path.traversed.includes(prePosition);
+  if (start === null || start.tileIndex === ev.tileIndex) return null;
+  const onPath = path.from === start.tileIndex || path.traversed.includes(start.tileIndex);
   if (!onPath) return null;
-  const remainder = remainingMarchPath(path, prePosition, ev.tileIndex);
+  const remainder = remainingMarchPath(path, start.tileIndex, ev.tileIndex);
   if (remainder == null) return null; // 挂起点即落点:无余段可播
   return {
     kind: "tokenMoved",
     playerId: player.id,
+    start,
     keyframes: bakeMarchKeyframes(engine, player, remainder),
   };
 }
@@ -397,13 +391,13 @@ function arrivalPresentation(
   engine: GameEngine,
   seat: number,
   ev: { tileIndex: number; path: MovePath },
-  prePosition: number | null,
+  start: MarchStart | null,
   halted: boolean,
   passedCityDraws: readonly PresentationEvent[],
   announce?: PresentationEvent,
 ): PresentationEvent[] {
   const out: PresentationEvent[] = [];
-  const march = marchEvent(engine, seat, ev, prePosition);
+  const march = marchEvent(engine, seat, ev, start);
   if (march) out.push(march);
   out.push(...passedCityDraws);
   if (announce) out.push(announce);
@@ -413,21 +407,6 @@ function arrivalPresentation(
     out.push(textFloater(engine, seat, "驻跸补给"));
   }
   return out;
-}
-
-/** 识破线目标座位:jinnangVoided 带份(shareSeat)指份;不带份按牌域查宣布游标——
- *  连环计/self 指被拆计使用者,one 指原定目标(=宣布时 targetSeats 首位)。游标由
- *  提取链显式传递(生命周期=引擎实例,见文件头)。 */
-function voidLineTarget(
-  ev: Extract<GameEvent, { kind: "jinnangVoided" }>,
-  cursors: ExtractCursors,
-): number | null {
-  if (ev.shareSeat != null) return ev.shareSeat;
-  const announce = cursors.lastAnnounce;
-  if (announce == null || announce.cardId !== ev.cardId) return null;
-  const domain = jinnangCardOf(ev.cardId).targetDomain;
-  if (domain === "one") return announce.targetSeats[0] ?? null;
-  return announce.userSeat; // two-others(全计作废)与 self(落空)都指使用者
 }
 
 /** 耗竭宣告使用归零一击的来源、降级和失城清单，城名按棋盘查得。 */
@@ -464,7 +443,7 @@ function hasImmediateResolution(
       case "turnStarted":
         return false;
       case "jinnangVoided":
-        if (jinnangCardOf(ev.cardId).effect.kind !== "counter") return true;
+        if (ev.result.kind !== "counter") return true;
         break;
       case "jinnangRestored":
       case "duelResolved":
@@ -498,7 +477,7 @@ export function lastTurnStartIndex(events: readonly GameEvent[]): number {
  * @param engine       推进后的引擎(单机=本地权威;联机=快照 hydrate 后的只读引擎),
  *                     提供坐标解析/lastMove 路径/座位表
  * @param events       本转移(或合并 tick)的事件批(词汇表 core/game-events.ts)
- * @param prePositions 转移前各座位棋子位置(行军余段截短基准;null=未知;缺省=全未知)
+ * @param prePositions 批首各座位棋子位置，供行军截短与批内锦囊定位。未知位置的棋子按水合状态定位。
  * @param selfSeat     当前客户端座位；无本座时只提取公开表现
  */
 export function extractBatchEvents(
@@ -527,7 +506,24 @@ export function extractBatchEvents(
       (deal) => deal.buyerSeat === seat && deal.turn === ev.turn && deal.round === ev.round,
     );
   const pre = (seat: number): number | null => prePositions?.[seat] ?? null;
-  const cursors = cursorsOf(engine); // 跨批游标(生命周期=引擎实例,显式对象传递)
+  const tokens = engine.players.map(({ id, position, isBankrupt }, seat) => ({
+    id,
+    position: pre(seat) ?? position,
+    isBankrupt,
+  }));
+  for (const ev of events) {
+    // 本批稍后破产的棋子在那之前仍占槽。
+    if (ev.kind === "playerBankrupt") tokens[eventSeat(engine, ev)].isBankrupt = false;
+  }
+  const tokenAnchor = (seat: number): BoardPos => {
+    const token = tokens[seat];
+    const center = engine.board.positionOf(token.position);
+    const slot = tokenSlotOffset(tokens, token);
+    return { x: center.x + slot.x, y: center.y + slot.y };
+  };
+  const marchStart = (seat: number): MarchStart | null =>
+    pre(seat) === null ? null : { tileIndex: tokens[seat].position, position: tokenAnchor(seat) };
+  const cursors = cursorsOf(engine);
 
   for (let i = 0; i < events.length; i++) {
     const ev = events[i];
@@ -543,8 +539,9 @@ export function extractBatchEvents(
       case "marchArrived": {
         const seat = eventSeat(engine, ev);
         events_.push(
-          ...arrivalPresentation(engine, seat, ev, pre(seat), false, finishMarchDraws()),
+          ...arrivalPresentation(engine, seat, ev, marchStart(seat), false, finishMarchDraws()),
         );
+        tokens[seat].position = ev.tileIndex;
         break;
       }
       case "capitalHalt": {
@@ -557,17 +554,19 @@ export function extractBatchEvents(
             engine,
             seat,
             ev,
-            pre(seat),
+            marchStart(seat),
             true,
             finishMarchDraws(),
             haltBannerEvent(engine, seat, ev.tileIndex),
           ),
         );
+        tokens[seat].position = ev.tileIndex;
         break;
       }
       case "capitalSelected": {
         // 选都建城:「筑」章 + 建城宣告(易主维度;联机旧 diff 同款表现,单机由此补齐)
-        eventSeat(engine, ev); // 建城者座位契约校验(章/宣告锚格,不锚人)
+        const seat = eventSeat(engine, ev);
+        tokens[seat].position = ev.tileIndex;
         events_.push(sealEvent(engine, ev.tileIndex, "筑", undefined, "stamp"));
         events_.push(
           propertyChangedEvent(engine, ev.propertyId, { levelChanged: false, ownerChanged: true }),
@@ -752,6 +751,7 @@ export function extractBatchEvents(
         // 破产仪式(S7 #513):倒旗→墨渍→撒币三拍由 sink 串行编排(三音随拍发起),
         // 提取期只锚现场(破产者落点=墨渍/撒币坐标)。
         const seat = eventSeat(engine, ev);
+        tokens[seat].isBankrupt = true;
         const anchor = playerAnchor(engine, seat);
         events_.push({
           kind: "bankruptCeremony",
@@ -763,58 +763,34 @@ export function extractBatchEvents(
       }
       case "jinnangAnnounced": {
         // 出牌(#281 P2-E):线指方向、字报其名——先各目标出线,再文案浮字。
-        // 记宣布游标(跨批,生命周期=引擎实例):识破线指回本计的使用者/目标。
         const seat = eventSeat(engine, ev);
-        cursors.lastAnnounce = {
-          userSeat: seat,
-          cardId: ev.cardId,
-          targetSeats: [...ev.targetSeats],
-        };
-        // 线端随根牌域(#1389):one-city=受击城 tileIndex(棋盘界校验,线锚城格,
-        // 同 jinnangVoided 城份先例);其余域=座位(座位契约校验单源 core/event-tiers)。
-        const card = jinnangCardOf(ev.cardId);
-        const announceDomain = card.targetDomain;
         const previous = events[i - 1];
-        const counterAlreadyVoided =
-          card.effect.kind === "counter" &&
+        const followsCounterResult =
           previous?.kind === "jinnangVoided" &&
+          previous.result.kind === "counter" &&
           previous.cardId === ev.cardId &&
           previous.seat === seat;
         const sound =
-          counterAlreadyVoided || hasImmediateResolution(events, i, selfSeat)
+          followsCounterResult || hasImmediateResolution(events, i, selfSeat)
             ? undefined
             : "jinnangAnnounce";
-        const from = engine.board.positionOf(engine.players[seat].position);
-        const lines =
-          announceDomain === "one-city"
-            ? ev.targetSeats.map((t) => {
-                if (!Number.isInteger(t) || t < 0 || t >= engine.board.count)
-                  throw new Error(`jinnangAnnounced:城份格越界(${t})——产出侧 bug`);
-                const to = engine.board.positionOf(t);
-                return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
-              })
-            : ev.targetSeats
-                .filter((s) => s !== seat)
-                .map((s) => {
-                  const to = engine.board.positionOf(engine.players[s].position);
-                  return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
-                });
-        if (lines.length > 0) {
-          events_.push({
-            kind: "jinnangPlayed",
-            playerId: engine.players[seat].id,
-            cardId: ev.cardId,
-            lines,
-            ...(sound !== undefined && { sound }),
+        const targets = ev.targetSeats
+          .filter((s) => s !== seat)
+          .map((s) => {
+            eventSeatPlayer(engine, s, "jinnangAnnounced.targetSeats");
+            return tokenAnchor(s);
           });
+        if (targets.length > 0) {
+          events_.push(jinnangLines(tokens[seat].id, ev.cardId, tokenAnchor(seat), targets, sound));
         }
         // 文案浮字与线独立(自身域无指向也报牌名,与旧 msg 浮字通道同观感)
         events_.push(
-          textFloater(
+          textFloaterAtTile(
             engine,
             seat,
             `${guohaoOf(engine, seat)} 使用锦囊【${ev.cardId}】`,
-            lines.length === 0 ? sound : undefined,
+            tokens[seat].position,
+            targets.length === 0 ? sound : undefined,
           ),
         );
         break;
@@ -889,48 +865,34 @@ export function extractBatchEvents(
         break;
       }
       case "jinnangVoided": {
-        // 识破生效(#281):线端=应答者 → 被保份/被拆计方(可解析时),字报结果。
-        // shareSeat 语义随根牌域(#1389):one-city=受击城 tileIndex(棋盘界校验,
-        // 线锚城格,文案报城名);其余域=座位(座位契约校验单源 core/event-tiers,
-        // #431 移交顺带项:越界座位=产出侧 bug,当场炸出,不静默写 undefined)。
         const seat = eventSeat(engine, ev);
-        const voidedCard = jinnangCardOf(ev.cardId);
-        if (voidedCard.effect.kind !== "counter")
-          events_.push({ kind: "sound", event: "jinnangCountered" });
-        const voidedDomain = voidedCard.targetDomain;
-        if (ev.shareSeat != null && voidedDomain === "one-city") {
-          const t = ev.shareSeat;
-          if (!Number.isInteger(t) || t < 0 || t >= engine.board.count)
-            throw new Error(`jinnangVoided:城份格越界(${t})——产出侧 bug`);
-          const from = engine.board.positionOf(engine.players[seat].position);
-          const to = engine.board.positionOf(t);
-          events_.push({
-            kind: "jinnangPlayed",
-            playerId: engine.players[seat].id,
-            cardId: ev.cardId,
-            lines: [{ x1: from.x, y1: from.y, x2: to.x, y2: to.y }],
-          });
-          events_.push(
-            textFloater(
-              engine,
-              seat,
-              `${guohaoOf(engine, seat)} 识破,「${engine.board.at(t).name}」免于【${ev.cardId}】`,
-            ),
-          );
-          break;
+        const { cardId, result } = ev;
+        if (result.kind !== "counter") events_.push({ kind: "sound", event: "jinnangCountered" });
+        const target =
+          result.kind === "share" ? result.target : { kind: "seat" as const, id: result.userSeat };
+        let targetName: string;
+        let to: BoardPos;
+        if (target.kind === "city") {
+          const city = tileAtIndex(engine.board, target.id);
+          targetName = `「${city.name}」`;
+          to = city.position;
+        } else {
+          targetName = eventSeatPlayer(engine, target.id, "jinnangVoided").guohao;
+          to = tokenAnchor(target.id);
         }
-        if (ev.shareSeat != null) eventSeatPlayer(engine, ev.shareSeat, "jinnangVoided.shareSeat");
-        const target = voidLineTarget(ev, cursors);
-        if (target != null && target !== seat) {
-          events_.push(jinnangLine(engine, seat, target, ev.cardId));
+        if (target.kind === "city" || target.id !== seat) {
+          events_.push(jinnangLines(tokens[seat].id, cardId, tokenAnchor(seat), [to]));
         }
-        const text =
-          ev.shareSeat != null
-            ? `${guohaoOf(engine, seat)} 识破,${guohaoOf(engine, ev.shareSeat)} 免于【${ev.cardId}】`
-            : voidedDomain === "two-others"
-              ? `${guohaoOf(engine, seat)} 识破!【${ev.cardId}】作废`
-              : `${guohaoOf(engine, seat)} 识破!【${ev.cardId}】落空`;
-        events_.push(textFloater(engine, seat, text));
+        const responder = guohaoOf(engine, seat);
+        let text: string;
+        if (result.kind === "share") {
+          text = `${responder} 识破,${targetName} 免于【${cardId}】`;
+        } else if (result.kind === "counter") {
+          text = `${responder} 反识破,${targetName} 的【${cardId}】作废`;
+        } else {
+          text = `${responder} 识破!【${cardId}】${result.verdict === "voided" ? "作废" : "落空"}`;
+        }
+        events_.push(textFloaterAtTile(engine, seat, text, tokens[seat].position));
         break;
       }
       case "jinnangRestored":
@@ -965,18 +927,19 @@ export function extractBatchEvents(
         break;
       }
       case "reactionAnswered": {
-        // 拦检出牌(半路杀出,use=true):线=城主 → 行人(本批随后的 marchArrived 即行人落格)。
-        if (ev.use && ev.cardId != null) {
-          const seat = eventSeat(engine, ev);
-          const mover = events
-            .slice(i + 1)
-            .find(
-              (e): e is Extract<GameEvent, { kind: "marchArrived" }> => e.kind === "marchArrived",
-            );
-          if (mover && mover.seat != null && mover.seat !== seat) {
-            events_.push(jinnangLine(engine, seat, mover.seat, ev.cardId));
-          }
-        }
+        if (!ev.use || ev.cardId == null || jinnangCardOf(ev.cardId).effect.kind !== "ambush")
+          break;
+        // 拦检的拼点与应答同转移，另一位拼点者就是行人。
+        const seat = eventSeat(engine, ev);
+        const duel = events[i + 1];
+        if (duel?.kind !== "duelResolved" || duel.seat !== seat)
+          throw new Error("reactionAnswered:拦检出牌后缺拼点结算");
+        const mover = duel.sides.find((side) => side.seat !== seat);
+        if (mover === undefined) throw new Error("reactionAnswered:拦检拼点缺行人");
+        eventSeatPlayer(engine, mover.seat, "拦检行人");
+        events_.push(
+          jinnangLines(tokens[seat].id, ev.cardId, tokenAnchor(seat), [tokenAnchor(mover.seat)]),
+        );
         break;
       }
       case "reactionFailed": {
@@ -1128,14 +1091,14 @@ export function extractBatchEvents(
 }
 
 /** 行军锚定(present 前、sync 渲染前调用):把 tokenMoved 烤好的 keyframes 直传
- *  sink 锚定 marchBegin(不变量①:逐帧坐标随表现事件走,锚定=取首帧,播放期
+ *  sink 锚定 marchBegin(不变量①:出发槽位和逐帧坐标随表现事件走,播放期
  *  零引擎读取;合并批多段行军各持各的序列)。开批语义(#609 单写者):每轮调用
  *  = 一个锚定批——批内同 id 重复锚定 = 同会话追加段(段队列);此前在途的同 id
  *  会话 = 跨批顶替对象;判据 = 批到达序(ADR-0029 §2)。 */
 export function anchorMarches(events: PresentationEvent[], sink: FxSink): void {
   openMarchBatch();
   for (const ev of events) {
-    if (ev.kind === "tokenMoved") sink.marchBegin(ev.playerId, ev.keyframes);
+    if (ev.kind === "tokenMoved") sink.marchBegin(ev.playerId, ev.keyframes, ev.start);
     if (ev.kind === "textFloat" && ev.capitalRecruitment !== undefined) {
       stageCapitalRecruitment(ev.capitalRecruitment);
     }

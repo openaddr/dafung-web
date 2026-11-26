@@ -84,30 +84,25 @@ function reactionAnnouncement(
     };
   }
   const text = `${user} 用「${view.cardId}」`;
+  const { kind, ids, requiresSelection } = view.targets;
+  const label = kind === "city" ? cityName : seatLabel;
   if (view.counter != null) {
     const { rootCardId, rootUserSeat, protects } = view.counter;
-    const label = jinnangCardOf(rootCardId).targetDomain === "one-city" ? cityName : seatLabel;
-    const objects = view.targetSeats.map(label).join("、");
+    const objects = ids.map(label).join("、");
     const root = `${seatLabel(rootUserSeat)} 的「${rootCardId}」`;
     return {
       text,
       range: `${protects ? "拆解" : "恢复"} ${root}${objects ? ` · ${objects}` : ""}`,
     };
   }
-  const domain = jinnangCardOf(view.cardId).targetDomain;
-  if (domain === "one-city") {
-    return {
-      text,
-      range:
-        view.targetSeats.length > 0
-          ? `受击城 ${view.targetSeats.map(cityName).join("、")}`
-          : "无受击城",
-    };
-  }
-  if (domain === "all-others") return { text, range: `影响 ${view.targetSeats.length} 位诸侯` };
+  if (kind === "city") return { text, range: `受击城 ${ids.map(label).join("、")}` };
+  if (requiresSelection) return { text, range: `影响 ${ids.length} 位诸侯` };
   return {
     text,
-    range: domain === "self" ? "影响自身" : `影响 ${view.targetSeats.map(seatLabel).join("、")}`,
+    range:
+      ids.length === 1 && ids[0] === view.userSeat
+        ? "影响自身"
+        : `影响 ${ids.map(label).join("、")}`,
   };
 }
 
@@ -560,18 +555,15 @@ function GameScreenLive({
   const reactCardId = selectedReaction?.optionId;
   const seatLabelOf = (seat: number) => players[seat].guohao;
   const cityNameOf = (tileIndex: number) => board.at(tileIndex).name;
-  const reactDomain =
-    reaction?.kind === "jinnang" ? jinnangCardOf(reaction.cardId).targetDomain : null;
+  const reactChoices = reaction?.kind === "jinnang" ? reaction.targets : null;
   const reactTargetStep: TargetSelectionStep | null =
-    reaction?.kind === "jinnang" &&
-    selectedReaction != null &&
-    (reactDomain === "all-others" || reactDomain === "one-city")
+    selectedReaction != null && reactChoices?.requiresSelection
       ? {
-          domain: reactDomain === "one-city" ? "city" : "seat",
+          domain: reactChoices.kind,
           ...SINGLE_TARGET,
-          candidates: reaction.targetSeats.map((id) => ({
+          candidates: reactChoices.ids.map((id) => ({
             id,
-            label: reactDomain === "one-city" ? cityNameOf(id) : seatLabelOf(id),
+            label: reactChoices.kind === "city" ? cityNameOf(id) : seatLabelOf(id),
             available: true,
           })),
         }
@@ -617,11 +609,15 @@ function GameScreenLive({
   const reactRespond = (use: boolean) => {
     if (!interactive) return;
     getAudio().stop("reaction", "fade");
+    const target =
+      reactTargetStep != null && reactionShare != null
+        ? { kind: reactTargetStep.domain, id: reactionShare }
+        : undefined;
     dispatchCommand({
       type: "respondReaction",
       seat: selfSeat,
       use,
-      ...(use ? { cardId: reactCardId, shareSeat: reactionShare } : {}),
+      ...(use ? { cardId: reactCardId, target } : {}),
     });
   };
   const reactionNotice =

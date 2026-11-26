@@ -350,9 +350,7 @@ export function remainingMarchPath(
 
 /** 重置编排态(重开局时调用):表现 store 一并清,终局封场一并解封(生产 = 整页
  *  reload 天然新态;单测 beforeEach 靠此隔离,防封场态跨文件泄漏——bun test 单进程
- *  顺序跑,模块态跨文件存活,而 local-room.test.ts 无 beforeEach reset)。
- *  事件提取的跨批宣布游标生命周期 = 引擎实例(#430:WeakMap 键控,换局换实例即新
- *  游标),无手工 reset 配对可忘。 */
+ *  顺序跑,模块态跨文件存活,而 local-room.test.ts 无 beforeEach reset)。 */
 export function resetFxOrchestration(): void {
   sealed = false;
   dismissInFlightPresentation();

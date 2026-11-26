@@ -111,7 +111,7 @@ function jinnangView(queriedBySeat: number[]): ReactionView {
     kind: "jinnang",
     cardId: "card-fake",
     userSeat: 1,
-    targetSeats: [0],
+    targets: { kind: "seat", ids: [0], requiresSelection: false },
     queriedBySeat,
     windowMs: 8000,
   };
@@ -203,7 +203,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
 
   it("演出锁改绑本座位(#611):他座位行军在途不关门——决策卷轴照弹,别人的棋子照飞", () => {
     try {
-      beginMarch("p2", marchKF);
+      beginMarch("p2", marchKF, { tileIndex: 0, position: marchKF[0].points[0] });
       expect(sessionProbe().interactive).toBe(true);
     } finally {
       abandonAllMarches();
@@ -212,7 +212,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
 
   it("演出锁改绑本座位(#611):本座位行军在途关门,会话落定(播完/作废删会话)即开门", () => {
     try {
-      beginMarch("p1", marchKF);
+      beginMarch("p1", marchKF, { tileIndex: 0, position: marchKF[0].points[0] });
       expect(sessionProbe().interactive).toBe(false);
       abandonMarch("p1");
       expect(sessionProbe().interactive).toBe(true);

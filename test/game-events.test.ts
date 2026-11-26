@@ -246,7 +246,7 @@ describe("事件流(#375):锦囊出牌与反应窗", () => {
     beginGameEventBatch(e);
     e.resolveJinnang("横征暴敛"); // AOE:开识破窗等应答
     expect(phaseOf(e)).toBe("AwaitingReaction");
-    e.respondReaction(otherSeat, true, "识破诡计", otherSeat); // 保自己那份
+    e.respondReaction(otherSeat, true, "识破诡计", { kind: "seat", id: otherSeat }); // 保自己那份
     const events = e.snapshot().events;
     // #571 反识破链:识破打出也公开宣布——链环 jinnangAnnounced(识破诡计)插在
     // 应答与判定之间;无人可反不开第二窗,链即终,jinnangVoided 判定落账
@@ -269,7 +269,7 @@ describe("事件流(#375):锦囊出牌与反应窗", () => {
         kind: "jinnang",
         cardId: "横征暴敛",
         queriedBySeat: [otherSeat],
-        targetSeats: [otherSeat],
+        targets: { kind: "seat", ids: [otherSeat], requiresSelection: true },
       },
     });
     expect(events[2]).toMatchObject({
@@ -289,7 +289,7 @@ describe("事件流(#375):锦囊出牌与反应窗", () => {
       kind: "jinnangVoided",
       seat: otherSeat,
       cardId: "横征暴敛",
-      shareSeat: otherSeat,
+      result: { kind: "share", target: { kind: "seat", id: otherSeat } },
     });
     expect(jinnangCardOf("横征暴敛").effect.kind).toBe("levyAll"); // 词汇对照:被保份免征,无银两动账
     expect(phaseOf(e)).toBe("Roll");

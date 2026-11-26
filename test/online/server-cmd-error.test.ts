@@ -3,8 +3,7 @@
 // RTT,多人延迟下竞态非法命令必然出现(如反应窗已闭仍应答、过期快照上的操作);
 // pickCapital/autoPilot 两分支均有 .catch→error 下行(显式向用户报错,零兜底例外①),
 // cmd 分支同口径——引擎 submitCommand 抛错(零兜底契约)必须回报给发送者而非炸进程。
-// 注入手法:respondReaction 携带越界 seat(座位号随命令过网,越界即 players[seat]
-// 取 undefined 抛 TypeError)——与竞态同源:非法载荷服务端当场拒绝。
+// 注入手法:respondReaction 替越界座位应答，房间拒绝后回传该次应答的请求号。
 // 真 WS 真 HTTP(子进程起 scripts/server.ts,同 playwright.config webServer 口径);
 // spawn 前预检端口无残孤占位(#594 同主题的 bun:test 版,2026-10-19 实锤:
 // 残孤占 4280 → 健康检查打旧进程、新进程 EADDRINUSE 暴毙 → exitCode 假失败)。
@@ -168,7 +167,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
     }
   });
 
-  it("非法命令注入:该客户端收到 error 下行,服务器进程存活且服务继续", async () => {
+  it("非法反应应答在 error 下行带回请求号，服务器继续服务", async () => {
     // 建房(2 座,座位 1 bot)→ 选图 → 开局(停在选都三选一)
     const created = await post("/room/new", { seats: 2, bot: "1", seed: 42 });
     const roomId = created.roomId as string;
@@ -185,12 +184,16 @@ describeSlow("server WS 命令回报与对局日志", () => {
 
     // 注入非法命令:respondReaction 携带越界 seat(合法房间只有座位 0/1)
     ws.send(
-      JSON.stringify({ type: "cmd", cmd: { type: "respondReaction", seat: 99, use: false } }),
+      JSON.stringify({
+        type: "cmd",
+        cmd: { type: "respondReaction", seat: 99, use: false },
+        requestId: 7,
+      }),
     );
 
-    // 该客户端收到 error 下行(与 pickCapital/autoPilot 分支同形状:{type:"error",error})
+    // 该客户端收到 error 下行，并能定位到被拒绝的应答。
     const err = await nextMessageOfType(ws, "error");
-    expect(err.type).toBe("error");
+    expect(err).toMatchObject({ type: "error", requestId: 7 });
     expect(typeof err.error).toBe("string");
     expect(err.error as string).not.toBe("");
 

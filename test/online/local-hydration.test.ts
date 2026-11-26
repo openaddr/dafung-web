@@ -30,14 +30,13 @@ import { useNetStore } from "../../apps/client/src/app/store/netStore";
 // 下行合并拍的宏任务屏障;只等已排定的 0ms flush,不等待演出或业务窗口。
 const downlinkTurn = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-it("单机构造同步水合首帧,后续选都命令由下行推进副本", async () => {
+it("单机选都水合后，错误选份收到提示并可在原窗重答", async () => {
   const controller = new LocalController(MAP, {
     seats: [
       { name: "诸侯1", isBot: false, guohao: "魏" },
       { name: "诸侯2", isBot: true },
-      { name: "诸侯3", isBot: true },
     ],
-    seed: 1,
+    seed: 4, // bot 首回合打出横征暴敛，真人持识破诡计。
     mapId: "guanzhong",
     botStepMs: 0,
   });
@@ -54,6 +53,24 @@ it("单机构造同步水合首帧,后续选都命令由下行推进副本", asy
     expect(useGameStore.getState().snapshot).toEqual(controller.engine.snapshot());
     expect(controller.viewSeat).toBe(controller.engine.decisionOwner);
     expect(useNetStore.getState().roomId).toBe("");
+
+    const reaction = controller.engine.snapshot().reaction;
+    expect(reaction).toMatchObject({
+      cardId: "横征暴敛",
+      targets: { kind: "seat", ids: [0], requiresSelection: true },
+    });
+    expect(useGameStore.getState().interactive).toBe(true);
+    const respond = { type: "respondReaction", seat: 0, use: true, cardId: "识破诡计" } as const;
+    controller.dispatchCommand({ ...respond, target: { kind: "city", id: 0 } });
+    expect(useGameStore.getState().interactive).toBe(false);
+    await downlinkTurn();
+    expect(useGameStore.getState().hint).toContain("须指定合法的座位");
+    expect(useGameStore.getState().interactive).toBe(true);
+    expect(controller.engine.snapshot().reaction).toEqual(reaction);
+    controller.dispatchCommand({ ...respond, target: { kind: "seat", id: 0 } });
+    await downlinkTurn();
+    expect(controller.engine.snapshot().reaction).toBeNull();
+    expect(controller.engine.jinnangDiscard).toContain("识破诡计");
   } finally {
     controller.destroy();
     setEngine(null);
@@ -66,7 +83,7 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
   const registry = new RoomRegistry(
     {
       save: (record) => {
-        records.set(record.roomId, record);
+        records.set(record.roomId, structuredClone(record));
       },
       load: (id) => records.get(id) ?? null,
       remove: (id) => {
@@ -129,17 +146,17 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
   broadcast();
   await downlinkTurn();
   messages.length = 0;
-  const sendCommand = async (cmd: GameCommand) => {
+  const sendCommand = async (cmd: GameCommand, seat = 0) => {
     messages.length = 0;
     const result = await dispatchInbound(cmdMsg(cmd), {
-      cmd: (command) => registry.applyCommandFromSeat(room.roomId, 0, command, broadcast),
-      pickCapital: (tileIndex) => registry.pickCapital(room.roomId, 0, tileIndex, broadcast),
-      setAutoPilot: (on) => registry.setAutoPilot(room.roomId, 0, on, broadcast),
+      cmd: (command) => registry.applyCommandFromSeat(room.roomId, seat, command, broadcast),
+      pickCapital: (tileIndex) => registry.pickCapital(room.roomId, seat, tileIndex, broadcast),
+      setAutoPilot: (on) => registry.setAutoPilot(room.roomId, seat, on, broadcast),
     });
     await downlinkTurn();
     return result;
   };
-  return { registry, room, token, engine, replica, messages, broadcast, sendCommand };
+  return { registry, room, token, engine, replica, messages, broadcast, sendCommand, records };
 }
 
 it("连环计返回改选经真实下行保留首选，最终提交才消耗并结算", async () => {
@@ -195,14 +212,13 @@ it("连环计返回改选经真实下行保留首选，最终提交才消耗并�
   }
 });
 
-it("目标锦囊最终提交后，下行副本从目标段进入反应窗", async () => {
-  const { registry, room, token, engine, replica, messages, sendCommand } = await playingRoom(
-    (authority) => {
+it("目标锦囊进入反应窗，经房间拒绝错误应答后可重答", async () => {
+  const { registry, room, token, engine, replica, messages, sendCommand, records } =
+    await playingRoom((authority) => {
       giveJinnang(authority, 0, ["缓兵之计"]);
       giveJinnang(authority, 1, ["识破诡计"]);
       armPhase(authority, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
-    },
-  );
+    });
   try {
     expect(await sendCommand({ type: "useJinnang", cardId: "缓兵之计" })).toEqual({ ok: true });
     expect(replica.pendingJinnang?.stage).toBe("one");
@@ -215,11 +231,28 @@ it("目标锦囊最终提交后，下行副本从目标段进入反应窗", asyn
     expect(engine.pendingReaction?.view.windowMs).toBe(30_000);
     expect(replica.pendingReaction?.view).toMatchObject({
       kind: "jinnang",
-      targetSeats: [1],
+      targets: { kind: "seat", ids: [1], requiresSelection: false },
       windowMs: 30_000,
     });
     const events = messages.flatMap((msg) => (msg.type === "events" ? msg.events : []));
     expect(events.map((ev) => ev.kind)).toEqual(["jinnangAnnounced", "reactionOpened"]);
+
+    const respond = { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" } as const;
+    const rejected = await sendCommand({ ...respond, target: { kind: "seat", id: 1 } }, 1);
+    expect(rejected).toEqual({
+      ok: false,
+      reason: "rejected",
+      message: "respondReaction:本次应答无需选择对象",
+    });
+    expect(records.get(room.roomId)?.snapshot?.log.at(-1)).toMatchObject({
+      detail: "warn: respondReaction:本次应答无需选择对象",
+    });
+    expect(messages).toEqual([]);
+    expect(replica.pendingReaction?.answers).toEqual([]);
+
+    expect(await sendCommand(respond, 1)).toEqual({ ok: true });
+    expect(replica.pendingReaction).toBeNull();
+    expect(replica.turnPhase).toBe("Roll");
   } finally {
     registry.dismissRoom(room.roomId, token);
   }

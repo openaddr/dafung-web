@@ -300,7 +300,7 @@ it("反识破恢复火烧连营后，城损选择经重连结清才烧下一座�
     seat: 1,
     use: true,
     cardId: "识破诡计",
-    shareSeat: 1,
+    target: { kind: "city", id: 1 },
   });
   apply(authority, { type: "respondReaction", seat: 0, use: true, cardId: "识破诡计" });
 

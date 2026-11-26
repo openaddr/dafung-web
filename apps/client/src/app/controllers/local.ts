@@ -358,7 +358,8 @@ export class LocalController extends GameController {
       if (result.ok) return;
       if (result.reason === "rejected") {
         useGameStore.getState().pushHint(result.message);
-        this.pending = false; // 命令未生效:解锁等下一拍
+        this.pending = false;
+        this.sync();
         return;
       }
       throw new Error(`hostDispatch:上行消息结构性失败(${result.reason}):${result.message}`);

@@ -18,6 +18,7 @@ import type { MovePath } from "@dafung/core/engine/board";
 import { HEROES } from "@dafung/core/engine/heroes";
 import { TREASURES, makeSkillBook } from "@dafung/core/engine/treasures";
 import {
+  armHero as plantHero,
   armPhase,
   armVisitor,
   giveJinnang,
@@ -29,8 +30,14 @@ import {
   setDefense,
   setJinnangPiles,
 } from "@dafung/core/engine/planter";
-import { cmdMsg, eventsMsg, type InboundMsg, type ServerMsg } from "@dafung/core/protocol/wire";
-import { REACTION_WINDOW_MS } from "@dafung/core/engine/constants";
+import {
+  cmdMsg,
+  dispatchInbound,
+  eventsMsg,
+  type InboundMsg,
+  type ServerMsg,
+} from "@dafung/core/protocol/wire";
+import { REACTION_WINDOW_MS, TOKEN_SLOT_OFFSETS } from "@dafung/core/engine/constants";
 import {
   beginGameEventBatch,
   type GameEvent,
@@ -39,7 +46,12 @@ import {
 import { armHero } from "@dafung/core/engine/testing";
 import guanzhongData from "../../packages/core/maps/guanzhong.json";
 import { loadMap } from "@dafung/core/engine/board-loader";
-import { extractBatchEvents } from "@app/fx/event-extract";
+import { anchorMarches, extractBatchEvents } from "@app/fx/event-extract";
+import { useFxStore } from "@app/fx/fxStore";
+import { present, resetFxOrchestration } from "@app/fx/orchestrator";
+import { createEngineSink, createMemorySink } from "@app/fx/sinks";
+import { abandonAllMarches } from "@app/fx/useMarch";
+import { computeTokenSlots } from "@app/components/board/TokenLayer";
 import { foldEventBatch } from "@app/net/event-fold";
 import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 
@@ -93,6 +105,278 @@ function path(landIndex: number): MovePath {
     waypoints: [],
   };
 }
+
+describe("反应窗选份与出牌宣布的联机契约", () => {
+  function dispatch(authority: GameEngine, raw: string) {
+    return dispatchInbound(raw, {
+      cmd: (cmd) => authority.submitCommand(cmd),
+      pickCapital: () => {
+        throw new Error("预期收到对局命令");
+      },
+      setAutoPilot: () => {
+        throw new Error("预期收到对局命令");
+      },
+    });
+  }
+
+  async function apply(authority: GameEngine, replica: GameEngine, raw: string) {
+    expect(await dispatch(authority, raw)).toEqual({ ok: true });
+    const { events } = JSON.parse(eventsMsg(redactEvents(authority.gameEvents, 1)));
+    foldEventBatch(replica, events);
+    return events as GameEvent[];
+  }
+
+  function hydrate(authority: GameEngine, seats?: SeatConfig[]) {
+    const replica = makeEngine(7, seats);
+    replica.restoreFromSnapshot(
+      JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), 1))),
+    );
+    return replica;
+  }
+
+  function loneTokenPosition(engine: GameEngine, tile: number) {
+    const center = engine.board.positionOf(tile);
+    const slot = TOKEN_SLOT_OFFSETS[0];
+    return { x: center.x + slot.x, y: center.y + slot.y };
+  }
+
+  it("同主两城各可点选，错种类、错编号和漏选保留应答机会，出牌线指向城主棋子", async () => {
+    const authority = makeEngine();
+    armPhase(authority, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    giveJinnang(authority, 0, ["火烧连营"]);
+    giveJinnang(authority, 1, ["识破诡计"]);
+    grantProperty(authority, 1, "prop-jinyang", 3);
+    grantProperty(authority, 1, "prop-youzhou", 3);
+    placePlayer(authority, 0, 4);
+    placePlayer(authority, 1, 9);
+    plantHero(authority, 1, "dengai", ["chubianbujing"]);
+
+    const replica = hydrate(authority);
+    const use = { type: "useJinnang", cardId: "火烧连营" } as const;
+    await apply(authority, replica, cmdMsg(use));
+    const announce = await apply(authority, replica, cmdMsg({ ...use, targets: [1] }));
+    expect(replica.snapshot().reaction).toMatchObject({
+      targets: { kind: "city", ids: [1, 2], requiresSelection: true },
+    });
+    expect(hydrate(authority).snapshot().reaction).toEqual(replica.snapshot().reaction);
+    expect(announce[0]).toMatchObject({ kind: "jinnangAnnounced", targetSeats: [1] });
+    const from = loneTokenPosition(replica, 4);
+    const to = loneTokenPosition(replica, 9);
+    expect(
+      extractBatchEvents(replica, announce).find((event) => event.kind === "jinnangPlayed"),
+    ).toMatchObject({ lines: [{ x1: from.x, y1: from.y, x2: to.x, y2: to.y }] });
+    expect(replica.players[1].cash).toBe(10010);
+
+    const counter = { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" } as const;
+    for (const invalid of [
+      { target: { kind: "seat", id: 1 } },
+      { target: { kind: "city", id: 9 } },
+      { target: 1 },
+      { shareSeat: 1 },
+      {},
+    ]) {
+      const raw = JSON.stringify({ type: "cmd", cmd: { ...counter, ...invalid } });
+      const { cmd } = JSON.parse(raw) as Extract<InboundMsg, { type: "cmd" }>;
+      expect(authority.submitCommand(cmd)).toBe("respondReaction:识破【火烧连营】须指定合法的城格");
+      expect(authority.gameEvents).toEqual([]);
+    }
+    expect(hydrate(authority).snapshot().reaction).toEqual(replica.snapshot().reaction);
+
+    const openWindow = JSON.parse(JSON.stringify(authority.snapshot()));
+    await apply(authority, replica, cmdMsg({ ...counter, target: { kind: "city", id: 1 } }));
+    expect(replica.players[1].properties.map(({ defense }) => defense)).toEqual([20, 12]);
+
+    authority.restoreFromSnapshot(openWindow);
+    const resumed = hydrate(authority);
+    const settled = await apply(
+      authority,
+      resumed,
+      cmdMsg({ ...counter, target: { kind: "city", id: 2 } }),
+    );
+    expect(resumed.players[1].properties.map(({ defense }) => defense)).toEqual([12, 20]);
+    expect(settled).toContainEqual(
+      expect.objectContaining({
+        kind: "jinnangVoided",
+        seat: 1,
+        cardId: "火烧连营",
+        result: { kind: "share", target: { kind: "city", id: 2 } },
+      }),
+    );
+    const city = resumed.board.positionOf(2);
+    expect(extractBatchEvents(resumed, settled)).toContainEqual(
+      expect.objectContaining({
+        kind: "jinnangPlayed",
+        cardId: "火烧连营",
+        lines: [{ x1: to.x, y1: to.y, x2: city.x, y2: city.y }],
+      }),
+    );
+  });
+
+  it("火烧连营零份仍扣牌并触发处变不惊，直接结算", async () => {
+    const authority = makeEngine();
+    finishSetupLeavingCitiesUnowned(authority);
+    const victim = authority.players[1];
+    const center = victim.capitalIndex;
+    const propertyId = authority.board.at(center).propertyId!;
+    setDefense(authority, 1, propertyId, 0);
+    plantHero(authority, 1, "dengai", ["chubianbujing"]);
+    giveJinnang(authority, 0, ["火烧连营"]);
+    giveJinnang(authority, 1, ["识破诡计"]);
+    armPhase(authority, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    const replica = hydrate(authority);
+    const before = replica.players[1].cash;
+    const use = { type: "useJinnang", cardId: "火烧连营" } as const;
+
+    await apply(authority, replica, cmdMsg(use));
+    const settled = await apply(authority, replica, cmdMsg({ ...use, targets: [center] }));
+
+    expect(settled[0]).toMatchObject({ kind: "jinnangAnnounced", targetSeats: [1] });
+    expect(replica.players[1].cash).toBe(before + 10);
+    expect(replica.players[1].jinnangHand).toEqual(["识破诡计"]);
+    expect(replica.jinnangDiscard.at(-1)).toBe("火烧连营");
+    expect(replica.snapshot().reaction).toBeNull();
+    expect(replica.turnPhase).toBe("Roll");
+  });
+
+  it("连环计和反识破结算在跨批与重连后都指向被拆锦囊的使用者", async () => {
+    const seats = ["魏", "蜀", "吴"].map((guohao) => ({ name: guohao, guohao, isBot: false }));
+    const authority = makeEngine(7, seats);
+    armPhase(authority, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    giveJinnang(authority, 0, ["连环计", "识破诡计"]);
+    giveJinnang(authority, 1, ["识破诡计"]);
+    placePlayer(authority, 0, 4);
+    placePlayer(authority, 1, 9);
+    placePlayer(authority, 2, 11);
+    const live = hydrate(authority, seats);
+    const submit = (command: GameCommand) => apply(authority, live, cmdMsg(command));
+    const use = { type: "useJinnang", cardId: "连环计" } as const;
+    await submit(use);
+    await submit({ ...use, targets: [1] });
+    extractBatchEvents(live, await submit({ ...use, targets: [2] }));
+    const counter = { type: "respondReaction", cardId: "识破诡计", use: true } as const;
+    extractBatchEvents(live, await submit({ ...counter, seat: 1 }));
+
+    const pending = JSON.parse(JSON.stringify(authority.snapshot()));
+    const restored = hydrate(authority, seats);
+    expect(restored.snapshot().reaction).toMatchObject({
+      targets: { kind: "seat", ids: [1, 2], requiresSelection: false },
+      counter: { rootCardId: "连环计", rootUserSeat: 0, protects: true },
+    });
+    const plan = loneTokenPosition(restored, 4);
+    const responder = loneTokenPosition(restored, 9);
+    const whole = await submit({ type: "respondReaction", use: false, seat: 0 });
+    foldEventBatch(restored, whole);
+    for (const replica of [live, restored]) {
+      expect(extractBatchEvents(replica, whole)).toContainEqual(
+        expect.objectContaining({
+          kind: "jinnangPlayed",
+          cardId: "连环计",
+          lines: [{ x1: responder.x, y1: responder.y, x2: plan.x, y2: plan.y }],
+        }),
+      );
+    }
+    expect(whole).toContainEqual(
+      expect.objectContaining({
+        kind: "jinnangVoided",
+        seat: 1,
+        cardId: "连环计",
+        result: { kind: "whole", userSeat: 0, verdict: "voided" },
+      }),
+    );
+
+    authority.restoreFromSnapshot(pending);
+    const resumed = hydrate(authority, seats);
+    const chained = await apply(authority, resumed, cmdMsg({ ...counter, seat: 0 }));
+    expect(chained).toContainEqual(
+      expect.objectContaining({
+        kind: "jinnangVoided",
+        seat: 0,
+        cardId: "识破诡计",
+        result: { kind: "counter", userSeat: 1 },
+      }),
+    );
+    expect(extractBatchEvents(resumed, chained)).toContainEqual(
+      expect.objectContaining({
+        kind: "jinnangPlayed",
+        cardId: "识破诡计",
+        lines: [{ x1: plan.x, y1: plan.y, x2: responder.x, y2: responder.y }],
+      }),
+    );
+  });
+
+  it("识破与行军合批时，宣布和结果仍连到出牌时同格的两枚棋子", async () => {
+    const seats = [
+      { name: "甲", guohao: "魏", isBot: true },
+      { name: "乙", guohao: "蜀", isBot: false },
+    ];
+    const authority = makeEngine(7, seats);
+    armPhase(authority, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+    giveJinnang(authority, 0, ["缓兵之计"]);
+    giveJinnang(authority, 1, ["识破诡计"]);
+    placePlayer(authority, 0, 4);
+    placePlayer(authority, 1, 4);
+    pinDice(authority, "march", [2]);
+
+    const replica = hydrate(authority, seats);
+    const use = { type: "useJinnang", cardId: "缓兵之计" } as const;
+    await apply(authority, replica, cmdMsg(use));
+    const prePositions = replica.players.map((player) => player.position);
+    const merged: GameEvent[] = [];
+    for (const cmd of [
+      { ...use, targets: [1] },
+      { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" },
+      { type: "rollAndMove" },
+    ] satisfies GameCommand[]) {
+      expect(await dispatch(authority, cmdMsg(cmd))).toEqual({ ok: true });
+      merged.push(...authority.gameEvents);
+    }
+    const { events } = JSON.parse(eventsMsg(redactEvents(merged, 1)));
+    foldEventBatch(replica, events);
+    expect(replica.players[0].position).toBe(6);
+
+    const center = replica.board.positionOf(4);
+    const left = center.x - 26;
+    const right = center.x + 26;
+    const y = center.y + 6;
+    const effects = extractBatchEvents(replica, events, prePositions);
+    expect(
+      effects.filter((event) => event.kind === "jinnangPlayed" || event.kind === "tokenMoved"),
+    ).toMatchObject([
+      { cardId: "缓兵之计", lines: [{ x1: left, y1: y, x2: right, y2: y }] },
+      { cardId: "缓兵之计", lines: [{ x1: right, y1: y, x2: left, y2: y }] },
+      { kind: "tokenMoved" },
+    ]);
+
+    const renderedSlots = () =>
+      computeTokenSlots(replica.board, replica.players, {
+        setupUnselected: false,
+        skipTokenIds: useFxStore.getState().marching,
+      }).map(({ x, y }) => ({ x, y }));
+    const atLine: ReturnType<typeof renderedSlots>[] = [];
+    const engineSink = createEngineSink();
+    const sink = {
+      ...createMemorySink(),
+      marchBegin: engineSink.marchBegin,
+      marchToken: engineSink.marchToken,
+      spawnJinnangLine() {
+        atLine.push(renderedSlots());
+      },
+    };
+    resetFxOrchestration();
+    try {
+      anchorMarches(effects, sink);
+      await present(effects, sink);
+      const atBoth = [
+        { x: left, y },
+        { x: right, y },
+      ];
+      expect(atLine).toEqual([atBoth, atBoth]);
+      expect(renderedSlots()[1]).toEqual({ x: left, y }); // 行军落定后同格槽位交还。
+    } finally {
+      abandonAllMarches();
+    }
+  });
+});
 
 describe("额外回合的联机命令与事件批", () => {
   function submitAndFold(
@@ -255,8 +539,14 @@ describe("额外回合的联机命令与事件批", () => {
       JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), 0))),
     );
     const submit = (command: GameCommand) => submitAndFold(authority, replica, 0, command);
-    const counter = (seat: number, shareSeat?: number) =>
-      submit({ type: "respondReaction", seat, use: true, cardId: "识破诡计", shareSeat });
+    const counter = (seat: number, protectedSeat?: number) =>
+      submit({
+        type: "respondReaction",
+        seat,
+        use: true,
+        cardId: "识破诡计",
+        ...(protectedSeat === undefined ? {} : { target: { kind: "seat", id: protectedSeat } }),
+      });
     const decline = () => submit({ type: "respondReaction", seat: 3, use: false });
 
     submit({ type: "useJinnang", cardId: "横征暴敛" });
@@ -276,7 +566,11 @@ describe("额外回合的联机命令与事件批", () => {
     const result = decline();
     const firstCash = result.findIndex(({ kind }) => kind === "cashChanged");
     expect(result.slice(firstCash - 2, firstCash)).toMatchObject([
-      { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 2 },
+      {
+        kind: "jinnangVoided",
+        cardId: "横征暴敛",
+        result: { kind: "share", target: { kind: "seat", id: 2 } },
+      },
       { kind: "jinnangRestored", cardId: "横征暴敛", seat: 0 },
     ]);
     expect(replica.players.map(({ cash }) => cash)).toEqual([10400, 9800, 10000, 9800]);
@@ -1088,13 +1382,19 @@ describe("折叠投影器 · 锦囊族", () => {
     submit({ type: "useJinnang", cardId: "火烧连营", targets: [1] });
     expect(replica.snapshot().reaction).toMatchObject({
       cardId: "火烧连营",
-      targetSeats: [1, 2],
+      targets: { kind: "city", ids: [1, 2], requiresSelection: true },
       queriedBySeat: [1],
     });
-    submit({ type: "respondReaction", seat: 1, use: true, cardId: "识破诡计", shareSeat: 2 });
+    submit({
+      type: "respondReaction",
+      seat: 1,
+      use: true,
+      cardId: "识破诡计",
+      target: { kind: "city", id: 2 },
+    });
     expect(replica.snapshot().reaction).toMatchObject({
       cardId: "识破诡计",
-      targetSeats: [2],
+      targets: { kind: "city", ids: [2], requiresSelection: false },
       queriedBySeat: [-1],
       counter: { rootCardId: "火烧连营", rootUserSeat: 0, protects: true },
     });
@@ -1134,7 +1434,7 @@ describe("折叠投影器 · 锦囊族", () => {
           kind: "jinnang",
           cardId: "缓兵之计",
           userSeat: 0,
-          targetSeats: [1],
+          targets: { kind: "seat", ids: [1], requiresSelection: false },
           queriedBySeat: [1],
           windowMs: 3750,
         },
@@ -1147,7 +1447,7 @@ describe("折叠投影器 · 锦囊族", () => {
       kind: "jinnang",
       cardId: "缓兵之计",
       userSeat: 0,
-      targetSeats: [1],
+      targets: { kind: "seat", ids: [1], requiresSelection: false },
       queriedBySeat: [1],
       windowMs: 3750,
     });
@@ -1225,7 +1525,7 @@ describe("折叠投影器 · 锦囊族", () => {
               kind: "jinnang",
               cardId: "横征暴敛",
               userSeat: 2,
-              targetSeats: [0, 1],
+              targets: { kind: "seat", ids: [0, 1], requiresSelection: true },
               queriedBySeat: [0, 1],
               windowMs: REACTION_WINDOW_MS.jinnang,
             },

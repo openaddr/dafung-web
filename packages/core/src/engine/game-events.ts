@@ -17,7 +17,7 @@ import type { GameEngine, GameCommand, TurnPhase, VictoryReason } from "./author
 import type { PendingSkillChoice } from "./choices";
 import type { LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
-import type { ReactionCardSpend, ReactionView } from "./reaction-window";
+import type { ReactionCardSpend, ReactionTarget, ReactionView } from "./reaction-window";
 import type { MovePath } from "./board";
 import type {
   CityDamageEntry,
@@ -373,7 +373,7 @@ export interface ExhaustionResolvedBody {
   strongestImpact: CityDamageImpact | null;
   restTurns: number;
 }
-/** 锦囊宣布(出牌扣账后、识破窗开窗前;targetSeats=受影响份清单)。 */
+/** 出牌扣账后、识破窗打开前宣布受影响的座位，座位去重。 */
 export interface JinnangAnnouncedBody {
   kind: "jinnangAnnounced";
   cardId: string;
@@ -414,12 +414,14 @@ export interface DuelResolvedBody {
   sides: { seat: number; roll: number }[];
   winnerSeat: number | null;
 }
-/** 识破生效(锦囊被拆:shareSeat=被保住的份——AOE=座位、火烧连营城指向域(#1389)=
- *  受击城 tileIndex,缺省=整计作废/落空)。 */
+/** 识破生效后宣布被拆的锦囊、判词及指示线目标。seat 是生效识破者。 */
 export interface JinnangVoidedBody {
   kind: "jinnangVoided";
   cardId: string;
-  shareSeat?: number;
+  result:
+    | { kind: "share"; target: ReactionTarget }
+    | { kind: "whole"; userSeat: number; verdict: "voided" | "failed" }
+    | { kind: "counter"; userSeat: number };
 }
 /** 反识破使整计或其中一份恢复，随根计实际执行发出。seat=原锦囊使用者。 */
 export interface JinnangRestoredBody {

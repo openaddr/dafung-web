@@ -22,13 +22,13 @@ import type { LobbyView } from "../room/seat-projection";
 // ──────────────────────────── 上行:union + 编码 ────────────────────────────
 /** 上行消息(线上形状):autoPilot 只载开关(#580 速度分档已删,无归一)。 */
 export type InboundMsg =
-  | { type: "cmd"; cmd: GameCommand }
+  | { type: "cmd"; cmd: GameCommand; requestId?: number }
   | { type: "pickCapital"; tileIndex: number }
   | { type: "autoPilot"; on: boolean };
 
 /** 上行编码(客户端发送端单源;手写判别字面量 = 双写复辟)。 */
-export function cmdMsg(cmd: GameCommand): string {
-  return JSON.stringify({ type: "cmd" as const, cmd });
+export function cmdMsg(cmd: GameCommand, requestId?: number): string {
+  return JSON.stringify({ type: "cmd" as const, cmd, requestId });
 }
 export function pickCapitalMsg(tileIndex: number): string {
   return JSON.stringify({ type: "pickCapital" as const, tileIndex });
@@ -84,16 +84,16 @@ export type ServerMsg =
   | EventBatchMsg
   | GameLogMsg
   | { type: "dismissed"; roomId: string }
-  | { type: "error"; error: string };
+  | { type: "error"; error: string; requestId?: number };
 
 /** 事件批消息构造(flush 下行;per-seat 脱敏在装配单口 assembleDownlinkShot 内部
  *  完成——#431 起 redaction 是装配必经步,本构造函数只管已装配批的封装)。 */
 export function eventsMsg(events: GameEvent[], reactionTiming?: ReactionTiming): string {
   return encodeDownlink({ type: "events", events, reactionTiming });
 }
-/** 错误回报消息构造(WS 面唯一错误通道的形状)。 */
-export function errorMsg(error: string): string {
-  return JSON.stringify({ type: "error" as const, error });
+/** 错误回报回传请求号，客户端据此释放对应的在途操作。 */
+export function errorMsg(error: string, requestId?: number): string {
+  return encodeDownlink({ type: "error", error, requestId });
 }
 /** 房间解散消息构造。 */
 export function dismissedMsg(roomId: string): string {
@@ -123,7 +123,7 @@ export type InboundResult =
   | { ok: true }
   | { ok: false; reason: "badJson"; message: string }
   | { ok: false; reason: "unknownShape"; message: string }
-  | { ok: false; reason: "rejected"; message: string };
+  | { ok: false; reason: "rejected"; message: string; requestId?: number };
 
 /** unknownShape 缺省文案(对局已开时的期望形状引导;原 server.ts else 分支同款)。 */
 const UNKNOWN_SHAPE_TEXT = "expected {type:'cmd',cmd:...}";
@@ -132,7 +132,15 @@ const UNKNOWN_SHAPE_TEXT = "expected {type:'cmd',cmd:...}";
 function parseInboundMsg(m: unknown): InboundMsg | null {
   if (typeof m !== "object" || m === null) return null;
   const r = m as Record<string, unknown>;
-  if (r.type === "cmd" && r.cmd) return { type: "cmd", cmd: r.cmd as GameCommand };
+  if (r.type === "cmd" && r.cmd) {
+    const { requestId } = r;
+    if (
+      requestId !== undefined &&
+      (typeof requestId !== "number" || !Number.isSafeInteger(requestId) || requestId < 1)
+    )
+      return null;
+    return { type: "cmd", cmd: r.cmd as GameCommand, requestId };
+  }
   if (r.type === "pickCapital" && typeof r.tileIndex === "number") {
     return { type: "pickCapital", tileIndex: r.tileIndex };
   }
@@ -182,10 +190,12 @@ export async function dispatchInbound(
       }
     }
   } catch (err) {
+    const requestId = msg.type === "cmd" ? msg.requestId : undefined;
     return {
       ok: false,
       reason: "rejected",
       message: err instanceof Error ? err.message : String(err),
+      ...(requestId !== undefined && { requestId }),
     };
   }
   return { ok: true };

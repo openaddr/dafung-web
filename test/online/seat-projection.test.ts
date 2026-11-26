@@ -143,7 +143,11 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
     ],
     winnerSeat: 0,
   },
-  { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
+  {
+    kind: "jinnangVoided",
+    cardId: "横征暴敛",
+    result: { kind: "share", target: { kind: "seat", id: 1 } },
+  },
   { kind: "jinnangRestored", cardId: "横征暴敛" },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
   { kind: "jinnangReshuffled", count: 3 },
@@ -167,7 +171,7 @@ describe("redactEvents · 逐 kind 隐私档位(#381)", () => {
         kind: "jinnang",
         cardId: "横征暴敛",
         userSeat: 3,
-        targetSeats: [0, 1, 2],
+        targets: { kind: "seat", ids: [0, 1, 2], requiresSelection: true },
         queriedBySeat: [0, 1, 2],
         windowMs: 15000,
       },
@@ -175,7 +179,10 @@ describe("redactEvents · 逐 kind 隐私档位(#381)", () => {
     const view1 = redactEvents([opened], 1)[0]!;
     expect(view1).toMatchObject({
       seq: 1,
-      view: { targetSeats: [0, 1, 2], queriedBySeat: [-1, 1, -1] },
+      view: {
+        targets: { kind: "seat", ids: [0, 1, 2], requiresSelection: true },
+        queriedBySeat: [-1, 1, -1],
+      },
     });
     // viewer 不在列:全匿,数量不动
     const viewer9 = redactEvents([opened], 9)[0] as Extract<GameEvent, { kind: "reactionOpened" }>;
@@ -190,7 +197,7 @@ describe("redactEvents · 逐 kind 隐私档位(#381)", () => {
             kind: "jinnang",
             cardId: "缓兵之计",
             userSeat: 3,
-            targetSeats: [1],
+            targets: { kind: "seat", ids: [1], requiresSelection: false },
             queriedBySeat: [1],
             windowMs: 15000,
           },
@@ -240,7 +247,7 @@ describe("redactEvents · 逐 kind 隐私档位(#381)", () => {
           kind: "jinnang",
           cardId: "横征暴敛",
           userSeat: 0,
-          targetSeats: [1, 2],
+          targets: { kind: "seat", ids: [1, 2], requiresSelection: true },
           queriedBySeat: [1, 2],
           windowMs: 15000,
         },
@@ -339,7 +346,7 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
       seat: 1,
       use: true,
       cardId: "半路杀出",
-      shareSeat: 2,
+      target: { kind: "seat", id: 2 },
     });
     game.submitCommand({ type: "respondReaction", seat: 1, use: false });
     game.submitCommand({ type: "useJinnang", cardId: null });
@@ -476,7 +483,7 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
             kind: "jinnang",
             cardId: "横征暴敛",
             userSeat: 2,
-            targetSeats: [0, 1],
+            targets: { kind: "seat", ids: [0, 1], requiresSelection: true },
             queriedBySeat: [0, 1],
             windowMs: 15000,
           },
@@ -490,7 +497,11 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
           cardId: "识破诡计",
           spentCards: [{ seat: 0, cardId: "识破诡计" }],
         }),
-        ev(0, { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 }),
+        ev(0, {
+          kind: "jinnangVoided",
+          cardId: "横征暴敛",
+          result: { kind: "share", target: { kind: "seat", id: 1 } },
+        }),
       ],
     ];
   }
@@ -585,7 +596,7 @@ describe("redactSnapshotForSeat · 快照路径查询集数量语义(#461)", () 
           kind: "jinnang",
           cardId: "横征暴敛",
           userSeat: 2,
-          targetSeats: [0, 1],
+          targets: { kind: "seat", ids: [0, 1], requiresSelection: true },
           queriedBySeat: [0, 1],
           windowMs: 15000,
         },

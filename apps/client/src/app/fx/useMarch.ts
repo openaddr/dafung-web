@@ -8,7 +8,7 @@
 //   - 同批(anchorMarches 同一轮 openMarchBatch)内同 id 重复锚定 = 同会话追加段,
 //     顺序播(#608 后每段本就是成品坐标序列,相邻段起终点天然衔接);
 //   - 跨批新锚 = 顶替:旧会话令牌随 Map 覆写作废,旧动画在段边界因身份比对失败
-//     自终止,新会话从自己的 keyframes 首帧直切到位(禁 glide);
+//     自终止,新会话直切到自己的出发槽位(禁 glide);
 //   - 边界(abandonMarch/abandonAllMarches/resetFx)按 id 作废会话。
 // 介质与接管机制(与旧版一致):React 版棋子由 TokenLayer 声明式渲染(ADR-0042 起
 // 为 HTML 包装 div,mini-svg 旗面/环原绘),行军期间通过两条机制"接管":
@@ -24,7 +24,7 @@ import type { BoardPos } from "@dafung/core/engine/board";
 import { useFxStore } from "./fxStore";
 import { getAudio } from "./audio";
 import { delay, FX, MARCH, nextFrame } from "./timings";
-import type { MarchSegmentFrames } from "./presentation";
+import type { MarchSegmentFrames, MarchStart } from "./presentation";
 import { LINE_PAINT, pathEffectBox, placeEffectViewport } from "./effect-viewport";
 
 /** 行军接管中的棋子当前坐标(逻辑系)。只在 beginMarch/帧推进时写入,被 TokenLayer 读取。 */
@@ -37,6 +37,7 @@ export const marchPos = new Map<string, { x: number; y: number }>();
 interface MarchSession {
   batch: number;
   segments: Array<readonly MarchSegmentFrames[]>;
+  startTile: number | undefined;
 }
 const sessions = new Map<string, MarchSession>();
 let marchBatch = 0;
@@ -46,6 +47,11 @@ let marchBatch = 0;
  *  落定 = 播完/追帧放完/吸附或边界作废任一路径删会话后,即查即否。 */
 export function isMarching(playerId: string): boolean {
   return sessions.has(playerId);
+}
+
+/** 棋子启程前仍占出发格的槽位。 */
+export function marchStartTile(playerId: string): number | undefined {
+  return sessions.get(playerId)?.startTile;
 }
 
 /** 开新锚定批(anchorMarches 每轮调用):此后至下一批的同 id 重复锚定 = 同会话追加段;
@@ -110,19 +116,22 @@ function releaseTokenCut(moverId: string): void {
 }
 
 /** 命令提交后、sync 渲染前调用(生产入口 = anchorMarches 经 sink.marchBegin):把
- *  mover 放进接管集并锚定在 keyframes 首帧(不变量①:提取烤好的起点坐标随事件走)。
+ *  mover 放进接管集并锚在提取时烤好的出发槽位。
  *  会话语义(#609):同批重复锚定 = 追加段(锚点不覆写——旧「有锚即覆写」正是同批
  *  双预塞错接起点的病根);跨批 = 顶替(旧会话作废,新会话首帧直切)。 */
-export function beginMarch(moverId: string, keyframes: readonly MarchSegmentFrames[]): void {
+export function beginMarch(
+  moverId: string,
+  keyframes: readonly MarchSegmentFrames[],
+  start: MarchStart,
+): void {
   const existing = sessions.get(moverId);
   if (existing != null && existing.batch === marchBatch) {
     existing.segments.push(keyframes); // 同批多段:段队列衔接
     return;
   }
-  const start = keyframes[0].points[0];
-  sessions.set(moverId, { batch: marchBatch, segments: [keyframes] }); // 跨批顶替 = 覆写令牌
-  marchPos.set(moverId, { x: start.x, y: start.y });
-  cutTokenTo(moverId, start);
+  sessions.set(moverId, { batch: marchBatch, segments: [keyframes], startTile: start.tileIndex });
+  marchPos.set(moverId, { ...start.position });
+  cutTokenTo(moverId, start.position);
   useFxStore.getState().addMarching(moverId);
 }
 
@@ -178,8 +187,15 @@ export async function animateMove(
     if (session.segments[session.segments.length - 1] !== keyframes) return;
     endMarch(moverId, session);
   };
+  const depart = (): void => {
+    if (session.startTile === undefined) return;
+    session.startTile = undefined;
+    // 棋子层随行军接管集刷新，出发格与目的格在启程时重新排槽。
+    useFxStore.setState(({ marching }) => ({ marching: new Set(marching) }));
+  };
   // 无 DOM 运行时(bun 单测):无渲染面可写,段簿记照走真实收尾语义。
   if (typeof document === "undefined") {
+    depart();
     endIfLast();
     return;
   }
@@ -191,6 +207,7 @@ export async function animateMove(
     return;
   }
   token.style.transition = ""; // 锚定直切的内联豁免到此为止,逐帧过渡交还动画
+  depart();
   // #26 行军启动音:轻嗒瞬态(audio.ts 内置 50ms 去重 + 连发音量衰减,高频不吵)。
   // 挪到节点确认之后,取消/未挂载的行军不出声。
   getAudio().play("marchStart");
