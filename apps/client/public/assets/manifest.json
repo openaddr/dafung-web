@@ -44,7 +44,8 @@
     "license": "Public domain",
     "author": "ezwa (pdsounds.org)",
     "fetched_at": "2026-08-07",
-    "review_required": false
+    "review_required": false,
+    "source": "https://commons.wikimedia.org/wiki/File:Coin_dropped_on_wooden_floor.ogg"
   },
   "audio:drum": {
     "path": "assets/audio/drum-roll.ogg",
@@ -58,10 +59,11 @@
   },
   "audio:guqin": {
     "path": "assets/audio/guqin-note.ogg",
-    "license": "CC0",
-    "author": "Wikimedia Commons",
+    "license": "CC BY-SA 3.0",
+    "author": "Charlie Huang (Charles R Tsua)",
     "fetched_at": "2026-08-07",
-    "review_required": false
+    "review_required": false,
+    "source": "https://commons.wikimedia.org/wiki/File:Guqin-Zuiyu_Changwan.ogg"
   },
   "audio:victory": {
     "path": "assets/audio/victory-fanfare.ogg",
@@ -79,7 +81,7 @@
     "license": "CC BY-SA 4.0",
     "author": "Krol111",
     "fetched_at": "2026-08-07",
-    "review_required": true
+    "review_required": false
   },
   "audio:coins-shake": {
     "path": "assets/audio/coins-shake.ogg",
@@ -591,6 +593,70 @@
     "source": "https://freesound.org/s/844390/",
     "license": "CC0",
     "author": "Maraboop (Freesound,「Cloth flaps」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:wood-slide": {
+    "path": "assets/audio/audio-wood-slide.ogg",
+    "source": "https://freesound.org/s/364103/",
+    "license": "CC0",
+    "author": "Rudmer_Rotteveel (Freesound,「Sliding_Wooden_Cabinet_Door_2 (of 2)」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:wood-latch": {
+    "path": "assets/audio/audio-wood-latch.ogg",
+    "source": "https://freesound.org/s/104019/",
+    "license": "CC0",
+    "author": "RutgerMuller (Freesound,「Door Handle Wood Clack.aif」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:metal-clasp": {
+    "path": "assets/audio/audio-metal-clasp.ogg",
+    "source": "https://freesound.org/s/822397/",
+    "license": "CC0",
+    "author": "_sinny_ (Freesound,「small metal clasp (open, close, switching)」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:armor-buckle": {
+    "path": "assets/audio/audio-armor-buckle.ogg",
+    "source": "https://freesound.org/s/331719/",
+    "license": "CC0",
+    "author": "IndigoRay (Freesound,「Belt Buckle」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:bass-drum": {
+    "path": "assets/audio/audio-bass-drum.ogg",
+    "source": "https://freesound.org/s/375259/",
+    "license": "CC0",
+    "author": "sgossner (Freesound,「Bass drum (bdrum_ff_1.wav)」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:ceramic-tap": {
+    "path": "assets/audio/audio-ceramic-tap.ogg",
+    "source": "https://freesound.org/s/706536/",
+    "license": "CC0",
+    "author": "that_Finn (Freesound,「Light ceramic cling」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:horn-note": {
+    "path": "assets/audio/audio-horn-note.ogg",
+    "source": "https://freesound.org/s/373255/",
+    "license": "CC0",
+    "author": "sgossner (Freesound,「F Horn - sustain - C4 (MOHorn_sus_C3_v2_1.wav)」lq ogg 预览直链)",
+    "fetched_at": "2026-11-26",
+    "review_required": false
+  },
+  "audio:singing-bowl": {
+    "path": "assets/audio/audio-singing-bowl.ogg",
+    "source": "https://freesound.org/s/271370/",
+    "license": "CC0",
+    "author": "inoshirodesign (Freesound,「singing bowl strike sound」lq ogg 预览直链)",
     "fetched_at": "2026-11-26",
     "review_required": false
   }

@@ -1,66 +1,20 @@
 // 用法：bun scripts/build-sound-clips.ts [音效事件 ...]。常规构建直接使用已提交的成品。
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import sources from "../apps/client/public/assets/manifest.json";
 import { SOUND_CLIPS, type SoundEvent } from "../apps/client/src/app/fx/sound-clips";
 
+type RecordingId = Extract<keyof typeof sources, `audio:${string}`>;
+type Recording = { path: string; source?: string; review_required?: boolean };
+
 const rate = 48_000;
-const floor = 0.0001;
-const master = 0.5;
-const audioDir = resolve(import.meta.dir, "../apps/client/public/assets/audio");
-const playbackDir = join(audioDir, "playback");
+const publicDir = resolve(import.meta.dir, "../apps/client/public");
+const playbackDir = join(publicDir, "assets/audio/playback");
 
-function exponential(from: number, to: number, progress: number): number {
-  return from * (to / from) ** progress;
-}
-
-function tone(
-  output: Float32Array,
-  frequency: number,
-  duration: number,
-  volume: number,
-  offset = 0,
-  thump = false,
-) {
-  const start = Math.round(offset * rate);
-  const frames = Math.round(duration * rate);
-  let phase = 0;
-  for (let i = 0; i < frames; i++) {
-    const time = i / rate;
-    const gain = thump
-      ? exponential(volume, floor, time / duration)
-      : time < 0.01
-        ? exponential(floor, volume, time / 0.01)
-        : exponential(volume, floor, (time - 0.01) / (duration - 0.01));
-    const pitch = thump ? exponential(frequency * 1.6, frequency, time / duration) : frequency;
-    output[start + i] += master * gain * Math.sin(phase);
-    phase += (2 * Math.PI * pitch) / rate;
-  }
-}
-
-function tap(output: Float32Array, duration: number, cutoff: number, volume: number, offset = 0) {
-  // 原合成轻叩的高通白噪声，固定种子便于重生成。
-  const w = (2 * Math.PI * cutoff) / rate;
-  const alpha = Math.sin(w) / (2 * 0.7);
-  const cos = Math.cos(w);
-  const b0 = (1 + cos) / (2 * (1 + alpha));
-  const a1 = (-2 * cos) / (1 + alpha);
-  const a2 = (1 - alpha) / (1 + alpha);
-  let seed = 1234;
-  let x1 = 0;
-  let x2 = 0;
-  let y1 = 0;
-  let y2 = 0;
-  const start = Math.round(offset * rate);
-  for (let i = 0; i < Math.round(duration * rate); i++) {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    const x = seed / 0x80000000 - 1;
-    const y = b0 * (x - 2 * x1 + x2) - a1 * y1 - a2 * y2;
-    output[start + i] += master * exponential(volume, floor, i / (rate * duration)) * y;
-    x2 = x1;
-    x1 = x;
-    y2 = y1;
-    y1 = y;
-  }
+function recordingPath(asset: Recording | undefined, label: string): string {
+  if (!asset?.source || asset.review_required !== false)
+    throw new Error(`录音缺少已核对的来源 ${label}`);
+  return join(publicDir, asset.path);
 }
 
 function render(duration: number, mix: (output: Float32Array) => void) {
@@ -70,17 +24,34 @@ function render(duration: number, mix: (output: Float32Array) => void) {
   return samples;
 }
 
+interface RecordingEdit {
+  offset?: number;
+  lowPassHz?: number;
+  speed?: number;
+  releaseMs?: number;
+}
+
 function mixRecording(
   output: Float32Array,
-  file: string,
+  id: RecordingId,
   startAt: number,
   duration: number,
   gain: number,
-  offset = 0,
-  lowPassHz?: number,
+  { offset = 0, lowPassHz, speed = 1, releaseMs = 35 }: RecordingEdit = {},
 ) {
-  const fades = `afade=t=in:d=0.004,afade=t=out:st=${duration - 0.035}:d=0.035:curve=exp`;
-  const filter = lowPassHz === undefined ? fades : `lowpass=f=${lowPassHz},${fades}`;
+  const filters: string[] = [];
+  if (speed !== 1) {
+    filters.push(
+      `aformat=sample_rates=${rate}`,
+      `asetrate=${Math.round(rate * speed)}`,
+      `aresample=${rate}`,
+    );
+  }
+  // 裁剪和渐隐使用片段内的时间，避免录音的原始偏移影响时长。
+  filters.push("asetpts=N/SR/TB");
+  if (lowPassHz !== undefined) filters.push(`lowpass=f=${lowPassHz}`);
+  const release = Math.min(releaseMs / 1000, duration / 2);
+  filters.push("afade=t=in:d=0.004", `afade=t=out:st=${duration - release}:d=${release}:curve=exp`);
   const decoded = Bun.spawnSync(
     [
       "ffmpeg",
@@ -90,11 +61,11 @@ function mixRecording(
       "-ss",
       String(startAt),
       "-i",
-      join(audioDir, file),
+      recordingPath(sources[id], id),
       "-t",
       String(duration),
       "-af",
-      filter,
+      filters.join(","),
       "-ac",
       "1",
       "-ar",
@@ -105,249 +76,251 @@ function mixRecording(
     ],
     { stdin: "ignore", stderr: "inherit", stdout: "pipe" },
   );
-  if (decoded.exitCode !== 0 || decoded.stdout.length === 0)
-    throw new Error(`读取录音 ${file} 失败`);
+  if (decoded.exitCode !== 0 || decoded.stdout.length === 0) throw new Error(`读取录音 ${id} 失败`);
   const samples = new Float32Array(
     decoded.stdout.buffer,
     decoded.stdout.byteOffset,
     decoded.stdout.byteLength / Float32Array.BYTES_PER_ELEMENT,
   );
   const first = Math.round(offset * rate);
+  if (first + samples.length > output.length) throw new Error(`录音 ${id} 超出成品时长`);
   for (let i = 0; i < samples.length; i++) output[first + i] += samples[i] * gain;
 }
 
-function woodKnock(output: Float32Array, pitch: number, volume: number, offset: number) {
-  tap(output, 0.035, 1650, volume * 0.28, offset);
-  tone(output, pitch, 0.085, volume, offset, true);
-  tone(output, pitch * 1.83, 0.042, volume * 0.23, offset, true);
-}
+const guqin = { id: "audio:guqin", lowAt: 3.168, highAt: 1.168 } as const;
 
-// 沿用同一段古琴录音的两处拨弦起音。
-const guqin = { file: "guqin-note.ogg", lowAt: 3.168, highAt: 1.168 };
-
-// 起兵与称帝用同一三个音，终局由落印声引出。
+// C4 实录移调为 D4、F4、A4，起兵与称帝共用短句。
 const campaignMotif = [
-  { frequency: 293.66, offset: 0, duration: 0.148 },
-  { frequency: 349.23, offset: 0.125, duration: 0.16 },
-  { frequency: 440, offset: 0.275, duration: 0.318 },
+  { semitones: 2, offset: 0, duration: 0.153, releaseMs: 48 },
+  { semitones: 5, offset: 0.125, duration: 0.173, releaseMs: 55 },
+  { semitones: 9, offset: 0.275, duration: 0.395, releaseMs: 122 },
 ];
 
-function playCampaignMotif(output: Float32Array, offset: number, volume: number) {
+function playCampaignMotif(output: Float32Array, offset: number, gain: number) {
   for (const note of campaignMotif) {
-    const start = Math.round((offset + note.offset) * rate);
-    const frames = Math.round(note.duration * rate);
-    let phase = 0;
-    for (let i = 0; i < frames; i++) {
-      const time = i / rate;
-      const attack = Math.sin(Math.min(1, time / 0.027) * (Math.PI / 2));
-      const release = Math.min(1, (note.duration - time) / 0.088) ** 1.35;
-      const pitch =
-        note.frequency * (1 - 0.018 * Math.exp(-time * 62) + 0.003 * Math.sin(29 * time));
-      const harmonics =
-        Math.sin(phase) +
-        0.56 * Math.sin(2 * phase) +
-        0.32 * Math.sin(3 * phase) +
-        0.17 * attack * Math.sin(4 * phase) +
-        0.09 * attack * Math.sin(5 * phase);
-      output[start + i] += master * volume * attack * release * harmonics;
-      phase += (2 * Math.PI * pitch) / rate;
-    }
+    mixRecording(output, "audio:horn-note", 0.054, note.duration, gain, {
+      offset: offset + note.offset,
+      speed: 2 ** (note.semitones / 12),
+      lowPassHz: 5300,
+      releaseMs: note.releaseMs,
+    });
   }
 }
 
-const verdictLow = 830.61;
-const verdictHigh = 1108.73;
-
-function verdictChime(pitches: readonly number[], targetRms: number) {
-  const samples = render(0.36, (out) => {
-    for (const [note, pitch] of pitches.entries()) {
-      const offset = note * 0.095;
-      tone(out, pitch, 0.249, 0.34, offset);
-      tone(out, pitch * 2.71, 0.13, 0.21, offset);
-      tone(out, pitch * 4.87, 0.078, 0.095, offset);
-      tap(out, 0.027, 2150, 0.036, offset);
+function verdictChime(speeds: readonly number[], targetRms: number) {
+  const samples = render(0.41, (out) => {
+    for (const [note, speed] of speeds.entries()) {
+      const hasSecond = speeds.length > 1 && note === 0;
+      mixRecording(out, "audio:singing-bowl", 0.036, hasSecond ? 0.19 : 0.285, 1, {
+        offset: note * 0.116,
+        speed,
+        releaseMs: hasSecond ? 66 : 92,
+      });
     }
   });
-  // 等长成品按均方根调增益，单音和双音的目标值由解码后的响度校准。
+  // 等长成品按均方根配平三种判词响度。
   const rms = Math.sqrt(samples.reduce((sum, sample) => sum + sample * sample, 0) / samples.length);
   const gain = targetRms / rms;
   for (let i = 0; i < samples.length; i++) samples[i] *= gain;
   return samples;
 }
 
-const synth: Partial<Record<SoundEvent, () => Float32Array>> = {
-  gameStart: () => render(0.6, (out) => playCampaignMotif(out, 0, 0.26)),
+const mixes: Partial<Record<SoundEvent, () => Float32Array>> = {
+  gameStart: () => render(0.67, (out) => playCampaignMotif(out, 0, 1.78)),
   victoryDrum: () =>
-    render(0.31, (out) => {
-      tone(out, 112, 0.29, 0.85, 0, true);
-      tone(out, 207, 0.18, 0.36, 0, true);
-      tone(out, 355, 0.095, 0.15, 0, true);
-      tap(out, 0.038, 940, 0.23);
+    render(0.39, (out) => {
+      mixRecording(out, "audio:bass-drum", 0.055, 0.39, 0.54, { releaseMs: 100 });
     }),
   victory: () =>
-    render(0.74, (out) => {
-      mixRecording(out, "stamp-seal.ogg", 0.284, 0.178, 0.85);
-      playCampaignMotif(out, 0.124, 0.36);
+    render(0.794, (out) => {
+      mixRecording(out, "audio:stamp-seal", 0.284, 0.178, 0.85);
+      playCampaignMotif(out, 0.124, 2.45);
     }),
   marchStart: () =>
-    render(0.074, (out) => {
-      tap(out, 0.041, 1350, 0.062);
-      tone(out, 495, 0.054, 0.16, 0.018, true);
-      tone(out, 945, 0.035, 0.045, 0.023, true);
+    render(0.1, (out) => {
+      mixRecording(out, "audio:wood-slide", 0.205, 0.1, 0.46, { lowPassHz: 3700 });
+      mixRecording(out, "audio:wood-latch", 0.002, 0.043, 0.08, { offset: 0.04, lowPassHz: 2000 });
     }),
   haltLatch: () =>
-    render(0.155, (out) => {
-      tap(out, 0.051, 1000, 0.105);
-      tone(out, 465, 0.043, 0.135, 0, true);
-      woodKnock(out, 265, 0.41, 0.043);
-      tap(out, 0.017, 2700, 0.1, 0.047);
+    render(0.182, (out) => {
+      mixRecording(out, "audio:wood-latch", 0.001, 0.182, 0.22, { lowPassHz: 3000, releaseMs: 50 });
     }),
   staminaHit: () =>
-    render(0.103, (out) => {
-      tap(out, 0.029, 1100, 0.039);
-      tone(out, 208, 0.103, 0.19, 0, true);
-      tone(out, 396, 0.055, 0.058, 0, true);
+    render(0.118, (out) => {
+      mixRecording(out, "audio:bass-drum", 0.065, 0.118, 0.105, { speed: 1.18, lowPassHz: 1240 });
     }),
   staminaRecover: () =>
-    render(0.165, (out) => {
-      tone(out, 430, 0.118, 0.11);
-      tone(out, 645, 0.111, 0.11, 0.046);
-      tone(out, 860, 0.087, 0.036, 0.051);
+    render(0.188, (out) => {
+      mixRecording(out, "audio:singing-bowl", 0.037, 0.128, 0.31, { speed: 0.84, releaseMs: 50 });
+      mixRecording(out, "audio:singing-bowl", 0.037, 0.128, 0.34, {
+        speed: 1.13,
+        offset: 0.06,
+        releaseMs: 60,
+      });
     }),
   exhaustionDrum: () =>
-    render(0.27, (out) => {
-      tap(out, 0.035, 1220, 0.058);
-      tone(out, 156, 0.27, 0.32, 0, true);
-      tone(out, 313, 0.172, 0.126, 0, true);
+    render(0.314, (out) => {
+      mixRecording(out, "audio:bass-drum", 0.056, 0.314, 0.19, {
+        speed: 0.82,
+        lowPassHz: 1300,
+        releaseMs: 85,
+      });
     }),
   pay: () =>
-    render(0.2, (out) => {
-      tap(out, 0.07, 1150, 0.065, 0.01);
-      tone(out, 185, 0.16, 0.26, 0, true);
-      tone(out, 112, 0.18, 0.14, 0.02, true);
+    render(0.204, (out) => {
+      mixRecording(out, "audio:flag-flaps", 0.063, 0.204, 0.37, {
+        speed: 0.86,
+        lowPassHz: 1580,
+        releaseMs: 58,
+      });
+      mixRecording(out, "audio:coins-shake", 0.408, 0.145, 0.32, {
+        offset: 0.041,
+        speed: 0.8,
+        lowPassHz: 1740,
+        releaseMs: 55,
+      });
     }),
   buy: () =>
     render(0.23, (out) => {
-      mixRecording(out, "stamp-seal.ogg", 0.281, 0.125, 0.6);
-      mixRecording(out, "coins-shake.ogg", 0.392, 0.168, 0.15, 0.062);
+      mixRecording(out, "audio:stamp-seal", 0.281, 0.125, 0.6);
+      mixRecording(out, "audio:coins-shake", 0.392, 0.168, 0.15, { offset: 0.062 });
     }),
   cashTransfer: () =>
     render(0.17, (out) => {
-      mixRecording(out, "coin-drop.ogg", 0.552, 0.15, 0.65);
-      mixRecording(out, "coins-shake.ogg", 0.392, 0.125, 0.065, 0.045);
+      mixRecording(out, "audio:coin", 0.552, 0.15, 0.65);
+      mixRecording(out, "audio:coins-shake", 0.392, 0.125, 0.065, { offset: 0.045 });
     }),
   upgrade: () =>
-    render(0.19, (out) => {
-      woodKnock(out, 310, 0.29, 0);
-      woodKnock(out, 245, 0.36, 0.105);
+    render(0.222, (out) => {
+      mixRecording(out, "audio:wood-latch", 0.002, 0.076, 0.2, { lowPassHz: 2900 });
+      mixRecording(out, "audio:wood-latch", 0.073, 0.127, 0.28, {
+        offset: 0.095,
+        speed: 0.86,
+        lowPassHz: 2600,
+        releaseMs: 51,
+      });
     }),
   cityHit: () =>
     render(0.169, (out) => {
-      mixRecording(out, "audio-stone-impact.ogg", 0.024, 0.169, 0.15, 0, 4400);
+      mixRecording(out, "audio:stone-impact", 0.024, 0.169, 0.15, { lowPassHz: 4400 });
     }),
   cityBreach: () =>
     render(0.63, (out) => {
-      mixRecording(out, "audio-stone-crash.ogg", 0.003, 0.63, 0.25, 0, 5200);
-      tone(out, 182, 0.159, 0.2, 0.008, true);
+      mixRecording(out, "audio:stone-crash", 0.003, 0.63, 0.25, { lowPassHz: 5200 });
+      mixRecording(out, "audio:bass-drum", 0.063, 0.183, 0.12, { speed: 0.91, lowPassHz: 810 });
     }),
   cityConquest: () =>
     render(0.6, (out) => {
-      woodKnock(out, 212, 0.56, 0.004);
-      tone(out, 146, 0.19, 0.24, 0.018, true);
-      mixRecording(out, "audio-gate-splinter.ogg", 1.643, 0.256, 0.48, 0, 7200);
-      mixRecording(out, "audio-flag-flaps.ogg", 1.364, 0.55, 0.51, 0.05, 5400);
+      mixRecording(out, "audio:wood-latch", 0.002, 0.158, 0.25, { speed: 0.76, lowPassHz: 2100 });
+      mixRecording(out, "audio:bass-drum", 0.069, 0.198, 0.25, {
+        offset: 0.006,
+        speed: 0.83,
+        lowPassHz: 860,
+      });
+      mixRecording(out, "audio:gate-splinter", 1.643, 0.256, 0.48, { lowPassHz: 7200 });
+      mixRecording(out, "audio:flag-flaps", 1.364, 0.55, 0.51, { offset: 0.05, lowPassHz: 5400 });
     }),
   treasure: () =>
     render(0.345, (out) => {
-      mixRecording(out, guqin.file, guqin.lowAt, 0.2, 0.44);
-      mixRecording(out, guqin.file, guqin.highAt, 0.23, 0.38, 0.115);
+      mixRecording(out, guqin.id, guqin.lowAt, 0.2, 0.44);
+      mixRecording(out, guqin.id, guqin.highAt, 0.23, 0.38, { offset: 0.115 });
     }),
   treasureStolen: () =>
     render(0.2, (out) => {
-      mixRecording(out, guqin.file, guqin.lowAt, 0.11, 0.38, 0, 950);
-      mixRecording(out, guqin.file, guqin.highAt, 0.105, 0.34, 0.095, 950);
+      mixRecording(out, guqin.id, guqin.lowAt, 0.11, 0.38, { lowPassHz: 950 });
+      mixRecording(out, guqin.id, guqin.highAt, 0.105, 0.34, { offset: 0.095, lowPassHz: 950 });
     }),
   bookSetDown: () =>
     render(0.18, (out) => {
-      mixRecording(out, "scroll-unroll.ogg", 2.592, 0.15, 1.25);
-      mixRecording(out, "stamp-seal.ogg", 0.277, 0.14, 0.43, 0.04, 1350);
+      mixRecording(out, "audio:scroll-unroll", 2.592, 0.15, 1.25);
+      mixRecording(out, "audio:stamp-seal", 0.277, 0.14, 0.43, { offset: 0.04, lowPassHz: 1350 });
     }),
   heroRecruited: () =>
     render(0.28, (out) => {
-      tap(out, 0.043, 2900, 0.14);
-      tone(out, 2340, 0.063, 0.18);
-      tone(out, 3180, 0.052, 0.11, 0.016);
-      mixRecording(out, guqin.file, guqin.lowAt, 0.21, 0.39, 0.07);
+      mixRecording(out, "audio:armor-buckle", 0.132, 0.12, 0.41, { lowPassHz: 5800 });
+      mixRecording(out, guqin.id, guqin.lowAt, 0.21, 0.39, { offset: 0.07 });
     }),
   skillLearned: () =>
     render(0.3, (out) => {
-      mixRecording(out, "scroll-unroll.ogg", 1.264, 0.16, 1.5);
-      mixRecording(out, guqin.file, guqin.highAt, 0.18, 0.34, 0.12);
+      mixRecording(out, "audio:scroll-unroll", 1.264, 0.16, 1.5);
+      mixRecording(out, guqin.id, guqin.highAt, 0.18, 0.34, { offset: 0.12 });
     }),
   ledgerClose: () =>
     render(0.23, (out) => {
-      mixRecording(out, "scroll-unroll.ogg", 3.044, 0.15, 1.55, 0, 2900);
-      mixRecording(out, "stamp-seal.ogg", 0.281, 0.15, 0.48, 0.08, 1700);
-      tone(out, 168, 0.105, 0.22, 0.08, true);
+      mixRecording(out, "audio:scroll-unroll", 3.044, 0.15, 1.55, { lowPassHz: 2900 });
+      mixRecording(out, "audio:stamp-seal", 0.281, 0.15, 0.48, { offset: 0.08, lowPassHz: 1700 });
+      mixRecording(out, "audio:wood-latch", 0.072, 0.122, 0.15, { offset: 0.073, lowPassHz: 980 });
     }),
   jinnangDraw: () =>
     render(0.145, (out) => {
-      mixRecording(out, "scroll-unroll.ogg", 0.327, 0.145, 1.4);
-      tap(out, 0.023, 2300, 0.042, 0.022);
+      mixRecording(out, "audio:scroll-unroll", 0.327, 0.145, 1.53);
     }),
   jinnangSelect: () =>
-    render(0.045, (out) => {
-      tap(out, 0.045, 3800, 0.072);
-      tone(out, 2700, 0.03, 0.02);
+    render(0.05, (out) => {
+      mixRecording(out, "audio:scroll-unroll", 2.385, 0.05, 0.22, { releaseMs: 20 });
+      mixRecording(out, "audio:scroll-unroll", 1.588, 0.044, 0.16, {
+        offset: 0.006,
+        releaseMs: 19,
+      });
     }),
   jinnangAnnounce: () =>
     render(0.23, (out) => {
-      mixRecording(out, "scroll-unroll.ogg", 1.551, 0.23, 1.25);
-      tap(out, 0.05, 1900, 0.055, 0.04);
+      mixRecording(out, "audio:scroll-unroll", 1.551, 0.23, 1.33);
     }),
   jinnangCountered: () =>
-    render(0.115, (out) => {
-      tap(out, 0.02, 2250, 0.13);
-      tone(out, 1450, 0.105, 0.17);
-      tone(out, 2370, 0.063, 0.095);
-      tone(out, 3190, 0.039, 0.055);
+    render(0.127, (out) => {
+      mixRecording(out, "audio:metal-clasp", 0.131, 0.06, 0.26, { lowPassHz: 6400, releaseMs: 19 });
+      mixRecording(out, "audio:singing-bowl", 0.036, 0.115, 0.35, { offset: 0.012, speed: 1.09 });
     }),
   jinnangRestored: () =>
-    render(0.22, (out) => {
-      tap(out, 0.023, 2600, 0.087);
-      tone(out, 1450, 0.1, 0.11);
-      tone(out, 2370, 0.074, 0.072);
-      tone(out, 1840, 0.146, 0.085, 0.073);
-      tone(out, 2760, 0.09, 0.044, 0.073);
+    render(0.24, (out) => {
+      mixRecording(out, "audio:metal-clasp", 0.13, 0.061, 0.155, { releaseMs: 20 });
+      mixRecording(out, "audio:singing-bowl", 0.036, 0.12, 0.36, { offset: 0.008, speed: 1.09 });
+      mixRecording(out, "audio:singing-bowl", 0.036, 0.154, 0.36, {
+        offset: 0.083,
+        speed: 1.37,
+        releaseMs: 59,
+      });
     }),
   jinnangPeek: () =>
     render(0.24, (out) => {
-      mixRecording(out, "scroll-unroll.ogg", 1.236, 0.17, 1.6);
-      mixRecording(out, "scroll-unroll.ogg", 0.827, 0.102, 1.65, 0.127);
+      mixRecording(out, "audio:scroll-unroll", 1.236, 0.17, 1.6);
+      mixRecording(out, "audio:scroll-unroll", 0.827, 0.102, 1.65, { offset: 0.127 });
     }),
   lobbyJoined: () =>
-    render(0.11, (out) => {
-      tap(out, 0.028, 1450, 0.075);
-      tone(out, 225, 0.105, 0.17, 0, true);
-      tone(out, 610, 0.065, 0.052, 0, true);
+    render(0.104, (out) => {
+      mixRecording(out, "audio:wood-latch", 0.001, 0.104, 0.145, { speed: 0.82, lowPassHz: 2300 });
     }),
   reconnectFailure: () =>
-    render(0.17, (out) => {
-      tone(out, 740, 0.085, 0.095, 0, true);
-      tone(out, 495, 0.105, 0.1, 0.065, true);
+    render(0.185, (out) => {
+      mixRecording(out, "audio:ceramic-tap", 0.018, 0.105, 0.08, { speed: 0.75, lowPassHz: 3100 });
+      mixRecording(out, "audio:ceramic-tap", 0.018, 0.115, 0.09, {
+        offset: 0.07,
+        speed: 0.57,
+        lowPassHz: 2700,
+        releaseMs: 45,
+      });
     }),
-  verdictChime: () => verdictChime([960], 0.031),
-  verdictChimeWin: () => verdictChime([verdictLow, verdictHigh], 0.036),
-  verdictChimeLose: () => verdictChime([verdictHigh, verdictLow], 0.036),
+  verdictChime: () => verdictChime([1.12], 0.031),
+  verdictChimeWin: () => verdictChime([1, 1.26], 0.036),
+  verdictChimeLose: () => verdictChime([1.26, 1], 0.036),
   reactionOpen: () =>
-    render(0.075, (out) => {
-      tap(out, 0.03, 1900, 0.045);
-      tone(out, 980, 0.075, 0.12, 0, true);
+    render(0.083, (out) => {
+      mixRecording(out, "audio:ceramic-tap", 0.017, 0.083, 0.094, { speed: 1.08, releaseMs: 32 });
     }),
-  reactionTick: () => render(0.05, (out) => tone(out, 620, 0.05, 0.12, 0, true)),
+  reactionTick: () =>
+    render(0.062, (out) => {
+      mixRecording(out, "audio:ceramic-tap", 0.018, 0.062, 0.11, {
+        speed: 0.79,
+        lowPassHz: 2750,
+        releaseMs: 26,
+      });
+    }),
 };
 
 function encode(file: string, input: string[], pcm?: Float32Array) {
+  if (pcm?.some((sample) => !Number.isFinite(sample) || Math.abs(sample) > 1))
+    throw new Error(`混制音效 ${file} 超出满幅`);
   const result = Bun.spawnSync(
     [
       "ffmpeg",
@@ -380,23 +353,27 @@ for (const event of events) {
   const clip = SOUND_CLIPS[event];
   if (encoded.has(clip.file)) continue;
   encoded.add(clip.file);
-  if (clip.kind !== "recording") {
-    const generate = synth[event];
-    if (!generate) throw new Error(`缺少 ${event} 的音效生成配方`);
+  if (clip.kind === "mix") {
+    const generate = mixes[event];
+    if (!generate) throw new Error(`缺少 ${event} 的录音混制配方`);
     encode(clip.file, ["-f", "f32le", "-ar", String(rate), "-ac", "1", "-i", "pipe:0"], generate());
-  } else if (clip.trim) {
-    const { startAt = 0, stopAt, releaseMs } = clip.trim;
-    const duration = stopAt - startAt;
-    const release = releaseMs / 1000;
-    encode(clip.file, [
-      "-ss",
-      String(startAt),
-      "-i",
-      join(audioDir, clip.file),
-      "-t",
-      String(duration),
-      "-af",
-      `afade=t=out:st=${duration - release}:d=${release}:curve=exp`,
-    ]);
+    continue;
   }
+
+  const asset = Object.values(sources).find(({ path }) => path === `assets/audio/${clip.file}`);
+  const sourcePath = recordingPath(asset, clip.file);
+  if (!clip.trim) continue;
+  const { startAt = 0, stopAt, releaseMs } = clip.trim;
+  const duration = stopAt - startAt;
+  const release = releaseMs / 1000;
+  encode(clip.file, [
+    "-ss",
+    String(startAt),
+    "-i",
+    sourcePath,
+    "-t",
+    String(duration),
+    "-af",
+    `afade=t=out:st=${duration - release}:d=${release}:curve=exp`,
+  ]);
 }
