@@ -49,7 +49,12 @@ function fixture(): string {
   ]) {
     mkdirSync(join(root, dir), { recursive: true });
   }
-  for (const script of ["build-dist.ts", "dist-freshness.ts", "packaged-maps.ts"]) {
+  for (const script of [
+    "build-dist.ts",
+    "command-log.ts",
+    "dist-freshness.ts",
+    "packaged-maps.ts",
+  ]) {
     cpSync(join(ROOT, "scripts", script), join(root, "scripts", script));
   }
   cpSync(join(ROOT, CORE, "src/engine"), join(root, CORE, "src/engine"), { recursive: true });
@@ -128,6 +133,8 @@ testBuild(
     const root = fixture();
     const first = run(root, "build:client");
     expect(first.code, first.output).toBe(0);
+    expect(first.output).toContain(`[result] build · 产物 ${join(root, DIST)}`);
+    expect(first.output).not.toContain("modules transformed");
     expect(readFileSync(join(root, DIST, "maps/index.json"), "utf8")).toBe(catalog);
     expect(readdirSync(join(root, DIST, "maps")).sort()).toEqual(["boards", "index.json"]);
     expect(readFileSync(join(root, DIST, "maps/boards/map.json"), "utf8")).toBe(

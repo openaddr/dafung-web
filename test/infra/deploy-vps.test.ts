@@ -1,10 +1,41 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, join, resolve } from "node:path";
 import { deployVps } from "../../scripts/deploy-vps";
 import pkg from "../../package.json";
 
 const TAG = `v${pkg.version}`;
 const ARCHIVE = `dafung-server-${TAG}.tar.gz`;
+
+test.skipIf(process.platform === "win32")("SSH 失败只返回阶段和原因，完整输出留在日志", () => {
+  const root = mkdtempSync(join(tmpdir(), "dafung-ssh-test-"));
+  let log: string | undefined;
+  try {
+    writeFileSync(
+      join(root, "ssh"),
+      '#!/bin/sh\nprintf "远端状态\\n"\nprintf "Host key verification failed.\\n" >&2\nprintf "%012000d\\n" 0 >&2\nexit 255\n',
+      { mode: 0o700 },
+    );
+    const cli = resolve(import.meta.dir, "../../scripts/deploy-vps.ts");
+    const result = Bun.spawnSync([process.execPath, cli, "--dry-run"], {
+      env: { ...process.env, PATH: `${root}${delimiter}${process.env.PATH}` },
+    });
+    const stderr = result.stderr.toString();
+    log = /完整日志 (.+)$/m.exec(stderr)?.[1];
+    expect(result.exitCode).toBe(1);
+    expect(stderr).toContain("SSH 预检 dafung-vps");
+    expect(stderr).toContain("Host key verification failed.");
+    expect(stderr.length).toBeLessThan(500);
+    expect(log).toBeDefined();
+    expect(readFileSync(join(log!, "stdout.log"), "utf8")).toBe("远端状态\n");
+    expect(readFileSync(join(log!, "stderr.log"), "utf8")).toContain("0".repeat(12000));
+  } finally {
+    rmSync(root, { recursive: true });
+    if (log) rmSync(log, { recursive: true });
+  }
+});
 
 function fixture() {
   const ssh: { args: string[]; input?: Buffer }[] = [];

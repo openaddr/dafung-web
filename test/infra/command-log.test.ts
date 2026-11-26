@@ -44,17 +44,18 @@ test("成功只显示结果和日志位置,帮助不启动命令,启动失败响
     "--",
     process.execPath,
     "-e",
-    'console.log("private stdout"); console.error("private stderr");',
+    'console.log("private stdout"); console.error("private stderr"); console.log("[result] artifact: preview.apk");',
   ]);
   const output = success.stdout.toString() + success.stderr.toString();
   expect(success.exitCode, output).toBe(0);
   expect(output).toContain("exit 0; elapsed");
+  expect(output).toContain("[result] artifact: preview.apk");
   expect(output).not.toContain("private stdout");
   expect(output).not.toContain("private stderr");
   const stdoutPath = /^\[command-log\] stdout: (.+)$/m.exec(output)![1]!.trim();
   const stderrPath = /^\[command-log\] stderr: (.+)$/m.exec(output)![1]!.trim();
   roots.push(dirname(stdoutPath));
-  expect(readFileSync(stdoutPath, "utf8")).toBe("private stdout\n");
+  expect(readFileSync(stdoutPath, "utf8")).toBe("private stdout\n[result] artifact: preview.apk\n");
   expect(readFileSync(stderrPath, "utf8")).toBe("private stderr\n");
   const help = Bun.spawnSync([process.execPath, CLI, "--help"]);
   expect(help.exitCode, help.stderr.toString()).toBe(0);
