@@ -22,9 +22,12 @@ export function reactionQueriesSeat(view: ReactionView, seat: number): boolean {
 /** 反应横幅、手牌架与现场采集共用本座的问询及牌目录。 */
 export function reactionChoicesForSeat(snapshot: GameSnapshot, seat: number) {
   const { phase, turnPhase, reaction, pendingReaction, players } = snapshot;
-  if (phase !== "Playing" || turnPhase !== "AwaitingReaction" || reaction === null) return null;
+  if (phase !== "Playing" || turnPhase !== "AwaitingReaction") return null;
+  // 客户端只读取完整事件批折叠后的相位，续走或再次开窗已随同批事件生效。
+  if (reaction === null || pendingReaction === null)
+    throw new Error("AwaitingReaction 相位缺少挂起反应窗");
   const asked = reactionQueriesSeat(reaction, seat);
-  const answered = pendingReaction!.answers.some((answer) => answer.seat === seat);
+  const answered = pendingReaction.answers.some((answer) => answer.seat === seat);
   const playable =
     asked && !answered
       ? players[seat].jinnangHand.filter(

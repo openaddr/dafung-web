@@ -1,8 +1,8 @@
 // 组件收口细则见 docs/design/组件收口.md。
 // 对局屏:全幅棋盘、顶左设置/详情、顶中知会槽、席位格列、底缘手牌区与右下三圆钮。
 // 本屏持有设置/战报开合态,战报入口在设置内;PileButtons 自持珍宝/名将藏品弹层。
-// 出牌窗由 AwaitingJinnang、interactive 与 choices 派生:HandRack 选牌,ActionBar 确认,
-// SeatRail/BoardView 选择目标;命令经 registry 当前控制器下发。反应窗共用动作条，触发技在架缘。
+// 出牌阶段与反应窗提供选牌、目标与命令，HandRack、动作条及 SeatRail/BoardView 接线。
+// 触发技在手牌架边缘呈现。
 // gameStore.snapshot 驱动渲染,useCapitalPick 持有选都/详情流程,棋盘取景恒为地图总览。
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BoardView } from "@app/components/board/BoardView";
@@ -19,15 +19,9 @@ import { returnHome } from "@app/screens/shared/return-home";
 import { OnlineController } from "@app/controllers/online";
 import type { Board } from "@dafung/core/engine/board";
 import type { GameCommand } from "@dafung/core/engine/authority";
-import { isSkillOption } from "@dafung/core/engine/choices";
-import { jinnangCardOf, SINGLE_TARGET, TARGET_DOMAIN_STAGES } from "@dafung/core/engine/jinnang";
-import type { ReactionView } from "@dafung/core/engine/reaction-window";
-import { formatMoney } from "@dafung/core/engine/money";
 import { skillBookLearners } from "@dafung/core/engine/roster";
-import { isActiveSkill, skillById } from "@dafung/core/engine/skills";
+import { skillById } from "@dafung/core/engine/skills";
 import { isSkillBook } from "@dafung/core/engine/treasures";
-import { getAudio } from "@app/fx/audio";
-import { reactionChoicesForSeat } from "@app/controllers/reaction";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
@@ -38,25 +32,21 @@ import {
   observeGameDiagnosticControls,
 } from "@app/game-diagnostics";
 import { VERSION } from "../../../version";
-import {
-  HandRack,
-  JinnangDetailSheet,
-  type RackCardSelection,
-  type RackInspection,
-} from "./HandRack";
+import { HandRack, JinnangDetailSheet, type RackInspection } from "./HandRack";
 import { HandZone } from "./HandZone";
 import { SkillGlossaryDialog } from "./SkillGlossaryDialog";
 import { SkillBookLearnModal } from "./SkillBookLearnModal";
 import { ReactionBanner, useReactionReminder } from "./ReactionBanner";
 import { SkillChoiceBanner } from "./SkillChoiceBanner";
-import { reactionMuteEngage, reactionMuted, type ReactionMuteState } from "./reaction-mute";
 import { GameTopBar } from "./GameTopBar";
 import { SeatRail } from "./SeatRail";
 import { WarlordsOverview } from "./WarlordsOverview";
 import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
-import { ActionBar, type PrimaryAction } from "./ActionBar";
-import { targetCandidates, useTargetSelection, type TargetSelectionStep } from "./target-selection";
+import { ActionBar } from "./ActionBar";
+import { useJinnangPlay } from "./jinnang-play";
+import { turnScope, useReactionPlay } from "./reaction-play";
+import { useTargetSelection } from "./target-selection";
 import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
@@ -75,45 +65,6 @@ import {
   useConnDown,
 } from "@app/screens/shared/ConnectionBanner";
 import { TESTIDS } from "./testids";
-
-function reactionAnnouncement(
-  view: ReactionView,
-  seatLabel: (seat: number) => string,
-  cityName: (tileIndex: number) => string,
-) {
-  const user = seatLabel(view.userSeat);
-  if (view.kind === "march") {
-    return {
-      text: `${user} 行军途经`,
-      range: `${seatLabel(view.ownerSeat)} 的「${cityName(view.tileIndex)}」`,
-    };
-  }
-  const text = `${user} 用「${view.cardId}」`;
-  const { kind, ids, requiresSelection } = view.targets;
-  const label = kind === "city" ? cityName : seatLabel;
-  if (view.counter != null) {
-    const { rootCardId, rootUserSeat, protects } = view.counter;
-    const objects = ids.map(label).join("、");
-    const root = `${seatLabel(rootUserSeat)} 的「${rootCardId}」`;
-    return {
-      text,
-      range: `${protects ? "拆解" : "恢复"} ${root}${objects ? ` · ${objects}` : ""}`,
-    };
-  }
-  if (kind === "city") return { text, range: `受击城 ${ids.map(label).join("、")}` };
-  if (requiresSelection) return { text, range: `影响 ${ids.length} 位诸侯` };
-  return {
-    text,
-    range:
-      ids.length === 1 && ids[0] === view.userSeat
-        ? "影响自身"
-        : `影响 ${ids.map(label).join("、")}`,
-  };
-}
-
-function reactionTurnScope(snapshot: GameSnapshot): string {
-  return JSON.stringify([snapshot.gameId, snapshot.turnNumber, snapshot.activeIndex]);
-}
 
 function diagnosticControl(visible: boolean, available: boolean): GameDiagnosticControl {
   return !visible ? "hidden" : available ? "available" : "locked";
@@ -296,80 +247,46 @@ function GameScreenLive({
     }
   }, [peeking, closeInspection, closeWarlordsInspection]);
 
-  // 决策归属与命令在途分开：锁住操作期间继续显示这一步的选择。
-  const junshiWindowUp =
-    snapshot.phase === "Playing" &&
-    snapshot.turnPhase === "AwaitingJinnang" &&
-    snapshot.decisionOwner === selfSeat &&
-    snapshot.choices.some((o) => o.id === "pass" || o.id === "cancel");
-  const junshiUp = junshiWindowUp && !autopilotOn && !selfPlayer.isBot;
-  const junshiPendingCard = junshiUp ? snapshot.pendingJinnang : null;
-  const junshiPendingSkill = junshiUp ? snapshot.pendingSkill : null;
-  const junshiTargeting = junshiPendingCard != null || junshiPendingSkill != null;
-  const [junshiSelection, setJunshiSelection] = useState<
-    (RackCardSelection & { scope: string }) | null
-  >(null);
-  const junshiOptions =
-    junshiUp && !junshiTargeting
-      ? snapshot.choices.filter((o) => o.id !== "pass" && o.id !== "cancel")
-      : [];
-  // 同名牌渲染次序变化时，旧 key 无法继续定位原来的那张牌。
-  const junshiScope = JSON.stringify([
-    snapshot.gameId,
-    snapshot.turnNumber,
-    selfSeat,
-    selfPlayer.id,
-    junshiOptions.map((o) => [o.id, o.available]),
-  ]);
-  useEffect(() => setJunshiSelection(null), [junshiScope, junshiTargeting, junshiUp]);
-  const junshiSelected =
-    junshiSelection != null && junshiSelection.scope === junshiScope
-      ? junshiOptions.find((o) => o.id === junshiSelection.optionId && o.available)
-      : undefined;
-  const selectedSkill =
-    junshiSelected != null && isSkillOption(junshiSelected)
-      ? skillById(junshiSelected.skillId)
-      : null;
-  const pendingSkill = junshiPendingSkill != null ? skillById(junshiPendingSkill.skillId) : null;
-  const pendingCard = junshiPendingCard != null ? jinnangCardOf(junshiPendingCard.cardId) : null;
-  const selectionRule = useMemo(() => {
-    if (pendingCard != null) {
-      const flow = TARGET_DOMAIN_STAGES[pendingCard.targetDomain];
-      if (flow.stages === 0) throw new Error(`锦囊【${pendingCard.id}】没有目标段`);
-      return flow.selection;
-    }
-    if (pendingSkill == null) return null;
-    if (!isActiveSkill(pendingSkill) || pendingSkill.target === "none") {
-      throw new Error(`技能【${pendingSkill.name}】没有目标段`);
-    }
-    const domain = pendingSkill.target === "city" ? "city" : "seat";
-    return { domain, ...SINGLE_TARGET } as const;
-  }, [pendingCard, pendingSkill]);
-  const targetStep = useMemo(
-    () =>
-      selectionRule && {
-        ...selectionRule,
-        candidates: targetCandidates(snapshot.choices, selectionRule.domain),
-      },
-    [selectionRule, snapshot.choices],
+  const dispatchCommand = useCallback(
+    (cmd: GameCommand) => controller.dispatchCommand(cmd),
+    [controller],
   );
-  const targetScope = junshiTargeting
-    ? JSON.stringify([
-        junshiScope,
-        junshiPendingCard?.cardId,
-        junshiPendingCard?.stage,
-        junshiPendingSkill,
-      ])
-    : null;
-  const targets = useTargetSelection(
-    targetScope,
-    targetStep,
-    junshiPendingCard?.stage === "two-a" ? junshiPendingCard.picked : undefined,
+  const { ownsPhase: ownsJinnangPhase, window: jinnang } = useJinnangPlay({
+    snapshot,
+    seat: selfSeat,
+    autopilotOn,
+    interactive,
+    dispatchCommand,
+  });
+  const {
+    identity: reactionIdentity,
+    scope: reactionScope,
+    window: reaction,
+    readDiagnosticChoices,
+  } = useReactionPlay({
+    snapshot,
+    seat: selfSeat,
+    board,
+    autopilotOn,
+    interactive,
+    deadlineAt: reactionDeadlineAt,
+    dispatchCommand,
+  });
+  const targetStep = reaction?.targetStep ?? jinnang?.targetStep ?? null;
+  const targets = useTargetSelection(targetStep, interactive);
+  const cityTargeting = targetStep?.domain === "city";
+  const seatTargeting = targetStep?.domain === "seat";
+  const showSeatReason = useCallback(
+    (seat: number, reason: string) => targets.reportUnavailable(players[seat].guohao, reason),
+    [targets.reportUnavailable, players],
   );
-  const junshiCityTargeting = targetStep?.domain === "city";
-  // 与 DecisionScrollLayer.dispatch 同款可选拍点(registry 未就绪时不发;GameScreenLive
-  // 只在 controller/map 就位后挂载,正常流到不了 null)。
-  const dispatchCommand = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
+  const handleTileClick = (tileIndex: number) => {
+    if (cityTargeting && !peeking) {
+      targets.toggle(tileIndex);
+      return;
+    }
+    onTileClick(tileIndex);
+  };
 
   // 回到主页:弃局离屏——销毁控制器(LocalController 释放时钟/
   // 行军会话,OnlineController 断 WS),本屏随 screen 切换卸载;新开局由各屏流程
@@ -394,91 +311,7 @@ function GameScreenLive({
     setWarReportOpen(true);
   }, []);
 
-  const junshiConfirm = () => {
-    if (!interactive) return;
-    if (targetStep != null) {
-      if (!targets.canConfirm) return;
-      if (junshiPendingSkill != null) {
-        dispatchCommand({ type: "useHeroSkill", ...junshiPendingSkill, targets: targets.selected });
-      } else {
-        dispatchCommand({
-          type: "useJinnang",
-          cardId: junshiPendingCard!.cardId,
-          targets: targets.selected,
-        });
-      }
-      return;
-    }
-    if (junshiSelected == null) return;
-    dispatchCommand(
-      isSkillOption(junshiSelected)
-        ? {
-            type: "useHeroSkill",
-            heroId: junshiSelected.skillHeroId,
-            skillId: junshiSelected.skillId,
-          }
-        : { type: "useJinnang", cardId: junshiSelected.id },
-    );
-  };
-  const junshiPass = () => {
-    if (!interactive) return;
-    if (junshiPendingSkill != null) {
-      dispatchCommand({ type: "useHeroSkill", ...junshiPendingSkill, cancel: true });
-    } else if (junshiPendingCard != null) {
-      dispatchCommand({ type: "useJinnang", cardId: junshiPendingCard.cardId, cancel: true });
-    } else {
-      dispatchCommand({ type: "useJinnang", cardId: null });
-    }
-  };
-  const junshiBack =
-    junshiPendingCard?.stage === "two-b"
-      ? () => dispatchCommand({ type: "useJinnang", cardId: junshiPendingCard.cardId, back: true })
-      : undefined;
-  const selectedNeedsTarget =
-    selectedSkill != null
-      ? isActiveSkill(selectedSkill) && selectedSkill.target !== "none"
-      : junshiSelected != null &&
-        TARGET_DOMAIN_STAGES[jinnangCardOf(junshiSelected.id).targetDomain].stages > 0;
-  const junshiTitle = pendingCard?.id ?? pendingSkill?.name ?? junshiSelected?.label ?? "出牌阶段";
-  const stepHint = junshiCityTargeting
-    ? "选城"
-    : junshiPendingCard?.stage === "two-a"
-      ? "选第一位诸侯"
-      : junshiPendingCard?.stage === "two-b"
-        ? "选第二位诸侯"
-        : "选诸侯";
-  const chosenLabels = targets.selected.map(
-    (id) => targetStep!.candidates.find((candidate) => candidate.id === id)!.label,
-  );
-  if (junshiPendingCard?.stage === "two-b") {
-    chosenLabels.unshift(players[junshiPendingCard.picked[0]].guohao);
-  }
-  const levy = junshiSelected?.levy;
-  const junshiDetail = junshiTargeting
-    ? [stepHint, ...(chosenLabels.length > 0 ? [`已选 ${chosenLabels.join("、")}`] : [])].join(
-        " · ",
-      )
-    : levy != null
-      ? `对其余 ${levy.affectedSeats.length} 位诸侯各征至多 ${formatMoney(levy.maxPerSeat)}`
-      : undefined;
-  const junshiPrimaryAction: PrimaryAction =
-    junshiPendingCard?.stage === "two-a"
-      ? { label: "下一步", variant: "primary" }
-      : pendingSkill != null || (selectedSkill != null && !selectedNeedsTarget)
-        ? { label: "发动", variant: "commit" }
-        : junshiTargeting || (junshiSelected != null && !selectedNeedsTarget)
-          ? { label: "出牌", variant: "commit" }
-          : { label: "选目标", variant: "primary" };
-
-  const reactionChoices = reactionChoicesForSeat(snapshot, selfSeat);
-  const reactionUp =
-    reactionChoices != null && reactionChoices.asked && !reactionChoices.answered && !autopilotOn;
-  const reactionIdentity = reactionChoices?.asked
-    ? JSON.stringify([snapshot.gameId, selfSeat, snapshot.pendingReaction!.seq])
-    : null;
-  const reactionScope = reactionUp ? reactionIdentity : null;
-  const turnScope = reactionTurnScope(snapshot);
-  const bookPlayScope = junshiUp && !junshiTargeting ? turnScope : null;
+  const bookPlayScope = jinnang?.targetStep === null ? turnScope(snapshot) : null;
   const bookPlayReady = interactive && !peeking && bookPlayScope !== null;
   const playableBooks = useMemo(
     () =>
@@ -500,135 +333,23 @@ function GameScreenLive({
   useEffect(() => {
     if (bookToRead === undefined && bookPick !== null) setBookPick(null);
   }, [bookToRead, bookPick]);
-  const [reactMute, setReactMute] = useState<{ scope: string; state: ReactionMuteState } | null>(
-    null,
-  );
-  const reactMuted =
-    reactMute?.scope === turnScope && reactionMuted(reactMute.state, snapshot.activeIndex);
   const readDiagnosticDecisions = useCallback(
-    (state: GameSnapshot, seat: number, canAct: boolean) => {
-      const choices = reactionChoicesForSeat(state, seat);
-      const muted =
-        reactMute?.scope === reactionTurnScope(state) &&
-        reactionMuted(reactMute.state, state.activeIndex);
-      const canDecline = choices !== null && choices.asked && !choices.answered && !muted && canAct;
-      return {
-        capitalChoices: selectableCapitalTiles(state, seat),
-        reaction:
-          choices === null
-            ? null
-            : { ...choices, muted, canDecline, playable: canDecline ? choices.playable : [] },
-      };
-    },
-    [reactMute],
+    (state: GameSnapshot, seat: number, canAct: boolean) => ({
+      capitalChoices: selectableCapitalTiles(state, seat),
+      reaction: readDiagnosticChoices(state, seat, canAct),
+    }),
+    [readDiagnosticChoices],
   );
-  const lastMutedAnswer = useRef<string | null>(null);
-  useEffect(() => {
-    if (
-      !interactive ||
-      !reactMuted ||
-      reactionScope == null ||
-      lastMutedAnswer.current === reactionScope
-    )
-      return;
-    lastMutedAnswer.current = reactionScope;
-    controller.dispatchCommand({ type: "respondReaction", seat: selfSeat, use: false });
-  }, [controller, interactive, reactionScope, reactMuted, selfSeat]);
-
-  const reaction = reactionUp && !reactMuted ? snapshot.reaction : null;
-  const answerDeadlineAt =
-    reaction != null && interactive && !connDown && !preparing && !peeking
-      ? reactionDeadlineAt
-      : null;
-  useReactionReminder(reactionIdentity, answerDeadlineAt);
-  const noticeOccupied = junshiUp || reaction != null;
+  useReactionReminder(
+    reactionIdentity,
+    interactive && !connDown && !preparing && !peeking ? (reaction?.deadlineAt ?? null) : null,
+  );
+  const noticeOccupied = jinnang != null || reaction != null;
   useLayoutEffect(() => {
     const { setNoticeSlotOccupied } = useFxStore.getState();
     setNoticeSlotOccupied(noticeOccupied);
     return () => setNoticeSlotOccupied(false);
   }, [noticeOccupied]);
-  const [reactSelection, setReactSelection] = useState<
-    (RackCardSelection & { scope: string }) | null
-  >(null);
-  useEffect(() => {
-    setReactSelection((selected) => (selected?.scope === reactionScope ? selected : null));
-  }, [reactionScope]);
-  const selectedReaction =
-    reaction != null &&
-    reactSelection?.scope === reactionScope &&
-    reactionChoices!.playable.includes(reactSelection.optionId)
-      ? reactSelection
-      : null;
-  const reactCardId = selectedReaction?.optionId;
-  const seatLabelOf = (seat: number) => players[seat].guohao;
-  const cityNameOf = (tileIndex: number) => board.at(tileIndex).name;
-  const reactChoices = reaction?.kind === "jinnang" ? reaction.targets : null;
-  const reactTargetStep: TargetSelectionStep | null =
-    selectedReaction != null && reactChoices?.requiresSelection
-      ? {
-          domain: reactChoices.kind,
-          ...SINGLE_TARGET,
-          candidates: reactChoices.ids.map((id) => ({
-            id,
-            label: reactChoices.kind === "city" ? cityNameOf(id) : seatLabelOf(id),
-            available: true,
-          })),
-        }
-      : null;
-  const reactTargetScope =
-    reactTargetStep != null ? JSON.stringify([reactionScope, selectedReaction!.key]) : null;
-  const reactTargets = useTargetSelection(reactTargetScope, reactTargetStep);
-  const activeTargetStep = reactTargetStep ?? targetStep;
-  const activeTargetScope = reactTargetScope ?? targetScope;
-  const activeTargets = reactTargetStep != null ? reactTargets : targets;
-  const cityTargeting = activeTargetStep?.domain === "city";
-  const cityOptions = cityTargeting ? activeTargetStep.candidates.filter((o) => o.available) : [];
-  const seatOptions = activeTargetStep?.domain === "seat" ? activeTargetStep.candidates : [];
-  const [blockedSeat, setBlockedSeat] = useState<{ scope: string; text: string } | null>(null);
-  const seatReason = blockedSeat?.scope === activeTargetScope ? blockedSeat.text : undefined;
-  useEffect(() => {
-    setBlockedSeat(null);
-  }, [activeTargetScope]);
-  const seatTargetPick = useCallback(
-    (seat: number) => {
-      if (!interactive) return;
-      setBlockedSeat(null);
-      activeTargets.toggle(seat);
-    },
-    [interactive, activeTargets.toggle],
-  );
-  const showSeatReason = useCallback(
-    (seat: number, reason: string) => {
-      if (activeTargetScope != null) {
-        setBlockedSeat({ scope: activeTargetScope, text: `${players[seat].guohao} · ${reason}` });
-      }
-    },
-    [activeTargetScope, players],
-  );
-  const handleTileClick = (tileIndex: number) => {
-    if (cityTargeting && !peeking) {
-      if (interactive) activeTargets.toggle(tileIndex);
-      return;
-    }
-    onTileClick(tileIndex);
-  };
-  const reactionShare = reactTargets.selected[0];
-  const reactRespond = (use: boolean) => {
-    if (!interactive) return;
-    getAudio().stop("reaction", "fade");
-    const target =
-      reactTargetStep != null && reactionShare != null
-        ? { kind: reactTargetStep.domain, id: reactionShare }
-        : undefined;
-    dispatchCommand({
-      type: "respondReaction",
-      seat: selfSeat,
-      use,
-      ...(use ? { cardId: reactCardId, target } : {}),
-    });
-  };
-  const reactionNotice =
-    reaction != null ? reactionAnnouncement(reaction, seatLabelOf, cityNameOf) : null;
   const [playNudge, setPlayNudge] = useState(0);
 
   // ── 「你可」选择闸窗态:快照 pendingSkillChoices 首问驱动 ──
@@ -703,10 +424,10 @@ function GameScreenLive({
   // 自动状态实时随内容变化;灰置锦囊仍算有内容,主动技只计实际在架的卡牌段选项。
   // 触发技继续由手牌架边缘承载；锦囊反应条独立置顶。
   const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
-  const windowUp = junshiUp || reaction != null || skillBanner != null;
+  const windowUp = noticeOccupied || skillBanner != null;
   const hasRackContent =
     selfPlayer.jinnangHand.length > 0 ||
-    junshiOptions.some(isSkillOption) ||
+    jinnang?.hasSkillCards === true ||
     playableBooks.length > 0;
   const autoRackHidden = cityTargeting || !((myTurnUp || windowUp) && hasRackContent);
   const rackHidden = rackManualHidden === null ? autoRackHidden : rackManualHidden;
@@ -714,7 +435,6 @@ function GameScreenLive({
     () => setRackManualHidden((manual) => !(manual === null ? autoRackHidden : manual)),
     [autoRackHidden],
   );
-  const rackJunshiWindowUp = junshiWindowUp;
   const rackSkillQuestionId =
     skillWindowUp && snapshot.decisionOwner === selfSeat ? skillQuestionId : null;
   // 只在回合/本座实际窗态边界撤销手动控制;命令在途的交互锁不算关窗。
@@ -725,7 +445,7 @@ function GameScreenLive({
     snapshot.phase,
     snapshot.activeIndex,
     snapshot.turnNumber,
-    rackJunshiWindowUp,
+    ownsJinnangPhase,
     cityTargeting,
     reactionScope,
     rackSkillQuestionId,
@@ -746,16 +466,17 @@ function GameScreenLive({
     return `「${cur.guohao}」正在定都(尚余 ${pending} 人)…`;
   })();
 
-  const showJunshiAction = !peeking && junshiUp;
-  const junshiActionCollapsed = rackHidden && !junshiTargeting;
-  const showReactionAction = !peeking && reaction != null && reactionNotice != null;
+  const jinnangAction = !peeking && jinnang != null ? jinnang.actionFor(targets) : null;
+  const jinnangActionCollapsed = rackHidden && jinnang?.targetStep === null;
+  const reactionAction = !peeking && reaction != null ? reaction.actionFor(targets) : null;
+  const showReactionAction = reactionAction != null;
   const decisionScrollInteractive = interactive && !peeking;
   const diagnosticCapital = diagnosticControl(
     !preparing && !peeking && selectableTiles !== undefined,
     !connDown && !autopilotOn && !controller.diagnosticInteraction.pending,
   );
   const diagnosticJinnang = diagnosticControl(
-    !preparing && showJunshiAction && !junshiActionCollapsed,
+    !preparing && jinnangAction != null && !jinnangActionCollapsed,
     interactive,
   );
   const reactionControl = useRef<GameDiagnosticControl>("hidden");
@@ -780,8 +501,7 @@ function GameScreenLive({
     },
     [controller, snapshot.gameId],
   );
-  const diagnosticTarget =
-    preparing || peeking || activeTargetStep === null ? null : activeTargetStep.domain;
+  const diagnosticTarget = preparing || peeking || targetStep === null ? null : targetStep.domain;
   useLayoutEffect(
     () =>
       mountGameDiagnostics(controller, snapshot.gameId, VERSION, readDiagnosticDecisions, {
@@ -808,8 +528,6 @@ function GameScreenLive({
     ],
   );
 
-  if (reaction != null && reactionDeadlineAt == null)
-    throw new Error(`反应窗 ${snapshot.pendingReaction!.seq} 缺少截止时刻`);
   const restoreLocked =
     parkedDecision &&
     snapshot.phase === "Playing" &&
@@ -844,17 +562,17 @@ function GameScreenLive({
             /* 目标段选城:候选金环呼吸(选都 crown 同通路)+ 选中实金停持环;
                候选集/选中格从快照 choices 城选项派生,非城域恒 undefined/null */
             cityTargetTiles={
-              cityTargeting && !peeking ? new Set(cityOptions.map((o) => o.id)) : undefined
+              cityTargeting && !peeking
+                ? new Set(targets.available.map((option) => option.id))
+                : undefined
             }
-            cityPickedTileIndex={
-              cityTargeting && !peeking ? (activeTargets.selected[0] ?? null) : null
-            }
+            cityPickedTileIndex={cityTargeting && !peeking ? (targets.selected[0] ?? null) : null}
             /* 候选集全座位透传——非决策席也见静态金圈与壹贰叁序号印 */
             candidateTiles={offeredCapitals ?? undefined}
             /* 目标段:可用候选席位的棋子金虚线环呼吸(与席位格金圈同步) */
             targetedPlayerIds={
-              activeTargetStep?.domain === "seat" && !peeking
-                ? new Set(seatOptions.filter((o) => o.available).map((o) => players[o.id].id))
+              seatTargeting && !peeking
+                ? new Set(targets.available.map((option) => players[option.id].id))
                 : undefined
             }
             activeTileIndex={
@@ -956,31 +674,27 @@ function GameScreenLive({
           selfSeat={selfSeat}
           onOpenOverview={openWarlords}
           targets={
-            activeTargetStep?.domain === "seat" && !peeking
+            seatTargeting && !peeking
               ? {
                   bySeat: new Map(
                     players.map((_, seat) => {
-                      const option = seatOptions.find((o) => o.id === seat);
-                      const firstPick =
-                        reactTargetStep == null &&
-                        junshiPendingCard?.stage === "two-b" &&
-                        junshiPendingCard.picked.includes(seat);
+                      const { candidate, firstPick, selected } = targets.candidateState(seat);
                       return [
                         seat,
                         {
-                          available: option?.available === true,
-                          selected: firstPick || activeTargets.selected.includes(seat),
+                          available: candidate?.available === true,
+                          selected,
                           reason: firstPick
                             ? "已选为第一位，点「上一步」可更改"
-                            : option == null
+                            : candidate == null
                               ? "不在本次影响范围"
-                              : option.reason,
+                              : candidate.reason,
                         },
                       ];
                     }),
                   ),
                   locked: !interactive,
-                  onPick: seatTargetPick,
+                  onPick: targets.toggle,
                   onUnavailable: showSeatReason,
                 }
               : undefined
@@ -1005,48 +719,15 @@ function GameScreenLive({
                 onInspect={setRackInspection}
                 skillBooks={rackBooks}
                 onReadBook={
-                  bookPlayReady && bookPlayScope !== null
+                  bookPlayReady && bookPlayScope !== null && jinnang != null
                     ? (bookId) => {
-                        setJunshiSelection(null);
+                        jinnang.hand.onSelect(null);
                         setBookPick({ bookId, scope: bookPlayScope });
                       }
                     : undefined
                 }
-                junshi={
-                  junshiUp
-                    ? {
-                        options: junshiOptions,
-                        pendingCardId: junshiPendingCard?.cardId ?? null,
-                        pendingSkillId: junshiPendingSkill?.skillId ?? null,
-                        selectedKey: junshiSelected != null ? junshiSelection!.key : null,
-                        onSelect: (selection) => {
-                          if (interactive) {
-                            setJunshiSelection(
-                              selection != null ? { ...selection, scope: junshiScope } : null,
-                            );
-                          }
-                        },
-                      }
-                    : undefined
-                }
-                reaction={
-                  reaction != null
-                    ? {
-                        reactiveIds: reactionChoices!.playable,
-                        seq: snapshot.pendingReaction!.seq,
-                        selection: selectedReaction,
-                        onSelect: (selection) => {
-                          if (!interactive) return;
-                          if (selectedReaction?.key === selection.key) {
-                            setReactSelection(null);
-                            return;
-                          }
-                          getAudio().play("jinnangSelect");
-                          setReactSelection({ ...selection, scope: reactionScope! });
-                        },
-                      }
-                    : undefined
-                }
+                junshi={jinnang?.hand}
+                reaction={reaction?.hand}
                 skillBanner={skillBanner}
               />
             }
@@ -1106,59 +787,21 @@ function GameScreenLive({
             onCaptureDiagnostic={checkpointGameDiagnostics}
           />
         )}
-        {showJunshiAction && (
+        {jinnangAction != null && (
           <ActionBar
-            title={junshiTitle}
-            collapsed={junshiActionCollapsed}
-            detail={seatReason == null ? junshiDetail : `${junshiDetail} · ${seatReason}`}
-            primaryAction={junshiPrimaryAction}
-            cancelLabel={
-              junshiPendingSkill != null
-                ? "作罢"
-                : junshiPendingCard != null
-                  ? "取消选牌"
-                  : undefined
-            }
-            canConfirm={junshiTargeting ? targets.canConfirm : junshiSelected != null}
+            {...jinnangAction}
+            collapsed={jinnangActionCollapsed}
             locked={!interactive}
-            onPlay={junshiConfirm}
-            onPass={junshiPass}
-            onBack={junshiBack}
             onBlockedAttempt={() => setPlayNudge((n) => n + 1)}
           />
         )}
-        {showReactionAction && (
+        {reactionAction != null && (
           <ReactionBanner
             key={reactionScope}
-            {...reactionNotice}
-            step={
-              seatReason ??
-              (reactTargetStep != null
-                ? `${rackHidden ? `已选 ${selectedReaction!.optionId} · ` : ""}${
-                    reactionShare != null
-                      ? `保护 ${reactTargetStep.candidates.find((o) => o.id === reactionShare)!.label}`
-                      : reactTargetStep.domain === "city"
-                        ? "在地图上选一座城保护"
-                        : "在右侧席位区选一位诸侯保护"
-                  }`
-                : reactCardId != null
-                  ? `已选 ${reactCardId}`
-                  : null)
-            }
-            durationMs={reaction.windowMs}
-            deadlineAt={reactionDeadlineAt!}
-            confirmEnabled={
-              reactCardId != null && (reactTargetStep == null || reactTargets.canConfirm)
-            }
+            {...reactionAction}
+            rackHidden={rackHidden}
             locked={!interactive}
             onLockChange={preparing ? undefined : onReactionLockChange}
-            onConfirm={() => reactRespond(true)}
-            onDecline={() => reactRespond(false)}
-            onMute={() => {
-              lastMutedAnswer.current = reactionScope;
-              setReactMute({ scope: turnScope, state: reactionMuteEngage(snapshot.activeIndex) });
-              reactRespond(false);
-            }}
           />
         )}
         {/* 窥探弹层:军情密探即时窥探的 viewer-only 演出——开关态单源 fxStore

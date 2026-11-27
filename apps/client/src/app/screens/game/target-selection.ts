@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ChoiceOption } from "@dafung/core/engine/choices";
 
-export interface TargetCandidate {
+interface TargetCandidate {
   id: number;
   label: string;
   available: boolean;
@@ -9,10 +9,15 @@ export interface TargetCandidate {
 }
 
 export interface TargetSelectionStep {
+  scope: string;
   domain: "seat" | "city";
   min: number;
   max: number;
   candidates: readonly TargetCandidate[];
+  /** 返回第一步后，权威保留的首选可继续改选。 */
+  initial?: readonly number[];
+  /** 第二步展示已提交首选，当前命令只携带本步选择。 */
+  firstSeat?: { id: number; label: string };
 }
 
 /** 目标编号按域读取；席位号和城格号有各自的编号空间。 */
@@ -38,6 +43,12 @@ export function targetCandidates(
   });
 }
 
+interface TargetDraft {
+  scope: string;
+  ids?: number[];
+  unavailableReason?: string;
+}
+
 const NO_TARGETS: readonly number[] = [];
 
 function availableIds(step: TargetSelectionStep | null, ids: readonly number[]): number[] {
@@ -46,38 +57,77 @@ function availableIds(step: TargetSelectionStep | null, ids: readonly number[]):
   );
 }
 
-/** scope 标识本次选择的当前步骤；在途锁只关闭操作，scope 随权威步骤更新。 */
-export function useTargetSelection(
-  scope: string | null,
-  step: TargetSelectionStep | null,
-  initial: readonly number[] = NO_TARGETS,
-) {
-  const [draft, setDraft] = useState<{ scope: string; ids: number[] } | null>(null);
+/** 出牌阶段与反应窗共用一个目标草稿。命令在途只锁操作，权威换步才更换作用域。 */
+export function useTargetSelection(step: TargetSelectionStep | null, interactive: boolean) {
+  const scope = step?.scope;
+  const [draft, setDraft] = useState<TargetDraft | null>(null);
   useEffect(() => {
     setDraft((current) => (current?.scope === scope ? current : null));
   }, [scope]);
-  const selected = availableIds(step, draft?.scope === scope ? draft.ids : initial);
+
+  const current = draft?.scope === scope ? draft : null;
+  const initial = step?.initial ?? NO_TARGETS;
+  const available = (step?.candidates ?? []).filter((candidate) => candidate.available);
+  const selected = availableIds(step, current?.ids ?? initial);
+  const selectedLabels = selected.map(
+    (id) => available.find((candidate) => candidate.id === id)!.label,
+  );
+  if (step?.firstSeat != null) selectedLabels.unshift(step.firstSeat.label);
+
   const toggle = useCallback(
     (id: number) => {
       if (
+        !interactive ||
         step == null ||
-        scope == null ||
         !step.candidates.some((candidate) => candidate.id === id && candidate.available)
       )
         return;
-      setDraft((current) => {
-        const ids = availableIds(step, current?.scope === scope ? current.ids : initial);
-        if (ids.includes(id)) return { scope, ids: ids.filter((selectedId) => selectedId !== id) };
-        if (step.max === 1) return { scope, ids: [id] };
-        if (ids.length >= step.max) return current;
-        return { scope, ids: [...ids, id] };
+      setDraft((draft) => {
+        const current = draft?.scope === step.scope ? draft : null;
+        const ids = availableIds(step, current?.ids ?? initial);
+        if (ids.includes(id))
+          return { scope: step.scope, ids: ids.filter((picked) => picked !== id) };
+        if (step.max === 1) return { scope: step.scope, ids: [id] };
+        if (ids.length < step.max) return { scope: step.scope, ids: [...ids, id] };
+        return current?.unavailableReason != null ? { scope: step.scope, ids: current.ids } : draft;
       });
     },
-    [scope, step, initial],
+    [interactive, step, initial],
   );
+  const reportUnavailable = useCallback(
+    (label: string, reason: string) => {
+      if (scope == null) return;
+      setDraft((current) => ({
+        scope,
+        ids: current?.scope === scope ? current.ids : undefined,
+        unavailableReason: `${label} · ${reason}`,
+      }));
+    },
+    [scope],
+  );
+  const candidateState = (id: number) => {
+    const candidate = step?.candidates.find((candidate) => candidate.id === id);
+    const firstPick = step?.firstSeat?.id === id;
+    return {
+      candidate,
+      firstPick,
+      selected: firstPick || selected.includes(id),
+    };
+  };
+
   return {
+    available,
     selected,
+    selectedLabels,
     canConfirm: step != null && selected.length >= step.min && selected.length <= step.max,
+    unavailableReason: current?.unavailableReason,
+    candidateState,
     toggle,
+    reportUnavailable,
   };
 }
+
+export type TargetSelection = Pick<
+  ReturnType<typeof useTargetSelection>,
+  "selected" | "selectedLabels" | "canConfirm" | "unavailableReason"
+>;
