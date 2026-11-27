@@ -48,12 +48,10 @@ export interface Board {
   positionOf(index: number): BoardPos;
   next(current: number): number;
   computePath(fromIndex: number, steps: number, capitalIndex: number): MovePath;
-  /** 两格距离(#1386):沿环道**双向最短**(自格=0,相邻格=1)——规则文本「距离 N 格
-   *  以内」一律指此义,全局唯一距离单源。单向判定用 forwardDistance,规则文本必须
-   *  显式写「前方距离 N 格以内」(GLOSSARY「距离」命名纪律)。 */
+  /** 两格距离(#1386):沿环道取前后步数的较小值(自格=0,相邻格=1)。
+   *  范围文案的方向写法见 GLOSSARY「距离」。 */
   distance(fromIndex: number, toIndex: number): number;
-  /** 前方距离(#1386):自 fromIndex 沿行军方向**正向**数到 toIndex 的步数(自格=0)。
-   *  只许在规则文本显式写「前方距离」的机制里使用。 */
+  /** 前方距离(#1386):自 fromIndex 沿行军方向**正向**数到 toIndex 的步数(自格=0)。 */
   forwardDistance(fromIndex: number, toIndex: number): number;
 }
 

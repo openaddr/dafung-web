@@ -151,7 +151,7 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     copies: 2,
     tags: ["攻"],
     targetDomain: "one",
-    text: `短兵袭扰:指定双向 ${XIRAO_RANGE} 格内一名未休整的其他诸侯，使其损失 ${XIRAO_DAMAGE} 点体力。`,
+    text: `短兵袭扰:指定 ${XIRAO_RANGE} 格内一名未休整的其他诸侯，使其损失 ${XIRAO_DAMAGE} 点体力。`,
     effect: { kind: "staminaDamage", damage: XIRAO_DAMAGE, range: XIRAO_RANGE },
   },
   {
