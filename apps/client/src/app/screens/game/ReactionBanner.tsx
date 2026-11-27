@@ -1,13 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getAudio } from "@app/fx/audio";
 import { TargetActionBar, TargetActionButton } from "./TargetActionBar";
+import type { TargetSelectionStep } from "./target-selection";
 import { TESTIDS } from "./testids";
 import "./reaction-banner.css";
 
 interface ReactionBannerProps {
   text: string;
   range: string;
-  step: string | null;
+  selection: {
+    cardId: string;
+    target: { domain: TargetSelectionStep["domain"]; selectedLabel: string | null } | null;
+  } | null;
+  unavailableReason?: string;
+  rackHidden: boolean;
   durationMs: number;
   deadlineAt: number;
   confirmEnabled: boolean;
@@ -88,7 +94,9 @@ export function useReactionReminder(scope: string | null, answerDeadlineAt: numb
 export function ReactionBanner({
   text,
   range,
-  step,
+  selection,
+  unavailableReason,
+  rackHidden,
   durationMs,
   deadlineAt,
   confirmEnabled,
@@ -118,6 +126,23 @@ export function ReactionBanner({
   useLayoutEffect(() => {
     onLockChange?.(disabled);
   }, [disabled, onLockChange]);
+
+  let step = unavailableReason ?? null;
+  if (step === null && selection !== null) {
+    const { cardId, target } = selection;
+    const pickedCard = `已选 ${cardId}`;
+    if (target === null) {
+      step = pickedCard;
+    } else {
+      const prompt =
+        target.selectedLabel !== null
+          ? `保护 ${target.selectedLabel}`
+          : target.domain === "city"
+            ? "在地图上选一座城保护"
+            : "在右侧席位区选一位诸侯保护";
+      step = rackHidden ? `${pickedCard} · ${prompt}` : prompt;
+    }
+  }
 
   return (
     <TargetActionBar
