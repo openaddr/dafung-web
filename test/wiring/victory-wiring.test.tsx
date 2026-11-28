@@ -319,9 +319,9 @@ it("终局保留轮末收入，依序播放重掷并揭晓胜者", async () => {
   const lastSeat = (engine.roundAnchor + 2) % engine.players.length;
   armPhase(engine, { activeIndex: lastSeat, phase: "Playing", turnPhase: "EndTurn" });
   for (const seat of [0, 1, 2]) setCash(engine, seat, engine.targetNetWorth);
-  grantProperty(engine, 0, "prop-youzhou", 1);
+  grantProperty(engine, 0, "prop-jinyang", 1);
   grantProperty(engine, 1, "prop-xiapi", 1);
-  // 幽州和下邳分别到账 54、90 两，到账后方三家并列。
+  // 晋阳和下邳分别到账 54、90 两，到账后方三家并列。
   setCash(engine, 0, engine.targetNetWorth - 54);
   setCash(engine, 1, engine.targetNetWorth - 90);
   pinDice(engine, "duel", [5, 4, 5, 6, 2]);
