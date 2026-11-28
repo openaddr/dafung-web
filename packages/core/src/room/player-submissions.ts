@@ -5,7 +5,6 @@ import { reactionAnswerError } from "../engine/reaction-window";
 import { capitalChoiceOf } from "../engine/setup-flow";
 import type { GameSnapshot } from "../engine/snapshot";
 import {
-  requiresPlayerSubmission,
   type PlayerSubmission,
   type PlayerSubmissionRejection,
   type PlayerSubmissionResult,
@@ -212,8 +211,6 @@ function submissionError(room: RoomSession, submission: PlayerSubmission): Submi
   if (seat !== e.decisionOwner || seatControlled(room, seat))
     return { reasonCode: "wrongSeat", reason: "本席当前无权出牌" };
   if (decisionPoint !== seatDecisionPointOf(room, seat)) return STALE_DECISION;
-  if (!requiresPlayerSubmission(cmd, e.pendingJinnang?.cardId ?? null))
-    return { reason: "该操作不属于此次玩家提交" };
   const pending = e.pendingJinnang;
   if (cmd.cardId === null) {
     if (

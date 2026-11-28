@@ -16,7 +16,6 @@
 import type { GameCommand } from "../engine/authority";
 import type { ChoiceOption } from "../engine/choices";
 import type { GameEvent } from "../engine/game-events";
-import { JINNANG_CARDS, TARGET_DOMAIN_STAGES } from "../engine/jinnang";
 import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-execution";
 import type { LogEvent } from "../engine/model";
 import type { CapitalOption } from "../engine/setup-flow";
@@ -85,24 +84,16 @@ export type SubmissionResultMsg = {
   requestId?: number;
 } & PlayerSubmissionResult;
 
-export function requiresPlayerSubmission(
-  cmd: PlayerCommand,
-  pendingCardId: string | null = null,
-): cmd is PlayerSubmission["cmd"] {
-  if (
+export function requiresPlayerSubmission(cmd: PlayerCommand): cmd is PlayerSubmission["cmd"] {
+  return (
     cmd.type === "pickCapital" ||
+    cmd.type === "useJinnang" ||
     cmd.type === "respondReaction" ||
     cmd.type === "respondSkillChoice" ||
     cmd.type === "resolveHeroPick" ||
     cmd.type === "resolveTreasureOwner" ||
     isBankruptcyDecisionCommand(cmd) ||
     isLandDecisionCommand(cmd)
-  )
-    return true;
-  if (cmd.type !== "useJinnang") return false;
-  if (cmd.cardId === null || cmd.cardId === "连环计" || pendingCardId === "连环计") return true;
-  return JINNANG_CARDS.some(
-    (card) => card.id === cmd.cardId && TARGET_DOMAIN_STAGES[card.targetDomain].stages === 0,
   );
 }
 

@@ -777,10 +777,9 @@ export class RoomRegistry {
     if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
       throw new RoomError(400, "seat 非法"); // 旁观/越界座位不可提交任何游戏命令
     if (cmd.type === "rollAndMove") throw new RoomError(403, "行军由房间自动起摇");
-    const e = room.engine;
-    if (requiresPlayerSubmission(cmd, e.pendingJinnang?.cardId ?? null))
+    if (requiresPlayerSubmission(cmd))
       throw new RoomError(403, "请携带原决策点和提交编号提交此操作");
-    const owner = decisionSeatOf(e);
+    const owner = decisionSeatOf(room.engine);
     if (seat !== owner) throw new RoomError(403, `未轮到该座位决策(归属:座位 ${owner})`);
     await this.applyCommand(roomId, cmd, onUpdate, report);
   }
