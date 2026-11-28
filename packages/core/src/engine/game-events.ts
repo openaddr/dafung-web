@@ -26,7 +26,7 @@ import type {
   CityDamageOrigin,
   CityRewardReceipt,
 } from "./city-damage";
-import type { CityBurning } from "./model";
+import type { CityBurning, PropertyHolding } from "./model";
 import { findHolding } from "./player";
 import { heroSlotOf } from "./roster";
 import { netWorth } from "./networth";
@@ -132,6 +132,7 @@ export interface CapitalSelectedBody {
   tileIndex: number;
   propertyId: string;
   cost: number;
+  holding: PropertyHolding;
 }
 /** 购地(决策命令成交;price=购入价)。 */
 export interface PropertyBoughtBody {

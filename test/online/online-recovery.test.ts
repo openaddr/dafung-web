@@ -11,7 +11,12 @@ import type { WebSocketLike } from "@app/net/reconnecting-socket";
 import { getEngine, useGameStore } from "@app/store/gameStore";
 import { getController, setController } from "@app/controllers/registry";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
-import { eventsMsg, type InboundMsg, type ServerMsg } from "@dafung/core/protocol/wire";
+import {
+  eventsMsg,
+  type DecisionOptions,
+  type InboundMsg,
+  type ServerMsg,
+} from "@dafung/core/protocol/wire";
 import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
 import zhongyuanData from "../../packages/core/maps/zhongyuan.json" with { type: "json" };
@@ -133,11 +138,23 @@ function authority(seatCount = 2): GameEngine {
 }
 
 function hydrate(socket: FakeSocket, engine: GameEngine, autoPilot = false): void {
+  const selectingCapital =
+    engine.phase === "Setup" && engine.currentSetupPlayerIndex === controller.seat;
+  const decisionOptions: DecisionOptions | undefined = selectingCapital
+    ? {
+        kind: "pickCapital",
+        options: engine.offeredCapitals.map((tileIndex) => {
+          const property = engine.catalog.get(engine.board.at(tileIndex).propertyId)!;
+          return { tileIndex, propertyId: property.id, cost: property.buildCost, available: true };
+        }),
+      }
+    : undefined;
   socket.receive({
     type: "snapshot",
     ...roomFields(true, autoPilot),
     ...redactSnapshotForSeat(engine.snapshot(), controller.seat),
-    decisionPoint: "calibrated",
+    decisionPoint: selectingCapital ? "capital-step" : "calibrated",
+    decisionOptions,
   });
 }
 
@@ -288,8 +305,20 @@ describe("OnlineController 原座恢复", () => {
     expect(useNetStore.getState().connection).toBe("calibrating");
     hydrate(first, engine);
     expect(controller.sessionReady).toBe(true);
-    controller.setupPickCapital(engine.offeredCapitals[0]!);
+    controller.dispatchCommand({ type: "pickCapital", tileIndex: engine.offeredCapitals[0]! });
     expect(first.sent).toHaveLength(1);
+    const original = JSON.parse(first.sent[0]!);
+    expect(original).toEqual({
+      type: "submit",
+      submission: {
+        roomId: "SAME",
+        seat: 1,
+        submissionId: expect.any(String),
+        decisionPoint: "capital-step",
+        cmd: { type: "pickCapital", tileIndex: engine.offeredCapitals[0]! },
+      },
+      requestId: expect.any(Number),
+    });
     const readable = controller.engine.snapshot();
     const oldMessage = first.onmessage!;
     first.disconnect();
@@ -320,19 +349,21 @@ describe("OnlineController 原座恢复", () => {
     expect(useNetStore.getState().connection).toBe("calibrating");
     expect(controller.engine.snapshot()).toEqual(readable);
     expect(useNetStore.getState().eventBatchSeq).toBe(0);
-    controller.setupPickCapital(engine.offeredCapitals[0]!);
+    controller.dispatchCommand({ type: "pickCapital", tileIndex: engine.offeredCapitals[0]! });
     controller.setAutoPilot(false);
     expect(current.sent).toEqual([]);
 
     hydrate(current, engine);
     expect(controller.sessionReady).toBe(true);
     expect(useNetStore.getState().connection).toBe("open");
-    expect(useNetStore.getState().pending).toBe(false);
-    controller.setupPickCapital(engine.offeredCapitals[0]!);
-    expect(JSON.parse(current.sent[0]!)).toEqual({
-      type: "pickCapital",
-      tileIndex: engine.offeredCapitals[0]!,
-      requestId: expect.any(Number),
+    expect(useNetStore.getState().pending).toBe(true);
+    controller.dispatchCommand({ type: "pickCapital", tileIndex: engine.offeredCapitals[0]! });
+    expect(current.sent).toEqual(first.sent);
+    current.receive({
+      type: "submissionResult",
+      outcome: "accepted",
+      requestId: original.requestId,
+      submissionId: original.submission.submissionId,
     });
 
     while (engine.phase === "Setup") {
@@ -398,6 +429,7 @@ describe("OnlineController 原座恢复", () => {
     });
     const sent = JSON.parse(socket.sent.at(-1)!) as Extract<InboundMsg, { type: "submit" }>;
     expect(sent.submission.decisionPoint).toBe(point);
+    if (sent.submission.cmd.type !== "respondReaction") throw new Error("缺少反应应答提交");
     engine.submitCommand(sent.submission.cmd);
     socket.receive(JSON.parse(eventsMsg(redactEvents(engine.gameEvents, 1), undefined, null)));
     expect(controller.seatView).toMatchObject({
@@ -456,6 +488,7 @@ describe("OnlineController 原座恢复", () => {
     expect(useNetStore.getState().pending).toBe(true);
     const accepted = latest();
     const logOffset = engine.log.length;
+    if (accepted.submission.cmd.type !== "respondReaction") throw new Error("缺少反应应答提交");
     engine.submitCommand(accepted.submission.cmd);
     socket.receive(JSON.parse(eventsMsg(redactEvents(engine.gameEvents, 1))));
     expect(controller.seatView.snapshot.reaction).toBeNull();

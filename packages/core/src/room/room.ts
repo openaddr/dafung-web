@@ -466,7 +466,7 @@ export class RoomRegistry {
   }
 
   /** host 开局:构造引擎，补齐国号并排定选都顺序后进入 Setup·PickCapital。真人经 WS
-   *  pickCapital 落子，bot/托管座位由 driveBots 代选。首帧 onUpdate 含首位选都者的候选。
+   *  真人通过玩家提交落子，bot/托管座位由 driveBots 代选。首帧 onUpdate 含首位的候选。
    *  onUpdate:开局首帧 + 每个 bot 步后调(逐步直播,保留原 server.ts 行为)。
    *  mapProvider:按 mapId 返回 LoadedMap(服务器加载内置地图后注入;ADR-0007:
    *  room.ts 不读 fs)。startGame 前必须 setMap,否则 400"请先选择地图"。
@@ -525,36 +525,6 @@ export class RoomRegistry {
     this.persist(room);
     onUpdate?.(room); // 开局首帧(Setup 态:offeredCapitals=首位选都者的候选)
     await this.driveBots(room, onUpdate); // bot/托管座位先驱动(全 bot 驱动房自动进 Playing)
-    return room;
-  }
-
-  /** 真人选都落子(L41):校验「轮到该座位 + tileIndex 属于当前候选」后引擎落子;
-   *  选完由引擎滚换下一位候选,余下 bot/托管座位 driveBots 接力。
-   *  轮次/候选校验与 engine.pickCapital 同源(消息透传),这里补 HTTP 语义状态码。 */
-  async pickCapital(
-    roomId: string,
-    seat: number,
-    tileIndex: number,
-    onUpdate?: (room: RoomSession) => void,
-    report?: ReportCommandProcessing,
-  ): Promise<RoomSession> {
-    const room = this.rooms.get(roomId);
-    if (!room) throw new RoomError(404, "房间不存在");
-    if (!room.engine) throw new RoomError(409, "对局未开始");
-    const e = room.engine;
-    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital")
-      throw new RoomError(409, "非选都阶段");
-    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
-      throw new RoomError(400, "seat 非法");
-    if (e.currentSetupPlayerIndex !== seat) throw new RoomError(403, "未轮到该座位选都");
-    if (!e.offeredCapitals.includes(tileIndex)) throw new RoomError(400, "非本轮候选城");
-    const logOffset = e.log.length;
-    const r = e.pickCapital(seat, tileIndex);
-    if (!r.ok) throw new RoomError(400, r.reason ?? "选都失败");
-    this.persist(room);
-    onUpdate?.(room); // 落子结果先推(候选滚换/推进)
-    report?.({ outcome: "accepted", logOffset: this.publicLogOffset(room, logOffset) });
-    await this.driveBots(room, onUpdate); // 余下服务器驱动座位接棒(全 bot 驱动房直接跑完进 Playing)
     return room;
   }
 
@@ -686,7 +656,7 @@ export class RoomRegistry {
       seat !== submission.seat ||
       !room.seats[seat]?.token
     )
-      return { outcome: "rejected", reason: "提交与入座房间或座位不符" };
+      return { outcome: "rejected", reasonCode: "wrongSeat", reason: "提交与入座房间或座位不符" };
     const payload = submissionPayload(submission);
     const old = room.submissions.entries.find(
       (entry) => entry.seat === seat && entry.submissionId === submission.submissionId,
@@ -694,7 +664,7 @@ export class RoomRegistry {
     if (old)
       return old.payload === payload
         ? { ...old.result }
-        : { outcome: "rejected", reason: "这个提交编号已用于其他内容" };
+        : { outcome: "rejected", reasonCode: "submissionIdConflict", reason: "这个提交编号已用于其他内容" };
 
     const staged = stagePlayerSubmission(room, submission);
     const { snapshot } = staged;

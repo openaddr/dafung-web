@@ -1,3 +1,4 @@
+import { submitCapitalForSetup } from "./room-capitals";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -49,7 +50,12 @@ export async function openHeadlessTestRoom(guestHand: string[] = []) {
   await registry.startGame(id, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup")
-    await registry.pickCapital(id, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
+    await submitCapitalForSetup(
+      registry,
+      id,
+      engine.currentSetupPlayerIndex,
+      engine.offeredCapitals[0],
+    );
   giveJinnang(engine, 0, ["连环计", "火烧连营", "连环计"]);
   giveJinnang(engine, 1, guestHand);
   giveJinnang(engine, 2, []);
@@ -92,7 +98,7 @@ export async function openHeadlessTestRoom(guestHand: string[] = []) {
           {
             submit: (submission) => registry.submitFromSeat(id, seat, submission, broadcast),
             cmd: (cmd, report) => registry.applyCommandFromSeat(id, seat, cmd, broadcast, report),
-            pickCapital: (tile, report) => registry.pickCapital(id, seat, tile, broadcast, report),
+
             setAutoPilot: (on, report) => registry.setAutoPilot(id, seat, on, broadcast, report),
           },
           {

@@ -1,3 +1,4 @@
+import { submitCapitalForSetup } from "./room-capitals";
 import { afterEach, expect, it, spyOn } from "bun:test";
 import { linkSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -54,7 +55,7 @@ async function playingRoom(options?: Parameters<typeof registryFor>[1]) {
   await registry.startGame(roomId, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup")
-    await registry.pickCapital(roomId, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
+    await submitCapitalForSetup(registry, roomId, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
   giveJinnang(engine, 0, ["连环计", "连环计"]);
   giveJinnang(engine, 1, []);
   giveJinnang(engine, 2, []);
@@ -112,7 +113,7 @@ it("上行把回执只发给连接座位，诊断请求号可换；旧命令不�
       {
         submit: (input) => registry.submitFromSeat(roomId, seat, input),
         cmd: (cmd) => registry.applyCommandFromSeat(roomId, seat, cmd),
-        pickCapital: (tile) => registry.pickCapital(roomId, seat, tile),
+
         setAutoPilot: (on) => registry.setAutoPilot(roomId, seat, on),
       },
       { sendCommandResult: (frame) => replies.push(JSON.parse(frame)) },

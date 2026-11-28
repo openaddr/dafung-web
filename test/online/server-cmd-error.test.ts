@@ -10,6 +10,7 @@
 // spawn 端口按 workspace 名派生(#1181,单源 scripts/dev-ports.ts,基址 4280 与
 // protocol-online 的 4281 保持历史 1 间隔——同 workspace 两测试同跑各占一口):
 // 并行 workspace 同跑慢池不撞口;显式 env DAFUNG_CMD_ERROR_PORT 最高优先可覆盖。
+import { submitCapitalForSetup } from "./room-capitals";
 import { describe, it, expect, afterAll, beforeAll, spyOn } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,10 +26,10 @@ import { seatDecisionPointOf } from "@dafung/core/room/player-submissions";
 import {
   autoPilotMsg,
   cmdMsg,
-  pickCapitalMsg,
   submissionMsg,
   type GameLogMsg,
   type PlayerSubmission,
+  type SnapshotMsg,
   type SubmissionResultMsg,
 } from "@dafung/core/protocol/wire";
 
@@ -41,6 +42,40 @@ const PORT =
   process.env.DAFUNG_CMD_ERROR_PORT ||
   String(cmdErrorTestPort(basename(join(import.meta.dir, "..", ".."))));
 const BASE = `http://127.0.0.1:${PORT}`;
+
+function capitalSubmission(snapshot: SnapshotMsg): PlayerSubmission {
+  const { decisionPoint, decisionOptions, roomId, currentSetupPlayerIndex: seat } = snapshot;
+  const candidate = decisionOptions?.options.find((option) => option.available);
+  if (decisionPoint === null || candidate === undefined) throw new Error("缺少本席可用选都选项");
+  return {
+    roomId,
+    seat,
+    decisionPoint,
+    submissionId: `capital-${seat}`,
+    cmd: { type: "pickCapital", tileIndex: candidate.tileIndex },
+  };
+}
+
+async function confirmCapital(peers: OnlineClient[], publicProgress: SnapshotMsg): Promise<void> {
+  const peer = peers[publicProgress.currentSetupPlayerIndex];
+  const matches = (snapshot: SnapshotMsg) =>
+    snapshot.currentDraftIndex === publicProgress.currentDraftIndex &&
+    snapshot.decisionOptions?.kind === "pickCapital";
+  const privateView =
+    peer.snapshot !== null && matches(peer.snapshot)
+      ? peer.snapshot
+      : await peer.waitSnapshot(matches, "本席选都摘要", 2000);
+  const submission = capitalSubmission(privateView);
+  peer.sendSubmission(submission);
+  expect(
+    await peer.waitFor(
+      (message) =>
+        message.type === "submissionResult" && message.submissionId === submission.submissionId,
+      "选都回执",
+      2000,
+    ),
+  ).toMatchObject({ outcome: "accepted" });
+}
 
 let proc: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
 // 房间临时目录在 beforeAll 里创建(describe 级 skip 时钩子不跑,模块级 mkdtemp 会
@@ -66,7 +101,7 @@ async function recoveryFixture(roomsDir: string) {
   await registry.startGame(roomId, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup")
-    await registry.pickCapital(roomId, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
+    await submitCapitalForSetup(registry, roomId, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
   armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
   giveJinnang(engine, 0, ["横征暴敛"]);
   for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
@@ -301,9 +336,11 @@ describeSlow("server WS 命令回报与对局日志", () => {
         outcome: "rejected",
         reason: expect.stringContaining("原决策点已结束"),
       });
-      ws.send(pickCapitalMsg((first.offeredCapitals as number[])[0], 8));
-      expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
-        type: "commandResult",
+      const pick = capitalSubmission(first as unknown as SnapshotMsg);
+      ws.send(submissionMsg(pick, 8));
+      expect(await nextMessageOfType(ws, "submissionResult", 1000)).toEqual({
+        type: "submissionResult",
+        submissionId: pick.submissionId,
         requestId: 8,
         outcome: "accepted",
         logOffset: firstLogLength + 2,
@@ -431,7 +468,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
           "当前选都席",
           2000,
         );
-        peers[setup.currentSetupPlayerIndex].sendPickCapital(setup.offeredCapitals[0]);
+        await confirmCapital(peers, setup);
       }
       const playing = (peer: OnlineClient) =>
         peer.waitSnapshot((s) => s.phase === "Playing", "开局后的座位摘要", 2000);
@@ -614,8 +651,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
 
       let anchor = first;
       for (let pick = 0; pick < 2; pick++) {
-        const picker = peers[anchor.currentSetupPlayerIndex];
-        picker.sendPickCapital(anchor.offeredCapitals[0]);
+        await confirmCapital(peers, anchor);
         anchor = await host.waitSnapshot(
           (s) => s.currentDraftIndex === pick + 1,
           "选都后的校准",

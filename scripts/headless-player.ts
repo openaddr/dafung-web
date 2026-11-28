@@ -3,7 +3,12 @@ import { foldEventBatch } from "@dafung/core/protocol/event-fold";
 import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
 import { SeatInteraction, type SeatIntent } from "@dafung/core/protocol/seat-interaction";
 import { hydrateSeatReplica, readSeatReplica } from "@dafung/core/protocol/seat-replica";
-import type { ReactionTiming, ServerMsg, SnapshotMsg } from "@dafung/core/protocol/wire";
+import type {
+  ReactionTiming,
+  SeatDecision,
+  ServerMsg,
+  SnapshotMsg,
+} from "@dafung/core/protocol/wire";
 import { createEngine } from "@dafung/core/room/room-record";
 import type { SeatSnapshot } from "@dafung/core/room/seat-projection";
 import { loadBuiltinMapById } from "./engine-helpers";
@@ -18,7 +23,7 @@ export class HeadlessPlayer {
   private ready = false;
   private failure: string | null = null;
   private autoPilotOn = false;
-  private decisionPoint: string | null = null;
+  private decision: SeatDecision = { decisionPoint: null };
   private deadline: { seq: number; at: number } | null = null;
   private readonly outbox = new PlayerCommandOutbox();
   private requestId = 0;
@@ -170,14 +175,18 @@ export class HeadlessPlayer {
   }
 
   private updateReplica(
-    message: Pick<SnapshotMsg, "decisionPoint" | "reactionTiming">,
+    {
+      decisionPoint,
+      decisionOptions,
+      reactionTiming,
+    }: SeatDecision & Pick<SnapshotMsg, "reactionTiming">,
     receivedAt: number,
     reconnect: boolean,
   ): void {
     this.snapshot = readSeatReplica(this.engine!, this.seat);
-    if (message.decisionPoint === undefined) throw new Error("座位下行缺少决策点");
-    this.decisionPoint = message.decisionPoint;
-    this.updateDeadline(message.reactionTiming, receivedAt);
+    if (decisionPoint === undefined) throw new Error("座位下行缺少决策点");
+    this.decision = { decisionPoint, decisionOptions };
+    this.updateDeadline(reactionTiming, receivedAt);
     this.publish(reconnect);
   }
 
@@ -196,10 +205,14 @@ export class HeadlessPlayer {
   private publish(reconnect = false): void {
     const snapshot = this.snapshot;
     if (snapshot === null) return;
+    const { decisionPoint, decisionOptions } = this.decision;
     const eligible =
-      snapshot.turnPhase === "AwaitingReaction"
-        ? this.decisionPoint !== null
-        : snapshot.decisionOwner === this.seat;
+      snapshot.phase === "Setup"
+        ? decisionOptions?.kind === "pickCapital" && decisionPoint !== null
+        : snapshot.phase === "Playing" &&
+          (snapshot.turnPhase === "AwaitingReaction"
+            ? decisionPoint !== null
+            : snapshot.decisionOwner === this.seat);
     this.interaction.publish(
       {
         snapshot,
@@ -207,13 +220,12 @@ export class HeadlessPlayer {
         interactive:
           this.ready &&
           eligible &&
-          snapshot.phase === "Playing" &&
           !snapshot.players[this.seat].isBot &&
           !this.autoPilotOn &&
           this.pendingRequest === null &&
-          !this.outbox.waitingFor(this.decisionPoint),
+          !this.outbox.waitingFor(decisionPoint),
         autopilotOn: this.autoPilotOn,
-        decisionPoint: this.decisionPoint,
+        ...this.decision,
         reactionDeadlineAt: this.deadline?.at ?? null,
       },
       { reconnect },

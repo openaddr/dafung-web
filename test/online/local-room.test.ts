@@ -1,7 +1,7 @@
 // 单机通路单测(#398 单机统一 B):LocalController = 进程内房间编排(scripts/room.ts
 // RoomRegistry)+ MemorySocket 内存双工。断言面:
 //   ① 构造即经房间编排就位(startGame 同步段建引擎 + bot 选都驱动到人类);
-//   ② 命令真的走内存双工上行(setupPickCapital → room.pickCapital 生效),
+//   ② 命令真的走内存双工上行(选都提交 → room.submitFromSeat 生效),
 //      下行拍(events 先行)驱动 netStore 暂存通道与 store 快照;
 //   ③ 托管上行经房间 driveBots 代打推进对局;
 //   ④ 单机不启用联机读口(netStore 房间字段恒空,useCapitalPick/ConnectionBanner
@@ -50,17 +50,18 @@ describe("单机通路(#398):进程内房间编排 + 内存双工", () => {
       expect(e.offeredCapitals.length).toBe(3);
       expect(useGameStore.getState().snapshot?.phase).toBe("Setup");
       expect(c.viewSeat).toBe(0);
-      expect(c.interactive).toBe(false); // Setup 非决策交互态(选都走 setupPickCapital)
+      expect(c.interactive).toBe(true);
+      expect(c.seatView.capital?.options).toHaveLength(3);
     } finally {
       c.destroy();
     }
   }, 20_000);
 
-  it("选都走内存双工:上行进 room.pickCapital,下行拍推进到 Playing 并驱动事件通道", async () => {
+  it("选都走内存双工:上行进 room.submitFromSeat,下行拍推进到 Playing 并驱动事件通道", async () => {
     const c = makeController();
     try {
       const tile = c.engine.offeredCapitals[0]!;
-      c.setupPickCapital(tile);
+      c.dispatchCommand({ type: "pickCapital", tileIndex: tile });
       // 内存双工命令同步生效(无网络时延),下行拍经 setTimeout(0) 合并——等一拍
       await sleep(100);
       expect(c.engine.phase).toBe("Playing");
@@ -86,7 +87,7 @@ describe("单机通路(#398):进程内房间编排 + 内存双工", () => {
     async () => {
       const c = makeController();
       try {
-        c.setupPickCapital(c.engine.offeredCapitals[0]!);
+        c.dispatchCommand({ type: "pickCapital", tileIndex: c.engine.offeredCapitals[0]! });
         await sleep(100);
         expect(c.autoPilotOn).toBe(false);
         c.setAutoPilot(true);
@@ -110,7 +111,7 @@ describe("单机通路(#398):进程内房间编排 + 内存双工", () => {
   it("单机不启用联机读口:netStore 房间字段恒空(大厅/断线横幅/联机选都分支不被激活)", async () => {
     const c = makeController();
     try {
-      c.setupPickCapital(c.engine.offeredCapitals[0]!);
+      c.dispatchCommand({ type: "pickCapital", tileIndex: c.engine.offeredCapitals[0]! });
       await sleep(100);
       const net = useNetStore.getState();
       expect(net.roomId).toBe("");
@@ -123,7 +124,7 @@ describe("单机通路(#398):进程内房间编排 + 内存双工", () => {
 
   it("销毁:进程内房间解散,在途看门狗随房清撤(销毁后对局不再自行推进)", async () => {
     const c = makeController();
-    c.setupPickCapital(c.engine.offeredCapitals[0]!);
+    c.dispatchCommand({ type: "pickCapital", tileIndex: c.engine.offeredCapitals[0]! });
     await sleep(100);
     expect(c.engine.phase).toBe("Playing");
     c.destroy();

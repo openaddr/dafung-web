@@ -1,3 +1,4 @@
+import { submitCapitalForSetup } from "./room-capitals";
 import { RoomRegistry } from "@dafung/core/room/room";
 import { createEngine, type RoomRecord } from "@dafung/core/room/room-record";
 import {
@@ -58,7 +59,7 @@ it("单机选都水合后，错误选份收到提示并可在原窗重答", asyn
     expect(useGameStore.getState().snapshot).toEqual(readSeatReplica(controller.engine, 0));
     const before = controller.engine.phase;
     const capital = controller.engine.offeredCapitals[0]!;
-    controller.setupPickCapital(capital);
+    controller.dispatchCommand({ type: "pickCapital", tileIndex: capital });
     expect(controller.engine.phase).toBe(before);
     await downlinkTurn();
     expect(controller.engine.phase).toBe("Playing");
@@ -121,7 +122,8 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
   await registry.startGame(room.roomId, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup") {
-    await registry.pickCapital(
+    await submitCapitalForSetup(
+      registry,
       room.roomId,
       engine.currentSetupPlayerIndex,
       engine.offeredCapitals.find(
@@ -175,7 +177,7 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
       {
         cmd: (command) => registry.applyCommandFromSeat(room.roomId, seat, command, broadcast),
         submit: (submission) => registry.submitFromSeat(room.roomId, seat, submission, broadcast),
-        pickCapital: (tileIndex) => registry.pickCapital(room.roomId, seat, tileIndex, broadcast),
+
         setAutoPilot: (on) => registry.setAutoPilot(room.roomId, seat, on, broadcast),
       },
       {

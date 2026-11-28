@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // 模块求值读构建期注入的 __APP_VERSION__——按生产同一值源(package.json CalVer)先行
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
+import type { WorkerClock } from "@app/net/worker-clock";
 import { setAudio } from "@app/fx/audio";
 import { UI } from "@app/fx/timings";
 import { SHORT_LANDSCAPE_QUERY } from "@app/hooks/use-media-query";
@@ -19,7 +20,9 @@ import { createDice } from "@dafung/core/engine/dice";
 import { heroById } from "@dafung/core/engine/heroes";
 import { formatMoney } from "@dafung/core/engine/money";
 import { applyPlant, type PlantOp } from "@dafung/core/engine/planter";
+import { BOT_STEP_MS } from "@dafung/core/engine/timings";
 import { guidePriceOf, makeSkillBook } from "@dafung/core/engine/treasures";
+import { IDBFactory } from "fake-indexeddb";
 import type { Window as HappyDomWindow } from "happy-dom";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -37,6 +40,8 @@ type RegistryModule = typeof import("@app/controllers/registry");
 type GameControllerClass = import("@app/controllers/controller").GameController;
 let GameScreen: GameScreenModule["GameScreen"];
 let setController: RegistryModule["setController"];
+let LocalController: typeof import("@app/controllers/local").LocalController;
+let originalIndexedDb: PropertyDescriptor | undefined;
 
 /** 接线控制器面(GameController 生产基类的最小子型 + resync 测试口;构造见 beforeAll)。 */
 type WiringController = GameControllerClass & { resync(): void };
@@ -54,8 +59,8 @@ const SEATS: SeatConfig[] = [
   { name: "座 4", isBot: true },
 ];
 
-/** 公共命令链开局;默认选完都停 Playing,费用接线例留在选都前。非法态当场抛错。 */
-function seedEngine(pickCapitals = true): GameEngine {
+/** 公共命令链开局，非法态当场抛错。 */
+function seedEngine(): GameEngine {
   const e = new GameEngine(MAP.board, MAP.catalog, createDice(SEED), {
     seats: SEATS,
     targetNetWorth: MAP.targetNetWorth,
@@ -65,14 +70,13 @@ function seedEngine(pickCapitals = true): GameEngine {
     mapId: "guanzhong",
   });
   e.beginCapitalSelection();
-  while (pickCapitals && e.phase === "Setup") {
+  while (e.phase === "Setup") {
     if (!e.aiSetupStep()) {
       const r = e.pickCapital(e.currentSetupPlayerIndex, Math.min(...e.offeredCapitals));
       if (!r.ok) throw new Error(`种局:选都被拒(${r.reason ?? "未知"})`);
     }
   }
-  if (pickCapitals && e.phase !== "Playing")
-    throw new Error(`种局:选都链后非 Playing(phase=${e.phase})`);
+  if (e.phase !== "Playing") throw new Error(`种局:选都链后非 Playing(phase=${e.phase})`);
   return e;
 }
 
@@ -94,17 +98,14 @@ function mount(): HTMLElement {
 /** 种局→种植→注册控制器→基类 sync 灌 store→挂屏(每例开头同款一条龙)。
  *  ops = 初始布场指令(PlantOp 单源逐条落种,判词见头注「种植单源形」);
  *  writeEngine = 进程内引擎公共方法直呼缝 + 重灌 store(e2e callEngine #1302 同语义)。 */
-function startGame(
-  ops: PlantOp[] = [],
-  pickCapitals = true,
-): {
+function startGame(ops: PlantOp[] = []): {
   el: HTMLElement;
   engine: GameEngine;
   plant: (op: PlantOp) => void;
   writeEngine: (write: (e: GameEngine) => void) => void;
   snap: () => GameSnapshot;
 } {
-  const e = seedEngine(pickCapitals);
+  const e = seedEngine();
   for (const op of ops) applyPlant(e, op);
   const c = newWiringController(e);
   setController(c, guanzhongData); // 生产同款:连地图一起注册(卷轴层挂载门卫)
@@ -206,6 +207,8 @@ function plantTrade(handles: ReturnType<typeof startGame>, level: number | "max"
 
 beforeAll(async () => {
   ensureHappyDom();
+  originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+  Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: new IDBFactory() });
   // 环境缝(matchMedia stub 同族,#1284 配方):happy-dom 无排版引擎,底板 svg
   // clientWidth/Height 恒 0——boardHost 的 commit 拍真值断言(ensureBoardPxPerUnit,
   // 零兜底设计)当场炸;document.fonts.ready 同缺席。给中性真值(844×390 标准档)
@@ -223,9 +226,7 @@ beforeAll(async () => {
   const screenMod = await import("@app/screens/game/GameScreen");
   const registryMod = await import("@app/controllers/registry");
   const ctrlMod = await import("@app/controllers/controller");
-  const { extractBatchEvents } = await import("@app/fx/event-extract");
-  const { createEngineSink } = await import("@app/fx/sinks");
-  const { present } = await import("@app/fx/orchestrator");
+  ({ LocalController } = await import("@app/controllers/local"));
   GameScreen = screenMod.GameScreen;
   setController = registryMod.setController;
   // 注册带地图(生产 setController(controller, map) 同款):DecisionScrollLayer/
@@ -247,12 +248,6 @@ beforeAll(async () => {
     override dispatchCommand(cmd: GameCommand): void {
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
       this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
-    }
-    override setupPickCapital(tileIndex: number): void {
-      const result = this.e.pickCapital(this.e.currentSetupPlayerIndex, tileIndex);
-      if (!result.ok) throw new Error(`接线测试:选都被拒(${result.reason})`);
-      this.sync();
-      void present(extractBatchEvents(this.e, this.e.snapshot().events), createEngineSink());
     }
     // 测试侧重灌口(protected sync 的公开面;种植后调)。
     resync(): void {
@@ -289,6 +284,8 @@ afterAll(async () => {
   // 排干 React 调度器余拍(模板同款):release 后再触发会在无 window 环境抛
   // 「window is not defined」——window 还在时让完这一拍再拆 happy-dom。
   await new Promise((r) => setTimeout(r, 0));
+  if (originalIndexedDb) Object.defineProperty(globalThis, "indexedDB", originalIndexedDb);
+  else Reflect.deleteProperty(globalThis, "indexedDB");
   await releaseHappyDom();
 });
 
@@ -298,25 +295,48 @@ it.each(["no-preference", "reduce"] as const)(
     const device = (window as unknown as HappyDomWindow).happyDOM.settings.device;
     device.prefersReducedMotion = motion;
     try {
-      const { el, engine, snap, writeEngine } = startGame([], false);
-      writeEngine((authority) => {
-        while (authority.currentSetupPlayerIndex !== 0) {
-          if (!authority.aiSetupStep()) throw new Error("选都未推进到本座");
-        }
-      });
-      const candidate = engine.offeredCapitals[0]!;
-      const city = el.querySelector(TESTIDS.city(candidate))!;
+      const roomClock: WorkerClock = {
+        now: () => performance.now(),
+        setTimeout: (callback, ms) => setTimeout(callback, ms),
+        clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+        dispose() {},
+        pause() {},
+        resume() {},
+        onFatal() {},
+        paused: false,
+      };
+      const controller = new LocalController(
+        MAP,
+        { seats: SEATS.slice(0, 2), seed: SEED, mapId: "guanzhong", botStepMs: BOT_STEP_MS },
+        roomClock,
+      );
+      setController(controller, guanzhongData);
+      const el = mount();
+      const { capital, snapshot } = controller.seatView;
+      const option = capital!.options.find((candidate) => candidate.available)!;
+      const city = el.querySelector(TESTIDS.city(option.tileIndex))!;
       const sounds = recordAudio();
 
       click(city);
       expect(sounds).toEqual(["scrollOpen"]);
+      expect(docQ(T.tileDetailScroll)!.textContent).toContain(formatMoney(option.cost));
+      click(q(docQ(T.tileDetailScroll)!, TESTIDS.modalMinimize)!);
+      await settle();
+      expect(controller.seatView.capital?.selectedOption).toEqual(option);
+      expect(docQ(T.tileDetailScroll)?.closest("[hidden]") != null).toBe(true);
+      click(docQ(TESTIDS.modalRestore)!);
+      await settle();
       click(docQ(TESTIDS.confirmCapitalCancel)!);
+      expect(controller.seatView.capital?.selectedOption).toBeNull();
+      expect(controller.seatView.snapshot.players[0].capitalIndex).toBe(-1);
       click(city);
       expect(sounds).toEqual(["scrollOpen"]);
       click(docQ(TESTIDS.confirmCapitalOk)!);
-      expect(snap().players[0].capitalIndex).toBe(candidate);
 
       await settle();
+      const settled = controller.seatView.snapshot.players[0];
+      expect(settled.capitalIndex).toBe(option.tileIndex);
+      expect(settled.cash).toBe(snapshot.players[0].cash - option.cost);
       const seal = q(el, TESTIDS.fxSeal("筑"));
       if (!seal) throw new Error("定都后缺少筑章");
       if (motion === "no-preference") {

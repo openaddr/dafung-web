@@ -23,6 +23,7 @@ it("无界面座位的草选只在发起的决策点有效，重连恢复已提�
   armPhase(engine, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
   const delivered: { command: GameCommand; point: string }[] = [];
   const seat = new SeatInteraction((command, point) => {
+    if (command.type === "pickCapital") throw new Error("本例预期出牌命令");
     delivered.push({ command, point });
     engine.submitCommand(command);
   });
@@ -91,6 +92,7 @@ it("无界面被询问座位只能用公告份额识破，其他座位不能代�
   engine.submitCommand({ type: "useJinnang", cardId: "横征暴敛", handIndex: 0 });
   const submitted: GameCommand[] = [];
   const seat = new SeatInteraction((command) => {
+    if (command.type === "pickCapital") throw new Error("本例预期反应应答");
     submitted.push(command);
     engine.submitCommand(command);
   });

@@ -8,6 +8,7 @@
 //   ④ 节拍形状:空批 events=null;withSnapshot=false snapshot=null(联机非校准
 //      flush 免 O(log) 白序列化);withSnapshot=true 恒有摘要。
 // 发送面接线(消息真实到达客户端)归 test/online/protocol-online.test.ts(ADR-0055)。
+import { submitCapitalForSetup } from "./room-capitals";
 import { describe, it, expect } from "bun:test";
 import { assembleDownlinkShot } from "@dafung/core/room/seat-projection";
 import { RoomRegistry } from "@dafung/core/room/room";
@@ -63,7 +64,7 @@ async function roomAtPlaying(seatCount = 2) {
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e.phase === "Setup"; i++)
-    await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
+    await submitCapitalForSetup(reg, roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
   // 保证 host 手牌有内容可断言(起手 1 张之外再补)
   e.drawJinnang(0, 2);
   const online = new Set(created.room.seats.map((_, seat) => seat));
@@ -445,7 +446,21 @@ const ALL_KIND_BODIES: GameEventBody[] = [
       waypoints: [],
     },
   },
-  { kind: "capitalSelected", tileIndex: 2, propertyId: "chengdu", cost: 1000 },
+  {
+    kind: "capitalSelected",
+    tileIndex: 2,
+    propertyId: "chengdu",
+    cost: 1000,
+    holding: {
+      propertyId: "chengdu",
+      group: "a",
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
+      burning: null,
+      damageRanking: [],
+    },
+  },
   { kind: "propertyBought", propertyId: "changangan", price: 4000 },
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "insufficient-cash" },

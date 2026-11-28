@@ -7,7 +7,7 @@
 // 不属协议方职责);它只做三件事:
 //   ① 缓冲下行帧并提供「等某类下行到达(带显式超时,超时当场抛)」的确定性等待原语
 //      ——测试时序竞速零容忍,任何等待必须带明确超时与失败语义,禁裸等;
-//   ② 上行只经 wire.ts 的编码单源(cmdMsg/pickCapitalMsg/autoPilotMsg),禁手拼
+//   ② 上行只经 wire.ts 的编码单源(cmdMsg/submissionMsg/autoPilotMsg),禁手拼
 //      JSON 字面量绕过协议单源(wire.ts 头注契约);
 //   ③ 观测面:最近一份 snapshot(重连摘要校准锚)、按到达序收集的 events 批、
 //      error 下行文本、以及全量下行帧归档(frames;spec 迁移的逐帧审计用)——供测试
@@ -15,8 +15,13 @@
 // 等待语义:waitFor 按 FIFO 扫描缓冲,命中即取出;不命中的帧**保留在缓冲**(滤过式,
 // 照 test/online/server-cmd-error.test.ts 的 nextMessageOfType 先例),等待者先到先得。
 import type { GameCommand } from "@dafung/core/engine/authority";
-import type { EventBatchMsg, ServerMsg, SnapshotMsg } from "@dafung/core/protocol/wire";
-import { autoPilotMsg, cmdMsg, pickCapitalMsg } from "@dafung/core/protocol/wire";
+import type {
+  EventBatchMsg,
+  PlayerSubmission,
+  ServerMsg,
+  SnapshotMsg,
+} from "@dafung/core/protocol/wire";
+import { autoPilotMsg, cmdMsg, submissionMsg } from "@dafung/core/protocol/wire";
 
 /** 连接关闭信息(等待者与诊断用)。 */
 export interface CloseInfo {
@@ -194,9 +199,8 @@ export class OnlineClient {
     this.sendRaw(cmdMsg(cmd));
   }
 
-  /** 选都落子(L41;wire.pickCapitalMsg)。 */
-  sendPickCapital(tileIndex: number): void {
-    this.sendRaw(pickCapitalMsg(tileIndex));
+  sendSubmission(submission: PlayerSubmission, requestId?: number): void {
+    this.sendRaw(submissionMsg(submission, requestId));
   }
 
   /** 自助托管开关(ADR-0028;wire.autoPilotMsg)。 */

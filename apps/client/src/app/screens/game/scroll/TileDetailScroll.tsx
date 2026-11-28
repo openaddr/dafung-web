@@ -35,7 +35,16 @@ interface TileDetailScrollProps {
   /** 全体玩家快照(TileThumb 归属/都城推导源,与名下清单同口径)。 */
   players: SnapshotPlayer[];
   /** #1417:明确区分选都动作与只读资料,费用不可用购入价猜测。 */
-  context: { kind: "capital"; cash: number; onConfirm: () => void } | { kind: "view" };
+  context:
+    | {
+        kind: "capital";
+        cash: number;
+        cost: number;
+        canConfirm: boolean;
+        reason: string | null;
+        onConfirm: () => void;
+      }
+    | { kind: "view" };
   /** 持有者国号;null = 无主。 */
   ownerGuohao: string | null;
   /** 持有者当前城等级，无主城为 null。 */
@@ -65,7 +74,10 @@ function tileDetailScrollEqual(a: TileDetailScrollProps, b: TileDetailScrollProp
     a.property === b.property &&
     a.players === b.players &&
     (a.context.kind === "capital" && b.context.kind === "capital"
-      ? a.context.cash === b.context.cash
+      ? a.context.cash === b.context.cash &&
+        a.context.cost === b.context.cost &&
+        a.context.canConfirm === b.context.canConfirm &&
+        a.context.reason === b.context.reason
       : a.context.kind === b.context.kind) &&
     a.ownerGuohao === b.ownerGuohao &&
     a.ownerLevel === b.ownerLevel &&
@@ -187,7 +199,10 @@ export const TileDetailScroll = memo(function TileDetailScroll({
           </div>
           {pickCapital ? (
             <>
-              <AffordRow cash={context.cash} need={property.buildCost} purpose="capital" />
+              <AffordRow cash={context.cash} need={context.cost} purpose="capital" />
+              {context.reason !== null && (
+                <p className="m-0 text-center text-sm text-danger">{context.reason}</p>
+              )}
               <p className="m-0 text-center text-sm text-paper">
                 都城补给 {formatMoney(property.resupply)}
               </p>
@@ -202,7 +217,12 @@ export const TileDetailScroll = memo(function TileDetailScroll({
       footer={
         pickCapital ? (
           <div className="flex justify-center gap-3">
-            <BannerButton primary testid={TESTIDS.confirmCapitalOk} onClick={context.onConfirm}>
+            <BannerButton
+              primary
+              disabled={!context.canConfirm}
+              testid={TESTIDS.confirmCapitalOk}
+              onClick={context.onConfirm}
+            >
               定都于此
             </BannerButton>
             <BannerButton testid={TESTIDS.confirmCapitalCancel} onClick={onClose}>

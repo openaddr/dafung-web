@@ -1,5 +1,10 @@
-import type { GameCommand } from "../engine/authority";
-import { cmdMsg, requiresPlayerSubmission, submissionMsg, type SubmissionResultMsg } from "./wire";
+import {
+  cmdMsg,
+  requiresPlayerSubmission,
+  submissionMsg,
+  type PlayerCommand,
+  type SubmissionResultMsg,
+} from "./wire";
 
 /** 原座重连时重发首次编码的指令。另一笔回执不能解锁当前提交。 */
 export class PlayerCommandOutbox {
@@ -20,7 +25,7 @@ export class PlayerCommandOutbox {
   }
 
   encode(
-    cmd: GameCommand,
+    cmd: PlayerCommand,
     roomId: string,
     seat: number,
     pendingCard: string | null,

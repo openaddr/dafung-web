@@ -1,10 +1,12 @@
 import { GameEngine } from "../engine/authority";
 import { checkpointDicePins } from "../engine/dice";
 import { isLogWarning } from "../engine/model";
+import { capitalChoiceOf } from "../engine/setup-flow";
 import type { GameSnapshot } from "../engine/snapshot";
 import {
   requiresPlayerSubmission,
   type PlayerSubmission,
+  type PlayerSubmissionRejection,
   type PlayerSubmissionResult,
 } from "../protocol/wire";
 import { reactionQueriedSeats } from "./bot-driver";
@@ -22,10 +24,19 @@ export interface RoomSubmissions {
   }[];
 }
 
-/** 反应窗各受问席独立；出牌阶段每次推进后的新步骤单独编号，包括返回后重选。 */
+function capitalDecisionPoint(e: GameEngine): string | null {
+  return e.phase === "Setup" && e.setupPhase === "PickCapital"
+    ? `${e.gameId}/capital/${e.currentDraftIndex}/${e.currentSetupPlayerIndex}`
+    : null;
+}
+
+/** 选都按当前选都席授权，反应窗各受问席独立，出牌阶段每次推进后的新步骤单独编号。 */
 export function seatDecisionPointOf(room: RoomSession, seat: number): string | null {
   const e = room.engine;
-  if (!e || e.phase !== "Playing" || seat < 0 || seatControlled(room, seat)) return null;
+  if (!e || seat < 0 || seatControlled(room, seat)) return null;
+  if (e.phase === "Setup")
+    return e.currentSetupPlayerIndex === seat ? capitalDecisionPoint(e) : null;
+  if (e.phase !== "Playing") return null;
   if (e.turnPhase === "AwaitingReaction") {
     const pending = e.pendingReaction!;
     if (
@@ -53,30 +64,46 @@ export function submissionPayload({ decisionPoint, cmd }: PlayerSubmission): str
   });
 }
 
-function submissionError(room: RoomSession, submission: PlayerSubmission): string | null {
+function submissionError(
+  room: RoomSession,
+  submission: PlayerSubmission,
+): Omit<PlayerSubmissionRejection, "outcome"> | null {
   const { seat, decisionPoint, cmd } = submission;
-  if (cmd.type === "respondReaction" && cmd.seat !== seat) return "不能替其他座位应答";
+  if (cmd.type === "pickCapital") {
+    const e = room.engine;
+    if (e === null || decisionPoint !== capitalDecisionPoint(e))
+      return { reasonCode: "staleDecisionPoint", reason: "原选都步骤已结束" };
+    if (seat !== e.currentSetupPlayerIndex || seatControlled(room, seat))
+      return { reasonCode: "wrongSeat", reason: "本席当前无权选都" };
+    const choice = capitalChoiceOf(e, seat, cmd.tileIndex);
+    return choice.available ? null : { reasonCode: choice.reasonCode, reason: choice.reason };
+  }
+  if (cmd.type === "respondReaction" && cmd.seat !== seat) return { reason: "不能替其他座位应答" };
   if (decisionPoint !== seatDecisionPointOf(room, seat))
-    return cmd.type === "respondReaction"
-      ? "原反应窗已结束或本席已应答"
-      : "原决策点已结束，请按当前步骤重新选择";
+    return {
+      reason:
+        cmd.type === "respondReaction"
+          ? "原反应窗已结束或本席已应答"
+          : "原决策点已结束，请按当前步骤重新选择",
+    };
   const e = room.engine!;
   if (cmd.type === "respondReaction") {
     if (e.turnPhase !== "AwaitingReaction" || reactionTimingOf(room).remainingMs === 0)
-      return "原反应窗已结束";
+      return { reason: "原反应窗已结束" };
     if (!cmd.use && (cmd.cardId !== undefined || cmd.target !== undefined))
-      return "选择不用时不能指定反应牌或对象";
+      return { reason: "选择不用时不能指定反应牌或对象" };
     return null;
   }
   if (!requiresPlayerSubmission(cmd, e.pendingJinnang?.cardId ?? null))
-    return "该操作不属于此次玩家提交";
-  if (e.turnPhase !== "AwaitingJinnang") return "当前不是出牌步骤";
+    return { reason: "该操作不属于此次玩家提交" };
+  if (e.turnPhase !== "AwaitingJinnang") return { reason: "当前不是出牌步骤" };
   if (cmd.handIndex === undefined || !Number.isInteger(cmd.handIndex) || cmd.handIndex < 0)
-    return "请选择具体的手牌";
+    return { reason: "请选择具体的手牌" };
   const cardId = e.pendingJinnang?.cardId ?? cmd.cardId;
   if (e.pendingSkill !== null || (cmd.cardId !== null && cmd.cardId !== cardId))
-    return "本次操作与已选锦囊不符";
-  if (e.players[seat].jinnangHand[cmd.handIndex] !== cardId) return "所选手牌不在该位置";
+    return { reason: "本次操作与已选锦囊不符" };
+  if (e.players[seat].jinnangHand[cmd.handIndex] !== cardId)
+    return { reason: "所选手牌不在该位置" };
   return null;
 }
 
@@ -90,7 +117,7 @@ export function stagePlayerSubmission(
   commitDicePins?: () => void;
 } {
   const error = submissionError(room, submission);
-  if (error !== null) return { result: { outcome: "rejected", reason: error } };
+  if (error !== null) return { result: { outcome: "rejected", ...error } };
   const authority = room.engine!;
   const before = authority.snapshot();
   const restoreDicePins = checkpointDicePins(authority.dice);
@@ -105,7 +132,9 @@ export function stagePlayerSubmission(
     });
     draft.restoreFromSnapshot(structuredClone(before));
     const logOffset = draft.log.length;
-    const rejection = draft.submitCommand(submission.cmd);
+    const { cmd, seat } = submission;
+    const rejection =
+      cmd.type === "pickCapital" ? draft.pickCapital(seat, cmd.tileIndex).reason : draft.submitCommand(cmd);
     const warning = draft.log
       .slice(logOffset)
       .find((line) => isLogWarning(line) && line.warning !== undefined);

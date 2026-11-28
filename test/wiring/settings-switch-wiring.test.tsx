@@ -77,7 +77,10 @@ it("音效和托管整行独立切换，单机在同一个设置弹层收回操�
       roomClock,
     );
     setController(controller, data);
-    controller.setupPickCapital(controller.engine.offeredCapitals[0]);
+    controller.dispatchCommand({
+      type: "pickCapital",
+      tileIndex: controller.engine.offeredCapitals[0],
+    });
     await clock.settle();
     expect(controller.interactive).toBe(true);
     using setAutoPilot = spyOn(controller, "setAutoPilot");

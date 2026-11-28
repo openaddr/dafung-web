@@ -110,21 +110,17 @@ export function installDebugHooks(): void {
     const tSync = performance.now();
     useGameStore.getState().setScreen("game");
     performance.measure("df.seed.sync", { start: tSync, end: performance.now() });
-    const e = controller.engine;
-    if (
-      e.phase !== "Setup" ||
-      e.setupPhase !== "PickCapital" ||
-      e.currentSetupPlayerIndex !== 0 ||
-      e.offeredCapitals.length === 0
-    ) {
-      throw new Error(
-        `seedSolo:开局后未停在选择都相位(phase=${e.phase}/${e.setupPhase} ` +
-          `轮次=${e.currentSetupPlayerIndex} 候选=${e.offeredCapitals.length})`,
-      );
-    }
-    // 选棋盘序首个候选,与 UI 首格点击一致;offeredCapitals 是抽出序,不能取 [0]。
+    const { capital, decisionPoint } = controller.seatView;
+    const candidates = capital?.options.filter((option) => option.available);
+    if (candidates === undefined || candidates.length === 0)
+      throw new Error("seedSolo:开局后本席缺少可用的选都选项");
+    // 取棋盘序首个可用候选。
     const tPick = performance.now();
-    controller.setupPickCapital(Math.min(...e.offeredCapitals));
+    const tileIndex = Math.min(...candidates.map((option) => option.tileIndex));
+    const selected = controller.dispatchIntent({ type: "selectCapital", tileIndex }, decisionPoint);
+    if (selected.status === "unavailable") throw new Error(selected.reason);
+    const confirmed = controller.dispatchIntent({ type: "confirm" }, decisionPoint);
+    if (confirmed.status === "unavailable") throw new Error(confirmed.reason);
     performance.measure("df.seed.pickCapital", { start: tPick, end: performance.now() });
   };
 

@@ -13,8 +13,9 @@ import {
   encodeDownlink,
   errorMsg,
   eventsMsg,
-  pickCapitalMsg,
+  submissionMsg,
   type InboundOps,
+  type PlayerSubmission,
   type ServerMsg,
 } from "@dafung/core/protocol/wire";
 
@@ -28,6 +29,15 @@ function sampleEvent(): GameEvent {
     tileIndex: 0,
     propertyId: "prop-changan",
     cost: 2000,
+    holding: {
+      propertyId: "prop-changan",
+      group: "a",
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
+      burning: null,
+      damageRanking: [],
+    },
   };
 }
 
@@ -38,9 +48,6 @@ function noCallOps(): InboundOps & { calls: string[] } {
     calls,
     cmd: () => {
       calls.push("cmd");
-    },
-    pickCapital: () => {
-      calls.push("pickCapital");
     },
     setAutoPilot: () => {
       calls.push("setAutoPilot");
@@ -69,14 +76,24 @@ describe("wire 下行构造(#429 形状单源)", () => {
 });
 
 describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
+  const submission: PlayerSubmission = {
+    roomId: "ABCD",
+    seat: 0,
+    decisionPoint: "capital-step",
+    submissionId: "confirm",
+    cmd: { type: "pickCapital", tileIndex: 3 },
+  };
+
   it("编码→分发 round-trip:三族消息各达其 op,载荷原样", async () => {
     const seen: unknown[] = [];
+    const results: ServerMsg[] = [];
     const ops: InboundOps = {
       cmd: (cmd) => {
         seen.push(cmd);
       },
-      pickCapital: (tileIndex) => {
-        seen.push(tileIndex);
+      submit: async (input) => {
+        seen.push(input);
+        return { outcome: "accepted" };
       },
       setAutoPilot: (on) => {
         seen.push({ on });
@@ -84,20 +101,23 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
     };
     const cmd = { type: "respondReaction", seat: 0, use: false } as GameCommand;
     expect(await dispatchInbound(cmdMsg(cmd), ops)).toEqual({ ok: true });
-    expect(await dispatchInbound(pickCapitalMsg(3), ops)).toEqual({ ok: true });
+    expect(
+      await dispatchInbound(submissionMsg(submission, 8), ops, {
+        sendCommandResult: (frame) => results.push(JSON.parse(frame)),
+      }),
+    ).toEqual({ ok: true, requestId: 8 });
+    expect(results).toEqual([
+      { type: "submissionResult", outcome: "accepted", submissionId: "confirm", requestId: 8 },
+    ]);
     expect(await dispatchInbound(autoPilotMsg(true), ops)).toEqual({ ok: true });
-    expect(seen).toEqual([cmd, 3, { on: true }]);
+    expect(seen).toEqual([cmd, submission, { on: true }]);
   });
 
-  it("已编号的三族命令都带回各自的处理回执", async () => {
+  it("已编号的普通命令和托管均保留诊断请求号", async () => {
     const ops = noCallOps();
     expect(await dispatchInbound(cmdMsg({ type: "rollAndMove" }, 7), ops)).toEqual({
       ok: true,
       requestId: 7,
-    });
-    expect(await dispatchInbound(pickCapitalMsg(3, 8), ops)).toEqual({
-      ok: true,
-      requestId: 8,
     });
     expect(
       await dispatchInbound(autoPilotMsg(true, 9), {
@@ -116,7 +136,6 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
     const seen: { on: boolean }[] = [];
     const ops: InboundOps = {
       cmd: () => {},
-      pickCapital: () => {},
       setAutoPilot: (on) => {
         seen.push({ on });
       },
@@ -144,8 +163,8 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
       JSON.stringify({ type: "bogus" }),
       JSON.stringify({ type: "cmd" }), // 缺 cmd
       JSON.stringify({ type: "cmd", cmd: null }),
-      JSON.stringify({ type: "pickCapital" }), // 缺 tileIndex
-      JSON.stringify({ type: "pickCapital", tileIndex: "3" }),
+      JSON.stringify({ type: "pickCapital", tileIndex: 3 }), // 裸选都形状已退役
+      submissionMsg({ ...submission, cmd: { type: "pickCapital", tileIndex: 1.5 } }),
       JSON.stringify({ type: "autoPilot" }), // 缺 on
       JSON.stringify({ type: "autoPilot", on: "yes" }),
     ];
@@ -168,21 +187,22 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
       cmd: () => {
         throw boom;
       },
-      pickCapital: () => {},
       setAutoPilot: () => {},
     });
     expect(r1).toEqual({ ok: false, reason: "rejected", message: "座位非法" });
 
-    const r2 = await dispatchInbound(pickCapitalMsg(1), {
-      cmd: () => {},
-      pickCapital: () => Promise.reject(new Error("非选都阶段")),
-      setAutoPilot: () => {},
-    });
-    expect(r2).toEqual({ ok: false, reason: "rejected", message: "非选都阶段" });
+    const r2 = await dispatchInbound(
+      submissionMsg(submission),
+      {
+        ...noCallOps(),
+        submit: () => Promise.reject(new Error("提交保存失败")),
+      },
+      { sendCommandResult: () => {} },
+    );
+    expect(r2).toEqual({ ok: false, reason: "rejected", message: "提交保存失败" });
 
     const r3 = await dispatchInbound(autoPilotMsg(false), {
       cmd: () => {},
-      pickCapital: () => {},
       setAutoPilot: () => {
         throw "纯字符串异常"; // eslint-disable-line no-throw-literal
       },
@@ -203,7 +223,6 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
               `Cannot read properties of undefined (seat=${(cmd as { seat: number }).seat})`,
             );
         },
-        pickCapital: () => {},
         setAutoPilot: () => {},
       },
     );

@@ -10,8 +10,8 @@
 //   POST /room/start {roomId,seatToken}    → host 开局:构造引擎(beginCapitalSelection 自动国号),
 //                                            停在 Setup·PickCapital(从当前至多三个候选中选都)
 //   POST /room/dismiss {roomId,seatToken}  → host 解散房间(广播 dismissed,断开所有连接)
-//   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} /
-//                                            {type:"pickCapital",tileIndex}(L41 选都),
+//   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} 或
+//                                            {type:"submit",submission:...}，
 //                                            上行一律以本连接座位名义(#454:cmd 校验
 //                                            提交者=决策归属,非归属 403 回执 error),
 //                                            收 snapshot(首连摘要/校准,#381 起按接收
@@ -230,13 +230,7 @@ function recordEvent(roomId: string, ev: Record<string, unknown>, includeInDebug
     console.warn(`[server] 事件落盘失败(${roomId}):`, (err as Error).message);
   }
   // 调试端点按房间码公开。原始操作、尚未确认的选都和反应席位只记服务器流水。
-  if (
-    !includeInDebug ||
-    ev.ev === "cmd" ||
-    ev.ev === "pick-capital" ||
-    ev.ev === "reaction-decline"
-  )
-    return;
+  if (!includeInDebug || ev.ev === "cmd" || ev.ev === "reaction-decline") return;
   const tail = eventTail.get(roomId) ?? [];
   tail.push(line);
   if (tail.length > TAIL_MAX) tail.shift();
@@ -512,11 +506,11 @@ const HELP = {
       "入座 body:{roomId,guohao?} → {seat,seatToken,...lobby}(guohao=预设国号,重名开局时加方位前缀)",
     "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
     "POST /room/start":
-      "开局 body:{roomId,seatToken}(仅 host,需已选图;从当前至多三个候选中选都,WS pickCapital 落子)",
+      "开局 body:{roomId,seatToken}(仅 host,需已选图;从本席候选中通过 WS submit 选都)",
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/托管)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=":
-      "入座连接；连环计和反应应答发 {type:'submit',submission}，收 submissionResult；其余操作发 cmd/pickCapital/autoPilot",
+      "入座连接；选都、连环计和反应应答发 {type:'submit',submission}，收 submissionResult；其余操作发 cmd 或 autoPilot",
   },
   retention:
     "掉线座位保留窗口(#380):对局中断线的座位保留 RETENTION_WINDOW_MS(env 可调,默认 600000=10 分钟,0=关);" +
@@ -761,7 +755,7 @@ export const engineServer = Bun.serve<WsSeat>({
             recordEvent(roomId, { ev: "cmd", seat, cmd: cmd.type });
             // #454:cmd 面座位鉴权——连接只能以本连接座位(seat)提交命令,非决策
             // 归属(非活跃玩家/非反应窗被询问者)403 拒绝并回执 error;校验在 room 层
-            // applyCommandFromSeat,与 pickCapital/autoPilot 座位校验同位同款。
+            // applyCommandFromSeat。
             return registry.applyCommandFromSeat(
               roomId,
               seat,
@@ -769,11 +763,6 @@ export const engineServer = Bun.serve<WsSeat>({
               () => broadcast(roomId),
               report,
             );
-          },
-          pickCapital: (tileIndex, report) => {
-            // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
-            recordEvent(roomId, { ev: "pick-capital", seat, tileIndex });
-            return registry.pickCapital(roomId, seat, tileIndex, () => broadcast(roomId), report);
           },
           setAutoPilot: (on, report) => {
             // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)

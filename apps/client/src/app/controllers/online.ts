@@ -10,7 +10,6 @@
 import type { LoadedMap } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { GameEngine } from "@dafung/core/engine/authority";
-import type { GameCommand } from "@dafung/core/engine/authority";
 import { loadMapById } from "@dafung/core/engine/map-source";
 import type { GameArchiveIdentity } from "@app/game-diagnostic-record";
 import { finishGameDiagnostics, recordGameDiagnosticError } from "@app/game-diagnostics";
@@ -30,7 +29,7 @@ import { stashEventBatch } from "@app/net/event-feed";
 // 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
 import {
   autoPilotMsg,
-  pickCapitalMsg,
+  type PlayerCommand,
   type GameLogMsg,
   type ServerMsg,
   type SnapshotMsg,
@@ -120,8 +119,8 @@ export class OnlineController extends GameController {
     return this.connectionStatus === "open";
   }
 
-  protected override commandBlockReason(): string | null {
-    return this.sessionReady ? super.commandBlockReason() : "连接未就绪";
+  protected override commandBlockReason(command?: PlayerCommand): string | null {
+    return this.sessionReady ? super.commandBlockReason(command) : "连接未就绪";
   }
 
   private setConnectionStatus(status: NetConnection): void {
@@ -153,8 +152,8 @@ export class OnlineController extends GameController {
   }
 
   // ─── 命令入口:发 WS,状态由服务器广播 snapshot 驱动 ───
-  dispatchCommand(cmd: GameCommand, decisionPoint = this.decisionPoint): void {
-    const reason = this.commandBlockReason();
+  dispatchCommand(cmd: PlayerCommand, decisionPoint = this.decisionPoint): void {
+    const reason = this.commandBlockReason(cmd);
     if (reason !== null) {
       this.observeBlockedCommand(cmd.type, reason);
       return;
@@ -195,27 +194,6 @@ export class OnlineController extends GameController {
       return;
     }
     this.sendObservedCommand("autoPilot", (id) => sock.send(autoPilotMsg(on, id)));
-  }
-
-  /** Setup(PickCapital)落子(L41 联机):发 WS {type:"pickCapital"}——轮次/候选校验
-   *  在服务器(room.pickCapital),生效靠广播快照(候选滚换/推进/进 Playing)。
-   *  与 dispatchCommand 同用 pending 防连点;托管中不发(服务器 bot 代选)。 */
-  override setupPickCapital(tileIndex: number): void {
-    const reason = this.sessionReady ? this.capitalPickBlockReason() : "连接未就绪";
-    if (reason !== null) {
-      this.observeBlockedCommand("pickCapital", reason);
-      return;
-    }
-    const sock = this.sock;
-    if (!sock?.isOpen) {
-      this.observeBlockedCommand("pickCapital", "连接未就绪");
-      useGameStore.getState().pushHint("连接未就绪");
-      return;
-    }
-    this.pending = true;
-    useNetStore.getState().setPending(true);
-    this.sendObservedCommand("pickCapital", (id) => sock.send(pickCapitalMsg(tileIndex, id)));
-    this.sync(); // pending 期间锁重复提交
   }
 
   // ─── REST(建房/加入/选图/开局;协议与旧 network-client 一致)──
@@ -401,7 +379,7 @@ export class OnlineController extends GameController {
         this.forgetCommandRequests(this.outbox.requestId);
       }
       const { type: _t, reactionTiming, ...snap } = msg;
-      this.decisionPoint = msg.decisionPoint;
+      this.observeSeatDecision(msg);
       // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
       // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
       // #386:同 tick 事件批已先行折叠推进 position,视觉停点改用折叠前捕获的锚点;
@@ -464,7 +442,7 @@ export class OnlineController extends GameController {
       // 该窗口内唯一状态来源。
       const hydrated = this.enteredGame;
       if (hydrated) {
-        this.decisionPoint = msg.decisionPoint;
+        this.observeSeatDecision(msg);
         foldEventBatch(this._engine, msg.events);
         this.observeReactionTiming(msg.reactionTiming, receivedAtMonotonic);
       }

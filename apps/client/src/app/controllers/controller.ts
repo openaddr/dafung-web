@@ -6,7 +6,7 @@
 // (checkRollSeal)公式单源在本基类——两个控制器只供参数(座位/引擎),
 // 改一条交互规则只动一处,杜绝单机/联机行为分叉(此前 interactive 双写且带
 // 「需推理才能确认」的本地隐式假设,恰是本票要消灭的 bug 族)。
-import type { GameCommand, GameEngine } from "@dafung/core/engine/authority";
+import type { GameEngine } from "@dafung/core/engine/authority";
 import { SeatInteraction, type SeatIntent } from "@dafung/core/protocol/seat-interaction";
 import { readSeatReplica, seatReactionOf } from "@dafung/core/protocol/seat-replica";
 import type { GameDiagnosticCapture } from "@app/game-diagnostic-record";
@@ -18,13 +18,16 @@ import { isMarching } from "@app/fx/useMarch";
 import type {
   CommandProcessing,
   CommandResultMsg,
+  DecisionOptions,
+  PlayerCommand,
   ReactionTiming,
+  SeatDecision,
   ServerMsg,
 } from "@dafung/core/protocol/wire";
 import { shallow } from "zustand/shallow";
 import { reactionQueriesSeat } from "./reaction";
 
-type DiagnosticCommand = GameCommand["type"] | "pickCapital" | "autoPilot";
+type DiagnosticCommand = PlayerCommand["type"] | "autoPilot";
 type DiagnosticRequest = { gameId: string; id: number; command: DiagnosticCommand };
 type AuthorityLogObservation = {
   kind: "authorityLog";
@@ -54,12 +57,16 @@ export abstract class GameController {
     return this.mySeat;
   }
 
-  /** 统一命令入口(所有玩家操作都走 GameCommand,联机=网络协议消息)。
-   *  Wave3(候选2)收窄后的唯一抽象交互通道:roll 之类一行转发不再单设方法,
-   *  UI 直接 dispatchCommand({type:"rollAndMove"});Setup 落子走 setupPickCapital。 */
-  abstract dispatchCommand(cmd: GameCommand, decisionPoint?: string): void;
+  /** 交互意图确认后与其他玩家命令共用传输入口。 */
+  abstract dispatchCommand(cmd: PlayerCommand, decisionPoint?: string): void;
 
   protected decisionPoint: string | null = null;
+  protected decisionOptions: DecisionOptions | undefined;
+
+  protected observeSeatDecision({ decisionPoint, decisionOptions }: SeatDecision): void {
+    this.decisionPoint = decisionPoint;
+    this.decisionOptions = decisionOptions;
+  }
   private readonly interaction = new SeatInteraction<GameSnapshot>((command, point) =>
     this.dispatchCommand(command, point),
   );
@@ -81,13 +88,6 @@ export abstract class GameController {
   protected get seatReaction() {
     return seatReactionOf(this.engine, this.mySeat);
   }
-
-  /** Setup(PickCapital)期点城=为当前选都玩家定都(候选2 收口:相位路由归 GameScreen,
-   *  本方法只承载"落子"这一动作)。仅单机有此交互,故默认 no-op、子类覆写
-   *  ——与 setAutoPilot 的接缝风格一致,屏幕组件对两种模式仍无感(不引入 instanceof)。
-   *  pickCapital 不是 GameCommand(不经 submitCommand),两侧都包装成
-   *  {type:"pickCapital"} 上行(单机=内存双工、联机=WS),校验在房间编排。 */
-  setupPickCapital(_tileIndex: number): void {}
 
   /** 是否支持托管:由各模式的房间权威驱动 bot 代打。 */
   autopilotSupported = false;
@@ -281,8 +281,15 @@ export abstract class GameController {
     return this.commandBlockReason() === null;
   }
 
-  protected commandBlockReason(): string | null {
+  protected commandBlockReason(command?: PlayerCommand): string | null {
     const e = this.engine;
+    if (command?.type === "pickCapital" || (command === undefined && e.phase === "Setup")) {
+      if (this.decisionOptions?.kind !== "pickCapital" || this.decisionPoint === null)
+        return "未轮到本座选都";
+      if (this.pending) return "已有命令在途";
+      if (this.autoPilotOn) return "本座托管中";
+      return null;
+    }
     if (e.phase !== "Playing") return "对局未处于进行阶段";
     if (e.turnPhase === "AwaitingReaction") {
       const pr = this.seatReaction;
@@ -300,15 +307,6 @@ export abstract class GameController {
     if (this.pending) return "已有命令在途";
     if (this.autoPilotOn) return "本座托管中";
     if (this.fxPlaying) return "本座行军仍在演出";
-    return null;
-  }
-
-  protected capitalPickBlockReason(): string | null {
-    const e = this.engine;
-    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") return "非选都阶段";
-    if (e.currentSetupPlayerIndex !== this.mySeat) return "未轮到本座选都";
-    if (this.pending) return "已有命令在途";
-    if (this.autoPilotOn) return "本座托管中";
     return null;
   }
 
@@ -369,6 +367,7 @@ export abstract class GameController {
         snapshot: this.snapshotForSeat(),
         seat: this.mySeat,
         decisionPoint: this.decisionPoint,
+        decisionOptions: this.decisionOptions,
         autopilotOn: this.autoPilotOn,
         interactive: this.interactive,
         reactionDeadlineAt: this.reactionDeadline?.deadlineAt ?? null,

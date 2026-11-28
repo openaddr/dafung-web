@@ -54,14 +54,6 @@ function tierLineLabel(tier: CityTier): string {
 }
 
 export function decisionScrollIdentity(snapshot: GameSnapshot, viewSeat: number): string | null {
-  if (snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital") {
-    return JSON.stringify([
-      snapshot.gameId,
-      snapshot.phase,
-      snapshot.currentSetupPlayerIndex,
-      snapshot.offeredCapitals,
-    ]);
-  }
   if (snapshot.phase !== "Playing") return null;
   const identity = [
     snapshot.gameId,
@@ -116,6 +108,9 @@ export function TileDetail({
           ? {
               kind: "capital",
               cash: players[viewSeat].cash,
+              cost: request.option.cost,
+              canConfirm: request.canConfirm,
+              reason: request.option.available ? null : request.option.reason,
               onConfirm: request.onConfirmCapital,
             }
           : { kind: "view" }

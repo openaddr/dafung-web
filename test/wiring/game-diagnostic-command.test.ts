@@ -44,7 +44,7 @@ it("单机内存线上记录拦截、拒绝和成功，成功回执独立于状�
       },
     ]);
 
-    controller.setupPickCapital(-1);
+    controller.dispatchCommand({ type: "pickCapital", tileIndex: -1 });
     expect(controller.diagnosticInteraction.pending).toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(useGameStore.getState().hint).toBe("非本轮候选城");
@@ -71,7 +71,7 @@ it("单机内存线上记录拦截、拒绝和成功，成功回执独立于状�
     ]);
 
     const logOffset = controller.engine.log.length;
-    controller.setupPickCapital(capital);
+    controller.dispatchCommand({ type: "pickCapital", tileIndex: capital });
     await Promise.resolve(); // 回执先到，状态批还在合并拍。
     expect(events.slice(3)).toEqual([
       {

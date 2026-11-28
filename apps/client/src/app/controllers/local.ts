@@ -15,7 +15,7 @@
 // 自动起摇/反应窗定时器全部删除——单机与联机从此只差「传输在不在网上」。
 import type { LoadedMap } from "@dafung/core/engine/board-loader";
 import { GameEngine } from "@dafung/core/engine/authority";
-import type { GameCommand, SeatConfig } from "@dafung/core/engine/authority";
+import type { SeatConfig } from "@dafung/core/engine/authority";
 import { createDice } from "@dafung/core/engine/dice";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
@@ -38,7 +38,7 @@ import {
   autoPilotMsg,
   dispatchInbound,
   errorMsg,
-  pickCapitalMsg,
+  type PlayerCommand,
   type ServerMsg,
 } from "@dafung/core/protocol/wire";
 import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
@@ -230,8 +230,8 @@ export class LocalController extends GameController {
   }
 
   // ─── 命令入口(上行经内存双工,与联机 WS 同一条 wire 编码)───
-  dispatchCommand(cmd: GameCommand, decisionPoint = this.decisionPoint): void {
-    const reason = this.commandBlockReason();
+  dispatchCommand(cmd: PlayerCommand, decisionPoint = this.decisionPoint): void {
+    const reason = this.commandBlockReason(cmd);
     if (reason !== null) {
       this.observeBlockedCommand(cmd.type, reason);
       return;
@@ -250,20 +250,6 @@ export class LocalController extends GameController {
       );
     });
     this.sync(); // 刷新 interactive(pending 期间锁操作)
-  }
-
-  /** Setup(PickCapital)落子:发 WS 同款 {type:"pickCapital"},轮次/候选校验在房间
-   *  编排(room.pickCapital),生效靠下行拍(候选滚换/推进/进 Playing)。相位字段读
-   *  水合副本;Setup 字段由共享校准窗的快照覆盖。 */
-  override setupPickCapital(tileIndex: number): void {
-    const reason = this.capitalPickBlockReason();
-    if (reason !== null) {
-      this.observeBlockedCommand("pickCapital", reason);
-      return;
-    }
-    this.pending = true;
-    this.sendObservedCommand("pickCapital", (id) => this.sock.send(pickCapitalMsg(tileIndex, id)));
-    this.sync();
   }
 
   /** 自助托管:发 {type:"autoPilot"},生效态从下行快照房间字段回读(无乐观更新,联机同构)。 */
@@ -293,7 +279,7 @@ export class LocalController extends GameController {
     }
     if (msg.type === "snapshot") {
       const { type: _t, reactionTiming, ...snap } = msg;
-      this.decisionPoint = msg.decisionPoint;
+      this.observeSeatDecision(msg);
       // 转移前各座位棋子位置(行军锚定基准):hydrate 覆盖引擎态前捕获——反应窗余段
       // 行军按「视觉停点 → 落点」截短播用(与联机快照帧同口径)。
       const prePositions = this._engine.players.map((p) => p.position);
@@ -322,7 +308,7 @@ export class LocalController extends GameController {
       // 首帧摘要随建连同步到达,此门正常恒开;保留同形门 = 消息处理与联机一处形制。
       const hydrated = this.enteredGame;
       if (hydrated) {
-        this.decisionPoint = msg.decisionPoint;
+        this.observeSeatDecision(msg);
         foldEventBatch(this._engine, msg.events);
         this.observeReactionTiming(msg.reactionTiming, receivedAtMonotonic);
       }
@@ -375,8 +361,6 @@ export class LocalController extends GameController {
           this.registry.applyCommandFromSeat(this.roomId, this.seat, cmd, broadcast, report),
         submit: (submission) =>
           this.registry.submitFromSeat(this.roomId, this.seat, submission, broadcast),
-        pickCapital: (tileIndex, report) =>
-          this.registry.pickCapital(this.roomId, this.seat, tileIndex, broadcast, report),
         setAutoPilot: (on, report) =>
           this.registry.setAutoPilot(this.roomId, this.seat, on, broadcast, report),
       },

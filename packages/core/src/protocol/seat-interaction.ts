@@ -1,4 +1,3 @@
-import type { GameCommand } from "../engine/authority";
 import { isSkillOption, type ChoiceOption } from "../engine/choices";
 import { jinnangCardOf, SINGLE_TARGET, TARGET_DOMAIN_STAGES } from "../engine/jinnang";
 import type { PendingJinnang } from "../engine/jinnang-execution";
@@ -17,6 +16,7 @@ import {
   type TargetDraft,
   type TargetStep,
 } from "./target-selection";
+import type { CapitalOption, PlayerCommand, SeatDecision } from "./wire";
 
 /** 交互只消费已经投给本座的局面。调用方可以保留其余公开字段供查询。 */
 type PlayerSeatSnapshot = ReactionSeatSnapshot &
@@ -32,18 +32,17 @@ type PlayerSeatSnapshot = ReactionSeatSnapshot &
     | "players"
   >;
 
-export interface SeatInteractionState<S extends PlayerSeatSnapshot> {
+export interface SeatInteractionState<S extends PlayerSeatSnapshot> extends SeatDecision {
   readonly snapshot: S;
   readonly seat: number;
   readonly interactive: boolean;
   readonly autopilotOn: boolean;
-  /** 由房间随当前座位局面下发。 */
-  readonly decisionPoint: string | null;
   /** 下行时限换算到本席单调时钟的截止时刻。 */
   readonly reactionDeadlineAt?: number | null;
 }
 
 export type SeatIntent =
+  | { type: "selectCapital"; tileIndex: number }
   | { type: "selectCard"; handIndex: number }
   | { type: "selectSkill"; optionId: string }
   | { type: "toggleTarget"; id: number }
@@ -69,7 +68,14 @@ export interface JinnangInteractionView {
   readonly canPass: boolean;
 }
 
+export interface CapitalInteractionView {
+  readonly options: readonly CapitalOption[];
+  readonly selectedOption: CapitalOption | null;
+  readonly canConfirm: boolean;
+}
+
 export interface SeatInteractionView<S extends PlayerSeatSnapshot> extends SeatInteractionState<S> {
+  readonly capital: CapitalInteractionView | null;
   readonly ownsJinnangPhase: boolean;
   readonly jinnang: JinnangInteractionView | null;
   readonly reaction:
@@ -140,10 +146,11 @@ function pendingCommand(snapshot: PlayerSeatSnapshot) {
 /** 每个本地座位独持一份草稿。只有 confirm、back、目标段 cancel 和 pass 走上行。 */
 export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> {
   private published: SeatInteractionView<S> | null = null;
+  private selectedCapital: number | null = null;
   private selected: ChoiceOption | null = null;
   private targetDraft: TargetDraft | null = null;
 
-  constructor(private readonly submit: (command: GameCommand, decisionPoint: string) => void) {}
+  constructor(private readonly submit: (command: PlayerCommand, decisionPoint: string) => void) {}
 
   get view(): SeatInteractionView<S> {
     if (this.published === null) throw new Error("尚未收到座位局面");
@@ -151,7 +158,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
   }
 
   publish(state: SeatInteractionState<S>, { reconnect = false } = {}): SeatInteractionView<S> {
-    const { seat, snapshot, decisionPoint, interactive, autopilotOn } = state;
+    const { seat, snapshot, decisionPoint, decisionOptions, interactive, autopilotOn } = state;
     const previous = this.published;
     const reaction = reactionChoicesForSeat(snapshot, seat);
     const ownsJinnangPhase =
@@ -161,16 +168,31 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       snapshot.decisionOwner === seat &&
       snapshot.choices.some((option) => option.id === "pass" || option.id === "cancel");
     const open = ownsJinnangPhase && !autopilotOn && !snapshot.players[seat].isBot;
-    if (
+    const newDecision =
       reconnect ||
-      !open ||
       previous === null ||
       previous.decisionPoint !== decisionPoint ||
       previous.seat !== seat ||
-      previous.snapshot.gameId !== snapshot.gameId
-    ) {
+      previous.snapshot.gameId !== snapshot.gameId;
+    if (newDecision || !open) {
       this.selected = null;
       this.targetDraft = null;
+    }
+    const capitalOptions =
+      decisionPoint !== null && decisionOptions?.kind === "pickCapital" && !autopilotOn
+        ? decisionOptions.options
+        : null;
+    if (newDecision || capitalOptions === null) this.selectedCapital = null;
+    let capital: CapitalInteractionView | null = null;
+    if (capitalOptions !== null) {
+      const selectedOption =
+        capitalOptions.find(({ tileIndex }) => tileIndex === this.selectedCapital) ?? null;
+      this.selectedCapital = selectedOption === null ? null : selectedOption.tileIndex;
+      capital = {
+        options: capitalOptions,
+        selectedOption,
+        canConfirm: interactive && selectedOption?.available === true,
+      };
     }
     let jinnang: JinnangInteractionView | null = null;
     if (open) {
@@ -214,9 +236,11 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       snapshot,
       seat,
       decisionPoint,
+      decisionOptions,
       interactive,
       autopilotOn,
       reactionDeadlineAt: state.reactionDeadlineAt,
+      capital,
       ownsJinnangPhase,
       jinnang,
       reaction:
@@ -238,11 +262,17 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
 
   act(intent: SeatIntent, observedPoint = this.view.decisionPoint): SeatIntentResult {
     const state = this.view;
-    const { jinnang, decisionPoint, snapshot } = state;
+    const { capital, jinnang, decisionPoint, snapshot } = state;
     const unavailable = (reason: string): SeatIntentResult => ({ status: "unavailable", reason });
     if (observedPoint !== decisionPoint) return unavailable("决策点已失效");
+    if (capital !== null && intent.type === "cancel") {
+      if (capital.selectedOption === null) return unavailable("请先选择都城");
+      this.selectedCapital = null;
+      this.publish(state);
+      return { status: "draft" };
+    }
     if (!state.interactive || decisionPoint === null) return unavailable("本座此刻不能操作");
-    const send = (command: GameCommand): SeatIntentResult => {
+    const send = (command: PlayerCommand): SeatIntentResult => {
       this.submit(command, decisionPoint);
       return { status: "submitted" };
     };
@@ -251,6 +281,22 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       const command = { ...intent, seat: state.seat };
       const reason = reactionAnswerError(snapshot, snapshot.pendingReaction!, command);
       return reason === null ? send(command) : unavailable(reason);
+    }
+    if (intent.type === "selectCapital") {
+      if (!capital?.options.some(({ tileIndex }) => tileIndex === intent.tileIndex))
+        return unavailable("本席没有此候选城");
+      this.selectedCapital = intent.tileIndex;
+      this.publish(state);
+      return { status: "draft" };
+    }
+    if (capital !== null) {
+      if (intent.type !== "confirm") return unavailable("当前处于选都步骤");
+      const option = capital.selectedOption;
+      if (option === null) return unavailable("请先选择都城");
+      if (!option.available) return unavailable(option.reason);
+      this.selectedCapital = null;
+      this.publish(state);
+      return send({ type: "pickCapital", tileIndex: option.tileIndex });
     }
     if (jinnang === null) return unavailable("当前没有出牌步骤");
     const { selectedOption, targets } = jinnang;

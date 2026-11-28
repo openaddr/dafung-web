@@ -8,6 +8,7 @@
 //      询问集数量/自我成员一致、闭窗时机一致(数量保留的反证:清零会在首条应答误闭窗)、
 //      锦囊数量账在暗牌数组恒空(redacted 水合形态)下仍自洽。
 // 发送面接线(消息真实到达客户端)归 test/online/protocol-online.test.ts(ADR-0055)。
+import { submitCapitalForSetup } from "./room-capitals";
 import { describe, it, expect } from "bun:test";
 import {
   assembleGameLogDelta,
@@ -90,7 +91,21 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
     },
   },
   { kind: "capitalHalt", tileIndex: 5, path: path(5) },
-  { kind: "capitalSelected", tileIndex: 2, propertyId: "chengdu", cost: 1000 },
+  {
+    kind: "capitalSelected",
+    tileIndex: 2,
+    propertyId: "chengdu",
+    cost: 1000,
+    holding: {
+      propertyId: "chengdu",
+      group: "a",
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
+      burning: null,
+      damageRanking: [],
+    },
+  },
   { kind: "propertyBought", propertyId: "changangan", price: 4000 },
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "insufficient-cash" },
@@ -313,7 +328,7 @@ async function roomAtPlaying() {
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e.phase === "Setup"; i++)
-    await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
+    await submitCapitalForSetup(reg, roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
   // 保证 host 手牌有内容可断言(起手 1 张之外再补)
   e.drawJinnang(0, 2);
   return { reg, roomId, token: created.token };
@@ -418,7 +433,6 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
         {
           cmd: (message, report) =>
             reg.applyCommandFromSeat(roomId, seat, message, undefined, report),
-          pickCapital: unexpectedCommand,
           setAutoPilot: unexpectedCommand,
         },
         { sendCommandResult: (raw) => receipts.push(JSON.parse(raw) as unknown) },

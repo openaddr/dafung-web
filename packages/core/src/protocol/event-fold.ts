@@ -14,7 +14,7 @@
 //                 lastMove/turnPhase=Land(补给金额相邻回填);marchArrived → position/
 //                 lastMove/turnPhase=Land;landingResolved → 最终相位/pendingLand/
 //                 lastLandOutcome/treasureVisitor 与固定事件续接载荷
-//   城池族        capitalSelected → takenCapitalIndices/capitalIndex/position/地产 Lv1 入册
+//   城池族        capitalSelected → 现金扣费/占都/落位/城池初始持有期
 //                 (Setup 期现金不入折叠,#386 注记保持);propertyBought → 现金-价/
 //                 地产入册;propertyUpgraded → 等级对齐 newLevel，防御重置；
 //                 propertyRejected → 无状态转移，自动按兵不动由同批 turnStarted 收场；
@@ -288,12 +288,11 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       // ── 城池族 ──
       case "capitalSelected": {
         const p = foldTarget(engine, ev);
-        const def = propertyDefOf(engine, ev.propertyId);
+        p.cash -= ev.cost;
         engine.takenCapitalIndices.add(ev.tileIndex);
         p.capitalIndex = ev.tileIndex;
         p.position = ev.tileIndex;
-        p.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
-        // 建城扣费只有 cost 无 cashChanged:Setup 期现金不入折叠(#386 注记保持),开局校准覆盖
+        p.properties.push(structuredClone(ev.holding));
         break;
       }
       case "propertyBought": {

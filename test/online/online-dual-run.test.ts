@@ -21,6 +21,8 @@ import type { MovePath } from "@dafung/core/engine/board";
 import type { GameSnapshot } from "@dafung/core/engine/snapshot";
 import type { SeatSnapshot } from "@dafung/core/room/seat-projection";
 import type { NetSeatMeta } from "@app/store/netStore";
+import { HeadlessPlayer } from "../../scripts/headless-player";
+import { OnlineClient } from "../../scripts/online-client";
 import { DualClientProcess } from "./dual-client-process";
 import type { DualClientObservation, DualClientRetryMode } from "./dual-client-observation";
 
@@ -354,6 +356,105 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
       if (tmpDir !== null) rmSync(tmpDir, { recursive: true, force: true });
     }
   }, 15_000);
+
+  it("两个无界面玩家从真房本席选项定都，双席观察各自起点与满防", async () => {
+    async function post(path: string, body: unknown) {
+      const res = await fetch(`${serverBase}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const reply = (await res.json()) as {
+        ok: true;
+        roomId: string;
+        seat: number;
+        seatToken: string;
+      };
+      expect(reply.ok).toBe(true);
+      return reply;
+    }
+    const host = await post("/room/new", { seats: 2, seed: 1 });
+    roomId = host.roomId;
+    hostToken = host.seatToken;
+    const players = [new HeadlessPlayer(roomId, 0), new HeadlessPlayer(roomId, 1)];
+    const sockets: OnlineClient[] = [];
+    try {
+      const guest = await post("/room/join", { roomId });
+      await post("/room/map", { roomId, seatToken: hostToken, mapId: "guanzhong" });
+      await post("/room/start", { roomId, seatToken: hostToken });
+      for (const { seat, seatToken } of [host, guest]) {
+        const url = new URL("/ws", serverBase.replace(/^http/, "ws"));
+        url.search = new URLSearchParams({
+          room: roomId,
+          seat: String(seat),
+          token: seatToken,
+        }).toString();
+        sockets[seat] = await OnlineClient.connect(url.toString());
+        await players[seat].connect(sockets[seat]);
+      }
+
+      const capitals: number[] = [];
+      for (let draft = 0; draft < 2; draft++) {
+        const actor = players.find((player) => player.view.capital !== null)!;
+        const observer = players[1 - actor.seat];
+        expect(observer.view.capital).toBeNull();
+        expect(observer.view.snapshot.offeredCapitals).toEqual(actor.view.snapshot.offeredCapitals);
+        const option = actor.view.capital!.options.find((candidate) => candidate.available)!;
+        const before = actor.view.snapshot.players[actor.seat].cash;
+        expect(actor.act({ type: "selectCapital", tileIndex: option.tileIndex })).toEqual({
+          status: "draft",
+        });
+        expect(actor.act({ type: "confirm" })).toEqual({ status: "submitted" });
+        expect(
+          await sockets[actor.seat].waitFor(
+            (msg) => msg.type === "submissionResult",
+            "选都回执",
+            5000,
+          ),
+        ).toMatchObject({
+          outcome: "accepted",
+        });
+        capitals[actor.seat] = option.tileIndex;
+        for (const viewer of players) {
+          const event = await viewer.readUntil(
+            (msg) =>
+              msg.type === "events" &&
+              msg.events.some((ev) => ev.kind === "capitalSelected" && ev.seat === actor.seat),
+            "公开建都事件",
+          );
+          expect(event).toMatchObject({
+            events: expect.arrayContaining([
+              expect.objectContaining({
+                kind: "capitalSelected",
+                tileIndex: option.tileIndex,
+                cost: option.cost,
+              }),
+            ]),
+          });
+          await viewer.readUntil(
+            (msg) => msg.type === "snapshot" && msg.currentDraftIndex === draft + 1,
+            "建都后的座位摘要",
+          );
+          expect(viewer.view.snapshot.players[actor.seat]).toMatchObject({
+            capitalIndex: option.tileIndex,
+            position: option.tileIndex,
+            cash: before - option.cost,
+            properties: [{ level: 1, defense: 40 }],
+          });
+        }
+      }
+      for (const { view } of players) {
+        expect(view.snapshot.phase).toBe("Playing");
+        expect(view.snapshot.players.map((player) => player.position)).toEqual(capitals);
+      }
+    } finally {
+      try {
+        await dismissCurrentRoom("无界面选都例收摊");
+      } finally {
+        for (const player of players) player.close();
+      }
+    }
+  });
 
   // 守住完整客户端隔离与事件折算;固定 seed,本体预算为首掷生产延迟加进程装配。
   // 红证明:原共享装配在 guest 入座后,host 的 netStore.mySeat 实测由 0 变成 1。

@@ -10,6 +10,7 @@
 // (个人项目,不考虑旧协议兼容;客户端 network-client.ts 同步改。)
 import type { GameCommand, GameEngine, TurnPhase } from "../engine/authority";
 import type { GameSnapshot } from "../engine/snapshot";
+import { capitalChoiceOf } from "../engine/setup-flow";
 import {
   COMMAND_WARNING_REASONS,
   isLogWarning,
@@ -27,7 +28,7 @@ import { reactionTimingOf } from "./reaction-deadline";
 import type { RoomSession } from "./room";
 // 下行封装构造收口 wire.ts(#429):装配口只管形状与裁剪,序列化不另起炉灶。
 // (wire 对本模块/room 的引用全是 type 导入,构建期擦除,无运行时环。)
-import { encodeDownlink, eventsMsg, type GameLogMsg } from "../protocol/wire";
+import { encodeDownlink, eventsMsg, type DecisionOptions, type GameLogMsg } from "../protocol/wire";
 
 // ──────────────────────────── 纯视图(传输层与持久化都不参与)────────────────────────────
 /** 座位元数据:lobbyView/clientView 都从这里取(字段与原 server.ts 一致,客户端依赖)。
@@ -512,13 +513,24 @@ export function assembleDownlinkShot(
       ? reactionTimingOf(r)
       : undefined;
   const decisionPoint = seatDecisionPointOf(r, viewerSeat);
+  const decisionOptions: DecisionOptions | undefined =
+    e?.phase === "Setup" && decisionPoint !== null
+      ? {
+          kind: "pickCapital",
+          options: e.offeredCapitals.map((tileIndex) => {
+            const option = capitalChoiceOf(e, viewerSeat, tileIndex);
+            if (!("tileIndex" in option)) throw new Error(`选都候选 ${tileIndex}：${option.reason}`);
+            return option;
+          }),
+        }
+      : undefined;
   const visibleEvents = redactEvents(batch, viewerSeat);
   // 房间元数据可单独改变本席的操作权，例如在原反应窗内收回托管。
   const decisionChanged =
     previousDecisionPoint !== undefined && decisionPoint !== previousDecisionPoint;
   const events =
     visibleEvents.length > 0 || decisionChanged
-      ? eventsMsg(visibleEvents, reactionTiming, decisionPoint)
+      ? eventsMsg(visibleEvents, reactionTiming, decisionPoint, decisionOptions)
       : null;
   if (!withSnapshot) return { events, decisionPoint, snapshot: null, logCursor: null };
   const snapshot = clientView(r, onlineSeats, viewerSeat);
@@ -526,7 +538,9 @@ export function assembleDownlinkShot(
     events,
     decisionPoint,
     snapshot: encodeDownlink(
-      snapshot.type === "snapshot" ? { ...snapshot, reactionTiming, decisionPoint } : snapshot,
+      snapshot.type === "snapshot"
+        ? { ...snapshot, reactionTiming, decisionPoint, decisionOptions }
+        : snapshot,
     ),
     logCursor:
       snapshot.type === "snapshot"

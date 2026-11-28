@@ -181,9 +181,16 @@ async function execute(operation: DualClientOperation): Promise<void> {
     case "startGame":
       await controller.startGame();
       return;
-    case "pickCapital":
-      controller.setupPickCapital(operation.tileIndex);
+    case "pickCapital": {
+      if (
+        controller.dispatchIntent({ type: "selectCapital", tileIndex: operation.tileIndex })
+          .status !== "draft"
+      )
+        throw new Error("候选城草选失败");
+      const confirmed = controller.dispatchIntent({ type: "confirm" });
+      if (confirmed.status !== "submitted") throw new Error("都城确认失败");
       return;
+    }
     case "declineJinnang": {
       const engine = controller.engine;
       if (

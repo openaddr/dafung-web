@@ -313,8 +313,15 @@ async function drivePickCapital(c: OnlineClient, seat: number): Promise<void> {
     `轮到座位 ${seat} 选都`,
     20000,
   );
-  expect(snap.offeredCapitals.length, "选都三选一候选").toBe(3);
-  c.sendPickCapital(snap.offeredCapitals[0]!);
+  expect(snap.decisionOptions?.options.length, "本席选都三选一候选").toBe(3);
+  const candidate = snap.decisionOptions!.options.find((option) => option.available)!;
+  c.sendSubmission({
+    roomId: snap.roomId,
+    seat,
+    submissionId: `capital-${seat}`,
+    decisionPoint: snap.decisionPoint!,
+    cmd: { type: "pickCapital", tileIndex: candidate.tileIndex },
+  });
 }
 
 /** 等客户端累计收到 ≥ minCount 个 turnStarted 事件(回合推进的线级证据;fresh 客户端

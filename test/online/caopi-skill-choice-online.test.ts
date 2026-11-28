@@ -2,6 +2,7 @@
 // 上行经 applyCommandFromSeat 鉴权,下行经 assembleDownlinkShot 装配并裁剪私密信息。
 // 验证挂窗下行、非属主拒绝、属主应答落账及对端摘要/事件批收敛。
 // planter 只构造曹丕与标记前态,挂窗与应答均走公共命令(ADR-0065)。
+import { submitCapitalForSetup } from "./room-capitals";
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry } from "@dafung/core/room/room";
 import type { SeatEndpoint } from "@dafung/core/room/room";
@@ -78,7 +79,7 @@ async function makeStartedRoom(seed = 42) {
   let guard = 0;
   while (reg.get(roomId)?.engine?.phase === "Setup" && guard++ < 10) {
     const e = reg.get(roomId)!.engine!;
-    await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]!, bc);
+    await submitCapitalForSetup(reg, roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]!, bc);
   }
   expect(reg.get(roomId)?.engine?.phase).toBe("Playing");
   return { reg, roomId, hostToken: token, ep0, ep1, bc };

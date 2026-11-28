@@ -5,7 +5,7 @@
 // 单机客户端和联机服务器共用。只导入包内的引擎和房间类型。
 //
 // 契约:
-// - 上行包括带决策点的玩家提交、普通游戏命令、选都和托管。dispatchInbound 一次完成
+// - 上行包括带决策点的玩家提交、普通游戏命令和托管。dispatchInbound 一次完成
 //   解析 + 分发,**错误回报是返回值的一部分**(InboundResult),任何失败都不抛出到
 //   传输层之外——传输面(adapter)只负责把失败送到各自通道:WS = error 消息下行,
 //   内存 = pushHint(结构性失败在内存面属自身 bug,adapter 自行抛出,零兜底)。
@@ -16,7 +16,12 @@
 import type { GameCommand } from "../engine/authority";
 import type { GameEvent } from "../engine/game-events";
 import type { LogEvent } from "../engine/model";
+import type { CapitalOption } from "../engine/setup-flow";
 import type { LobbyView, SeatSnapshot } from "../room/seat-projection";
+
+export type { CapitalOption } from "../engine/setup-flow";
+
+export type PlayerCommand = GameCommand | { type: "pickCapital"; tileIndex: number };
 
 /** 一次玩家提交始终携带首次操作时的座位和决策点。requestId 仅用于单次传输诊断。 */
 export interface PlayerSubmission {
@@ -24,13 +29,24 @@ export interface PlayerSubmission {
   seat: number;
   submissionId: string;
   decisionPoint: string;
-  cmd: Extract<GameCommand, { type: "useJinnang" | "respondReaction" }>;
+  cmd: Extract<PlayerCommand, { type: "pickCapital" | "useJinnang" | "respondReaction" }>;
 }
 
 /** 没有公开日志行的操作仍有受理回执。 */
 type AcceptedCommand = { outcome: "accepted" } | { outcome: "accepted"; logOffset: number };
 
-export type PlayerSubmissionResult = AcceptedCommand | { outcome: "rejected"; reason: string };
+export interface PlayerSubmissionRejection {
+  outcome: "rejected";
+  reason: string;
+  reasonCode?:
+    | "wrongSeat"
+    | "staleDecisionPoint"
+    | "invalidCandidate"
+    | "insufficientFunds"
+    | "submissionIdConflict";
+}
+
+export type PlayerSubmissionResult = AcceptedCommand | PlayerSubmissionRejection;
 
 export type SubmissionResultMsg = {
   type: "submissionResult";
@@ -39,10 +55,11 @@ export type SubmissionResultMsg = {
 } & PlayerSubmissionResult;
 
 export function requiresPlayerSubmission(
-  cmd: GameCommand,
+  cmd: PlayerCommand,
   pendingCardId: string | null,
 ): cmd is PlayerSubmission["cmd"] {
   return (
+    cmd.type === "pickCapital" ||
     cmd.type === "respondReaction" ||
     (cmd.type === "useJinnang" && (cmd.cardId === "连环计" || pendingCardId === "连环计"))
   );
@@ -53,7 +70,6 @@ export function requiresPlayerSubmission(
 export type InboundMsg = (
   | { type: "cmd"; cmd: GameCommand }
   | { type: "submit"; submission: PlayerSubmission }
-  | { type: "pickCapital"; tileIndex: number }
   | { type: "autoPilot"; on: boolean }
 ) & { requestId?: number };
 
@@ -64,20 +80,24 @@ export function cmdMsg(cmd: GameCommand, requestId?: number): string {
 export function submissionMsg(submission: PlayerSubmission, requestId?: number): string {
   return JSON.stringify({ type: "submit", submission, requestId });
 }
-export function pickCapitalMsg(tileIndex: number, requestId?: number): string {
-  return JSON.stringify({ type: "pickCapital" as const, tileIndex, requestId });
-}
 export function autoPilotMsg(on: boolean, requestId?: number): string {
   return JSON.stringify({ type: "autoPilot" as const, on, requestId });
 }
 
 // ──────────────────────────── 下行:union + 构造 ────────────────────────────
+export type DecisionOptions = { kind: "pickCapital"; options: readonly CapitalOption[] };
+
+/** 选项随决策点只发给有权操作的座位。 */
+export interface SeatDecision {
+  decisionPoint: string | null;
+  decisionOptions?: DecisionOptions;
+}
+
 /** 事件批携带本席的操作权。只有授权变化时，events 可以为空。 */
-export interface EventBatchMsg {
+export interface EventBatchMsg extends SeatDecision {
   type: "events";
   events: GameEvent[];
   reactionTiming?: ReactionTiming;
-  decisionPoint: string | null;
 }
 
 /** 传输时刻的剩余时长，按权威窗号绑定。 */
@@ -119,8 +139,8 @@ export interface WireRoomFields {
 export type SnapshotMsg = {
   type: "snapshot";
   reactionTiming?: ReactionTiming;
-  decisionPoint: string | null;
 } & WireRoomFields &
+  SeatDecision &
   SeatSnapshot;
 
 /** 下行消息 union(线上形状单源;客户端 online.ts/local.ts 从此 import)。 */
@@ -140,8 +160,9 @@ export function eventsMsg(
   events: GameEvent[],
   reactionTiming?: ReactionTiming,
   decisionPoint: string | null = null,
+  decisionOptions?: DecisionOptions,
 ): string {
-  return encodeDownlink({ type: "events", events, reactionTiming, decisionPoint });
+  return encodeDownlink({ type: "events", events, reactionTiming, decisionPoint, decisionOptions });
 }
 /** 错误回报可按请求号配对。玩家提交的权威结果由 submissionResult 确认。 */
 export function errorMsg(error: string, requestId?: number): string {
@@ -162,7 +183,6 @@ export function encodeDownlink(msg: ServerMsg): string {
 export interface InboundOps {
   cmd(cmd: GameCommand, report?: ReportCommandProcessing): Promise<unknown> | unknown;
   submit?(submission: PlayerSubmission): Promise<PlayerSubmissionResult>;
-  pickCapital(tileIndex: number, report?: ReportCommandProcessing): Promise<unknown> | unknown;
   setAutoPilot(on: boolean, report?: ReportCommandProcessing): Promise<unknown> | unknown;
 }
 
@@ -198,6 +218,7 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
     !decisionPoint
   )
     return false;
+  if (cmd.type === "pickCapital") return Number.isSafeInteger(cmd.tileIndex);
   if (cmd.type === "useJinnang")
     return (
       (cmd.cardId === null || typeof cmd.cardId === "string") &&
@@ -233,9 +254,6 @@ function parseInboundMsg(m: unknown): InboundMsg | null {
   }
   if (r.type === "submit" && isPlayerSubmission(r.submission)) {
     return { type: "submit", submission: r.submission, requestId };
-  }
-  if (r.type === "pickCapital" && typeof r.tileIndex === "number") {
-    return { type: "pickCapital", tileIndex: r.tileIndex, requestId };
   }
   if (r.type === "autoPilot" && typeof r.on === "boolean") {
     return { type: "autoPilot", on: r.on, requestId };
@@ -294,9 +312,6 @@ export async function dispatchInbound(
       }
       case "cmd":
         await ops.cmd(msg.cmd, report);
-        break;
-      case "pickCapital":
-        await ops.pickCapital(msg.tileIndex, report);
         break;
       case "autoPilot":
         await ops.setAutoPilot(msg.on, report);

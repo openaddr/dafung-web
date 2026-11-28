@@ -53,7 +53,7 @@ import {
 } from "./scroll/DecisionScrollLayer";
 import { DialogPeekContext, DialogPeekInspection } from "@app/hooks/dialog-stack";
 import { RestoreGameDialog, useGameDialogPeek } from "./dialog-peek";
-import { selectableCapitalTiles, useCapitalPick } from "./useCapitalPick";
+import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
 import {
   ConnectionBanner,
@@ -193,7 +193,8 @@ function GameScreenLive({
   const gameOver = snapshot.phase === "GameOver";
   const dialogPeek = useGameDialogPeek(!gameOver);
   const { peeking } = dialogPeek;
-  const decisionKey = decisionScrollIdentity(snapshot, viewSeat);
+  const decisionKey =
+    seatView.capital === null ? decisionScrollIdentity(snapshot, viewSeat) : seatView.decisionPoint;
   const [warlordsOpen, setWarlordsOpen] = useState(false);
   const [warlordsInspection, setWarlordsInspection] = useState(false);
   const openWarlords = useCallback(() => {
@@ -224,10 +225,12 @@ function GameScreenLive({
   const [rackManualHidden, setRackManualHidden] = useState<boolean | null>(null);
   const [rackInspection, setRackInspection] = useState<RackInspection | null>(null);
   const closeRackInspection = useCallback(() => setRackInspection(null), []);
-  // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
-  // onTileClick 相位路由 + 详情/定都确认时序。
+  const act = useCallback(
+    (intent: SeatIntent) => controller.dispatchIntent(intent, seatView.decisionPoint),
+    [controller, seatView.decisionPoint],
+  );
   const { offeredCapitals, selectableTiles, onTileClick, tileDetail, inspection, closeInspection } =
-    useCapitalPick({ snapshot, readOnly: peeking });
+    useCapitalPick({ seatView, readOnly: peeking, act });
   useLayoutEffect(() => {
     if (!peeking) {
       closeInspection();
@@ -238,10 +241,6 @@ function GameScreenLive({
   const dispatchCommand = useCallback(
     (cmd: GameCommand) => controller.dispatchCommand(cmd),
     [controller],
-  );
-  const act = useCallback(
-    (intent: SeatIntent) => controller.dispatchIntent(intent, seatView.decisionPoint),
-    [controller, seatView.decisionPoint],
   );
   const jinnang = jinnangPlay(seatView, act);
   const {
@@ -329,10 +328,11 @@ function GameScreenLive({
   }, [bookToRead, bookPick]);
   const readDiagnosticDecisions = useCallback(
     (state: GameSnapshot, seat: number, canAct: boolean) => ({
-      capitalChoices: selectableCapitalTiles(state, seat),
+      capitalChoices:
+        controller.seatView.capital?.options.map((option) => option.tileIndex) ?? null,
       reaction: readDiagnosticChoices(state, seat, canAct),
     }),
-    [readDiagnosticChoices],
+    [controller, readDiagnosticChoices],
   );
   useReactionReminder(
     reactionIdentity,
@@ -453,10 +453,7 @@ function GameScreenLive({
     if (snapshot.phase !== "Setup" || snapshot.setupPhase !== "PickCapital") return null;
     const cur = snapshot.players[snapshot.currentSetupPlayerIndex];
     const pending = snapshot.players.filter((p) => p.capitalIndex < 0).length;
-    const myTurn =
-      snapshot.currentSetupPlayerIndex ===
-      (useNetStore.getState().roomId !== "" ? useNetStore.getState().mySeat : 0);
-    if (myTurn) return `轮到你定都:点选一座候选城(余 ${pending} 人未定)`;
+    if (seatView.capital !== null) return `轮到你定都:点选一座候选城(余 ${pending} 人未定)`;
     return `「${cur.guohao}」正在定都(尚余 ${pending} 人)…`;
   })();
 
