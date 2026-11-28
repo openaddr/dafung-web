@@ -5,8 +5,14 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { CityTier } from "@dafung/core/engine/economy";
 import { tileIndexOfProperty } from "@dafung/core/engine/board";
 import { Theme } from "@dafung/core/engine/theme";
+import type { SeatBoard } from "@dafung/core/protocol/seat-queries";
 import type { LandDecisionCommand } from "@dafung/core/protocol/wire";
-import { useGameStore, useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
+import {
+  useGameStore,
+  useStablePlayers,
+  type GameSnapshot,
+  type SnapshotPlayer,
+} from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import { getAudio } from "@app/fx/audio";
 import { playRecruitmentAfterSupply } from "@app/fx/capital-supply-audio";
@@ -26,6 +32,7 @@ import type { TileDetailRequest } from "../useCapitalPick";
 
 interface DecisionScrollLayerProps {
   snapshot: GameSnapshot;
+  seatBoard: SeatBoard;
   viewSeat: number;
   interactive: boolean;
   decisionKey: string | null;
@@ -76,36 +83,30 @@ export function decisionScrollIdentity(snapshot: GameSnapshot, viewSeat: number)
 }
 
 export function TileDetail({
-  snapshot,
+  seatBoard,
+  players,
   viewSeat,
   request,
 }: {
-  snapshot: GameSnapshot;
+  seatBoard: SeatBoard;
+  players: SnapshotPlayer[];
   viewSeat: number;
   request: TileDetailRequest;
 }) {
-  const { board, catalog } = getControllerContext()!;
-  const players = useStablePlayers(snapshot.players);
   const { tileIndex } = request;
-  const tile = board.at(tileIndex);
-  const def = catalog.get(tile.propertyId!);
-  if (def == null) throw new Error(`详情卷轴:城 ${tile.propertyId} 不在 catalog`);
-  const owner = players.find((p) => p.properties.some((h) => h.propertyId === tile.propertyId));
-  const holding = owner?.properties.find((h) => h.propertyId === tile.propertyId);
+  const city = seatBoard.cities[tileIndex];
+  if (city === undefined) throw new Error(`详情卷轴:棋盘没有 ${tileIndex} 格`);
   return (
     <TileDetailScroll
-      tileIndex={tileIndex}
-      tile={tile}
-      tileName={tile.name}
-      groupLabel={groupLineLabel(def.group)}
-      tierLabel={tierLineLabel(def.tier)}
-      property={def}
+      city={city}
+      groupLabel={groupLineLabel(city.property.group)}
+      tierLabel={tierLineLabel(city.property.tier)}
       players={players}
       context={
         request.pickCapital
           ? {
               kind: "capital",
-              cash: players[viewSeat].cash,
+              cash: seatBoard.seats[viewSeat].cash,
               cost: request.option.cost,
               canConfirm: request.canConfirm,
               reason: request.option.available ? null : request.option.reason,
@@ -113,12 +114,6 @@ export function TileDetail({
             }
           : { kind: "view" }
       }
-      ownerGuohao={owner?.guohao ?? null}
-      ownerLevel={holding != null ? holding.level : null}
-      ownerDefense={holding != null ? holding.defense : null}
-      burning={holding != null ? holding.burning : null}
-      damageRanking={holding != null ? holding.damageRanking : null}
-      isCapital={owner?.capitalIndex === tileIndex}
       onClose={request.onClose}
     />
   );
@@ -126,6 +121,7 @@ export function TileDetail({
 
 export function DecisionScrollLayer({
   snapshot,
+  seatBoard,
   viewSeat,
   interactive,
   decisionKey,
@@ -138,8 +134,7 @@ export function DecisionScrollLayer({
   const showDecision = interactive || parked;
   const map = getControllerMap();
   const ctx = getControllerContext();
-  // 玩家行值等复用(#1140 渲染税):详情卷轴(players 直传 TileThumb/归属推导)与
-  // 胜利屏(终榜)的 memo 前提;players 稳定后,弹层各自的值等比较才有着落。
+  // 玩家行值等复用，详情卷轴的伤害排名与胜利终榜共享稳定引用。
   const players = useStablePlayers(snapshot.players);
   const restarting = useRef(false);
   const victoryPreludePending = useFxStore(
@@ -191,7 +186,7 @@ export function DecisionScrollLayer({
           winner={winner}
           players={players}
           round={snapshot.round}
-          context={ctx}
+          seatBoard={seatBoard}
           winReason={snapshot.winReason}
           onRestart={restartGame}
         />
@@ -199,7 +194,14 @@ export function DecisionScrollLayer({
     }
 
     if (tileDetail !== null) {
-      return <TileDetail snapshot={snapshot} viewSeat={viewSeat} request={tileDetail} />;
+      return (
+        <TileDetail
+          seatBoard={seatBoard}
+          players={players}
+          viewSeat={viewSeat}
+          request={tileDetail}
+        />
+      );
     }
 
     if (showDecision && seatView?.decisionPoint != null && seatView.bankruptcy !== null) {

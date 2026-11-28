@@ -12,6 +12,7 @@ import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
 import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { armPhase, pinDice, placePlayer } from "@dafung/core/engine/planter";
+import { readSeatBoard } from "@dafung/core/protocol/seat-queries";
 import { recruitmentDecisionOf } from "@dafung/core/room/recruitment-decisions";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -83,6 +84,7 @@ it.each(["继续招贤", "归账后断线", "归账后跳过"])(
           <FxLayer />
           <DecisionScrollLayer
             snapshot={snapshot}
+            seatBoard={readSeatBoard(snapshot.players, { board, catalog })}
             viewSeat={seat}
             interactive={interactive}
             decisionKey={decisionScrollIdentity(snapshot, seat)}

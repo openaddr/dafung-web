@@ -2,55 +2,33 @@
 // 原样复用棋盘 <Tile>,与棋盘逐像素同源:竖排城名木匾、等级徽记、
 // 都城金台座+王旗、特殊城池两字徽标、持有者燕尾旗全是 Tile 自带渲染,本件零特判。
 // 签条、渐变和包围盒与 Canvas 城池贴图共用单源，缩略图以原图稿按当前状态绘制。
-import type { TileDef } from "@dafung/core/engine/board";
-import type { PropertyDef } from "@dafung/core/engine/economy";
-import type { SnapshotPlayer } from "@app/store/gameStore";
+import type { SeatCity } from "@dafung/core/protocol/seat-queries";
 import { Tile } from "@app/components/board/Tile";
 import { CITY_ART_BOX, TILE_SCALE, type TileVisualState } from "@app/components/board/city-scene";
-import { capitalHolderOf, holdingsOf } from "@app/components/board/tileOwnership";
 import { cn } from "@app/utils/cn";
 import { TESTIDS } from "./testids";
 
-export function TileThumb({
-  tile,
-  def,
-  tileIndex,
-  players,
-  className,
-}: {
-  /** 棋盘格定义(board.at(tileIndex),含格心 position)。 */
-  tile: TileDef;
-  /** 城表定义(catalog.get(propertyId)):tier 选建筑形制(ADR-0042)。 */
-  def: PropertyDef;
-  /** 棋盘格 index(都城判定 + Tile 内部 id/data-tile)。 */
-  tileIndex: number;
-  /** 全体玩家快照(归属首见者 + capitalIndex 判都城的推导源)。 */
-  players: SnapshotPlayer[];
-  className?: string;
-}) {
-  // 归属/都城判定单源 board 族 tileOwnership.ts(#665):首见者得与 capitalIndex
-  // 判都城和 BoardView 走同一实现,不再靠注释互证约定同步。
-  const holding = tile.propertyId ? holdingsOf(players).get(tile.propertyId) : undefined;
-  const capitalP = capitalHolderOf(players, tileIndex);
+export function TileThumb({ city, className }: { city: SeatCity; className?: string }) {
+  const { tile, property, owner, capital } = city;
   const state: TileVisualState = {
-    ownerColorIndex: holding?.colorIndex ?? null,
-    ownerGuohao: holding?.guohao ?? null,
-    level: holding ? holding.level : null,
-    capitalColorIndex: capitalP?.colorIndex ?? null,
-    capitalGuohao: capitalP?.guohao ?? null,
+    ownerColorIndex: owner?.colorIndex ?? null,
+    ownerGuohao: owner?.guohao ?? null,
+    level: owner?.level ?? null,
+    capitalColorIndex: capital?.colorIndex ?? null,
+    capitalGuohao: capital?.guohao ?? null,
     isActive: false,
     isTaken: false,
     isSelectable: false,
     capitalCandidateOrder: null,
     isCityTarget: false, // 缩略图无目标段语境(#1388 T2 状态字段显式归零,非兜底)
     isCityPicked: false,
-    defense: holding != null ? holding.defense : null,
-    fireMarks: holding?.burning?.marks ?? 0,
-    fireProgress: holding?.burning?.progress ?? 0,
+    defense: owner?.defense ?? null,
+    fireMarks: owner?.burning?.marks ?? 0,
+    fireProgress: owner?.burning?.progress ?? 0,
   };
   return (
     <svg
-      data-testid={TESTIDS.cityLedgerThumb(def.id)}
+      data-testid={TESTIDS.cityLedgerThumb(property.id)}
       aria-hidden="true"
       /* 板坐标盒为格心加缩放后的局部包围盒。显示尺寸由调用方指定。 */
       viewBox={[
@@ -61,7 +39,7 @@ export function TileThumb({
       ].join(" ")}
       className={cn("city-ledger-thumb pointer-events-none block", className)}
     >
-      <Tile tile={tile} tier={def.tier} state={state} />
+      <Tile tile={tile} tier={property.tier} state={state} />
     </svg>
   );
 }

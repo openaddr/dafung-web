@@ -12,10 +12,14 @@ import { getController, getControllerContext } from "@app/controllers/registry";
 import type { GameController } from "@app/controllers/controller";
 import { returnHome } from "@app/screens/shared/return-home";
 import { OnlineController } from "@app/controllers/online";
-import type { Board } from "@dafung/core/engine/board";
 import type { GameCommand } from "@dafung/core/engine/authority";
 import type { SeatIntent, SeatInteractionView } from "@dafung/core/protocol/seat-interaction";
-import { readSeatDetails, readWarReport } from "@dafung/core/protocol/seat-queries";
+import {
+  readSeatBoard,
+  readSeatDetails,
+  readWarReport,
+  type SeatBoardMap,
+} from "@dafung/core/protocol/seat-queries";
 import { skillBookLearners } from "@dafung/core/engine/roster";
 import { skillById } from "@dafung/core/engine/skills";
 import { isSkillBook } from "@dafung/core/engine/treasures";
@@ -101,7 +105,7 @@ export function GameScreen({ preparing, onFirstPaint }: GameEntryProps = {}) {
     <GameScreenLive
       key={seatView.snapshot.gameId}
       seatView={seatView}
-      board={context.board}
+      map={context}
       controller={controller}
       preparing={preparing}
       onFirstPaint={onFirstPaint}
@@ -160,13 +164,13 @@ function RotateHintOverlay() {
 /** 已开局主体;快照与静态地图由 GameScreen 门卫注入,所有对局 hooks 在此挂载。 */
 function GameScreenLive({
   seatView,
-  board,
+  map,
   controller,
   preparing,
   onFirstPaint,
 }: GameEntryProps & {
   seatView: SeatInteractionView<GameSnapshot>;
-  board: Board;
+  map: SeatBoardMap;
   controller: GameController;
 }) {
   const { snapshot, interactive, seat: viewSeat, autopilotOn, ownsJinnangPhase } = seatView;
@@ -187,8 +191,10 @@ function GameScreenLive({
   // 断线横幅与知会槽/hint/选都提示共用顶中区域,--conn-h 统一下发让位偏移。
   const connDown = useConnDown();
   const selfSeat = viewSeat;
-  // 内容不变时复用玩家引用,供棋盘宿主与手牌/藏品组件 memo;BoardView 只读其结构子集。
+  // 内容不变时复用座位状态和查询结果，供沙盘和查阅弹层共用。
   const players = useStablePlayers(snapshot.players);
+  const seatBoard = useMemo(() => readSeatBoard(players, map), [players, map]);
+  const { board } = map;
   // 挂载时已入座;座位缺位表示快照与座位表不一致,直取使接线错误暴露。
   const selfPlayer = players[selfSeat];
   const { warlords, hand } = useMemo(() => readSeatDetails(players, selfSeat), [players, selfSeat]);
@@ -538,7 +544,8 @@ function GameScreenLive({
           {/* 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
           <ConnectionBanner onReconnect={reconnect} onExit={goHome} />
           <BoardView
-            players={players}
+            board={board}
+            seatBoard={seatBoard}
             onFirstPaint={onFirstPaint}
             /* 视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
             viewSeat={selfPlayer.id}
@@ -560,20 +567,19 @@ function GameScreenLive({
             pawnTargets={
               seatTargeting && !peeking
                 ? {
-                    available: new Set(targets.available.map((option) => players[option.id].id)),
-                    selected: new Set(targets.selected.map((seat) => players[seat].id)),
+                    available: new Set(
+                      targets.available.map((option) => seatBoard.seats[option.id].id),
+                    ),
+                    selected: new Set(targets.selected.map((seat) => seatBoard.seats[seat].id)),
                     locked: !interactive,
-                    onPick: (id) => pickTarget(players.findIndex((player) => player.id === id)),
+                    onPick: (id) =>
+                      pickTarget(seatBoard.seats.findIndex((player) => player.id === id)),
                   }
                 : undefined
             }
-            activeTileIndex={
-              snapshot.phase === "Playing" ? players[snapshot.activeIndex].position : null
-            }
+            activeTileIndex={activeSeat === null ? null : seatBoard.seats[activeSeat].position}
             /* 当前回合方:活跃棋子金呼吸环(与常驻回合胶囊双锚点「谁在打」) */
-            activePlayerId={
-              snapshot.phase === "Playing" ? players[snapshot.activeIndex].id : undefined
-            }
+            activePlayerId={activeSeat === null ? undefined : seatBoard.seats[activeSeat].id}
             isSetupPhase={snapshot.phase === "Setup"}
             skipTokenIds={marching}
           />
@@ -601,6 +607,7 @@ function GameScreenLive({
             {!preparing && (
               <DecisionScrollLayer
                 snapshot={snapshot}
+                seatBoard={seatBoard}
                 viewSeat={viewSeat}
                 interactive={decisionScrollInteractive}
                 decisionKey={decisionKey}
@@ -611,7 +618,12 @@ function GameScreenLive({
             )}
             {inspection !== null && (
               <DialogPeekInspection.Provider value={closeInspection}>
-                <TileDetail snapshot={snapshot} viewSeat={viewSeat} request={inspection} />
+                <TileDetail
+                  seatBoard={seatBoard}
+                  players={players}
+                  viewSeat={viewSeat}
+                  request={inspection}
+                />
               </DialogPeekInspection.Provider>
             )}
           </div>
@@ -635,6 +647,7 @@ function GameScreenLive({
         {!gameOver && warlordsOpen && (
           <WarlordsOverview
             warlords={warlords}
+            seatBoard={seatBoard}
             selfSeat={selfSeat}
             activeSeat={activeSeat}
             round={snapshot.round}
@@ -645,6 +658,7 @@ function GameScreenLive({
           <DialogPeekInspection.Provider value={closeWarlordsInspection}>
             <WarlordsOverview
               warlords={warlords}
+              seatBoard={seatBoard}
               selfSeat={selfSeat}
               activeSeat={activeSeat}
               round={snapshot.round}

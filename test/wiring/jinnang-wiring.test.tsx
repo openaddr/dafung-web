@@ -10,6 +10,7 @@ import * as tauriCore from "@tauri-apps/api/core";
 import { useFxStore } from "@app/fx/fxStore";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
 import { getServerBase, setServerBase } from "@app/net/server-base";
+import { SCROLL_TESTIDS } from "@app/screens/game/scroll/testids";
 import { TESTIDS } from "@app/screens/game/testids";
 import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
@@ -28,6 +29,7 @@ import {
   pinDice,
   placePlayer,
   setCash,
+  setJinnangPiles,
 } from "@dafung/core/engine/planter";
 import { skillOptionId } from "@dafung/core/engine/choices";
 import { makeSkillBook } from "@dafung/core/engine/treasures";
@@ -37,6 +39,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
 import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { HeadlessPlayer } from "../../scripts/headless-player";
 import { openHeadlessTestRoom } from "../online/headless-player-room";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 import { installControlledClock } from "./controlled-clock";
@@ -437,15 +440,32 @@ async function mountOnlineJinnang(room: Awaited<ReturnType<typeof openHeadlessTe
   return mount();
 }
 
-it("安卓点具体无目标锦囊确认后更新手牌，结束出牌由房间起摇", async () => {
+it("安卓结束出牌后与同房无界面座位观察同一次行军落格、购城及原座恢复", async () => {
   const previousServer = getServerBase();
   const room = await openHeadlessTestRoom([], (engine) => {
     giveJinnang(engine, 0, ["横征暴敛", "识破诡计", "横征暴敛"]);
-    placePlayer(engine, 0, 13);
-    pinDice(engine, "march", [1]);
+    placePlayer(engine, 0, 12);
+    pinDice(engine, "march", [2]);
+    // 下一席得到反应牌，直接进入起摇，不打开需要校准的出牌窗。
+    setJinnangPiles(engine, ["识破诡计", "识破诡计"], []);
   });
+  const observer = new HeadlessPlayer(room.id, 1);
   try {
     const el = await mountOnlineJinnang(room);
+    const wire = await room.socket(1);
+    await observer.connect(wire);
+    const board = () => observer.queries.board;
+    const cityTarget = () => el.querySelector('#bv-tiles [data-tile="14"]')!;
+    expect(board().seats.map(({ position }) => position)).toEqual([12, 10, 2]);
+    expect(board().cities).toHaveLength(28);
+    expect(cityTarget().getAttribute("aria-label")).toBe(board().cities[14].tile.name);
+    expect(board().cities[14]).toMatchObject({
+      tile: { name: "街亭" },
+      property: { id: "prop-jieting", purchasePrice: 3000 },
+      owner: null,
+      income: 90,
+    });
+
     const state = () => useGameStore.getState();
     const levy = el.querySelectorAll(`[data-testid="${TESTIDS.jinnangCard("横征暴敛")}"]`);
     const initialStep = state().seatView!.decisionPoint;
@@ -462,10 +482,76 @@ it("安卓点具体无目标锦囊确认后更新手牌，结束出牌由房间�
     click(q(el, TESTIDS.actionbarPass)!);
     await waitForGameState("结束出牌事件", (s) => s.snapshot?.turnPhase === "Roll");
     expect(state().seatView?.decisionPoint).toBeNull();
-    expect(state().snapshot?.players[0].position).toBe(13);
+    expect(state().snapshot?.players[0].position).toBe(12);
     await room.advance(AUTO_ROLL_DELAY_MS);
+    await observer.readUntil(
+      (m) => m.type === "events" && m.events.some((event) => event.kind === "marchArrived"),
+      "公开行军到达",
+    );
     await waitForGameState("房间自动行军到达", (s) => s.snapshot?.players[0].position === 14);
+    expect(observer.marches).toMatchObject([
+      { kind: "marchArrived", seat: 0, path: { from: 12, traversed: [13, 14], landIndex: 14 } },
+    ]);
+    expect(board().seats.map(({ position }) => position)).toEqual(
+      state().seatView!.snapshot.players.map(({ position }) => position),
+    );
+    const cashBefore = board().seats[0].cash;
+    const snapshotCount = wire.frames.filter(({ type }) => type === "snapshot").length;
+
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await waitForGameState(
+      "行军后购城抉择",
+      (s) => s.interactive && s.seatView?.decisionOptions?.kind === "landDecision",
+    );
+    click(q(document, TESTIDS.actionButton("buy"))!);
+    await observer.readUntil(
+      (m) => m.type === "events" && m.events.some((event) => event.kind === "propertyBought"),
+      "公开购城结果",
+    );
+    await waitForGameState(
+      "安卓收到购城",
+      (s) =>
+        s.snapshot?.players[0].properties.some(
+          ({ propertyId }) => propertyId === "prop-jieting",
+        ) === true,
+    );
+    expect(wire.frames.filter(({ type }) => type === "snapshot")).toHaveLength(snapshotCount);
+    const purchased = board();
+    const city = purchased.cities[14];
+    expect(city.owner).toMatchObject({
+      seat: 0,
+      guohao: "蜀",
+      level: 1,
+      defense: 40,
+      fullDefense: 40,
+      sellValue: 1500,
+      trade: { multiplier: 2, addition: 0 },
+    });
+    // 同批进入下一轮，街亭随即入账 90 两持城收益。
+    expect(purchased.seats[0].cash).toBe(cashBefore - 3000 + 90);
+    expect(el.querySelector(TESTIDS.cityShield(14))?.getAttribute("data-defense")).toBe(
+      String(city.owner!.defense),
+    );
+
+    click(cityTarget());
+    const detail = q(document, SCROLL_TESTIDS.tileDetailScroll)!;
+    expect(detail.textContent).toContain(`${city.owner!.guohao}持有`);
+    expect(q(detail, SCROLL_TESTIDS.tileDetailDefense)?.textContent).toBe(
+      `${city.owner!.defense}/${city.owner!.fullDefense}`,
+    );
+    expect(detail.textContent).toContain(`购入价 ${city.property.purchasePrice} 两`);
+    click(q(detail, SCROLL_TESTIDS.scrollClose)!);
+    click(q(el, TESTIDS.topbarOverview)!);
+    click(q(document, TESTIDS.warlordsCities(0))!);
+    const ledger = q(document, TESTIDS.cityLedgerRow(city.property.id))!;
+    expect(ledger.textContent).toContain(`${city.owner!.level} 级`);
+    expect(ledger.textContent).toContain(`${city.owner!.sellValue} 两`);
+
+    await observer.connect(await room.socket(1));
+    expect(board()).toEqual(purchased);
+    expect(observer.marches).toEqual([]);
   } finally {
+    observer.close();
     setServerBase(previousServer);
     await act(async () => {
       setController(null);

@@ -1,8 +1,14 @@
 import type { GameEngine } from "@dafung/core/engine/authority";
+import type { LoadedMap } from "@dafung/core/engine/board-loader";
 import { foldEventBatch } from "@dafung/core/protocol/event-fold";
 import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
 import { SeatInteraction, type SeatIntent } from "@dafung/core/protocol/seat-interaction";
-import { readSeatDetails, readWarReport } from "@dafung/core/protocol/seat-queries";
+import {
+  readMarchRoutes,
+  readSeatBoard,
+  readSeatDetails,
+  readWarReport,
+} from "@dafung/core/protocol/seat-queries";
 import {
   appendSeatReplicaLog,
   hydrateSeatReplica,
@@ -23,6 +29,7 @@ import type { OnlineClient } from "./online-client";
 export class HeadlessPlayer {
   private socket: OnlineClient | null = null;
   private nextFrame = 0;
+  private map: LoadedMap | null = null;
   private engine: GameEngine | null = null;
   private snapshot: SeatSnapshot | null = null;
   private ready = false;
@@ -63,7 +70,17 @@ export class HeadlessPlayer {
 
   get queries() {
     const { snapshot, seat } = this.view;
-    return { ...readSeatDetails(snapshot.players, seat), warReport: readWarReport(snapshot.log) };
+    if (this.map === null) throw new Error("座位尚未加载本局地图");
+    return {
+      ...readSeatDetails(snapshot.players, seat),
+      board: readSeatBoard(snapshot.players, this.map),
+      warReport: readWarReport(snapshot.log),
+    };
+  }
+
+  /** 当前公开事件批中的路线。重连摘要恢复座位落点，行军事件由新到达的批交付。 */
+  get marches() {
+    return readMarchRoutes(this.view.snapshot.events);
   }
 
   act(intent: SeatIntent, observedPoint?: string | null) {
@@ -149,6 +166,7 @@ export class HeadlessPlayer {
           false,
           map,
         );
+        this.map = map;
       }
       hydrateSeatReplica(this.engine, message);
       this.ready = true;

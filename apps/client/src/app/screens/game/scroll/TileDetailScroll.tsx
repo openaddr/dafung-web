@@ -7,11 +7,8 @@
 //   - #767 城名下显示真实格缩略图。#1417:选都先读建城费、余额与补给,再翻等级表。
 import { memo, useId } from "react";
 import { formatMoney } from "@dafung/core/engine/money";
-import { fullDefenseOf } from "@dafung/core/engine/defense";
-import type { TileDef } from "@dafung/core/engine/board";
-import type { PropertyDef } from "@dafung/core/engine/economy";
 import type { CityDamageEntry } from "@dafung/core/engine/city-damage";
-import type { CityBurning } from "@dafung/core/engine/model";
+import type { SeatCity } from "@dafung/core/protocol/seat-queries";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { AffordRow } from "./AffordRow";
@@ -21,18 +18,12 @@ import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
 interface TileDetailScrollProps {
-  /** 格索引(仅展示用,引擎定位由主线完成)。 */
-  tileIndex: number;
-  /** 棋盘格定义(board.at(tileIndex),TileThumb 缩略图渲染源)。 */
-  tile: TileDef;
-  tileName: string;
+  city: SeatCity;
   /** 地域行区名(=分组名,Theme.groupNames 单源经 DecisionScrollLayer;空=未知分组省略段)。 */
   groupLabel: string;
   /** 城池档位两字名(Theme.cityTierNames 单源经 DecisionScrollLayer,ADR-0042 决策 6)。 */
   tierLabel: string;
-  /** 城表定义(价/等级/交易加成/变卖价/补给;#826 全城池制:每格必有)。 */
-  property: PropertyDef;
-  /** 全体玩家快照(TileThumb 归属/都城推导源,与名下清单同口径)。 */
+  /** 伤害排行与燃烧来源的座位名称。 */
   players: SnapshotPlayer[];
   /** #1417:明确区分选都动作与只读资料,费用不可用购入价猜测。 */
   context:
@@ -45,46 +36,26 @@ interface TileDetailScrollProps {
         onConfirm: () => void;
       }
     | { kind: "view" };
-  /** 持有者国号;null = 无主。 */
-  ownerGuohao: string | null;
-  /** 持有者当前城等级，无主城为 null。 */
-  ownerLevel: number | null;
-  /** 持有者当前防御值(#1391 T5);null=无主,不渲染防御值行(免疫,无防御语义)。 */
-  ownerDefense: number | null;
-  burning: CityBurning | null;
-  /** 当前持有期的公开伤害排行榜；无主城为 null。 */
-  damageRanking: readonly CityDamageEntry[] | null;
-  /** 是否某家都城(都城展示 Lv 徽记)。 */
-  isCapital: boolean;
   onClose: () => void;
 }
 
-/** 值等(#1140 渲染税):数据面全标量/registry 稳定引用/players(值等复用引用);
+/** 值等(#1140 渲染税):棋盘查询与 players 共用稳定引用;
  *  onClose 与 context.onConfirm 不入比较——setState/控制器驱动的关闭与定都
  *  (行为恒定,身份每渲染抖动);语境与屏前现金决定费用行与 footer。
  *  详情是「边看边掂量」件(ADR-0031 诉求本体),bot 定都/演出期间开着时内容没变
  *  的拍在此 bail out。 */
 function tileDetailScrollEqual(a: TileDetailScrollProps, b: TileDetailScrollProps): boolean {
   return (
-    a.tileIndex === b.tileIndex &&
-    a.tile === b.tile &&
-    a.tileName === b.tileName &&
+    a.city === b.city &&
     a.groupLabel === b.groupLabel &&
     a.tierLabel === b.tierLabel &&
-    a.property === b.property &&
     a.players === b.players &&
     (a.context.kind === "capital" && b.context.kind === "capital"
       ? a.context.cash === b.context.cash &&
         a.context.cost === b.context.cost &&
         a.context.canConfirm === b.context.canConfirm &&
         a.context.reason === b.context.reason
-      : a.context.kind === b.context.kind) &&
-    a.ownerGuohao === b.ownerGuohao &&
-    a.ownerLevel === b.ownerLevel &&
-    a.ownerDefense === b.ownerDefense &&
-    a.burning === b.burning &&
-    a.damageRanking === b.damageRanking &&
-    a.isCapital === b.isCapital
+      : a.context.kind === b.context.kind)
   );
 }
 
@@ -136,22 +107,16 @@ function CityDamageRanking({
 }
 
 export const TileDetailScroll = memo(function TileDetailScroll({
-  tileIndex,
-  tile,
-  tileName,
+  city,
   groupLabel,
   tierLabel,
-  property,
   players,
   context,
-  ownerGuohao,
-  ownerLevel,
-  ownerDefense,
-  burning,
-  damageRanking,
-  isCapital,
   onClose,
 }: TileDetailScrollProps) {
+  const { tile, property, owner, capital } = city;
+  const isCapital = owner !== null && capital?.seat === owner.seat;
+  const burning = owner?.burning ?? null;
   const pickCapital = context.kind === "capital";
   let burningText: string | null = null;
   if (burning !== null) {
@@ -163,33 +128,26 @@ export const TileDetailScroll = memo(function TileDetailScroll({
   // 槽不渲染零余白(详情内容矮,无需钉底段)。
   return (
     <BannerShell
-      title={`「${tileName}」`}
+      title={`「${tile.name}」`}
       onClose={onClose}
       testid={T.tileDetailScroll}
       summary={
         <>
-          <span hidden data-tile-index={tileIndex} />
+          <span hidden data-tile-index={tile.index} />
           <div className="flex items-center justify-center gap-3">
-            <TileThumb
-              tile={tile}
-              def={property}
-              tileIndex={tileIndex}
-              players={players}
-              className="city-detail-thumb"
-            />
+            <TileThumb city={city} className="city-detail-thumb" />
             <div className="text-center text-xs text-paper-dim">
               <p className="m-0">
                 {tierLabel}
                 {" · "}
                 {groupLabel ? `${groupLabel} · ` : ""}
-                {ownerGuohao ? `${ownerGuohao}持有` : "无主"}
-                {isCapital && ownerLevel !== null ? ` · 都城 Lv.${ownerLevel}` : ""}
-                {/* 防御值沿用core/defense单源;无主城无防御语义。 */}
-                {ownerLevel !== null && ownerDefense !== null ? (
+                {owner !== null ? `${owner.guohao}持有` : "无主"}
+                {isCapital ? ` · 都城 Lv.${owner.level}` : ""}
+                {owner !== null ? (
                   <>
                     {" · 防御 "}
                     <span data-testid={T.tileDetailDefense} className="text-paper">
-                      {ownerDefense}/{fullDefenseOf(ownerLevel)}
+                      {owner.defense}/{owner.fullDefense}
                     </span>
                   </>
                 ) : null}
@@ -233,7 +191,7 @@ export const TileDetailScroll = memo(function TileDetailScroll({
       }
     >
       <>
-        {damageRanking !== null && <CityDamageRanking entries={damageRanking} players={players} />}
+        {owner !== null && <CityDamageRanking entries={owner.damageRanking} players={players} />}
         {/* 等级表:抽成共用 ValueTable(购地/扩军卷轴复用同一张表,避免三处漂移)。
             #671:主列=交易加成;第二列按城型——都城与选都候选显示补给(变卖价对都城
             是死信息:都城永不可变卖),普通城显示变卖价。
@@ -241,7 +199,7 @@ export const TileDetailScroll = memo(function TileDetailScroll({
         <ValueTable
           property={property}
           second={isCapital || pickCapital ? "supply" : "sell"}
-          highlight={ownerLevel !== null ? { level: ownerLevel, label: "当前" } : undefined}
+          highlight={owner !== null ? { level: owner.level, label: "当前" } : undefined}
         />
       </>
     </BannerShell>

@@ -1,11 +1,10 @@
 // 组件收口:全屏终局沿用 DialogFocusScope 与 BannerButton。
 import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { VictoryReason } from "@dafung/core/engine/authority";
-import type { Board } from "@dafung/core/engine/board";
-import type { MapCatalog } from "@dafung/core/engine/board-loader";
 import { heroById } from "@dafung/core/engine/heroes";
 import { formatMoney } from "@dafung/core/engine/money";
 import { rgba, playerColor } from "@dafung/core/engine/theme";
+import type { SeatBoard } from "@dafung/core/protocol/seat-queries";
 import { Lihui } from "@app/components/card/HeroCardFace";
 import { useFxStore } from "@app/fx/fxStore";
 import { finishPresentation } from "@app/fx/orchestrator";
@@ -24,7 +23,7 @@ type VictoryResult = {
   winner: SnapshotPlayer;
   players: SnapshotPlayer[];
   round: number;
-  context: { board: Board; catalog: MapCatalog };
+  seatBoard: SeatBoard;
 };
 
 type VictoryScreenProps = (VictoryResult | { winReason: "aborted" }) & {
@@ -147,25 +146,18 @@ function VictoryFireworks() {
   );
 }
 
-function VictoryCapital({
-  winner,
-  players,
-  context,
-}: Pick<VictoryResult, "winner" | "players" | "context">) {
+function VictoryCapital({ winner, seatBoard }: Pick<VictoryResult, "winner" | "seatBoard">) {
   const { capitalIndex } = winner;
   // 极端自定义图可在选都时轮空。-1 是未立都城，不能交给环形地图取模。
   if (capitalIndex === -1) return <p className="victory-capital">未立都城</p>;
-  const { board, catalog } = context;
-  if (capitalIndex < 0 || capitalIndex >= board.count) {
+  const city = seatBoard.cities[capitalIndex];
+  if (city === undefined) {
     throw new Error(`终局都城索引无效 ${capitalIndex}`);
   }
-  const tile = board.at(capitalIndex);
-  const def = catalog.get(tile.propertyId);
-  if (def === null) throw new Error(`终局都城 ${tile.propertyId} 不在城表`);
   return (
     <figure className="victory-capital">
-      <TileThumb tile={tile} def={def} tileIndex={capitalIndex} players={players} />
-      <figcaption>都城 {tile.name}</figcaption>
+      <TileThumb city={city} />
+      <figcaption>都城 {city.tile.name}</figcaption>
     </figure>
   );
 }
@@ -327,7 +319,7 @@ export const VictoryScreen = memo(function VictoryScreen(props: VictoryScreenPro
                     </span>
                   </div>
                 </header>
-                <VictoryCapital winner={winner} players={players} context={props.context} />
+                <VictoryCapital winner={winner} seatBoard={props.seatBoard} />
                 {heroes.length > 0 && (
                   <div className="victory-heroes victory-step victory-step-sub">
                     {heroes.map((hero) => (
