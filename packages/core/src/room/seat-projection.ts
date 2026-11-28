@@ -519,7 +519,8 @@ export function assembleDownlinkShot(
           kind: "pickCapital",
           options: e.offeredCapitals.map((tileIndex) => {
             const option = capitalChoiceOf(e, viewerSeat, tileIndex);
-            if (!("tileIndex" in option)) throw new Error(`选都候选 ${tileIndex}：${option.reason}`);
+            if (!("tileIndex" in option))
+              throw new Error(`选都候选 ${tileIndex}：${option.reason}`);
             return option;
           }),
         }

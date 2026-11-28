@@ -334,7 +334,12 @@ describe("RoomRegistry · 崩溃恢复(#380 三形态 + #388 播种咬合)", () 
     const e1 = () => reg1.get(roomId)!.engine!;
     // host 选都 → 服务器驱动余下 bot 座位接棒,直到停下(必有非空事件批)
     for (let i = 0; i < 20 && e1().phase === "Setup"; i++) {
-      await submitCapitalForSetup(reg1, roomId, e1().currentSetupPlayerIndex, e1().offeredCapitals[0]!);
+      await submitCapitalForSetup(
+        reg1,
+        roomId,
+        e1().currentSetupPlayerIndex,
+        e1().offeredCapitals[0]!,
+      );
     }
     const batchAtCrash = e1().gameEvents;
     expect(batchAtCrash.length).toBeGreaterThan(0);
