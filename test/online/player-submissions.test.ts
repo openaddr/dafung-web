@@ -55,7 +55,12 @@ async function playingRoom(options?: Parameters<typeof registryFor>[1]) {
   await registry.startGame(roomId, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup")
-    await submitCapitalForSetup(registry, roomId, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
+    await submitCapitalForSetup(
+      registry,
+      roomId,
+      engine.currentSetupPlayerIndex,
+      engine.offeredCapitals[0],
+    );
   giveJinnang(engine, 0, ["连环计", "连环计"]);
   giveJinnang(engine, 1, []);
   giveJinnang(engine, 2, []);
@@ -353,6 +358,30 @@ it("返回再选后的第二步拒收旧指令；重启能取回首次非法目�
     logOffset,
   });
   expect(rebooted.get(roomId)!.engine!.players[0].jinnangHand).toEqual(["连环计"]);
+});
+
+it("代答保存失败保留原反应窗和截止，重试只结算一次", async () => {
+  const { room, roomId, registry, persistence, engine } = await playingRoom();
+  giveJinnang(engine, 0, ["横征暴敛"]);
+  giveJinnang(engine, 1, ["识破诡计"]);
+  await registry.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
+  const timing = reactionTimingOf(room);
+  const logLength = engine.log.length;
+  const pass = { type: "respondReaction", seat: 1, use: false } as const;
+  const save = spyOn(persistence, "save").mockImplementationOnce(() => {
+    throw new Error("代答落盘失败");
+  });
+  try {
+    await expect(registry.applyCommand(roomId, pass)).rejects.toThrow("代答落盘失败");
+  } finally {
+    save.mockRestore();
+  }
+  expect(engine.pendingReaction?.answers).toEqual([]);
+  expect(reactionTimingOf(room)).toEqual(timing);
+  expect(engine.log).toHaveLength(logLength);
+  await registry.applyCommand(roomId, pass);
+  expect(engine.pendingReaction).toBeNull();
+  expect(engine.log.filter(({ detail }) => detail.startsWith("reactionRespond "))).toHaveLength(1);
 });
 
 it("受问席收回托管时经内存端点取回原反应窗授权", async () => {

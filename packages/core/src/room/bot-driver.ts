@@ -9,6 +9,7 @@ import type { ReactionView } from "../engine/reaction-window";
 // AUTOPILOT_STEP_MS 由引擎 timings.ts 定义，单机与联机共用。
 import { AUTOPILOT_STEP_MS } from "../engine/timings";
 import type { RoomClock, RoomBotStopReason, RoomEvent, RoomSession } from "./room";
+import { reactionTimingOf } from "./reaction-deadline";
 import { fingerprint, seatControlled } from "./seat-projection";
 import type { Watchdogs } from "./watchdogs";
 
@@ -107,10 +108,12 @@ export async function driveBots(
         // 在线/离线真人共用本窗截止时刻，归零代发 respondReaction{use:false})。
         // 决策方天然多属主,decisionOwner/botAct 都不适用,故先于通用路径特判。
         if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
-          const pr = e.pendingReaction;
-          const queried = pr ? reactionQueriedSeats(pr.view) : [];
-          for (const seat of queried) {
-            if (pr!.answers.some((a) => a.seat === seat)) continue; // 已应答
+          const pending = e.pendingReaction;
+          if (pending == null) throw new Error(`房间 ${r.roomId} 缺少挂起的反应窗`);
+          for (const seat of reactionQueriedSeats(pending.view)) {
+            const current = e.pendingReaction;
+            if (current?.seq !== pending.seq || reactionTimingOf(r).remainingMs === 0) break;
+            if (current.answers.some((a) => a.seat === seat)) continue; // 已应答
             if (!seatControlled(r, seat)) continue; // 代驾座位才立即代发
             const d = botReactionDecision(e, seat);
             await host.applyCommand(
@@ -124,15 +127,15 @@ export async function driveBots(
             );
           }
           // 代发可能收窗续结算(march 续走下一城又开窗也在此链内),重读现场再定去留
-          const now = e.pendingReaction;
-          const stillWaiting =
-            e.turnPhase === "AwaitingReaction" && now != null
-              ? reactionQueriedSeats(now.view).filter(
-                  (s) => !now.answers.some((a) => a.seat === s) && !seatControlled(r, s),
-                )
-              : [];
-          if (stillWaiting.length > 0) {
-            reason = "human-turn"; // 等待已武装超时定时器的真人应答
+          const current = e.pendingReaction;
+          if (e.turnPhase !== "AwaitingReaction" || current?.seq !== pending.seq) continue;
+          if (
+            reactionTimingOf(r).remainingMs === 0 ||
+            reactionQueriedSeats(current.view).some(
+              (s) => !current.answers.some((a) => a.seat === s) && !seatControlled(r, s),
+            )
+          ) {
+            reason = "human-turn"; // 等待真人应答或到期代答
             break;
           }
           continue; // 窗已收/无待应答:回循环头按新相位续推
@@ -162,8 +165,8 @@ export async function driveBots(
           turnPhase: e.turnPhase,
           active: e.activeIndex,
         });
-        host.watchdogs.syncReaction(r, onUpdate);
         host.persist(r);
+        host.watchdogs.syncReaction(r, onUpdate);
         onUpdate?.(r); // 每步直播
         if (e.isOver) {
           reason = "game-over";

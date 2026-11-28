@@ -27,6 +27,7 @@ import {
   lobbyView,
   projectGameLog,
   publicLogWarningReason,
+  seatControlled,
   type GameLogCursor,
 } from "./seat-projection";
 // wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
@@ -40,11 +41,25 @@ import {
   type ReportCommandProcessing,
 } from "../protocol/wire";
 import {
+  stageEngineChange,
   stagePlayerSubmission,
   submissionPayload,
   type RoomSubmissions,
+  type StagedEngineChange,
 } from "./player-submissions";
-import { decisionSeatOf, driveBots as driveBotsSession, type DriveBotsHost } from "./bot-driver";
+import {
+  decisionSeatOf,
+  driveBots as driveBotsSession,
+  reactionQueriedSeats,
+  type DriveBotsHost,
+} from "./bot-driver";
+import {
+  deriveReactionDeadline,
+  installReactionDeadline,
+  reactionDeadlineFromRecord,
+  reactionTimingOf,
+  type ReactionDeadline,
+} from "./reaction-deadline";
 import { createWatchdogs, type WatchdogHost, type Watchdogs } from "./watchdogs";
 
 // ──────────────────────────── 运行时同构原语(#398 单机统一 B)────────────────────────────
@@ -202,7 +217,7 @@ export interface RoomRegistryOptions {
  *  #399:注入点——编排内一切「等待」都经它,运行时差异(服务器全局定时器 /
  *  浏览器 Worker 时钟)归注入方。 */
 export interface RoomClock {
-  /** 与定时器共用的单调毫秒时钟，手动驱动时注入。 */
+  /** 权威绝对时间（毫秒）。恢复同一份存档时沿用同一时基，缺省用 Date.now。 */
   now?(): number;
   setTimeout(cb: () => void, ms: number): unknown;
   clearTimeout(handle: unknown): void;
@@ -232,6 +247,7 @@ export class RoomRegistry {
   private readonly botStepMs: number;
   /** #399 编排定时原语(看门狗/托管步进;缺省全局,浏览器注入 Worker 时钟)。 */
   private readonly clock: RoomClock;
+  private readonly now: () => number;
   /** 四组看门狗(#118 停摆/#188 自动起摇/#281 反应窗/#380 掉线保留窗):通用工厂实例,
    *  见 ./watchdogs。driveBots 每次进出重评估(链首 clear,链尾按停点重武装)。 */
   private readonly watchdogs: Watchdogs;
@@ -265,6 +281,7 @@ export class RoomRegistry {
     this.reactionWindowMsOverride = options?.reactionWindowMs ?? 0;
     this.botStepMs = options?.botStepMs ?? 0;
     this.clock = options?.clock ?? globalClock;
+    this.now = this.clock.now?.bind(this.clock) ?? (() => Date.now());
     this.watchdogs = createWatchdogs(this.watchdogHost());
     this.ops = {
       observe: (r, ev) => this.observe(r, ev),
@@ -293,7 +310,6 @@ export class RoomRegistry {
       stallAbortMs: this.stallAbortMs,
       retentionWindowMs: this.retentionWindowMs,
       clock: this.clock,
-      now: this.clock.now?.bind(this.clock) ?? (() => performance.now()),
     };
   }
 
@@ -325,10 +341,12 @@ export class RoomRegistry {
   // ──────────────────────────── 启动恢复 ────────────────────────────
   /** 从 persistence 把所有房间载入内存(启动时调一次)。
    *  mapProvider:按 mapId 恢复对应地图的引擎(服务器注入;room.ts 不读 fs)。
-   *  onRestored:每恢复一房回调一次(server.ts 据此给对局日志落盘记基线,ADR-0014)。 */
+   *  onRestored:每恢复一房先登记对局日志和已交付事件的基线，再恢复反应窗。
+   *  onUpdate:恢复的看门狗或托管代打推进时通知传输层。 */
   restoreAll(
     mapProvider?: (mapId: string) => LoadedMap,
     onRestored?: (room: RoomSession) => void,
+    onUpdate?: (room: RoomSession) => void,
   ): number {
     let count = 0;
     for (const id of this.persistence.listIds()) {
@@ -346,6 +364,7 @@ export class RoomRegistry {
       }
       this.rooms.set(rec.roomId, room);
       onRestored?.(room);
+      this.resumeReaction(room, onUpdate);
       count++;
     }
     return count;
@@ -353,12 +372,13 @@ export class RoomRegistry {
 
   /** 内部:RoomRecord → RoomSession(零 WS 句柄;引擎重建走共享纯模块 engineFromRecord,#427 单源)。 */
   private hydrate(rec: RoomRecord, mapProvider?: (mapId: string) => LoadedMap): RoomSession {
+    const deadline = reactionDeadlineFromRecord(rec);
     if (
       !Number.isSafeInteger(rec.submissions.decisionRevision) ||
       !Array.isArray(rec.submissions.entries)
     )
       throw new Error(`房间 ${rec.roomId} 的玩家提交记录损坏`);
-    return {
+    const room: RoomSession = {
       roomId: rec.roomId,
       seatCount: rec.seatCount,
       seats: rec.seats.map((s) => ({ kind: s.kind, token: s.token, guohao: s.guohao ?? null })),
@@ -369,6 +389,31 @@ export class RoomRegistry {
       engine: engineFromRecord(rec, mapProvider, this.reactionWindowMsOverride),
       submissions: rec.submissions,
     };
+    this.adoptReactionDeadline(room, deadline);
+    return room;
+  }
+
+  private resumeReaction(room: RoomSession, onUpdate?: (room: RoomSession) => void): void {
+    const e = room.engine;
+    if (e?.turnPhase !== "AwaitingReaction") return;
+    const pending = e.pendingReaction!;
+    this.watchdogs.syncReaction(room, onUpdate);
+    if (
+      reactionTimingOf(room).remainingMs > 0 &&
+      reactionQueriedSeats(pending.view).some(
+        (seat) => seatControlled(room, seat) && !pending.answers.some((a) => a.seat === seat),
+      )
+    ) {
+      // 托管切换可能已保存、尚未代答。恢复后沿用原策略，驱动链再次核对期限。
+      this.clock.setTimeout(() => {
+        if (
+          this.rooms.get(room.roomId) === room &&
+          e.turnPhase === "AwaitingReaction" &&
+          e.pendingReaction?.seq === pending.seq
+        )
+          void this.driveBots(room, onUpdate);
+      }, 0);
+    }
   }
 
   get(roomId: string): RoomSession | undefined {
@@ -612,17 +657,20 @@ export class RoomRegistry {
       report?.({ outcome: "unprocessed", reason: room ? "对局未开始" : "房间不存在" });
       return;
     }
-    const { log } = room.engine;
-    const logOffset = log.length;
-    const rejection = room.engine.submitCommand(cmd);
-    if (rejection !== undefined) {
-      this.persist(room); // 拒绝的命令与警告也须归档。
-      throw new RoomError(400, rejection);
-    }
+    const { engine } = room;
+    const logOffset = engine.log.length;
+    // 应答可关闭原窗并打开下一窗，必须在保存成功后才替换原局面与截止时刻。
+    const change =
+      cmd.type === "respondReaction"
+        ? stageEngineChange(engine, (draft) => draft.submitCommand(cmd))
+        : undefined;
+    const rejection = change === undefined ? engine.submitCommand(cmd) : change.result;
+    const log = change === undefined ? engine.log : change.snapshot.log;
     // 只定位本次同步权威处理写出的警告。日志原文可能含牌面。
     const warning = log.slice(logOffset).findIndex(isLogWarning);
+    this.persist(room, rejection === undefined && warning === -1, change);
+    if (rejection !== undefined) throw new RoomError(400, rejection);
     this.watchdogs.syncReaction(room, onUpdate);
-    this.persist(room, warning === -1);
     onUpdate?.(room); // 人类命令结果先推
     if (report) {
       if (warning === -1) {
@@ -664,16 +712,20 @@ export class RoomRegistry {
     if (old)
       return old.payload === payload
         ? { ...old.result }
-        : { outcome: "rejected", reasonCode: "submissionIdConflict", reason: "这个提交编号已用于其他内容" };
+        : {
+            outcome: "rejected",
+            reasonCode: "submissionIdConflict",
+            reason: "这个提交编号已用于其他内容",
+          };
 
     const staged = stagePlayerSubmission(room, submission);
-    const { snapshot } = staged;
+    const { change } = staged;
     const result =
-      snapshot === undefined
+      change === undefined
         ? staged.result
         : {
             ...staged.result,
-            ...this.publicLogAnchor(room, snapshot.log, room.engine!.log.length),
+            ...this.publicLogAnchor(room, change.snapshot.log, room.engine!.log.length),
           };
     const submissions = {
       decisionRevision: room.submissions.decisionRevision + (result.outcome === "accepted" ? 1 : 0),
@@ -682,15 +734,8 @@ export class RoomRegistry {
         { seat, submissionId: submission.submissionId, payload, result },
       ],
     };
-    this.save(
-      room,
-      submissions,
-      snapshot === undefined ? (room.engine?.snapshot() ?? null) : snapshot,
-    );
-    room.submissions = submissions;
-    if (snapshot !== undefined) {
-      room.engine!.restoreFromSnapshot(snapshot);
-      staged.commitDicePins?.();
+    this.commit(room, submissions, change);
+    if (change !== undefined) {
       this.writeGameLog(room);
       this.watchdogs.syncReaction(room, onUpdate);
       onUpdate?.(room);
@@ -731,9 +776,12 @@ export class RoomRegistry {
   abortGame(roomId: string, reason: string, onUpdate?: (room: RoomSession) => void): void {
     const room = this.rooms.get(roomId);
     if (!room || !room.engine) throw new RoomError(409, "房间不存在或对局未开始,不可作废");
-    room.engine.abortGame(reason);
-    this.watchdogs.syncReaction(room, onUpdate);
-    this.persist(room);
+    const change =
+      room.engine.turnPhase === "AwaitingReaction"
+        ? stageEngineChange(room.engine, (draft) => draft.abortGame(reason))
+        : undefined;
+    if (change === undefined) room.engine.abortGame(reason);
+    this.persist(room, false, change);
     onUpdate?.(room);
   }
 
@@ -942,11 +990,14 @@ export class RoomRegistry {
   }
 
   // ──────────────────────────── 持久化投影 ────────────────────────────
-  private save(
-    r: RoomSession,
-    submissions: RoomSubmissions,
-    snapshot: RoomRecord["snapshot"],
-  ): void {
+  private adoptReactionDeadline(room: RoomSession, deadline: ReactionDeadline | null): void {
+    if (installReactionDeadline(room, deadline, this.now))
+      this.watchdogs.reactionWait.clear(room.roomId);
+  }
+
+  private commit(r: RoomSession, submissions: RoomSubmissions, change?: StagedEngineChange): void {
+    const snapshot = change === undefined ? (r.engine?.snapshot() ?? null) : change.snapshot;
+    const reactionDeadline = deriveReactionDeadline(r, snapshot, this.now);
     const rec: RoomRecord = {
       roomId: r.roomId,
       seatCount: r.seatCount,
@@ -961,16 +1012,22 @@ export class RoomRegistry {
       mapId: r.mapId,
       submissions,
       snapshot,
+      ...(reactionDeadline === null ? {} : { reactionDeadline }),
     };
     this.persistence.save(rec);
+    if (change !== undefined) {
+      r.engine!.restoreFromSnapshot(change.snapshot);
+      change.commitDicePins?.();
+    }
+    r.submissions = submissions;
+    this.adoptReactionDeadline(r, reactionDeadline);
   }
 
-  private persist(r: RoomSession, decisionAdvanced = false): void {
+  private persist(r: RoomSession, decisionAdvanced = false, change?: StagedEngineChange): void {
     const submissions = decisionAdvanced
       ? { ...r.submissions, decisionRevision: r.submissions.decisionRevision + 1 }
       : r.submissions;
-    this.save(r, submissions, r.engine ? r.engine.snapshot() : null);
-    r.submissions = submissions;
+    this.commit(r, submissions, change);
     // ADR-0014 对局日志:每手快照后把引擎新增日志行经钩子交传输层落盘(data/logs/<gameId>.jsonl)
     if (r.engine) this.writeGameLog(r);
   }

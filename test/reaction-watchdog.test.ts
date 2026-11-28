@@ -56,9 +56,12 @@ class ManualClock implements RoomClock {
     this.pending.delete(handle);
   }
   fireAll(): void {
-    const cbs = [...this.pending.values()];
+    const cbs = [...this.pending.values()].sort((a, b) => a.at - b.at);
     this.pending.clear();
-    for (const { cb } of cbs) cb();
+    for (const { cb, at } of cbs) {
+      this.time = Math.max(this.time, at);
+      cb();
+    }
   }
   advanceBy(ms: number): void {
     this.time += ms;

@@ -107,18 +107,16 @@ function submissionError(
   return null;
 }
 
-/** 在独立局面上裁决。原房间在文件替换成功后才采用这份快照并通知座位。 */
-export function stagePlayerSubmission(
-  room: RoomSession,
-  submission: PlayerSubmission,
-): {
-  result: PlayerSubmissionResult;
-  snapshot?: GameSnapshot;
+export interface StagedEngineChange {
+  snapshot: GameSnapshot;
   commitDicePins?: () => void;
-} {
-  const error = submissionError(room, submission);
-  if (error !== null) return { result: { outcome: "rejected", ...error } };
-  const authority = room.engine!;
+}
+
+/** 用独立局面裁决座位提交和房间代答，保存成功后才采用快照与钉骰队列。 */
+export function stageEngineChange<T>(
+  authority: GameEngine,
+  apply: (draft: GameEngine) => T,
+): StagedEngineChange & { result: T } {
   const before = authority.snapshot();
   const restoreDicePins = checkpointDicePins(authority.dice);
   try {
@@ -131,18 +129,9 @@ export function stagePlayerSubmission(
       reactionWindowMs: authority.reactionWindowMsOverride,
     });
     draft.restoreFromSnapshot(structuredClone(before));
-    const logOffset = draft.log.length;
-    const { cmd, seat } = submission;
-    const rejection =
-      cmd.type === "pickCapital" ? draft.pickCapital(seat, cmd.tileIndex).reason : draft.submitCommand(cmd);
-    const warning = draft.log
-      .slice(logOffset)
-      .find((line) => isLogWarning(line) && line.warning !== undefined);
-    if (rejection !== undefined) return { result: { outcome: "rejected", reason: rejection } };
-    if (warning)
-      return { result: { outcome: "rejected", reason: publicLogWarningReason(warning) } };
+    const result = apply(draft);
     return {
-      result: { outcome: "accepted" },
+      result,
       snapshot: draft.snapshot(),
       commitDicePins: checkpointDicePins(draft.dice),
     };
@@ -151,4 +140,25 @@ export function stagePlayerSubmission(
     authority.dice.setRngState(before.rngState);
     restoreDicePins?.();
   }
+}
+
+export function stagePlayerSubmission(
+  room: RoomSession,
+  submission: PlayerSubmission,
+): { result: PlayerSubmissionResult; change?: StagedEngineChange } {
+  const error = submissionError(room, submission);
+  if (error !== null) return { result: { outcome: "rejected", ...error } };
+  const authority = room.engine!;
+  const { cmd, seat } = submission;
+  const { result: rejection, ...change } = stageEngineChange(authority, (draft) =>
+    cmd.type === "pickCapital"
+      ? draft.pickCapital(seat, cmd.tileIndex).reason
+      : draft.submitCommand(cmd),
+  );
+  if (rejection !== undefined) return { result: { outcome: "rejected", reason: rejection } };
+  const warning = change.snapshot.log
+    .slice(authority.log.length)
+    .find((line) => isLogWarning(line) && line.warning !== undefined);
+  if (warning) return { result: { outcome: "rejected", reason: publicLogWarningReason(warning) } };
+  return { result: { outcome: "accepted" }, change };
 }

@@ -281,18 +281,6 @@ const registry = new RoomRegistry(persistence, recordObservedRoomEvent, flushGam
   retentionWindowMs: RETENTION_WINDOW_MS,
   botStepMs: BOT_STEP_MS_EFFECTIVE,
 });
-const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
-  restoreGameLog(room);
-  // #388 恢复登记(#390 移交注记归口):恢复快照自带的当前批视为已下行(重启前已广播
-  // 过)——不登记的话,恢复后首次广播会把旧批当新批重发,客户端折叠二次落账。结算相位
-  // 基线同步登记(决策窗退出检测的起点)。
-  const e = room.engine;
-  if (e) {
-    eventBatches.seedSeen(room.roomId, e.gameEvents);
-    settledTurnPhase.set(room.roomId, e.turnPhase);
-  }
-});
-
 // ──────────────────────────── WS 句柄归传输层(ADR-0007 关键不变量 1)────────────────────────────
 // 房间 → 座位 → 当前 WebSocket。Room 模块不持有 WS,只有这里持有。
 // Bun 的 ServerWebSocket 以 data 携带座位标识和该连接的诊断日志游标。
@@ -669,6 +657,20 @@ async function handle(req: Request): Promise<Response> {
 
   throw httpError(404, `未知路由:${path}`);
 }
+
+const restored = registry.restoreAll(
+  loadBuiltinMapById,
+  (room) => {
+    restoreGameLog(room);
+    // 恢复的当前批视作已交付。后续超时或托管推进从恢复的日志与结算相位继续。
+    const e = room.engine;
+    if (e) {
+      eventBatches.seedSeen(room.roomId, e.gameEvents);
+      settledTurnPhase.set(room.roomId, e.turnPhase);
+    }
+  },
+  (room) => broadcast(room.roomId),
+);
 
 // ──────────────────────────── WebSocket(升级在 fetch 里做,生命周期在 handlers)────────────────────────────
 // 编程内起缝(#1283 双端对跑层):导出 Bun.serve 句柄本身,不另设装配函数。判词:本文件

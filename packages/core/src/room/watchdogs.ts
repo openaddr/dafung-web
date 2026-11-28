@@ -16,7 +16,7 @@ import type { GameCommand } from "../engine/authority";
 import { AUTO_ROLL_DELAY_MS } from "../engine/timings";
 import type { RoomClock, RoomEvent, RoomSession } from "./room";
 import { decisionSeatOf, reactionQueriedSeats } from "./bot-driver";
-import { reactionTimingOf, syncReactionDeadline } from "./reaction-deadline";
+import { reactionTimingOf } from "./reaction-deadline";
 import { seatControlled } from "./seat-projection";
 
 type UpdateFn = (room: RoomSession) => void;
@@ -44,7 +44,6 @@ export interface WatchdogHost {
   readonly retentionWindowMs: number;
   /** 定时原语(#399 Worker 时钟注入点):武装/撤表全经它,服务器=全局、单机=Worker。 */
   readonly clock: RoomClock;
-  readonly now: () => number;
 }
 
 /** 单组看门狗实例:clear=整房撤表(链重开/解散时);arm=按座位武装;disarm=按座位
@@ -146,7 +145,7 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
     onUpdate?.(r); // 先广播托管(客户端「托管中」徽章置位;托管座位 isBot 不变,等待条走真人措辞)
     await host.driveBots(r, onUpdate); // 若该座位正轮到,解冻续推
   };
-  // 每位待答真人各有一表，共用当前窗的截止时刻。
+  // 所有待答席共用当前窗的截止。托管也只在截止前按策略答。
   const reactionWait = createWatchdog(
     {
       window: (r) => {
@@ -160,7 +159,10 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
         const pr = e.pendingReaction;
         if (!reactionQueriedSeats(pr.view).includes(seat)) return;
         if (pr.answers.some((a) => a.seat === seat)) return;
-        if (seatControlled(r, seat)) return;
+        if (reactionTimingOf(r).remainingMs > 0) {
+          reactionWait.arm(r, seat, onUpdate);
+          return;
+        }
         host.observe(r, { ev: "reaction-decline", seat });
         await host.applyCommand(r.roomId, { type: "respondReaction", seat, use: false }, onUpdate);
       },
@@ -170,13 +172,12 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
   return {
     reactionWait,
     syncReaction(r, onUpdate) {
-      if (syncReactionDeadline(r, host.now)) reactionWait.clear(r.roomId);
       const e = r.engine;
       if (e?.turnPhase !== "AwaitingReaction") return;
       const pending = e.pendingReaction;
       if (pending == null) throw new Error(`房间 ${r.roomId} 缺少挂起的反应窗`);
       for (const seat of reactionQueriedSeats(pending.view)) {
-        if (pending.answers.some((a) => a.seat === seat) || seatControlled(r, seat)) {
+        if (pending.answers.some((a) => a.seat === seat)) {
           reactionWait.disarm(r.roomId, seat);
         } else {
           reactionWait.arm(r, seat, onUpdate);

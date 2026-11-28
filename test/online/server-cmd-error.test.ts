@@ -24,7 +24,6 @@ import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
 import { RoomRegistry } from "@dafung/core/room/room";
 import { seatDecisionPointOf } from "@dafung/core/room/player-submissions";
 import {
-  autoPilotMsg,
   cmdMsg,
   submissionMsg,
   type GameLogMsg,
@@ -85,10 +84,11 @@ let ROOMS_DIR: string;
 let live: Awaited<ReturnType<typeof recoveryFixture>>;
 let expired: Awaited<ReturnType<typeof recoveryFixture>>;
 
-async function recoveryFixture(roomsDir: string) {
+async function recoveryFixture(roomsDir: string, pendingAutoPilot = false) {
   const persistence = new FileRoomPersistence(roomsDir);
   const registry = new RoomRegistry(persistence, undefined, undefined, {
     clock: { setTimeout: () => 1, clearTimeout: () => {} },
+    reactionWindowMs: 60_000,
   });
   const { room, token } = registry.createRoom({
     seatCount: 3,
@@ -101,16 +101,22 @@ async function recoveryFixture(roomsDir: string) {
   await registry.startGame(roomId, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup")
-    await submitCapitalForSetup(registry, roomId, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
-  armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
-  giveJinnang(engine, 0, ["横征暴敛"]);
-  for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
-  await registry.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
-  const point = seatDecisionPointOf(room, 1);
-  if (point === null) throw new Error("恢复场景缺少受问席的决策点");
-  // 模拟托管已保存、下一拍代答前进程中断，归档也可仍欠最后一行。
-  const record = persistence.load(roomId)!;
-  persistence.save({ ...record, autoPilot: [1] });
+    await submitCapitalForSetup(
+      registry,
+      roomId,
+      engine.currentSetupPlayerIndex,
+      engine.offeredCapitals[0],
+    );
+  if (pendingAutoPilot) {
+    armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+    giveJinnang(engine, 0, ["横征暴敛"]);
+    for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
+    await registry.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
+    // 模拟托管已保存、下一拍代答前进程中断，归档仍欠最后一行。
+    const record = persistence.load(roomId)!;
+    persistence.save({ ...record, autoPilot: [1] });
+  }
+  const point = seatDecisionPointOf(room, 2);
   const log = engine.log.map((line) => JSON.stringify(line));
   const archive = join(roomsDir, `${engine.gameId}.jsonl`);
   return { roomId, tokens, point, log, archive };
@@ -221,7 +227,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
           `处置:netstat -ano | grep :${PORT} 查 PID → tasklist 验名为 bun.exe → taskkill //PID <pid> //F`,
       );
     }
-    live = await recoveryFixture(ROOMS_DIR);
+    live = await recoveryFixture(ROOMS_DIR, true);
     writeFileSync(live.archive, live.log.slice(0, -1).join("\n") + "\n");
     const oldTime = Date.now() - 31 * 86_400_000;
     const age = spyOn(Date, "now").mockReturnValue(oldTime);
@@ -357,7 +363,8 @@ describeSlow("server WS 命令回报与对局日志", () => {
 
   it("启动清扫保持过期日志删除，活局的已保存缺行照常补写", async () => {
     expect(existsSync(expired.archive)).toBe(false);
-    expect(readFileSync(live.archive, "utf8").trimEnd().split("\n")).toEqual(live.log);
+    const restored = readFileSync(live.archive, "utf8").trimEnd().split("\n");
+    expect(restored.slice(0, live.log.length)).toEqual(live.log);
     const peer = await OnlineClient.connect(
       `ws://127.0.0.1:${PORT}/ws?room=${expired.roomId}&seat=1&token=${expired.tokens[1]}`,
     );
@@ -370,7 +377,13 @@ describeSlow("server WS 命令回报与对局日志", () => {
     }
   });
 
-  it("恢复反应窗后，原座收回托管可继续应答并追加归档", async () => {
+  it("恢复时在原窗内接续托管，未答原座沿用授权并追加归档", async () => {
+    const persistence = new FileRoomPersistence(ROOMS_DIR);
+    const pending = () => persistence.load(live.roomId)?.snapshot?.pendingReaction;
+    const end = performance.now() + 2000;
+    while (pending()?.answers.length === 0 && performance.now() < end) await Bun.sleep(10);
+    expect(pending()?.answers).toMatchObject([{ seat: 1, use: true, cardId: "识破诡计" }]);
+
     const connect = (seat: number) =>
       OnlineClient.connect(
         `ws://127.0.0.1:${PORT}/ws?room=${live.roomId}&seat=${seat}&token=${live.tokens[seat]}`,
@@ -378,48 +391,41 @@ describeSlow("server WS 命令回报与对局日志", () => {
     const peer = await connect(1);
     const other = await connect(2);
     try {
-      const pending = await peer.waitSnapshot(null, "托管时的反应窗摘要", 2000);
-      await other.waitSnapshot(null, "另一受问席的摘要", 2000);
-      expect(pending).toMatchObject({ decisionPoint: null, turnPhase: "AwaitingReaction" });
-      peer.sendRaw(autoPilotMsg(false));
-      const restored = await peer.waitFor(
-        (message) => message.type === "events" && message.decisionPoint === live.point,
-        "原反应窗授权",
-        2000,
-      );
+      const controlled = await peer.waitSnapshot(null, "已由托管答过的原座摘要", 2000);
+      expect(controlled.decisionPoint).toBeNull();
+      const restored = await other.waitSnapshot(null, "未答席的原座摘要", 2000);
       expect(restored).toMatchObject({
-        type: "events",
-        events: [],
+        turnPhase: "AwaitingReaction",
         decisionPoint: live.point,
-        reactionTiming: { seq: pending.pendingReaction!.seq, remainingMs: expect.any(Number) },
+        pendingReaction: { answers: [{ seat: 1, use: true, cardId: "识破诡计" }] },
       });
-      peer.sendRaw(
+      if (restored.decisionPoint === null) throw new Error("恢复原座缺少决策点");
+      other.sendRaw(
         submissionMsg({
           roomId: live.roomId,
-          seat: 1,
-          submissionId: "收回后不用",
-          decisionPoint: live.point,
-          cmd: { type: "respondReaction", seat: 1, use: false },
+          seat: 2,
+          submissionId: "恢复后不用",
+          decisionPoint: restored.decisionPoint,
+          cmd: { type: "respondReaction", seat: 2, use: false },
         }),
       );
       expect(
-        await peer.waitFor((m) => m.type === "submissionResult", "收回后的原座回执", 2000),
+        await other.waitFor((m) => m.type === "submissionResult", "恢复后的原座回执", 2000),
       ).toMatchObject({ outcome: "accepted" });
-      const answered = await other.waitFor(
+      const answered = await peer.waitFor(
         (msg) =>
           msg.type === "events" && msg.events.some((event) => event.kind === "reactionAnswered"),
-        "另一受问席收到已答进度",
+        "托管席收到本次应答",
         2000,
       );
       expect(answered).toMatchObject({
-        events: [expect.objectContaining({ kind: "reactionAnswered", seat: 1 })],
+        events: expect.arrayContaining([
+          expect.objectContaining({ kind: "reactionAnswered", seat: 2, use: false }),
+        ]),
       });
-      expect(other.frames.some((msg) => msg.type === "events" && msg.events.length === 0)).toBe(
-        false,
-      );
       const lines = readFileSync(live.archive, "utf8").trimEnd().split("\n");
       expect(lines.slice(0, live.log.length)).toEqual(live.log);
-      expect(lines.at(-1)).toContain("reactionRespond ");
+      expect(lines.filter((line) => line.includes("reactionRespond "))).toHaveLength(2);
     } finally {
       peer.close();
       other.close();
