@@ -35,6 +35,7 @@ import { skillOptionId } from "@dafung/core/engine/choices";
 import { makeSkillBook } from "@dafung/core/engine/treasures";
 import { AUTO_ROLL_DELAY_MS } from "@dafung/core/engine/timings";
 import { redactEvents } from "@dafung/core/room/seat-projection";
+import { skillChoiceDecisionOf } from "@dafung/core/room/skill-choice-decisions";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
@@ -802,10 +803,9 @@ beforeAll(async () => {
     }
     // 测试侧重灌口(protected sync 的公开面;直写引擎后调)。
     resync(): void {
-      const ownsJinnang =
-        this.e.phase === "Playing" &&
-        this.e.turnPhase === "AwaitingJinnang" &&
-        this.e.decisionOwner === this.mySeat;
+      const ownsDecision = this.e.phase === "Playing" && this.e.decisionOwner === this.mySeat;
+      const ownsJinnang = ownsDecision && this.e.turnPhase === "AwaitingJinnang";
+      const ownsSkillChoice = ownsDecision && this.e.turnPhase === "AwaitingSkillChoice";
       this.observeSeatDecision({
         decisionPoint: String(++this.decisionNumber),
         decisionOptions: ownsJinnang
@@ -815,7 +815,9 @@ beforeAll(async () => {
               pendingJinnang: this.e.pendingJinnang,
               pendingSkill: this.e.pendingSkill,
             }
-          : undefined,
+          : ownsSkillChoice
+            ? skillChoiceDecisionOf(this.e)
+            : undefined,
       });
       const current = this.e.pendingReaction;
       if (current != null) {
