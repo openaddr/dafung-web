@@ -23,6 +23,7 @@ import { EVENT_TIERS, type EventKind } from "../engine/event-tiers";
 import { HEROES } from "../engine/heroes";
 import { SKILLS } from "../engine/skills";
 import { createTreasureDeck, SKILL_BOOK_ID_PREFIX } from "../engine/treasures";
+import { bankruptcyDecisionOf } from "./bankruptcy-decisions";
 import { landDecisionOf } from "./land-decisions";
 import { seatDecisionPointOf } from "./player-submissions";
 import { reactionTimingOf } from "./reaction-deadline";
@@ -503,6 +504,7 @@ function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions | undef
   if (e.turnPhase === "AwaitingDecision") return landDecisionOf(e);
   if (e.turnPhase === "AwaitingHeroPick") return recruitmentDecisionOf(e);
   if (e.turnPhase === "AwaitingTreasureOwner") return treasureDecisionOf(e);
+  if (e.turnPhase === "AwaitingBankruptcySettle") return bankruptcyDecisionOf(e);
   return undefined;
 }
 

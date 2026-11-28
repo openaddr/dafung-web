@@ -21,6 +21,11 @@ import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-executi
 import type { LogEvent } from "../engine/model";
 import type { CapitalOption } from "../engine/setup-flow";
 import {
+  isBankruptcyDecisionCommand,
+  type BankruptcyDecision,
+  type BankruptcyDecisionCommand,
+} from "../room/bankruptcy-decisions";
+import {
   isLandDecisionCommand,
   type LandDecision,
   type LandDecisionCommand,
@@ -51,7 +56,8 @@ export interface PlayerSubmission {
         { type: "pickCapital" | "useJinnang" | "respondReaction" | "resolveHeroPick" }
       >
     | LandDecisionCommand
-    | TreasureOwnerCommand;
+    | TreasureOwnerCommand
+    | BankruptcyDecisionCommand;
 }
 
 /** 没有公开日志行的操作仍有受理回执。 */
@@ -85,6 +91,7 @@ export function requiresPlayerSubmission(
     cmd.type === "respondReaction" ||
     cmd.type === "resolveHeroPick" ||
     cmd.type === "resolveTreasureOwner" ||
+    isBankruptcyDecisionCommand(cmd) ||
     isLandDecisionCommand(cmd)
   )
     return true;
@@ -127,7 +134,8 @@ export type DecisionOptions =
   | JinnangDecisionOptions
   | LandDecision
   | RecruitmentDecision
-  | TreasureDecision;
+  | TreasureDecision
+  | BankruptcyDecision;
 
 /** 选项随决策点只发给有权操作的座位。 */
 export interface SeatDecision {
@@ -278,6 +286,20 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
       Object.keys(action).length === 2
     );
   }
+  if (cmd.type === "declareBankruptcy") return Object.keys(cmd).length === 1;
+  if (cmd.type === "confirmBankruptcySettle")
+    return (
+      Object.keys(cmd).length === 2 &&
+      Array.isArray(cmd.assets) &&
+      cmd.assets.every(
+        (asset: unknown) =>
+          isRecord(asset) &&
+          (asset.kind === "treasure" || asset.kind === "property") &&
+          typeof asset.id === "string" &&
+          asset.id.length > 0 &&
+          Object.keys(asset).length === 2,
+      )
+    );
   if (cmd.type === "useJinnang")
     return (
       (cmd.cardId === null || typeof cmd.cardId === "string") &&

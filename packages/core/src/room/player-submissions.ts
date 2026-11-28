@@ -9,6 +9,7 @@ import {
   type PlayerSubmissionRejection,
   type PlayerSubmissionResult,
 } from "../protocol/wire";
+import { isBankruptcyDecisionCommand } from "./bankruptcy-decisions";
 import { reactionQueriedSeats } from "./bot-driver";
 import { isLandDecisionCommand, landDecisionOf } from "./land-decisions";
 import { reactionTimingOf } from "./reaction-deadline";
@@ -38,6 +39,7 @@ const SINGLE_OWNER_DECISIONS = {
   AwaitingDecision: "land",
   AwaitingHeroPick: "recruitment",
   AwaitingTreasureOwner: "treasure",
+  AwaitingBankruptcySettle: "bankruptcy",
 } as const satisfies Partial<Record<TurnPhase, string>>;
 
 type SingleOwnerDecisionPhase = keyof typeof SINGLE_OWNER_DECISIONS;
@@ -162,6 +164,13 @@ function submissionError(room: RoomSession, submission: PlayerSubmission): Submi
       ? null
       : { reasonCode: "invalidCandidate", reason: "本次交涉没有这件珍宝" };
   }
+  if (isBankruptcyDecisionCommand(cmd))
+    return singleOwnerSubmissionError(
+      room,
+      submission,
+      "AwaitingBankruptcySettle",
+      "本席当前无权处理这笔债务",
+    );
   if (isLandDecisionCommand(cmd)) {
     const error = singleOwnerSubmissionError(
       room,
@@ -267,7 +276,9 @@ export function stagePlayerSubmission(
     return {
       result: {
         outcome: "rejected",
-        ...(cmd.type === "useJinnang" ? { reasonCode: "invalidCandidate" } : {}),
+        ...(cmd.type === "useJinnang" || isBankruptcyDecisionCommand(cmd)
+          ? { reasonCode: "invalidCandidate" }
+          : {}),
         reason: publicLogWarningReason(warning),
       },
     };

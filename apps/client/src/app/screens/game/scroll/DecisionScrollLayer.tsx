@@ -2,8 +2,7 @@
 // Wave3(候选5):不再 import getEngine 摸活引擎,城名/地产定义经 getControllerContext。
 // 挂载于 GameScreen #scroll-layer(absolute 覆盖,pointer-events 由各弹层自身开启)。
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { GameCommand } from "@dafung/core/engine/authority";
-import { sellValueOf, type CityTier } from "@dafung/core/engine/economy";
+import type { CityTier } from "@dafung/core/engine/economy";
 import { tileIndexOfProperty } from "@dafung/core/engine/board";
 import { Theme } from "@dafung/core/engine/theme";
 import type { LandDecisionCommand } from "@dafung/core/protocol/wire";
@@ -173,9 +172,6 @@ export function DecisionScrollLayer({
   // hook 调用须每渲染都执行(顺序稳定),「什么都不弹」与「弹层清空」是同一份输入。
   const child = (() => {
     if (!map || !ctx) return null;
-    const dispatch = (cmd: GameCommand) => {
-      if (interactive && !parked) controller?.dispatchCommand(cmd);
-    };
     const board = ctx.board;
     const catalog = ctx.catalog;
 
@@ -206,45 +202,16 @@ export function DecisionScrollLayer({
       return <TileDetail snapshot={snapshot} viewSeat={viewSeat} request={tileDetail} />;
     }
 
-    // ── 破产清算:债务人在凑钱(热座=本地视角玩家)──
-    if (
-      snapshot.pendingDebt &&
-      showDecision &&
-      players[viewSeat] &&
-      !players[viewSeat].isBankrupt
-    ) {
-      const me = players[viewSeat];
-      // 都城不可变卖(旧版同样跳过 capitalIndex)
-      const capitalPropId =
-        me.capitalIndex !== null && me.capitalIndex !== undefined
-          ? board.at(me.capitalIndex).propertyId
-          : null;
+    if (showDecision && seatView?.decisionPoint != null && seatView.bankruptcy !== null) {
+      const { bankruptcy, decisionPoint } = seatView;
       return (
         <BankruptcyScroll
-          key={`${viewSeat}:${snapshot.turnNumber}`}
-          guohao={me.guohao}
-          cash={me.cash}
-          debtAmount={snapshot.pendingDebt.amount}
-          // 快照珍宝即展示子集({id,name,level,desc}),组件 props 按该形状声明,价格由 level 推导
-          treasures={me.treasures}
-          sellableProperties={me.properties
-            .filter((h) => h.propertyId !== capitalPropId)
-            .map((h) => {
-              // 城名:反查单源 core/board tileIndexOfProperty(MapTile.id 与 propertyId 非同源,
-              // 勿混用;缺城=数据 bug 炸出,不回退 id 冒充城名——零兜底)
-              const tileIndex = tileIndexOfProperty(board, h.propertyId);
-              // #60:展示价与引擎入账同一口径——economy.sellValueOf(def, level),即引擎
-              // 批量清偿的逐城入账函数。
-              // 零兜底:catalog 缺该城 = 数据 bug,非空断言让其抛。
-              const def = catalog.get(h.propertyId)!;
-              return {
-                propId: h.propertyId,
-                name: board.at(tileIndex).name,
-                sellPrice: sellValueOf(def, h.level),
-                level: h.level,
-              };
-            })}
-          onCommand={dispatch}
+          key={decisionPoint}
+          guohao={players[viewSeat].guohao}
+          view={bankruptcy}
+          onIntent={(intent) =>
+            interactive && !parked ? controller?.dispatchIntent(intent, decisionPoint) : undefined
+          }
         />
       );
     }

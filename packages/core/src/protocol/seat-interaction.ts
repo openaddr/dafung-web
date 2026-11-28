@@ -1,9 +1,11 @@
+import type { BankruptcyAsset } from "../engine/bankruptcy";
 import { isSkillOption, type ChoiceOption } from "../engine/choices";
 import { jinnangCardOf, SINGLE_TARGET, TARGET_DOMAIN_STAGES } from "../engine/jinnang";
 import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-execution";
 import { reactionAnswerError } from "../engine/reaction-window";
 import { isActiveSkill, skillById } from "../engine/skills";
 import type { GameSnapshot } from "../engine/snapshot";
+import type { BankruptcyDecision } from "../room/bankruptcy-decisions";
 import type {
   TreasureDecision,
   TreasureTradeCandidate,
@@ -47,6 +49,8 @@ export type SeatIntent =
   | { type: "chooseLand"; command: LandDecisionCommand["type"] }
   | { type: "chooseRecruitment"; optionId: string }
   | TreasureTradeIntent
+  | { type: "addBankruptcyAsset" | "removeBankruptcyAsset"; asset: BankruptcyAsset }
+  | { type: "declareBankruptcy" }
   | { type: "selectCard"; handIndex: number }
   | { type: "selectSkill"; optionId: string }
   | { type: "toggleTarget"; id: number }
@@ -87,9 +91,17 @@ interface TreasureInteractionView {
   readonly canConfirm: boolean;
 }
 
+export interface BankruptcyInteractionView {
+  readonly decision: BankruptcyDecision;
+  readonly selected: readonly BankruptcyAsset[];
+  readonly selectedValue: number;
+  readonly canConfirm: boolean;
+}
+
 export interface SeatInteractionView<S extends PlayerSeatSnapshot> extends SeatInteractionState<S> {
   readonly capital: CapitalInteractionView | null;
   readonly treasure: TreasureInteractionView | null;
+  readonly bankruptcy: BankruptcyInteractionView | null;
   readonly ownsJinnangPhase: boolean;
   readonly jinnang: JinnangInteractionView | null;
   readonly reaction:
@@ -98,6 +110,10 @@ export interface SeatInteractionView<S extends PlayerSeatSnapshot> extends SeatI
         readonly deadlineAt: number | null;
       })
     | null;
+}
+
+function sameBankruptcyAsset(a: BankruptcyAsset, b: BankruptcyAsset): boolean {
+  return a.kind === b.kind && a.id === b.id;
 }
 
 function currentTargets(
@@ -164,6 +180,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
     treasureId: string | null;
   } | null = null;
   private selected: ChoiceOption | null = null;
+  private selectedBankruptcyAssets: BankruptcyAsset[] = [];
   private targetDraft: TargetDraft | null = null;
 
   constructor(private readonly submit: (command: PlayerCommand, decisionPoint: string) => void) {}
@@ -221,6 +238,28 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
         canConfirm: interactive && selectedTreasure !== null,
       };
     }
+    const bankruptcyDecision =
+      decisionPoint !== null && decisionOptions?.kind === "bankruptcy" && !autopilotOn
+        ? decisionOptions
+        : null;
+    if (newDecision || bankruptcyDecision === null) this.selectedBankruptcyAssets = [];
+    let bankruptcy: BankruptcyInteractionView | null = null;
+    if (bankruptcyDecision !== null) {
+      const selectedValue = this.selectedBankruptcyAssets.reduce((sum, asset) => {
+        const option = bankruptcyDecision.assets.find((candidate) =>
+          sameBankruptcyAsset(candidate, asset),
+        );
+        if (option === undefined) throw new Error(`清算草选缺少资产 ${asset.id}`);
+        return sum + option.price;
+      }, 0);
+      bankruptcy = {
+        decision: bankruptcyDecision,
+        selected: this.selectedBankruptcyAssets,
+        selectedValue,
+        canConfirm:
+          interactive && bankruptcyDecision.cash + selectedValue >= bankruptcyDecision.debt.amount,
+      };
+    }
     let jinnang: JinnangInteractionView | null = null;
     if (open) {
       const { choices, pendingJinnang, pendingSkill } = decisionOptions;
@@ -271,6 +310,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       reactionDeadlineAt: state.reactionDeadlineAt,
       capital,
       treasure,
+      bankruptcy,
       ownsJinnangPhase,
       jinnang,
       reaction:
@@ -292,7 +332,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
 
   act(intent: SeatIntent, observedPoint = this.view.decisionPoint): SeatIntentResult {
     const state = this.view;
-    const { capital, treasure, jinnang, decisionPoint, snapshot } = state;
+    const { capital, treasure, bankruptcy, jinnang, decisionPoint, snapshot } = state;
     const unavailable = (reason: string): SeatIntentResult => ({ status: "unavailable", reason });
     if (observedPoint !== decisionPoint) return unavailable("决策点已失效");
     if (capital !== null && intent.type === "cancel") {
@@ -374,6 +414,36 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       this.selectedCapital = null;
       this.publish(state);
       return send({ type: "pickCapital", tileIndex: option.tileIndex });
+    }
+    if (intent.type === "addBankruptcyAsset" || intent.type === "removeBankruptcyAsset") {
+      if (bankruptcy === null) return unavailable("本席当前没有清算抉择");
+      const { kind, id } = intent.asset;
+      const matches = (asset: BankruptcyAsset) => sameBankruptcyAsset(asset, intent.asset);
+      if (intent.type === "removeBankruptcyAsset") {
+        const index = this.selectedBankruptcyAssets.map(matches).lastIndexOf(true);
+        if (index === -1) return unavailable("尚未草选该资产");
+        this.selectedBankruptcyAssets = this.selectedBankruptcyAssets.filter(
+          (_, position) => position !== index,
+        );
+      } else {
+        if (bankruptcy.canConfirm) return unavailable("已凑足债务，不可再卖");
+        const option = bankruptcy.decision.assets.find(matches);
+        if (option === undefined) return unavailable("本次清算没有这项资产");
+        if (this.selectedBankruptcyAssets.filter(matches).length === option.maxQuantity)
+          return unavailable("已选完该资产的可卖数量");
+        this.selectedBankruptcyAssets = [...this.selectedBankruptcyAssets, { kind, id }];
+      }
+      this.publish(state);
+      return { status: "draft" };
+    }
+    if (intent.type === "declareBankruptcy")
+      return bankruptcy === null
+        ? unavailable("本席当前没有清算抉择")
+        : send({ type: "declareBankruptcy" });
+    if (bankruptcy !== null) {
+      if (intent.type !== "confirm") return unavailable("当前处于清算步骤");
+      if (!bankruptcy.canConfirm) return unavailable("所选资产不足以清偿债务");
+      return send({ type: "confirmBankruptcySettle", assets: [...this.selectedBankruptcyAssets] });
     }
     if (jinnang === null) return unavailable("当前没有出牌步骤");
     const { selectedOption, targets } = jinnang;

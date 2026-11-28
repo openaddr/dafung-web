@@ -20,6 +20,10 @@ import { loadMap } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { heroById } from "@dafung/core/engine/heroes";
 import { formatMoney } from "@dafung/core/engine/money";
+import {
+  bankruptcyDecisionOf,
+  isBankruptcyDecisionCommand,
+} from "@dafung/core/room/bankruptcy-decisions";
 import { applyPlant, type PlantOp } from "@dafung/core/engine/planter";
 import { AUTO_ROLL_DELAY_MS, BOT_STEP_MS } from "@dafung/core/engine/timings";
 import { guidePriceOf, makeSkillBook } from "@dafung/core/engine/treasures";
@@ -265,7 +269,9 @@ beforeAll(async () => {
 
     override dispatchCommand(cmd: GameCommand, decisionPoint?: string): void {
       if (
-        (cmd.type === "resolveHeroPick" || cmd.type === "resolveTreasureOwner") &&
+        (cmd.type === "resolveHeroPick" ||
+          cmd.type === "resolveTreasureOwner" ||
+          isBankruptcyDecisionCommand(cmd)) &&
         decisionPoint !== this.seatView.decisionPoint
       )
         throw new Error("卷轴未提交原决策点");
@@ -296,6 +302,15 @@ beforeAll(async () => {
         this.observeSeatDecision({
           decisionPoint: `珍宝-${this.e.turnNumber}`,
           decisionOptions: treasureDecisionOf(this.e),
+        });
+      } else if (
+        this.e.decisionOwner === this.mySeat &&
+        this.e.turnPhase === "AwaitingBankruptcySettle"
+      ) {
+        const decisionOptions = bankruptcyDecisionOf(this.e);
+        this.observeSeatDecision({
+          decisionPoint: `清算-${this.e.turnNumber}-${decisionOptions.debt.amount}`,
+          decisionOptions,
         });
       } else {
         this.observeSeatDecision({ decisionPoint: null });
@@ -789,6 +804,11 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     click(docQ(T.bankruptcyPrevious)!);
     expect(docQ(T.bankruptcyQuantity("qingnang"))!.textContent).toBe("1");
     expect(bookQuantity().textContent).toBe("1");
+    expect(useGameStore.getState().seatView?.bankruptcy?.selected).toEqual([
+      { kind: "treasure", id: "qingnang-10" },
+      { kind: "treasure", id: "skillbook-jixing" },
+      { kind: "treasure", id: "edict-16" },
+    ]);
     expect(engine.log.filter((line) => line.category === "cmd")).toHaveLength(commandCount);
     expect(snap().players[0].cash).toBe(100);
     expect(snap().players[0].treasures).toHaveLength(treasures.length);
