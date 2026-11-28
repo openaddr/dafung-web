@@ -242,7 +242,9 @@ it("联机日志截止使用收包时钟，尾段和校准锚持续推进可信�
     socket.receive(tail);
     clock.mockReturnValue(receivedAt + 20);
     socket.receive(tail);
-    expect(useGameStore.getState().snapshot?.log).toEqual(opening.log);
+    const visibleLog = useGameStore.getState().snapshot;
+    expect(visibleLog?.log).toEqual([...opening.log, ...tail.lines]);
+    expect(visibleLog?.logCount).toBe(tail.offset + tail.lines.length);
     authority.logRoomEvent("离线记录", '{"type":"offline","seat":0}');
     authority.logRoomEvent("原座恢复记录", '{"type":"online","seat":0}');
     const end = tail.offset + tail.lines.length;
