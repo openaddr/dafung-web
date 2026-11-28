@@ -5,6 +5,10 @@ import { Button } from "@base-ui/react/button";
 import { Lihui } from "@app/components/card/HeroCardFace";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
+import type {
+  HeroDismissalIntent,
+  HeroDismissalView,
+} from "@dafung/core/protocol/seat-interaction";
 import type { WarlordDetails } from "@dafung/core/protocol/seat-queries";
 import { heroById } from "@dafung/core/engine/heroes";
 import { isActiveSkill, skillById } from "@dafung/core/engine/skills";
@@ -12,11 +16,16 @@ import { PileShell } from "./PileModal";
 import { TESTIDS } from "./testids";
 import "./hero-inspection.css";
 
+export interface HeroDismissalControls {
+  view: HeroDismissalView | null;
+  interactive: boolean;
+  act: (intent: HeroDismissalIntent) => void;
+}
+
 interface HeroInspectionModalProps {
   player: Pick<WarlordDetails, "id" | "guohao" | "heroes">;
   testid: string;
-  dismissReady?: boolean;
-  onDismiss?: (heroId: string) => void;
+  dismissal?: HeroDismissalControls;
   onClose: () => void;
 }
 
@@ -30,33 +39,22 @@ function Portrait({ heroId }: { heroId: string }) {
 }
 
 /** 身份键只管会话选择;槽位与技能每拍直接读当前名册,不缓存 HeroSlot。 */
-function HeroInspection({
-  player,
-  testid,
-  dismissReady = false,
-  onDismiss,
-  onClose,
-}: HeroInspectionModalProps) {
+function HeroInspection({ player, testid, dismissal, onClose }: HeroInspectionModalProps) {
   const rosterKey = player.heroes.map((slot) => slot.heroId).join("|");
   const [stored, setStored] = useState(() => ({
     rosterKey,
-    dismissReady,
     selectedId: player.heroes.length === 0 ? null : player.heroes[0]!.heroId,
-    armedId: null as string | null,
   }));
   let selection = stored;
-  if (stored.rosterKey !== rosterKey || stored.dismissReady !== dismissReady) {
-    // 成员消失/名册清空是正常业务变化:仍在麾下则保留选择,否则选当前首将。
-    // 任何成员/顺序/操作窗口变化都解除确认,不让旧确认作用于新名册。
+  if (stored.rosterKey !== rosterKey) {
+    // 成员消失或名册清空时，仍在麾下则保留查阅对象，否则选当前首将。
     selection = {
       rosterKey,
-      dismissReady,
       selectedId: player.heroes.some((slot) => slot.heroId === stored.selectedId)
         ? stored.selectedId
         : player.heroes.length === 0
           ? null
           : player.heroes[0]!.heroId,
-      armedId: null,
     };
     setStored(selection);
   }
@@ -64,7 +62,19 @@ function HeroInspection({
     player.heroes.length === 0
       ? null
       : player.heroes.find((slot) => slot.heroId === selection.selectedId)!;
-  const armed = current !== null && selection.armedId === current.heroId;
+  const armed = current !== null && dismissal?.view?.armedHeroId === current.heroId;
+  const option = dismissal?.view?.options.find(({ heroId }) => heroId === current?.heroId);
+  const unavailableReason =
+    option === undefined
+      ? "己方回合可遣散"
+      : !option.available
+        ? option.reason
+        : dismissal?.interactive === true
+          ? null
+          : "本座此刻不能操作";
+  const cancelDismissal = () => {
+    dismissal?.act({ type: "cancelHeroDismissal" });
+  };
   return (
     <PileShell
       title="名将"
@@ -73,7 +83,10 @@ function HeroInspection({
       testid={testid}
       ariaLabel={`名将 · ${player.guohao}`}
       className="hero-inspection"
-      onClose={onClose}
+      onClose={() => {
+        cancelDismissal();
+        onClose();
+      }}
     >
       {current === null ? (
         <div className="hero-inspection-empty">
@@ -90,9 +103,10 @@ function HeroInspection({
                   data-testid={TESTIDS.heroInspectionSelect(slot.heroId)}
                   aria-label={`查看${heroById(slot.heroId).name}`}
                   aria-pressed={slot.heroId === current.heroId}
-                  onClick={() =>
-                    setStored({ ...selection, selectedId: slot.heroId, armedId: null })
-                  }
+                  onClick={() => {
+                    cancelDismissal();
+                    setStored({ ...selection, selectedId: slot.heroId });
+                  }}
                 >
                   <Portrait heroId={slot.heroId} />
                   <span>{heroById(slot.heroId).name}</span>
@@ -126,24 +140,23 @@ function HeroInspection({
                 </section>
               ))}
             </ScrollArea>
-            {onDismiss !== undefined && (
+            {dismissal !== undefined && (
               <div className="hero-inspection-actions" data-testid={TESTIDS.heroInspectionActions}>
-                {!dismissReady && (
-                  <span className="hero-inspection-dismiss-reason">己方回合可遣散</span>
+                {unavailableReason !== null && (
+                  <span className="hero-inspection-dismiss-reason">{unavailableReason}</span>
                 )}
                 <Button
                   data-testid={TESTIDS.heroDismiss(current.heroId)}
                   className={"hero-inspection-dismiss" + (armed ? " armed" : "")}
-                  disabled={!dismissReady}
+                  disabled={unavailableReason !== null}
                   aria-label={`${armed ? "确认遣散" : "遣散"}${heroById(current.heroId).name}`}
-                  onClick={() => {
-                    if (armed) {
-                      setStored({ ...selection, armedId: null });
-                      onDismiss(current.heroId);
-                    } else {
-                      setStored({ ...selection, armedId: current.heroId });
-                    }
-                  }}
+                  onClick={() =>
+                    dismissal.act(
+                      armed
+                        ? { type: "confirmHeroDismissal" }
+                        : { type: "selectHeroToDismiss", heroId: current.heroId },
+                    )
+                  }
                 >
                   {armed ? "确认遣散" : "遣散"}
                 </Button>

@@ -29,7 +29,7 @@ import { guidePriceOf, isSkillBook } from "@dafung/core/engine/treasures";
 import { skillBookLearners } from "@dafung/core/engine/roster";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
-import { HeroInspectionModal } from "./HeroInspectionModal";
+import { HeroInspectionModal, type HeroDismissalControls } from "./HeroInspectionModal";
 import "./pile-modal.css";
 
 /** 弹层种类(与牌架入口一一对应;标题随入口,HandRack 持有开合态)。 */
@@ -197,26 +197,25 @@ function TreasureGrid({ player }: { player: SnapshotPlayer }) {
 interface PileModalProps {
   kind: PileModalKind;
   player: SnapshotPlayer;
-  /** 遣散可点窗口(#1147):己方回合(GameScreen 计算=本地决策+Playing+自己回合);
-   *  缺省=false——遣散钮恒禁用态。 */
-  dismissReady?: boolean;
-  /** 遣散命令通路(#1147,dismissHero;缺省=无通路,遣散钮恒禁用态)。 */
-  onDismiss?: (heroId: string) => void;
+  dismissal: HeroDismissalControls;
   onClose: () => void;
 }
 
-/** 值等(#1140 渲染税):kind+player(值等复用引用)+dismissReady(值等,#1147 遣散钮随己方回合翻面);onClose/
- *  onDismiss 不入比较(setState/命令驱动,行为恒定)。藏品层是全仓最大壳(94vw),
+/** 值等(#1140 渲染税):种类、玩家和人物卷当前的操作授权。onClose 一直关闭当前弹层。
+ *  藏品层是全仓最大壳(94vw),
  *  演出期开着掂量时内容没变的拍在此 bail out。 */
 function pileModalEqual(a: PileModalProps, b: PileModalProps): boolean {
-  return a.kind === b.kind && a.player === b.player && a.dismissReady === b.dismissReady;
+  return (
+    a.kind === b.kind &&
+    a.player === b.player &&
+    (a.kind === "treasures" || a.dismissal === b.dismissal)
+  );
 }
 
 export const PileModal = memo(function PileModal({
   kind,
   player,
-  dismissReady = false,
-  onDismiss,
+  dismissal,
   onClose,
 }: PileModalProps) {
   if (kind === "heroes") {
@@ -224,8 +223,7 @@ export const PileModal = memo(function PileModal({
       <HeroInspectionModal
         player={player}
         testid={TESTIDS.heroModal}
-        dismissReady={dismissReady}
-        onDismiss={onDismiss}
+        dismissal={dismissal}
         onClose={onClose}
       />
     );

@@ -19,6 +19,7 @@ import { memo, useState } from "react";
 import { HERO_CAPACITY } from "@dafung/core/engine/constants";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { usePulseOnce } from "@app/hooks/use-pulse-once";
+import type { HeroDismissalControls } from "./HeroInspectionModal";
 import { PileModal, type PileModalKind } from "./PileModal";
 import { TESTIDS } from "./testids";
 import "./layout.css";
@@ -36,10 +37,7 @@ interface PileButtonsProps {
   nudgePulse?: number;
   /** 锦囊开关回传(GameScreen 写会话内临时态 rackHidden,不落盘,#1006)。 */
   onToggleRack: () => void;
-  /** 遣散可点窗口(#1147):己方回合(GameScreen 计算);缺省=false——遣散钮恒禁用态。 */
-  dismissReady?: boolean;
-  /** 遣散命令通路(#1147,dismissHero 直落):缺省=无通路,遣散钮恒禁用态。 */
-  onDismiss?: (heroId: string) => void;
+  dismissal: HeroDismissalControls;
 }
 
 /** 三圆钮(锦囊开关 + 藏品双入口)。
@@ -53,8 +51,7 @@ export const PileButtons = memo(function PileButtons({
   breathe = false,
   nudgePulse,
   onToggleRack,
-  dismissReady = false,
-  onDismiss,
+  dismissal,
 }: PileButtonsProps) {
   // 藏品弹层开合态(null=全收;一次一层,点钮开、Esc/点外/X 关)——从牌架迁来
   // (#361 双入口退役):收起手牌后藏品弹层必须仍可达,账本随钮不随架。
@@ -129,8 +126,7 @@ export const PileButtons = memo(function PileButtons({
         <PileModal
           kind={pileModal}
           player={player}
-          dismissReady={dismissReady}
-          onDismiss={onDismiss}
+          dismissal={dismissal}
           onClose={() => setPileModal(null)}
         />
       )}

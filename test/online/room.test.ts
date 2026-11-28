@@ -923,28 +923,47 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     return { e, userSeat, victimSeat };
   }
 
-  it("非决策归属座位发命令 → 403,引擎不动", async () => {
+  it("非行动座位借用决策点提交遣散，名册和行动权保持", async () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
     await pickAllHumanCapitals(reg, roomId);
-    const e = reg.get(roomId)!.engine!;
-    const owner = e.decisionOwner;
+    const room = reg.get(roomId)!;
+    const e = room.engine!;
+    const owner = e.activeIndex;
     const other = owner === 0 ? 1 : 0;
-    await expectRoomError(
-      () => reg.applyCommandFromSeat(roomId, other, { type: "dismissHero", heroId: "huatuo" }),
-      403,
-    );
-    expect(e.decisionOwner).toBe(owner); // 引擎状态未动
+    armHero(e, owner, "huatuo", ["zhenji"]);
+    armPhase(e, { turnPhase: "AwaitingJinnang" });
+    const decisionPoint = seatDecisionPointOf(room, owner);
+    if (decisionPoint === null) throw new Error("行动座位缺少出牌授权");
+    expect(
+      await reg.submitFromSeat(roomId, other, {
+        roomId,
+        seat: other,
+        submissionId: "越席遣散",
+        decisionPoint,
+        cmd: { type: "dismissHero", heroId: "huatuo" },
+      }),
+    ).toMatchObject({ outcome: "rejected", reasonCode: "wrongSeat" });
+    expect(e.decisionOwner).toBe(owner);
+    expect(e.players[owner].heroes.map(({ heroId }) => heroId)).toEqual(["huatuo"]);
   });
 
-  it("Setup 期非当前选都位发命令 → 403", async () => {
+  it("选都授权不可提交遣散", async () => {
     const { reg, roomId } = await startRoom({ seats: 2, bot: [] });
-    const e = reg.get(roomId)!.engine!;
-    const cur = e.currentSetupPlayerIndex;
-    const other = cur === 0 ? 1 : 0;
-    await expectRoomError(
-      () => reg.applyCommandFromSeat(roomId, other, { type: "dismissHero", heroId: "huatuo" }),
-      403,
-    );
+    const room = reg.get(roomId)!;
+    const e = room.engine!;
+    const seat = e.currentSetupPlayerIndex;
+    const decisionPoint = seatDecisionPointOf(room, seat);
+    if (decisionPoint === null) throw new Error("选都座位缺少授权");
+    expect(
+      await reg.submitFromSeat(roomId, seat, {
+        roomId,
+        seat,
+        submissionId: "选都期遣散",
+        decisionPoint,
+        cmd: { type: "dismissHero", heroId: "huatuo" },
+      }),
+    ).toMatchObject({ outcome: "rejected", reasonCode: "staleDecisionPoint" });
+    expect(e.currentSetupPlayerIndex).toBe(seat);
   });
 
   it("无身份座位(-1/越界)发命令 → 400", async () => {

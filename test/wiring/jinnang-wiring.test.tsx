@@ -38,6 +38,8 @@ import {
   reactionChoicesForSeat,
   reactionQueriesSeat,
 } from "@dafung/core/protocol/reaction-choices";
+import type { DecisionOptions } from "@dafung/core/protocol/wire";
+import { heroDismissalOptionsOf, skillBookOptionsOf } from "@dafung/core/room/roster-decisions";
 import { redactEvents } from "@dafung/core/room/seat-projection";
 import { skillChoiceDecisionOf } from "@dafung/core/room/skill-choice-decisions";
 import { act } from "react";
@@ -834,7 +836,12 @@ beforeAll(async () => {
       return 0;
     }
 
-    override dispatchCommand(cmd: GameCommand): void {
+    override dispatchCommand(cmd: GameCommand, decisionPoint?: string): void {
+      if (
+        (cmd.type === "useBookSkill" || cmd.type === "dismissHero") &&
+        decisionPoint !== this.seatView.decisionPoint
+      )
+        throw new Error("名册操作未提交原决策点");
       if (this.deferCommands) {
         // 传输边界分拍:与生产控制器同样先上 pending 锁,回包拍再执行真实命令。
         this.pendingCommand = cmd;
@@ -859,20 +866,27 @@ beforeAll(async () => {
       const ownsSkillChoice = ownsDecision && this.e.turnPhase === "AwaitingSkillChoice";
       const current = this.e.pendingReaction;
       const ownsReaction = current !== null && reactionQueriesSeat(current.view, this.mySeat);
+      const primary: DecisionOptions | undefined = ownsJinnang
+        ? {
+            kind: "playJinnang",
+            choices: this.e.choicesFor(),
+            pendingJinnang: this.e.pendingJinnang,
+            pendingSkill: this.e.pendingSkill,
+            skillBooks: skillBookOptionsOf(this.e),
+          }
+        : ownsSkillChoice
+          ? skillChoiceDecisionOf(this.e)
+          : ownsReaction
+            ? reactionChoicesForSeat(this.e, this.mySeat)
+            : undefined;
+      const heroDismissals =
+        ownsDecision && this.e.activeIndex === this.mySeat ? heroDismissalOptionsOf(this.e) : [];
       this.observeSeatDecision({
         decisionPoint: String(++this.decisionNumber),
-        decisionOptions: ownsJinnang
-          ? {
-              kind: "playJinnang",
-              choices: this.e.choicesFor(),
-              pendingJinnang: this.e.pendingJinnang,
-              pendingSkill: this.e.pendingSkill,
-            }
-          : ownsSkillChoice
-            ? skillChoiceDecisionOf(this.e)
-            : ownsReaction
-              ? reactionChoicesForSeat(this.e, this.mySeat)
-              : undefined,
+        decisionOptions:
+          heroDismissals.length === 0
+            ? primary
+            : { ...(primary ?? { kind: "heroDismissal" }), heroDismissals },
       });
       if (current != null) {
         this.observeReactionTiming(

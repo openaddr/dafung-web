@@ -276,7 +276,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
     }
   });
 
-  it("编号回执区分未处理、权威告警、拒绝和成功", async () => {
+  it("编号回执区分未处理、协议错误、结构化拒绝和受理", async () => {
     const created = await post("/room/new", { seats: 2, bot: "1", seed: 42 });
     const roomId = created.roomId as string;
     const token = created.seatToken as string;
@@ -300,15 +300,18 @@ describeSlow("server WS 命令回报与对局日志", () => {
       const first = await firstSnapshot;
       expect(first.currentSetupPlayerIndex).toBe(0);
       const firstLogLength = (first.log as unknown[]).length;
+      const pick = capitalSubmission(first as unknown as SnapshotMsg);
 
-      // 非出牌阶段用书学技，权威告警的回执带安全原因和公开序位。
-      ws.send(cmdMsg(studyOutOfPhase, 6));
-      expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
-        type: "commandResult",
+      // 选都授权不可用于研读，拒绝回执不产生公开战报行。
+      const study = { ...pick, submissionId: "选都期研读", cmd: studyOutOfPhase };
+      ws.send(submissionMsg(study, 6));
+      expect(await nextMessageOfType(ws, "submissionResult", 1000)).toEqual({
+        type: "submissionResult",
+        submissionId: study.submissionId,
         requestId: 6,
-        outcome: "warning",
-        reason: "阶段不符（需要 AwaitingJinnang，当前 Roll）",
-        logOffset: firstLogLength + 1,
+        outcome: "rejected",
+        reasonCode: "staleDecisionPoint",
+        reason: "原决策点已结束，请按当前步骤重新选择",
       });
 
       // 旧应答不可绕开玩家提交协议。
@@ -350,14 +353,13 @@ describeSlow("server WS 命令回报与对局日志", () => {
         outcome: "rejected",
         reason: expect.stringContaining("原决策点已结束"),
       });
-      const pick = capitalSubmission(first as unknown as SnapshotMsg);
       ws.send(submissionMsg(pick, 8));
       expect(await nextMessageOfType(ws, "submissionResult", 1000)).toEqual({
         type: "submissionResult",
         submissionId: pick.submissionId,
         requestId: 8,
         outcome: "accepted",
-        logOffset: firstLogLength + 2,
+        logOffset: firstLogLength,
       });
 
       await Bun.sleep(300); // 给潜在异步崩溃留出暴露时间
@@ -763,18 +765,31 @@ describeSlow("server WS 命令回报与对局日志", () => {
       expect(restored.players[0].jinnangHand).toEqual([]);
       expect(restored.players[0].jinnangHandCount).toBeGreaterThan(0);
 
-      // 行军后的购地决策仍由座位 1 持有。非出牌阶段用书学技追加审计和告警。
+      // 行军后的购地授权仍属于座位 1。错用购地决策点研读，拒绝随提交编号交还原席。
       expect(restored.turnPhase).toBe("AwaitingDecision");
-      reconnected.sendCmd(studyOutOfPhase);
-      const audit = await waitLog(reconnected, "仅追加日志的命令");
-      expect(audit.offset).toBe(restored.log.length);
-      expect(audit.lines.map((line) => line.category)).toEqual(["cmd", "system"]);
-      expect(audit.lines[1]).toMatchObject({
-        brief: "[警告] 阶段不符（需要 AwaitingJinnang，当前 AwaitingDecision），原文见服务器日志",
-        detail: "warn: 阶段不符（需要 AwaitingJinnang，当前 AwaitingDecision），原文见服务器日志",
+      if (restored.decisionPoint === null) throw new Error("重连客席缺少购地授权");
+      const study = {
+        roomId,
+        seat: 1,
+        submissionId: "购城期研读",
+        decisionPoint: restored.decisionPoint,
+        cmd: studyOutOfPhase,
+      };
+      reconnected.sendSubmission(study, 21);
+      expect(
+        await reconnected.waitFor(
+          (m) => m.type === "submissionResult" && m.submissionId === study.submissionId,
+          "购城期研读拒绝",
+          2000,
+        ),
+      ).toEqual({
+        type: "submissionResult",
+        submissionId: study.submissionId,
+        requestId: 21,
+        outcome: "rejected",
+        reasonCode: "staleDecisionPoint",
+        reason: "原决策点已结束，请按当前步骤重新选择",
       });
-      expect(audit.lines[1]).not.toHaveProperty("warning");
-      expect(await waitLog(host, "同局命令审计")).toEqual(audit);
 
       expect((await post("/room/dismiss", hostAuth)).ok).toBe(true);
       for (const peer of [host, reconnected]) {
@@ -783,7 +798,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
           {
             type: "gameLog",
             gameId: first.gameId,
-            offset: audit.offset + audit.lines.length,
+            offset: restored.log.length,
             lines: [expect.objectContaining({ category: "room", detail: '{"type":"dismiss"}' })],
             capturedAt: expect.any(Number),
           },
@@ -792,7 +807,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
       }
       expect(reconnected.frames.map((m) => m.type).filter((type) => type !== "lobby")).toEqual([
         "snapshot",
-        "gameLog",
+        "submissionResult",
         "gameLog",
         "dismissed",
       ]);

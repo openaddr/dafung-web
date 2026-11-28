@@ -12,7 +12,6 @@ import { getController, getControllerContext } from "@app/controllers/registry";
 import type { GameController } from "@app/controllers/controller";
 import { returnHome } from "@app/screens/shared/return-home";
 import { OnlineController } from "@app/controllers/online";
-import type { GameCommand } from "@dafung/core/engine/authority";
 import type { SeatIntent, SeatInteractionView } from "@dafung/core/protocol/seat-interaction";
 import {
   readSeatBoard,
@@ -20,9 +19,7 @@ import {
   readWarReport,
   type SeatBoardMap,
 } from "@dafung/core/protocol/seat-queries";
-import { skillBookLearners } from "@dafung/core/engine/roster";
 import { skillById } from "@dafung/core/engine/skills";
-import { isSkillBook } from "@dafung/core/engine/treasures";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
@@ -46,7 +43,7 @@ import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
 import { jinnangPlay } from "./jinnang-play";
-import { reactionDiagnostics, reactionPlay, turnScope } from "./reaction-play";
+import { reactionDiagnostics, reactionPlay } from "./reaction-play";
 import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
@@ -243,10 +240,6 @@ function GameScreenLive({
     }
   }, [peeking, closeInspection, closeWarlordsInspection]);
 
-  const dispatchCommand = useCallback(
-    (cmd: GameCommand) => controller.dispatchCommand(cmd),
-    [controller],
-  );
   const jinnang = jinnangPlay(seatView, act);
   const {
     identity: reactionIdentity,
@@ -287,28 +280,31 @@ function GameScreenLive({
     setWarReportOpen(true);
   }, [warReport]);
 
-  const bookPlayScope = jinnang?.targetStep === null ? turnScope(snapshot) : null;
-  const bookPlayReady = interactive && !peeking && bookPlayScope !== null;
-  const playableBooks = useMemo(
-    () =>
-      bookPlayScope === null
-        ? []
-        : selfPlayer.treasures.flatMap((book) => {
-            if (!isSkillBook(book)) return [];
-            const learners = skillBookLearners(selfPlayer, book.skillId);
-            return learners.length > 0 ? [{ book, learners }] : [];
-          }),
-    [bookPlayScope, selfPlayer],
+  const { skillBookStudy, heroDismissal } = seatView;
+  const bookOptions = seatView.jinnang?.skillBooks;
+  const rackBooks = useMemo(() => {
+    if (bookOptions === undefined) return [];
+    const available = new Set(
+      bookOptions.filter(({ available }) => available).map(({ treasureId }) => treasureId),
+    );
+    return selfPlayer.treasures.filter(({ id }) => available.has(id));
+  }, [bookOptions, selfPlayer.treasures]);
+  const dismissal = useMemo(
+    () => ({ view: heroDismissal, interactive, act }),
+    [heroDismissal, interactive, act],
   );
-  const rackBooks = useMemo(() => playableBooks.map(({ book }) => book), [playableBooks]);
-  const [bookPick, setBookPick] = useState<{ bookId: string; scope: string } | null>(null);
-  const bookToRead =
-    bookPick !== null && bookPick.scope === bookPlayScope
-      ? playableBooks.find(({ book }) => book.id === bookPick.bookId)
-      : undefined;
-  useEffect(() => {
-    if (bookToRead === undefined && bookPick !== null) setBookPick(null);
-  }, [bookToRead, bookPick]);
+  const bookToRead = (() => {
+    if (skillBookStudy === null) return null;
+    const { treasureId, learnerHeroIds } = skillBookStudy.book;
+    const book = rackBooks.find(({ id }) => id === treasureId);
+    if (book === undefined) throw new Error(`研读选项缺少本席技能书 ${treasureId}`);
+    const learners = learnerHeroIds.map((heroId) => {
+      const slot = selfPlayer.heroes.find((hero) => hero.heroId === heroId);
+      if (slot === undefined) throw new Error(`研读选项缺少本席名将 ${heroId}`);
+      return slot;
+    });
+    return { name: book.name, learners };
+  })();
   const readDiagnosticDecisions = useCallback(
     (_state: GameSnapshot, _seat: number, canAct: boolean) => ({
       capitalChoices:
@@ -356,8 +352,7 @@ function GameScreenLive({
   // 触发技继续由手牌架边缘承载；锦囊反应条独立置顶。
   const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
   const windowUp = noticeOccupied || skillBanner != null;
-  const hasRackContent =
-    hand.length > 0 || jinnang?.hasSkillCards === true || playableBooks.length > 0;
+  const hasRackContent = hand.length > 0 || jinnang?.hasSkillCards === true || rackBooks.length > 0;
   const autoRackHidden = cityTargeting || !((myTurnUp || windowUp) && hasRackContent);
   const rackHidden = rackManualHidden === null ? autoRackHidden : rackManualHidden;
   const toggleRackHidden = useCallback(
@@ -658,11 +653,8 @@ function GameScreenLive({
                 onInspect={setRackInspection}
                 skillBooks={rackBooks}
                 onReadBook={
-                  bookPlayReady && bookPlayScope !== null && jinnang != null
-                    ? (bookId) => {
-                        jinnang.hand.onSelect(null);
-                        setBookPick({ bookId, scope: bookPlayScope });
-                      }
+                  interactive && !peeking
+                    ? (treasureId) => act({ type: "selectSkillBook", treasureId })
                     : undefined
                 }
                 junshi={jinnang?.hand}
@@ -679,18 +671,17 @@ function GameScreenLive({
         {!gameOver && rackInspection?.kind === "skill" && (
           <SkillGlossaryDialog target={rackInspection.target} onClose={closeRackInspection} />
         )}
-        {bookToRead !== undefined && (
+        {bookToRead !== null && skillBookStudy !== null && (
           <SkillBookLearnModal
-            bookName={bookToRead.book.name}
-            skillId={bookToRead.book.skillId}
+            bookName={bookToRead.name}
+            skillId={skillBookStudy.book.skillId}
             learners={bookToRead.learners}
-            locked={!bookPlayReady}
-            onConfirm={(heroId) => {
-              if (!bookPlayReady) return;
-              setBookPick(null);
-              dispatchCommand({ type: "useBookSkill", treasureId: bookToRead.book.id, heroId });
-            }}
-            onClose={() => setBookPick(null)}
+            learnerHeroId={skillBookStudy.learnerHeroId}
+            locked={!interactive || peeking}
+            canConfirm={skillBookStudy.canConfirm}
+            onSelect={(heroId) => act({ type: "selectBookLearner", heroId })}
+            onConfirm={() => act({ type: "confirm" })}
+            onClose={() => act({ type: "cancel" })}
           />
         )}
         {/* 锦囊钮控制牌架显隐,收架且有决策窗时呼吸提示;珍宝/名将弹层由 PileButtons 自持。 */}
@@ -702,16 +693,7 @@ function GameScreenLive({
             breathe={rackBreathe}
             nudgePulse={rackHidden ? playNudge : undefined}
             onToggleRack={toggleRackHidden}
-            dismissReady={
-              // 遣散窗口:本地决策+对局中+自己回合
-              interactive &&
-              snapshot.phase === "Playing" &&
-              snapshot.activeIndex === selfSeat &&
-              snapshot.turnPhase !== "AwaitingBankruptcySettle"
-            }
-            onDismiss={(heroId) => {
-              dispatchCommand({ type: "dismissHero", heroId });
-            }}
+            dismissal={dismissal}
           />
         )}
         {/* 设置弹层提供战报、托管、音效、诊断与回主页等入口。 */}

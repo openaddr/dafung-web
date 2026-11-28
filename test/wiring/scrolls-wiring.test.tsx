@@ -29,6 +29,7 @@ import { AUTO_ROLL_DELAY_MS, BOT_STEP_MS } from "@dafung/core/engine/timings";
 import { guidePriceOf, makeSkillBook } from "@dafung/core/engine/treasures";
 import type { DecisionOptions } from "@dafung/core/protocol/wire";
 import { recruitmentDecisionOf } from "@dafung/core/room/recruitment-decisions";
+import { skillBookOptionsOf } from "@dafung/core/room/roster-decisions";
 import { treasureDecisionOf } from "@dafung/core/room/treasure-decisions";
 import { IDBFactory } from "fake-indexeddb";
 import type { Window as HappyDomWindow } from "happy-dom";
@@ -288,6 +289,7 @@ beforeAll(async () => {
             choices: this.e.choicesFor(),
             pendingJinnang: this.e.pendingJinnang,
             pendingSkill: this.e.pendingSkill,
+            skillBooks: skillBookOptionsOf(this.e),
           },
         });
       } else if (this.e.decisionOwner === this.mySeat && this.e.turnPhase === "AwaitingHeroPick") {
