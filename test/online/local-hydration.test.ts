@@ -295,9 +295,10 @@ it("目标锦囊进入反应窗，经房间拒绝错误应答后可重答", asyn
       armPhase(authority, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
     });
   try {
-    expect(await sendCommand({ type: "useJinnang", cardId: "缓兵之计" })).toEqual({ ok: true });
+    const card = { type: "useJinnang", cardId: "缓兵之计", handIndex: 0 } as const;
+    expect(await sendCommand(card)).toEqual({ ok: true });
     expect(replica.pendingJinnang?.stage).toBe("one");
-    expect(await sendCommand({ type: "useJinnang", cardId: "缓兵之计", targets: [1] })).toEqual({
+    expect(await sendCommand({ ...card, targets: [1] })).toEqual({
       ok: true,
     });
     expect(replica.pendingJinnang).toBeNull();

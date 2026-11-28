@@ -209,7 +209,7 @@ describe("assembleDownlinkShot · 座位下行", () => {
   });
 
   it("军情密探仅在生效事件交付牌面，校准与重连保留公开的窥探动作", async () => {
-    const { reg, roomId, token, engine } = await roomAtPlaying(3);
+    const { reg, roomId, token, engine, submit } = await roomAtPlaying(3);
     const room = reg.get(roomId)!;
     const online = new Set([0, 1, 2]);
     try {
@@ -217,12 +217,9 @@ describe("assembleDownlinkShot · 座位下行", () => {
       giveJinnang(engine, 0, ["军情密探"]);
       giveJinnang(engine, 1, ["连环计", "火烧连营"]);
       giveJinnang(engine, 2, []);
-      await reg.applyCommandFromSeat(roomId, 0, { type: "useJinnang", cardId: "军情密探" });
-      await reg.applyCommandFromSeat(roomId, 0, {
-        type: "useJinnang",
-        cardId: "军情密探",
-        targets: [1],
-      });
+      const card = { type: "useJinnang", cardId: "军情密探", handIndex: 0 } as const;
+      await submit(0, "选军情密探", card);
+      await submit(0, "确认密探目标", { ...card, targets: [1] });
       for (const seat of [0, 2]) {
         const shot = assembleDownlinkShot(room, online, seat, engine.gameEvents, true);
         const batch: EventBatchMsg = JSON.parse(shot.events!);

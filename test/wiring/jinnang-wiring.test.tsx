@@ -669,6 +669,53 @@ it("联机右侧连环计在命令在途和返回改选时逐张高亮，最终�
   }
 });
 
+it("安卓点城选择火源，进入和取消都按当前决策点提交", async () => {
+  const previousServer = getServerBase();
+  const room = await openHeadlessTestRoom([], (engine) => giveJinnang(engine, 0, ["火烧连营"]));
+  using sends = spyOn(NativeWebSocket.prototype, "send");
+  try {
+    const el = await mountOnlineJinnang(room);
+    const state = () => useGameStore.getState();
+    const lastFrame = () => JSON.parse(String(sends.mock.calls.at(-1)![0]));
+    const card = { type: "useJinnang", cardId: "火烧连营", handIndex: 0 };
+    const handPoint = state().seatView!.decisionPoint;
+    click(q(el, TESTIDS.jinnangCard("火烧连营"))!);
+    click(q(el, TESTIDS.actionbarPlay)!);
+    expect(lastFrame()).toMatchObject({
+      type: "submit",
+      submission: { decisionPoint: handPoint, cmd: card },
+    });
+    await waitForGameState(
+      "房间火源选项",
+      (s) => s.interactive && s.seatView?.jinnang?.stage === "one",
+    );
+    const targetPoint = state().seatView!.decisionPoint;
+    expect(targetPoint).not.toBe(handPoint);
+    const hanzhong = 13;
+    click(el.querySelector(TESTIDS.cityTarget(hanzhong))!);
+    expect(state().seatView?.jinnang?.targets?.selected).toEqual([hanzhong]);
+    expect(q(el, TESTIDS.actionbarTarget)?.hasAttribute("disabled")).toBe(false);
+    click(q(el, TESTIDS.actionbarCancel)!);
+    expect(lastFrame()).toMatchObject({
+      type: "submit",
+      submission: { decisionPoint: targetPoint, cmd: { ...card, cancel: true } },
+    });
+    await waitForGameState(
+      "房间取消火源选择",
+      (s) => s.interactive && s.seatView?.jinnang?.stage === "hand",
+    );
+    expect(state().seatView!.decisionPoint).not.toBe(targetPoint);
+    expect(state().snapshot?.players[0].jinnangHand).toEqual(["火烧连营"]);
+  } finally {
+    setServerBase(previousServer);
+    await act(async () => {
+      setController(null);
+      setEngine(null);
+      await room.close();
+    });
+  }
+});
+
 it("地图选择收架，可重开并保留目标，取消后仍能以同一入口发动火攻", () => {
   const city = tileIndexOfProperty(MAP.board, "prop-xianyang");
   const { el, engine, snap } = startGame((e) => {
