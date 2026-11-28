@@ -587,8 +587,9 @@ export class GameEngine {
     use: boolean,
     cardId?: string,
     target?: ReactionTarget,
+    handIndex?: number,
   ): string | void {
-    return respondReaction(this, seat, use, cardId, target);
+    return respondReaction(this, seat, use, cardId, target, handIndex);
   }
 
   /** 「你可」应答(#1377 公共入口,UI/bot 驱动器/托管代驾同走):薄委托 → choices.respondSkillChoice。 */
@@ -739,7 +740,7 @@ export class GameEngine {
         `${responder.guohao} 提交命令:${CMD_BRIEF[cmd.type]}`,
         JSON.stringify(cmd),
       );
-      return this.respondReaction(cmd.seat, cmd.use, cmd.cardId, cmd.target);
+      return this.respondReaction(cmd.seat, cmd.use, cmd.cardId, cmd.target, cmd.handIndex);
     }
     const issuer = this.players[this.decisionOwner];
     this.logEvent(

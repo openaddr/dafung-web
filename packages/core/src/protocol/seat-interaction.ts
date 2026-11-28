@@ -2,7 +2,6 @@ import type { BankruptcyAsset } from "../engine/bankruptcy";
 import { isSkillOption, type ChoiceOption } from "../engine/choices";
 import { jinnangCardOf, SINGLE_TARGET, TARGET_DOMAIN_STAGES } from "../engine/jinnang";
 import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-execution";
-import { reactionAnswerError } from "../engine/reaction-window";
 import { isActiveSkill, skillById } from "../engine/skills";
 import type { GameSnapshot } from "../engine/snapshot";
 import type { BankruptcyDecision } from "../room/bankruptcy-decisions";
@@ -14,8 +13,8 @@ import type {
   TreasureTradeMode,
 } from "../room/treasure-decisions";
 import {
-  reactionChoicesForSeat,
-  type ReactionIntent,
+  reactionStatusForSeat,
+  type ReactionCardOption,
   type ReactionSeatSnapshot,
 } from "./reaction-choices";
 import {
@@ -34,7 +33,8 @@ import type {
 } from "./wire";
 
 /** 交互只消费已经投给本座的局面。调用方可以保留其余公开字段供查询。 */
-type PlayerSeatSnapshot = ReactionSeatSnapshot & Pick<GameSnapshot, "gameId" | "players">;
+type PlayerSeatSnapshot = ReactionSeatSnapshot &
+  Pick<GameSnapshot, "gameId" | "players" | "activeIndex" | "turnNumber">;
 
 export interface SeatInteractionState<S extends PlayerSeatSnapshot> extends SeatDecision {
   readonly snapshot: S;
@@ -55,7 +55,7 @@ export type SeatIntent =
   | { type: "selectCard"; handIndex: number }
   | { type: "selectSkill"; optionId: string }
   | { type: "toggleTarget"; id: number }
-  | ReactionIntent
+  | { type: "muteReactions" }
   | { type: "confirm" | "back" | "cancel" | "pass" };
 
 export type SeatIntentResult =
@@ -106,6 +106,17 @@ export interface SkillChoiceInteractionView {
   readonly canPass: boolean;
 }
 
+type ReactionInteractionView = NonNullable<ReturnType<typeof reactionStatusForSeat>> & {
+  readonly playable: readonly ReactionCardOption[];
+  readonly shares: TargetStep | null;
+  readonly selectedCard: ReactionCardOption | null;
+  readonly targets: (TargetStep & ReturnType<typeof targetSelection>) | null;
+  readonly canRespond: boolean;
+  readonly canConfirm: boolean;
+  readonly muted: boolean;
+  readonly deadlineAt: number | null;
+};
+
 export interface SeatInteractionView<S extends PlayerSeatSnapshot> extends SeatInteractionState<S> {
   readonly capital: CapitalInteractionView | null;
   readonly treasure: TreasureInteractionView | null;
@@ -113,12 +124,7 @@ export interface SeatInteractionView<S extends PlayerSeatSnapshot> extends SeatI
   readonly skillChoice: SkillChoiceInteractionView | null;
   readonly ownsJinnangPhase: boolean;
   readonly jinnang: JinnangInteractionView | null;
-  readonly reaction:
-    | (NonNullable<ReturnType<typeof reactionChoicesForSeat>> & {
-        readonly canRespond: boolean;
-        readonly deadlineAt: number | null;
-      })
-    | null;
+  readonly reaction: ReactionInteractionView | null;
 }
 
 function sameBankruptcyAsset(a: BankruptcyAsset, b: BankruptcyAsset): boolean {
@@ -180,6 +186,14 @@ function pendingCommand({ pendingJinnang: card, pendingSkill }: JinnangInteracti
   return { type: "useHeroSkill" as const, heroId, skillId };
 }
 
+function reactionTurnOf({ snapshot, seat }: SeatInteractionState<PlayerSeatSnapshot>): string {
+  return JSON.stringify([snapshot.gameId, snapshot.turnNumber, snapshot.activeIndex, seat]);
+}
+
+function declineReaction(seat: number): PlayerCommand {
+  return { type: "respondReaction", seat, use: false };
+}
+
 /** 每个座位独持一份草选，确认后的操作经当前决策点提交。 */
 export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> {
   private published: SeatInteractionView<S> | null = null;
@@ -191,6 +205,9 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
   private selected: ChoiceOption | null = null;
   private selectedBankruptcyAssets: BankruptcyAsset[] = [];
   private targetDraft: TargetDraft | null = null;
+  private reactionCard: ReactionCardOption | null = null;
+  private mutedReactionTurn: string | null = null;
+  private autoPassedPoint: string | null = null;
 
   constructor(private readonly submit: (command: PlayerCommand, decisionPoint: string) => void) {}
 
@@ -202,7 +219,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
   publish(state: SeatInteractionState<S>, { reconnect = false } = {}): SeatInteractionView<S> {
     const { seat, snapshot, decisionPoint, decisionOptions, interactive, autopilotOn } = state;
     const previous = this.published;
-    const reaction = reactionChoicesForSeat(snapshot, seat);
+    const reactionStatus = reactionStatusForSeat(snapshot, seat);
     const ownsJinnangPhase = decisionOptions?.kind === "playJinnang" && decisionPoint !== null;
     const open = ownsJinnangPhase && !autopilotOn;
     const newDecision =
@@ -215,8 +232,16 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       decisionPoint !== null && decisionOptions?.kind === "skillChoice" && !autopilotOn
         ? decisionOptions
         : null;
+    const reactionDecision =
+      decisionPoint !== null && decisionOptions?.kind === "respondReaction" && !autopilotOn
+        ? decisionOptions
+        : null;
+    if (this.mutedReactionTurn !== reactionTurnOf(state)) this.mutedReactionTurn = null;
+    const muted = this.mutedReactionTurn !== null;
     if (newDecision || !open) this.selected = null;
-    if (newDecision || (!open && skillDecision === null)) this.targetDraft = null;
+    if (newDecision || reactionDecision === null || muted) this.reactionCard = null;
+    if (newDecision || (!open && skillDecision === null && (reactionDecision === null || muted)))
+      this.targetDraft = null;
     const capitalOptions =
       decisionPoint !== null && decisionOptions?.kind === "pickCapital" && !autopilotOn
         ? decisionOptions.options
@@ -335,6 +360,40 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
         canPass: interactive && skillDecision.canDecline,
       };
     }
+    let reaction: ReactionInteractionView | null = null;
+    if (reactionStatus !== null) {
+      const playable = reactionDecision?.playable ?? [];
+      const chosen = this.reactionCard;
+      const selectedCard =
+        chosen === null
+          ? null
+          : (playable.find(
+              ({ handIndex, cardId }) => handIndex === chosen.handIndex && cardId === chosen.cardId,
+            ) ?? null);
+      this.reactionCard = selectedCard;
+      const shares = reactionDecision?.shares ?? null;
+      const targets =
+        selectedCard === null || shares === null
+          ? null
+          : { ...shares, ...targetSelection(shares, this.targetDraft) };
+      const canRespond =
+        reactionDecision !== null &&
+        reactionStatus.asked &&
+        !reactionStatus.answered &&
+        interactive;
+      reaction = {
+        ...reactionStatus,
+        playable,
+        shares,
+        selectedCard,
+        targets,
+        canRespond,
+        canConfirm:
+          canRespond && !muted && selectedCard !== null && (targets === null || targets.canConfirm),
+        muted: reactionStatus.asked && muted,
+        deadlineAt: state.reactionDeadlineAt ?? null,
+      };
+    }
     this.published = {
       snapshot,
       seat,
@@ -349,26 +408,33 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       skillChoice,
       ownsJinnangPhase,
       jinnang,
-      reaction:
-        reaction === null
-          ? null
-          : {
-              ...reaction,
-              canRespond:
-                reaction.asked &&
-                !reaction.answered &&
-                !autopilotOn &&
-                interactive &&
-                decisionPoint !== null,
-              deadlineAt: state.reactionDeadlineAt ?? null,
-            },
+      reaction,
     };
+    if (reaction?.muted && reaction.canRespond && decisionPoint !== null)
+      this.passMutedReaction(decisionPoint);
     return this.published;
+  }
+
+  private passMutedReaction(point: string): void {
+    if (this.autoPassedPoint === point) return;
+    // 内存通路发送时可同步发布新视图，先让本次发布及命令在途锁完整落位。
+    queueMicrotask(() => {
+      const { decisionPoint, reaction, seat } = this.view;
+      if (
+        decisionPoint !== point ||
+        !reaction?.muted ||
+        !reaction.canRespond ||
+        this.autoPassedPoint === point
+      )
+        return;
+      this.autoPassedPoint = point;
+      this.submit(declineReaction(seat), point);
+    });
   }
 
   act(intent: SeatIntent, observedPoint = this.view.decisionPoint): SeatIntentResult {
     const state = this.view;
-    const { capital, treasure, bankruptcy, skillChoice, jinnang, decisionPoint, snapshot } = state;
+    const { capital, treasure, bankruptcy, skillChoice, jinnang, reaction, decisionPoint } = state;
     const unavailable = (reason: string): SeatIntentResult => ({ status: "unavailable", reason });
     if (observedPoint !== decisionPoint) return unavailable("决策点已失效");
     if (capital !== null && intent.type === "cancel") {
@@ -429,11 +495,56 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
         action: { type: mode, treasureId: selectedTreasure.id },
       });
     }
-    if (intent.type === "respondReaction") {
-      if (!state.reaction?.canRespond) return unavailable("本席当前不能应答此反应窗");
-      const command = { ...intent, seat: state.seat };
-      const reason = reactionAnswerError(snapshot, snapshot.pendingReaction!, command);
-      return reason === null ? send(command) : unavailable(reason);
+    if (intent.type === "muteReactions") {
+      if (!reaction?.canRespond || reaction.muted) return unavailable("本席当前不能应答此反应窗");
+      this.mutedReactionTurn = reactionTurnOf(state);
+      this.autoPassedPoint = decisionPoint;
+      this.publish(state);
+      return send(declineReaction(state.seat));
+    }
+    if (reaction !== null) {
+      if (!reaction.canRespond || reaction.muted) return unavailable("本席当前不能应答此反应窗");
+      const { selectedCard, targets } = reaction;
+      switch (intent.type) {
+        case "selectCard": {
+          const choice = reaction.playable.find(({ handIndex }) => handIndex === intent.handIndex);
+          if (choice === undefined) return unavailable("本席没有此反应锦囊选项");
+          this.reactionCard = selectedCard?.handIndex === choice.handIndex ? null : choice;
+          this.targetDraft = null;
+          this.publish(state);
+          return { status: "draft" };
+        }
+        case "toggleTarget": {
+          if (targets === null) return unavailable("本次应答无需选择对象");
+          this.targetDraft = toggleTarget(targets, targets.selected, intent.id);
+          this.publish(state);
+          return this.targetDraft.unavailableReason === undefined
+            ? { status: "draft" }
+            : unavailable(this.targetDraft.unavailableReason);
+        }
+        case "cancel":
+          if (selectedCard === null) return unavailable("尚未选择反应锦囊");
+          this.reactionCard = null;
+          this.targetDraft = null;
+          this.publish(state);
+          return { status: "draft" };
+        case "pass":
+          return send(declineReaction(state.seat));
+        case "confirm":
+          if (selectedCard === null) return unavailable("请先选择反应锦囊");
+          if (!reaction.canConfirm) return unavailable("请先选择一份");
+          return send({
+            type: "respondReaction",
+            seat: state.seat,
+            use: true,
+            ...selectedCard,
+            ...(targets === null
+              ? {}
+              : { target: { kind: targets.domain, id: targets.selected[0] } }),
+          });
+        default:
+          return unavailable("当前处于反应窗");
+      }
     }
     if (intent.type === "selectCapital") {
       if (!capital?.options.some(({ tileIndex }) => tileIndex === intent.tileIndex))

@@ -1,6 +1,7 @@
 import { GameEngine, type TurnPhase } from "../engine/authority";
 import { checkpointDicePins } from "../engine/dice";
 import { isLogWarning } from "../engine/model";
+import { reactionAnswerError } from "../engine/reaction-window";
 import { capitalChoiceOf } from "../engine/setup-flow";
 import type { GameSnapshot } from "../engine/snapshot";
 import {
@@ -126,14 +127,18 @@ function submissionError(room: RoomSession, submission: PlayerSubmission): Submi
   }
   const e = room.engine;
   if (cmd.type === "respondReaction") {
-    if (cmd.seat !== seat) return { reason: "不能替其他座位应答" };
+    if (cmd.seat !== seat) return { reasonCode: "wrongSeat", reason: "不能替其他座位应答" };
     if (decisionPoint !== seatDecisionPointOf(room, seat))
-      return { reason: "原反应窗已结束或本席已应答" };
+      return { reasonCode: "staleDecisionPoint", reason: "原反应窗已结束或本席已应答" };
     if (e?.turnPhase !== "AwaitingReaction" || reactionTimingOf(room).remainingMs === 0)
-      return { reason: "原反应窗已结束" };
-    if (!cmd.use && (cmd.cardId !== undefined || cmd.target !== undefined))
-      return { reason: "选择不用时不能指定反应牌或对象" };
-    return null;
+      return { reasonCode: "staleDecisionPoint", reason: "原反应窗已结束" };
+    if (
+      !cmd.use &&
+      (cmd.cardId !== undefined || cmd.handIndex !== undefined || cmd.target !== undefined)
+    )
+      return { reasonCode: "invalidCandidate", reason: "选择不用时不能指定反应牌或对象" };
+    const reason = reactionAnswerError(e, e.pendingReaction!, cmd);
+    return reason === null ? null : { reasonCode: "invalidCandidate", reason };
   }
   if (cmd.type === "resolveHeroPick") {
     const error = singleOwnerSubmissionError(

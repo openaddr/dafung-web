@@ -149,13 +149,16 @@ function seatNo(engine: GameEngine, p: Player): number {
   return seat;
 }
 
-/** 可见手牌按公告位置扣牌，反应牌按规则扣首张同名牌。 */
+/** 本席按权威公布的位置扣牌，其他席只减少牌数。 */
 function consumeCard(engine: GameEngine, p: Player, cardId: string, handIndex?: number): void {
   if (handIndex !== undefined || p.jinnangHand.length > 0) {
-    const index = handIndex === undefined ? p.jinnangHand.indexOf(cardId) : handIndex;
-    if (!Number.isInteger(index) || p.jinnangHand[index] !== cardId)
-      throw new Error(`折叠投影:手牌位置 ${index} 无锦囊【${cardId}】`);
-    p.jinnangHand.splice(index, 1);
+    if (
+      handIndex === undefined ||
+      !Number.isSafeInteger(handIndex) ||
+      p.jinnangHand[handIndex] !== cardId
+    )
+      throw new Error(`折叠投影:手牌位置 ${handIndex} 无锦囊【${cardId}】`);
+    p.jinnangHand.splice(handIndex, 1);
   }
   p.jinnangHandCount -= 1;
   engine.jinnangDiscard.push(cardId);
@@ -545,6 +548,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           seat: ev.seat,
           use: ev.use,
           ...(ev.cardId != null ? { cardId: ev.cardId } : {}),
+          ...(ev.handIndex === undefined ? {} : { handIndex: ev.handIndex }),
           ...(ev.target === undefined ? {} : { target: ev.target }),
         });
         const asked = pr.view.kind === "march" ? 1 : pr.view.queriedBySeat.length;
@@ -552,8 +556,8 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           if (ev.spentCards == null)
             throw new Error("折叠投影:最终反应应答缺扣账清单(事件产出契约违反)");
           presentation.pendingReaction = null;
-          for (const { seat, cardId } of ev.spentCards) {
-            consumeCard(engine, eventSeatPlayer(engine, seat, "反应牌扣账"), cardId);
+          for (const { seat, cardId, handIndex } of ev.spentCards) {
+            consumeCard(engine, eventSeatPlayer(engine, seat, "反应牌扣账"), cardId, handIndex);
           }
           // 下一反应环、出牌阶段恢复或行军落格均以随后的权威事件为准。
           if (pr.view.kind === "jinnang") engine.turnPhase = "Roll";

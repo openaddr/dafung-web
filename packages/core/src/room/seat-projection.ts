@@ -31,6 +31,7 @@ import { recruitmentDecisionOf } from "./recruitment-decisions";
 import { skillChoiceDecisionOf } from "./skill-choice-decisions";
 import { treasureDecisionOf } from "./treasure-decisions";
 import type { RoomSession } from "./room";
+import { reactionChoicesForSeat } from "../protocol/reaction-choices";
 // 下行封装构造收口 wire.ts(#429):装配口只管形状与裁剪,序列化不另起炉灶。
 // (wire 对本模块/room 的引用全是 type 导入,构建期擦除,无运行时环。)
 import { encodeDownlink, eventsMsg, type DecisionOptions, type GameLogMsg } from "../protocol/wire";
@@ -96,7 +97,7 @@ export type SeatSnapshot = Omit<GameSnapshot, "rngState" | "pendingReaction"> & 
   pendingReaction: Omit<PendingReaction, "payload"> | null;
 };
 
-/** 应答者可回读自己的选份，其他座位只见公告与应答进度。 */
+/** 应答者可回读自己的用牌位置与选份，其他座位只见公告与应答进度。 */
 export function projectSeatReaction(
   pending: SeatSnapshot["pendingReaction"],
   seat: number,
@@ -107,7 +108,7 @@ export function projectSeatReaction(
     view: redactReactionView(pending.view, seat),
     answers: pending.answers.map((answer) => {
       if (answer.seat === seat) return answer;
-      const { target: _target, ...announced } = answer;
+      const { target: _target, handIndex: _handIndex, ...announced } = answer;
       return announced;
     }),
   };
@@ -376,7 +377,7 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat: numbe
  *    · jinnangDrawn 仅摸牌座位可见 cardIds，座位、张数和来源（含城格）公开。
  *    · jinnangTargetStepChanged 仅交付操作座位。
  *    · jinnangAnnounced 的牌面和目标公开，离手前的手牌位置仅发给出牌座位。
- *    · reactionAnswered 仅给应答者本人回读其按份应答选择的对象。
+ *    · reactionAnswered 只给持牌席回读所选份与实际扣牌位置。
  *    · reactionOpened 的 jinnang 窗——view.queriedBySeat 是 per-seat private 档(god-view
  *      全集 = 谁持识破诡计,#281/ADR-0016 同案)。裁剪口径=**身份匿名、数量保留**:
  *      接收座位在列保留自己座位,其余一律置换 ANON_SEAT。数量必须保留:折叠器
@@ -413,9 +414,21 @@ export function redactEvents(
         return announcement;
       }
       case "reactionAnswered": {
-        if (ev.seat === seat || ev.target === undefined) return ev;
-        const { target: _target, ...answer } = ev;
-        return answer;
+        const { handIndex, target, spentCards, ...answer } = ev;
+        return {
+          ...answer,
+          ...(ev.seat === seat && handIndex !== undefined ? { handIndex } : {}),
+          ...(ev.seat === seat && target !== undefined ? { target } : {}),
+          ...(spentCards === undefined
+            ? {}
+            : {
+                spentCards: spentCards.map((card) => {
+                  if (card.seat === seat) return card;
+                  const { handIndex: _handIndex, ...announced } = card;
+                  return announced;
+                }),
+              }),
+        };
       }
       // ── 透传族(全桌公开,原样)──
       case "gameStarted":
@@ -506,6 +519,7 @@ function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions | undef
   if (e.turnPhase === "AwaitingHeroPick") return recruitmentDecisionOf(e);
   if (e.turnPhase === "AwaitingTreasureOwner") return treasureDecisionOf(e);
   if (e.turnPhase === "AwaitingBankruptcySettle") return bankruptcyDecisionOf(e);
+  if (e.turnPhase === "AwaitingReaction") return reactionChoicesForSeat(e, seat);
   if (e.turnPhase === "AwaitingSkillChoice") return skillChoiceDecisionOf(e);
   return undefined;
 }

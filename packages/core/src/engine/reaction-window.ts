@@ -69,11 +69,12 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 export type ReactionViewSeed = DistributiveOmit<ReactionView, "windowMs" | "counter">;
 
 /** 反应窗应答记录(#281):use=false 也占座(每被询问座位至多应答一次);
- *  use=true 携打出牌 id，按份根窗另携被保护的城格或座位。 */
+ *  用牌记录含席位手牌位置，按份根窗另记被保护的城格或座位。 */
 export interface ReactionAnswer {
   seat: number;
   use: boolean;
   cardId?: string;
+  handIndex?: number;
   target?: ReactionTarget;
 }
 
@@ -81,10 +82,12 @@ export interface ReactionAnswer {
 export interface ReactionCardSpend {
   seat: number;
   cardId: string;
+  /** 只有持牌座位收到实际扣除的位置。 */
+  handIndex?: number;
 }
 
-type ReactionPlay = ReactionCardSpend & { target?: ReactionTarget };
-type ChosenShare = ReactionCardSpend & { target: ReactionTarget };
+type ReactionPlay = ReactionCardSpend & { handIndex: number; target?: ReactionTarget };
+type ChosenShare = Pick<ReactionCardSpend, "seat" | "cardId"> & { target: ReactionTarget };
 
 /** 反应窗续结算载荷:挂起点被挂起时,应答齐后按此续跑(全部序列化友好纯数据)。 */
 export type ReactionPayload =
@@ -258,9 +261,10 @@ function selectedReactionPlays(pr: PendingReaction): ReactionPlay[] {
         return true;
       })
     : used.slice(0, 1);
-  return selected.map(({ seat, cardId, target }) => {
-    if (cardId == null) throw new Error("反应窗结算:用牌应答缺 cardId");
-    return { seat, cardId, target };
+  return selected.map(({ seat, cardId, handIndex, target }) => {
+    if (cardId === undefined || handIndex === undefined)
+      throw new Error("反应窗结算：用牌应答缺手牌引用");
+    return { seat, cardId, handIndex, target };
   });
 }
 
@@ -274,8 +278,11 @@ function appendReactionAnswer(g: GameEngine, pr: PendingReaction, a: ReactionAns
     kind: "reactionAnswered",
     use: a.use,
     cardId: a.cardId,
+    ...(a.handIndex === undefined ? {} : { handIndex: a.handIndex }),
     ...(target === undefined ? {} : { target }),
-    ...(plays != null ? { spentCards: plays.map(({ seat, cardId }) => ({ seat, cardId })) } : {}),
+    ...(plays !== null
+      ? { spentCards: plays.map(({ seat, cardId, handIndex }) => ({ seat, cardId, handIndex })) }
+      : {}),
   });
   g.logEvent(
     "system",
@@ -285,7 +292,7 @@ function appendReactionAnswer(g: GameEngine, pr: PendingReaction, a: ReactionAns
   );
   if (plays != null) {
     g.pendingReaction = null; // 续结算可在同一转移中开下一窗。
-    for (const play of plays) consumeReactionCard(g, play.seat, play.cardId);
+    for (const play of plays) consumeReactionCard(g, play);
     resolveReactionWindow(g, pr, plays);
   }
 }
@@ -298,11 +305,22 @@ export function respondReaction(
   use: boolean,
   cardId?: string,
   target?: ReactionTarget,
+  handIndex?: number,
 ): string | void {
   if (!g.assertPhase("AwaitingReaction", "respondReaction")) return "当前没有可应答的反应窗";
   const pr = g.pendingReaction;
   if (pr == null) throw new Error("respondReaction:AwaitingReaction 相位无挂起反应窗(状态机 bug)");
-  const answer = { seat, use, cardId, target };
+  if (!reactionQueriedOf(pr.view).includes(seat)) {
+    const error = `respondReaction:座位 ${seat} 非本窗被询问者`;
+    g.warn(error);
+    return error;
+  }
+  // 引擎场景可按牌名使用规则上的首张。座位提交在房间校验具体手牌位置。
+  const index =
+    use && handIndex === undefined && cardId !== undefined
+      ? g.players[seat].jinnangHand.indexOf(cardId)
+      : handIndex;
+  const answer = { seat, use, cardId, target, handIndex: index };
   const error = reactionAnswerError(g, pr, answer);
   if (error !== null) {
     g.warn(error);
@@ -315,14 +333,20 @@ export function respondReaction(
 export function reactionAnswerError(
   g: { players: readonly { jinnangHand: readonly string[] }[] },
   pr: Pick<PendingReaction, "view" | "answers">,
-  { seat, use, cardId, target }: ReactionAnswer,
+  { seat, use, cardId, handIndex, target }: ReactionAnswer,
 ): string | null {
   if (!reactionQueriedOf(pr.view).includes(seat))
     return `respondReaction:座位 ${seat} 非本窗被询问者`;
   if (pr.answers.some((a) => a.seat === seat)) return `respondReaction:座位 ${seat} 已应答过本窗`;
   if (use) {
-    if (cardId == null || !g.players[seat].jinnangHand.includes(cardId))
-      return `respondReaction:座位 ${seat} 手中无牌 ${cardId ?? "-"}`;
+    if (
+      cardId === undefined ||
+      handIndex === undefined ||
+      !Number.isSafeInteger(handIndex) ||
+      handIndex < 0 ||
+      g.players[seat].jinnangHand[handIndex] !== cardId
+    )
+      return "respondReaction:所选反应锦囊不在该位置";
     if (jinnangCardOf(cardId).effect.kind !== REACTION_EXPECT[pr.view.kind])
       return `respondReaction:【${cardId}】非本窗可打的反应牌`;
     if (pr.view.kind === "jinnang" && pr.view.targets.requiresSelection) {
@@ -331,7 +355,8 @@ export function reactionAnswerError(
         ? null
         : `respondReaction:识破【${pr.view.cardId}】须指定合法的${kind === "city" ? "城格" : "座位"}`;
     }
-  }
+  } else if (cardId !== undefined || handIndex !== undefined)
+    return "respondReaction:选择不用时不能指定反应锦囊";
   return target === undefined ? null : "respondReaction:本次应答无需选择对象";
 }
 
@@ -626,9 +651,11 @@ function returnSupersededCounters(
 }
 
 /** 结算已生效的反应牌，扣除手牌并放入弃牌堆。 */
-function consumeReactionCard(g: GameEngine, seat: number, cardId: string): void {
+function consumeReactionCard(g: GameEngine, { seat, cardId, handIndex }: ReactionPlay): void {
   const p = g.players[seat];
-  p.jinnangHand.splice(p.jinnangHand.indexOf(cardId), 1);
+  if (p.jinnangHand[handIndex] !== cardId)
+    throw new Error("反应窗结算：所选反应锦囊已离开指定位置");
+  p.jinnangHand.splice(handIndex, 1);
   p.jinnangHandCount = p.jinnangHand.length;
   g.jinnangDiscard.push(cardId);
 }

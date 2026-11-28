@@ -34,6 +34,7 @@ import type { RecruitmentDecision } from "../room/recruitment-decisions";
 import type { LobbyView, SeatSnapshot } from "../room/seat-projection";
 import type { SkillChoiceCommand, SkillChoiceDecision } from "../room/skill-choice-decisions";
 import type { TreasureDecision, TreasureOwnerCommand } from "../room/treasure-decisions";
+import type { ReactionDecision } from "./reaction-choices";
 
 export type { CapitalOption } from "../engine/setup-flow";
 export {
@@ -139,6 +140,7 @@ export type DecisionOptions =
   | RecruitmentDecision
   | TreasureDecision
   | BankruptcyDecision
+  | ReactionDecision
   | SkillChoiceDecision;
 
 /** 选项随决策点只发给有权操作的座位。 */
@@ -324,7 +326,10 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
     cmd.type === "respondReaction" &&
     Number.isSafeInteger(cmd.seat) &&
     typeof cmd.use === "boolean" &&
-    (cmd.cardId === undefined || typeof cmd.cardId === "string") &&
+    (cmd.use
+      ? typeof cmd.cardId === "string" && Number.isSafeInteger(cmd.handIndex)
+      : (cmd.cardId === undefined || typeof cmd.cardId === "string") &&
+        (cmd.handIndex === undefined || Number.isSafeInteger(cmd.handIndex))) &&
     (cmd.target === undefined ||
       (isRecord(cmd.target) &&
         (cmd.target.kind === "city" || cmd.target.kind === "seat") &&
