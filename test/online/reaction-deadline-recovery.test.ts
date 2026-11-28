@@ -105,7 +105,8 @@ async function seedPlayingRoom(persistence: FileRoomPersistence) {
     );
   armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
   giveJinnang(engine, 0, ["连环计"]);
-  for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
+  giveJinnang(engine, 1, ["识破诡计", "火烧连营", "识破诡计"]);
+  giveJinnang(engine, 2, ["识破诡计"]);
   persistence.save({ ...persistence.load(roomId)!, snapshot: engine.snapshot() });
   return { roomId, tokens };
 }
@@ -196,7 +197,7 @@ it.skipIf(!process.env.DAFUNG_SLOW)(
         seat: 1,
         decisionPoint: decisionPointOf(firstWindow),
         submissionId: "截止前识破",
-        cmd: { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" },
+        cmd: { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计", handIndex: 2 },
       };
       const late: PlayerSubmission = {
         roomId,
@@ -225,10 +226,15 @@ it.skipIf(!process.env.DAFUNG_SLOW)(
       expect(stillWaiting.snapshot.decisionPoint).toBe(late.decisionPoint);
       expect(stillWaiting.snapshot.pendingReaction).toMatchObject({
         seq,
-        answers: [{ seat: 1, use: true, cardId: "识破诡计" }],
       });
+      expect(stillWaiting.snapshot.pendingReaction?.answers).toEqual([
+        { seat: 1, use: true, cardId: "识破诡计" },
+      ]);
       const alreadyAnswered = await connect(1);
       expect(alreadyAnswered.snapshot.decisionPoint).toBeNull();
+      expect(alreadyAnswered.snapshot.pendingReaction?.answers).toMatchObject([
+        { seat: 1, use: true, handIndex: 2 },
+      ]);
 
       // 原生回调仍在 40 秒之后。先把权威时钟拨到原截止，验证首次到达的应答。
       await server!.setTime(openedAt + WINDOW_MS);
@@ -253,7 +259,7 @@ it.skipIf(!process.env.DAFUNG_SLOW)(
       });
       expect(decisionPointOf(next.snapshot)).not.toBe(late.decisionPoint);
       expect(next.snapshot.players[2].jinnangHand).toEqual(["识破诡计"]);
-      expect(afterCounter.snapshot.players[1].jinnangHand).toEqual([]);
+      expect(afterCounter.snapshot.players[1].jinnangHand).toEqual(["识破诡计", "火烧连营"]);
       const responseAudit = next.snapshot.log.filter((line) =>
         line.detail.startsWith("reactionRespond "),
       );

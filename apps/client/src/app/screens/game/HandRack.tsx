@@ -59,7 +59,7 @@ import type { HeroSlotRow } from "@dafung/core/engine/snapshot";
 import type { ChoiceOption } from "@dafung/core/engine/choices";
 import type { TreasureDef } from "@dafung/core/engine/treasures";
 import type { SkillGlossaryTarget } from "./SkillGlossaryDialog";
-import type { ReactionCardSelection } from "./reaction-play";
+import type { ReactionCardOption } from "@dafung/core/protocol/reaction-choices";
 import { TESTIDS } from "./testids";
 import "./hand-rack.css";
 
@@ -445,11 +445,11 @@ function SkillCard({
 /** 反应窗态载荷(#281,P1-D 牌架即反应窗;缺省=常态架)。
  *  可打牌点选后在顶部动作条确认。与出牌阶段互斥。 */
 interface RackReaction {
-  reactiveIds: string[];
+  playable: readonly ReactionCardOption[];
   /** 权威窗实例号，连续同种反应窗也会结束上次检视。 */
   seq: number;
-  selection: ReactionCardSelection | null;
-  onSelect: (selection: ReactionCardSelection) => void;
+  selection: ReactionCardOption | null;
+  onSelect: (handIndex: number) => void;
 }
 
 export type RackInspection =
@@ -763,7 +763,9 @@ export const HandRack = memo(function HandRack({
     // 常态:手牌全展/叠加,点牌开详情;反应窗槽(#281)在场时,可打的反应锦囊改点选
     //(呼吸金边,确认在顶部动作条),其余牌仍开详情。
     return hand.map((id, i) => {
-      const reactive = reaction != null && reaction.reactiveIds.includes(id);
+      const reactive =
+        reaction != null &&
+        reaction.playable.some(({ handIndex, cardId }) => handIndex === i && cardId === id);
       const openKey = `${id}-${nthSame(hand, i, id)}`;
       return (
         <RackCard
@@ -777,7 +779,7 @@ export const HandRack = memo(function HandRack({
             reactive
               ? {
                   selected: reaction!.selection?.handIndex === i,
-                  onSelect: () => reaction!.onSelect({ handIndex: i, cardId: id }),
+                  onSelect: () => reaction!.onSelect(i),
                 }
               : null
           }

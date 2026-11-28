@@ -46,8 +46,7 @@ import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
 import { jinnangPlay } from "./jinnang-play";
-import { turnScope, useReactionPlay } from "./reaction-play";
-import { useReactionTargets } from "./target-selection";
+import { reactionDiagnostics, reactionPlay, turnScope } from "./reaction-play";
 import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
@@ -253,32 +252,11 @@ function GameScreenLive({
     identity: reactionIdentity,
     scope: reactionScope,
     window: reaction,
-    readDiagnosticChoices,
-  } = useReactionPlay({
-    snapshot,
-    seat: selfSeat,
-    board,
-    autopilotOn,
-    choices: seatView.reaction,
-    respond: act,
-  });
-  const reactionTargets = useReactionTargets(
-    reaction?.targetStep ?? null,
-    seatView.reaction?.canRespond === true,
-  );
-  const jinnangTargets = jinnang?.targetStep ?? null;
-  const targetStep = jinnangTargets ?? reaction?.targetStep ?? null;
-  const targets = jinnangTargets ?? reactionTargets;
-  const pickTarget = (id: number) => {
-    if (jinnangTargets !== null) act({ type: "toggleTarget", id });
-    else reactionTargets.toggle(id);
-  };
-  const cityTargeting = targetStep?.domain === "city";
-  const seatTargeting = targetStep?.domain === "seat";
-  const showSeatReason = (seat: number, reason: string) => {
-    if (jinnangTargets !== null) pickTarget(seat);
-    else reactionTargets.reportUnavailable(players[seat].guohao, reason);
-  };
+  } = reactionPlay(seatView, board, act);
+  const targets = jinnang?.targetStep ?? reaction?.targetStep ?? null;
+  const pickTarget = (id: number) => act({ type: "toggleTarget", id });
+  const cityTargeting = targets?.domain === "city";
+  const seatTargeting = targets?.domain === "seat";
   const handleTileClick = (tileIndex: number) => {
     if (cityTargeting && !peeking) {
       pickTarget(tileIndex);
@@ -332,12 +310,12 @@ function GameScreenLive({
     if (bookToRead === undefined && bookPick !== null) setBookPick(null);
   }, [bookToRead, bookPick]);
   const readDiagnosticDecisions = useCallback(
-    (state: GameSnapshot, seat: number, canAct: boolean) => ({
+    (_state: GameSnapshot, _seat: number, canAct: boolean) => ({
       capitalChoices:
         controller.seatView.capital?.options.map((option) => option.tileIndex) ?? null,
-      reaction: readDiagnosticChoices(state, seat, canAct),
+      reaction: reactionDiagnostics(controller.seatView.reaction, canAct),
     }),
-    [controller, readDiagnosticChoices],
+    [controller],
   );
   useReactionReminder(
     reactionIdentity,
@@ -414,7 +392,7 @@ function GameScreenLive({
 
   const jinnangAction = !peeking && jinnang != null ? jinnang.action : null;
   const jinnangActionCollapsed = rackHidden && jinnang?.targetStep === null;
-  const reactionAction = !peeking && reaction != null ? reaction.actionFor(reactionTargets) : null;
+  const reactionAction = !peeking && reaction !== null ? reaction.action : null;
   const showReactionAction = reactionAction != null;
   const decisionScrollInteractive = interactive && !peeking;
   const diagnosticCapital = diagnosticControl(
@@ -447,7 +425,7 @@ function GameScreenLive({
     },
     [controller, snapshot.gameId],
   );
-  const diagnosticTarget = preparing || peeking || targetStep === null ? null : targetStep.domain;
+  const diagnosticTarget = preparing || peeking || targets === null ? null : targets.domain;
   useLayoutEffect(
     () =>
       mountGameDiagnostics(controller, snapshot.gameId, VERSION, readDiagnosticDecisions, {
@@ -638,8 +616,8 @@ function GameScreenLive({
               ? {
                   bySeat: new Map(
                     players.map((_, seat) => {
-                      const candidate = targetStep.candidates.find((choice) => choice.id === seat);
-                      const firstPick = targetStep.firstSeat?.id === seat;
+                      const candidate = targets.candidates.find((choice) => choice.id === seat);
+                      const firstPick = targets.firstSeat?.id === seat;
                       return [
                         seat,
                         {
@@ -656,7 +634,7 @@ function GameScreenLive({
                   ),
                   locked: !interactive,
                   onPick: pickTarget,
-                  onUnavailable: showSeatReason,
+                  onUnavailable: pickTarget,
                 }
               : undefined
           }

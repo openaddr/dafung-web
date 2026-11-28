@@ -18,6 +18,10 @@ import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
 import { capitalChoiceOf } from "@dafung/core/engine/setup-flow";
+import {
+  reactionChoicesForSeat,
+  reactionQueriesSeat,
+} from "@dafung/core/protocol/reaction-choices";
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { assembleGameLogDelta, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
@@ -165,14 +169,16 @@ function snapshotOf(
     engine.phase === "Playing" &&
     engine.turnPhase === "AwaitingJinnang" &&
     engine.decisionOwner === 1;
+  const pending = engine.pendingReaction;
+  const asked = pending !== null && reactionQueriesSeat(pending.view, 1);
   return {
     type: "snapshot",
     ...ROOM,
     ...redactSnapshotForSeat(engine.snapshot(), 1),
     decisionPoint: capital
       ? "test/capital/1"
-      : engine.pendingReaction
-        ? `test/reaction/${engine.pendingReaction.seq}/1`
+      : asked
+        ? `test/reaction/${pending.seq}/1`
         : jinnang
           ? "test/jinnang/1"
           : null,
@@ -192,7 +198,9 @@ function snapshotOf(
             pendingJinnang: engine.pendingJinnang,
             pendingSkill: engine.pendingSkill,
           }
-        : undefined,
+        : asked
+          ? reactionChoicesForSeat(engine, 1)
+          : undefined,
     reactionTiming,
   };
 }

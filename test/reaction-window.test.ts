@@ -766,6 +766,7 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     expect(botReactionDecision(e, 1)).toEqual({
       use: true,
       cardId: "识破诡计",
+      handIndex: 0,
       target: { kind: "seat", id: 1 },
     });
     // 城指向域(#1389):份=受击城——份城不在我名下不拆;我名下受击城择估损最高一城护
@@ -795,6 +796,7 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     expect(botReactionDecision(e3, 1)).toEqual({
       use: true,
       cardId: "识破诡计",
+      handIndex: 0,
       target: { kind: "city", id: freeTile.index },
     });
   });
@@ -839,7 +841,7 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     e.players[2].cash = 20000; // 行人第一
     e.players[1].cash = 10000;
     e.players[0].cash = 10000;
-    expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "半路杀出" });
+    expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "半路杀出", handIndex: 0 });
     e.players[0].cash = 20000; // 并列第一:不拦
     expect(botReactionDecision(e, 1)).toEqual({ use: false });
   });
@@ -978,7 +980,7 @@ describe("botReactionDecision 链环口径(#571)", () => {
     });
     setHand(e, 1, ["识破诡计"]);
     e.players[2].cash = 500; // 争夺份现金充足:效果幅度 200 > 底价
-    expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "识破诡计" });
+    expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "识破诡计", handIndex: 0 });
   });
 
   it("别人的计被拆不救:protects=true 且链根非我 → 不用", () => {
@@ -1001,7 +1003,7 @@ describe("botReactionDecision 链环口径(#571)", () => {
     });
     setHand(e, 1, ["识破诡计"]);
     e.players[1].cash = 500;
-    expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "识破诡计" });
+    expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "识破诡计", handIndex: 0 });
   });
 
   it("拆的是别人的保护:protects=false 且争夺份非我 → 不用", () => {

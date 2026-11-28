@@ -22,9 +22,8 @@ import { MAP } from "../../scripts/engine-helpers";
 import type { RoomPersistence } from "@dafung/core/room/room-persistence";
 import type { RoomRecord } from "@dafung/core/room/room-record";
 import type { LoadedMap } from "@dafung/core/engine/board-loader";
-import { GameEngine, type GameCommand, type SeatConfig } from "@dafung/core/engine/authority";
+import { GameEngine, type SeatConfig } from "@dafung/core/engine/authority";
 import {
-  cmdMsg,
   dispatchInbound,
   submissionMsg,
   type PlayerSubmission,
@@ -419,7 +418,7 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
     expect(authority).toContain("queried=p1");
   });
 
-  it("编号回执和座位日志给出公开的权威拒绝理由", async () => {
+  it("座位提交返回公开的权威拒绝理由并保留局面与日志", async () => {
     const { reg, roomId, token } = await roomAtPlaying();
     const room = reg.get(roomId)!;
     const game = room.engine!;
@@ -469,37 +468,6 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
       ).toBeNull();
     }
 
-    async function expectWarning(
-      cmd: GameCommand,
-      requestId: number,
-      reason: string,
-      detail: string,
-    ): Promise<void> {
-      const seat = game.decisionOwner;
-      const offset = game.log.length;
-      const receipts: unknown[] = [];
-      const result = await dispatchInbound(
-        cmdMsg(cmd, requestId),
-        {
-          cmd: (message, report) =>
-            reg.applyCommandFromSeat(roomId, seat, message, undefined, report),
-          setAutoPilot: unexpectedCommand,
-        },
-        { sendCommandResult: (raw) => receipts.push(JSON.parse(raw) as unknown) },
-      );
-      expect(result).toEqual({ ok: true, requestId });
-      expect(receipts).toEqual([
-        { type: "commandResult", requestId, outcome: "warning", reason, logOffset: offset + 1 },
-      ]);
-      const projected = redactSnapshotForSeat(game.snapshot(), 1 - seat).log.slice(offset);
-      expect(
-        assembleGameLogDelta(game, { rawOffset: offset, publicOffset: offset }, 15).message?.lines,
-      ).toEqual(projected);
-      expect(projected[1]).toMatchObject({ detail: `warn: ${reason}，原文见服务器日志` });
-      expect(projected[1]).not.toHaveProperty("warning");
-      expect(game.log[offset + 1].detail).toBe(detail);
-    }
-
     try {
       const buyerSeat = game.activeIndex;
       const turnNumber = game.turnNumber;
@@ -521,11 +489,11 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
       const seat = game.activeIndex;
       armHero(game, seat, "caopi", ["fangzhu"]);
       setStamina(game, seat, 30);
-      await expectWarning(
+      await expectSubmissionRejection(
         { type: "respondSkillChoice", seat, use: true, targetSeat: game.players.length },
         86,
-        "目标座位无效",
-        "warn: respondSkillChoice:目标座位无效",
+        "invalidCandidate",
+        "本次技能没有此候选目标",
       );
       expect(game.turnPhase).toBe("AwaitingSkillChoice");
       game.respondSkillChoice(seat, false);
@@ -690,7 +658,8 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
           kind: "reactionAnswered",
           use: true,
           cardId: "识破诡计",
-          spentCards: [{ seat: 0, cardId: "识破诡计" }],
+          handIndex: 0,
+          spentCards: [{ seat: 0, cardId: "识破诡计", handIndex: 0 }],
         }),
         ev(0, {
           kind: "jinnangVoided",

@@ -34,6 +34,10 @@ import {
 import { skillOptionId } from "@dafung/core/engine/choices";
 import { makeSkillBook } from "@dafung/core/engine/treasures";
 import { AUTO_ROLL_DELAY_MS } from "@dafung/core/engine/timings";
+import {
+  reactionChoicesForSeat,
+  reactionQueriesSeat,
+} from "@dafung/core/protocol/reaction-choices";
 import { redactEvents } from "@dafung/core/room/seat-projection";
 import { skillChoiceDecisionOf } from "@dafung/core/room/skill-choice-decisions";
 import { act } from "react";
@@ -806,6 +810,8 @@ beforeAll(async () => {
       const ownsDecision = this.e.phase === "Playing" && this.e.decisionOwner === this.mySeat;
       const ownsJinnang = ownsDecision && this.e.turnPhase === "AwaitingJinnang";
       const ownsSkillChoice = ownsDecision && this.e.turnPhase === "AwaitingSkillChoice";
+      const current = this.e.pendingReaction;
+      const ownsReaction = current !== null && reactionQueriesSeat(current.view, this.mySeat);
       this.observeSeatDecision({
         decisionPoint: String(++this.decisionNumber),
         decisionOptions: ownsJinnang
@@ -817,9 +823,10 @@ beforeAll(async () => {
             }
           : ownsSkillChoice
             ? skillChoiceDecisionOf(this.e)
-            : undefined,
+            : ownsReaction
+              ? reactionChoicesForSeat(this.e, this.mySeat)
+              : undefined,
       });
-      const current = this.e.pendingReaction;
       if (current != null) {
         this.observeReactionTiming(
           { seq: current.seq, remainingMs: current.view.windowMs },

@@ -259,6 +259,7 @@ describe("assembleDownlinkShot · 座位下行", () => {
         seat: 1,
         use: true,
         cardId: "识破诡计",
+        handIndex: 0,
         target,
       });
       for (const seat of [1, 2]) {
@@ -276,11 +277,14 @@ describe("assembleDownlinkShot · 座位下行", () => {
         expect(batch.decisionPoint).toBe(snapshot.decisionPoint);
         const answer = { seat: 1, use: true, cardId: "识破诡计" };
         expect(snapshot.pendingReaction).not.toHaveProperty("payload");
-        const visibleAnswer = seat === 1 ? { ...answer, target } : answer;
+        const visibleAnswer = seat === 1 ? { ...answer, handIndex: 0, target } : answer;
         expect(snapshot.pendingReaction?.answers).toEqual([visibleAnswer]);
         const event = batch.events.find((entry) => entry.kind === "reactionAnswered");
         expect(event).toMatchObject(visibleAnswer);
-        if (seat === 2) expect(event).not.toHaveProperty("target");
+        if (seat === 2) {
+          expect(event).not.toHaveProperty("target");
+          expect(event).not.toHaveProperty("handIndex");
+        }
 
         const before = beforeAnswer[seat - 1];
         const replica = createEngine(

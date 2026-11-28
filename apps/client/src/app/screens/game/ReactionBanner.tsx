@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getAudio } from "@app/fx/audio";
 import { TargetActionBar, TargetActionButton } from "./TargetActionBar";
-import type { TargetSelectionStep } from "./target-selection";
+import type { TargetStep } from "@dafung/core/protocol/target-selection";
 import { TESTIDS } from "./testids";
 import "./reaction-banner.css";
 
@@ -10,7 +10,7 @@ interface ReactionBannerProps {
   range: string;
   selection: {
     cardId: string;
-    target: { domain: TargetSelectionStep["domain"]; selectedLabel: string | null } | null;
+    target: { domain: TargetStep["domain"]; selectedLabel: string | null } | null;
   } | null;
   unavailableReason?: string;
   rackHidden: boolean;

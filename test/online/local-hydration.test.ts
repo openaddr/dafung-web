@@ -87,7 +87,13 @@ it("单机选都水合后，错误选份收到提示并可在原窗重答", asyn
       targets: { kind: "seat", ids: [0], requiresSelection: true },
     });
     expect(useGameStore.getState().interactive).toBe(true);
-    const respond = { type: "respondReaction", seat: 0, use: true, cardId: "识破诡计" } as const;
+    const respond = {
+      type: "respondReaction",
+      seat: 0,
+      use: true,
+      cardId: "识破诡计",
+      handIndex: 0,
+    } as const;
     controller.dispatchCommand({ ...respond, target: { kind: "city", id: 0 } });
     expect(useGameStore.getState().interactive).toBe(false);
     await downlinkTurn();
@@ -306,7 +312,13 @@ it("目标锦囊进入反应窗，经房间拒绝错误应答后可重答", asyn
     const events = messages.flatMap((msg) => (msg.type === "events" ? msg.events : []));
     expect(events.map((ev) => ev.kind)).toEqual(["jinnangAnnounced", "reactionOpened"]);
 
-    const respond = { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" } as const;
+    const respond = {
+      type: "respondReaction",
+      seat: 1,
+      use: true,
+      cardId: "识破诡计",
+      handIndex: 0,
+    } as const;
     const priorLog = records.get(room.roomId)!.snapshot!.log;
     const rejected = await sendCommand({ ...respond, target: { kind: "seat", id: 1 } }, 1);
     expect(rejected).toEqual({
@@ -318,7 +330,11 @@ it("目标锦囊进入反应窗，经房间拒绝错误应答后可重答", asyn
     expect(persisted.snapshot!.log).toEqual(priorLog);
     expect(persisted.submissions.entries.at(-1)).toMatchObject({
       seat: 1,
-      result: { outcome: "rejected", reason: "respondReaction:本次应答无需选择对象" },
+      result: {
+        outcome: "rejected",
+        reasonCode: "invalidCandidate",
+        reason: "respondReaction:本次应答无需选择对象",
+      },
     });
     expect(messages).toEqual([]);
     expect(seatReactionOf(replica)?.answers).toEqual([]);

@@ -1,21 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import type { Board } from "@dafung/core/engine/board";
-import { SINGLE_TARGET } from "@dafung/core/engine/jinnang";
 import type { ReactionView } from "@dafung/core/engine/reaction-window";
 import type { GameSnapshot } from "@app/store/gameStore";
-import {
-  reactionChoicesForSeat,
-  type ReactionIntent,
-} from "@dafung/core/protocol/reaction-choices";
-import type { SeatInteractionView } from "@dafung/core/protocol/seat-interaction";
+import type {
+  SeatIntent,
+  SeatIntentResult,
+  SeatInteractionView,
+} from "@dafung/core/protocol/seat-interaction";
+import type { GameDiagnosticDecisions } from "@app/game-diagnostic-record";
 import { getAudio } from "@app/fx/audio";
-import { reactionMuteEngage, reactionMuted, type ReactionMuteState } from "./reaction-mute";
-import type { TargetSelection, TargetSelectionStep } from "./target-selection";
-
-export interface ReactionCardSelection {
-  handIndex: number;
-  cardId: string;
-}
 
 function reactionAnnouncement(
   view: ReactionView,
@@ -56,150 +48,87 @@ export function turnScope(snapshot: GameSnapshot): string {
   return JSON.stringify([snapshot.gameId, snapshot.turnNumber, snapshot.activeIndex]);
 }
 
-export function useReactionPlay({
-  snapshot,
-  seat,
-  board,
-  autopilotOn,
-  choices,
-  respond,
-}: {
-  snapshot: GameSnapshot;
-  seat: number;
-  board: Board;
-  autopilotOn: boolean;
-  choices: SeatInteractionView<GameSnapshot>["reaction"];
-  respond: (intent: ReactionIntent) => void;
-}) {
-  const seq = choices?.asked ? snapshot.pendingReaction!.seq : null;
+export function reactionDiagnostics(
+  choices: SeatInteractionView<GameSnapshot>["reaction"],
+  canAct: boolean,
+): GameDiagnosticDecisions["reaction"] {
+  if (choices === null) return null;
+  const { kind, asked, answered, muted, playable } = choices;
+  const canDecline = asked && !answered && !muted && canAct;
+  return {
+    kind,
+    asked,
+    answered,
+    muted,
+    canDecline,
+    playable: canDecline ? playable.map(({ cardId }) => cardId) : [],
+  };
+}
+
+export function reactionPlay(
+  { snapshot, seat, autopilotOn, reaction: choices }: SeatInteractionView<GameSnapshot>,
+  board: Board,
+  act: (intent: SeatIntent) => SeatIntentResult,
+) {
+  const seq = choices?.asked ? choices.seq : null;
   // 已答仍是同一权威窗。提醒的身份跟窗号走，可操作范围另看是否已答。
   const identity = seq !== null ? JSON.stringify([snapshot.gameId, seat, seq]) : null;
   const scope = choices != null && !choices.answered && !autopilotOn ? identity : null;
-  const turn = turnScope(snapshot);
-  const [mute, setMute] = useState<{ scope: string; state: ReactionMuteState } | null>(null);
-  const muted = mute?.scope === turn && reactionMuted(mute.state, snapshot.activeIndex);
-  const readDiagnosticChoices = useCallback(
-    (state: GameSnapshot, seat: number, canAct: boolean) => {
-      const choices = reactionChoicesForSeat(state, seat);
-      if (choices === null) return null;
-      const muted =
-        mute?.scope === turnScope(state) && reactionMuted(mute.state, state.activeIndex);
-      const canDecline = choices.asked && !choices.answered && !muted && canAct;
-      return {
-        kind: choices.kind,
-        asked: choices.asked,
-        answered: choices.answered,
-        muted,
-        canDecline,
-        playable: canDecline ? choices.playable : [],
-      };
-    },
-    [mute],
-  );
+  if (seq === null || scope === null || choices === null || choices.muted)
+    return { identity, scope, window: null };
+  const reaction = snapshot.reaction;
+  if (reaction === null) throw new Error(`反应窗 ${seq} 缺少公告`);
+  const { deadlineAt, selectedCard, targets, canRespond, canConfirm } = choices;
+  if (deadlineAt === null) throw new Error(`反应窗 ${seq} 缺少截止时刻`);
 
-  const lastMutedAnswer = useRef<string | null>(null);
-  const canRespond = choices?.canRespond === true;
-  useEffect(() => {
-    if (!canRespond || !muted || scope == null || lastMutedAnswer.current === scope) return;
-    lastMutedAnswer.current = scope;
-    respond({ type: "respondReaction", use: false });
-  }, [respond, canRespond, muted, scope]);
-
-  const [draft, setDraft] = useState<(ReactionCardSelection & { scope: string }) | null>(null);
-  useEffect(() => {
-    setDraft((selected) => (selected?.scope === scope ? selected : null));
-  }, [scope]);
-
-  const reaction = scope != null && !muted ? snapshot.reaction : null;
-  if (reaction == null) return { identity, scope, window: null, readDiagnosticChoices };
-  const deadlineAt = choices!.deadlineAt;
-  if (deadlineAt == null) throw new Error(`反应窗 ${seq} 缺少截止时刻`);
-
-  const playable = choices!.playable;
-  const selected = draft?.scope === scope && playable.includes(draft.cardId) ? draft : null;
   const seatLabel = (seat: number) => snapshot.players[seat].guohao;
   const cityName = (tileIndex: number) => board.at(tileIndex).name;
-  const shares = reaction.kind === "jinnang" ? reaction.targets : null;
-  const targetStep: TargetSelectionStep | null =
-    selected != null && shares?.requiresSelection
-      ? {
-          scope: JSON.stringify(["reaction", scope, selected.handIndex]),
-          domain: shares.kind,
-          ...SINGLE_TARGET,
-          candidates: shares.ids.map((id) => ({
-            id,
-            label: shares.kind === "city" ? cityName(id) : seatLabel(id),
-            available: true,
-          })),
-        }
-      : null;
   const notice = reactionAnnouncement(reaction, seatLabel, cityName);
+  const submit = (type: "confirm" | "pass" | "muteReactions") => {
+    if (!canRespond) return;
+    getAudio().stop("reaction", "fade");
+    act({ type });
+  };
 
   return {
     identity,
     scope,
-    readDiagnosticChoices,
     window: {
       deadlineAt,
       hand: {
-        reactiveIds: playable,
-        seq: seq!,
-        selection: selected,
-        onSelect(selection: ReactionCardSelection) {
+        playable: choices.playable,
+        seq,
+        selection: selectedCard,
+        onSelect(handIndex: number) {
           if (!canRespond) return;
-          if (selected?.handIndex === selection.handIndex) {
-            setDraft(null);
-            return;
-          }
-          getAudio().play("jinnangSelect");
-          setDraft({ ...selection, scope: scope! });
+          const result = act({ type: "selectCard", handIndex });
+          if (result.status === "draft" && handIndex !== selectedCard?.handIndex)
+            getAudio().play("jinnangSelect");
         },
       },
-      targetStep,
-      actionFor(targets: TargetSelection) {
-        const confirmEnabled = selected != null && (targetStep == null || targets.canConfirm);
-        const share = targets.selected[0];
-        const target =
-          targetStep != null && share != null ? { kind: targetStep.domain, id: share } : undefined;
-        const answer = (use: boolean) => {
-          if (!canRespond) return;
-          getAudio().stop("reaction", "fade");
-          respond(
-            use
-              ? { type: "respondReaction", use: true, cardId: selected!.cardId, target }
-              : { type: "respondReaction", use: false },
-          );
-        };
-        return {
-          ...notice,
-          selection:
-            selected == null
-              ? null
-              : {
-                  cardId: selected.cardId,
-                  target:
-                    targetStep == null
-                      ? null
-                      : {
-                          domain: targetStep.domain,
-                          selectedLabel: target == null ? null : targets.selectedLabels[0],
-                        },
-                },
-          unavailableReason: targets.unavailableReason,
-          durationMs: reaction.windowMs,
-          deadlineAt,
-          confirmEnabled,
-          onConfirm() {
-            if (confirmEnabled) answer(true);
-          },
-          onDecline: () => answer(false),
-          onMute() {
-            if (!canRespond) return;
-            lastMutedAnswer.current = scope;
-            setMute({ scope: turn, state: reactionMuteEngage(snapshot.activeIndex) });
-            answer(false);
-          },
-        };
+      targetStep: targets,
+      action: {
+        ...notice,
+        selection:
+          selectedCard === null
+            ? null
+            : {
+                cardId: selectedCard.cardId,
+                target:
+                  targets === null
+                    ? null
+                    : {
+                        domain: targets.domain,
+                        selectedLabel: targets.selectedLabels[0] ?? null,
+                      },
+              },
+        unavailableReason: targets?.unavailableReason,
+        durationMs: reaction.windowMs,
+        deadlineAt,
+        confirmEnabled: canConfirm,
+        onConfirm: () => submit("confirm"),
+        onDecline: () => submit("pass"),
+        onMute: () => submit("muteReactions"),
       },
     },
   };

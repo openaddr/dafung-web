@@ -4,6 +4,10 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // 模块求值读构建期注入的 __APP_VERSION__——按生产同一值源(package.json CalVer)先行
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
+import {
+  reactionChoicesForSeat,
+  reactionQueriesSeat,
+} from "@dafung/core/protocol/reaction-choices";
 import { targetCandidates } from "@dafung/core/protocol/target-selection";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
@@ -214,13 +218,27 @@ beforeAll(async () => {
 
     override dispatchCommand(cmd: GameCommand): void {
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
-      this.decisionPoint = String(++this.decisionNumber);
-      this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
+      this.resync();
     }
     // 测试侧重灌口(protected sync 的公开面;种植后调)。
     resync(remainingMs?: number): void {
-      this.decisionPoint = String(++this.decisionNumber);
       const current = this.e.pendingReaction;
+      const ownReaction = current !== null && reactionQueriesSeat(current.view, this.mySeat);
+      const ownJinnang =
+        this.e.turnPhase === "AwaitingJinnang" && this.e.decisionOwner === this.mySeat;
+      this.observeSeatDecision({
+        decisionPoint: String(++this.decisionNumber),
+        decisionOptions: ownReaction
+          ? reactionChoicesForSeat(this.e, this.mySeat)
+          : ownJinnang
+            ? {
+                kind: "playJinnang",
+                choices: this.e.choicesFor(),
+                pendingJinnang: this.e.pendingJinnang,
+                pendingSkill: this.e.pendingSkill,
+              }
+            : undefined,
+      });
       if (current != null) {
         this.observeReactionTiming(
           { seq: current.seq, remainingMs: remainingMs ?? current.view.windowMs },
@@ -273,7 +291,7 @@ it("目标候选只略过作罢项，缺编号或错域直接报错", () => {
 describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
   it("火烧开窗即报受击城；地图选城可取消，手牌开收后仍能按同一窗出牌", async () => {
     const { el, engine, plant, snap } = startGame([
-      { kind: "giveJinnang", seat: 0, cards: ["识破诡计"] },
+      { kind: "giveJinnang", seat: 0, cards: ["识破诡计", "火烧连营", "识破诡计"] },
       { kind: "giveJinnang", seat: 1, cards: [] },
       { kind: "giveJinnang", seat: 2, cards: [] },
       { kind: "giveJinnang", seat: 3, cards: [] },
@@ -288,6 +306,8 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     const confirm = () => q(el, TESTIDS.reactionConfirm)!;
     const toggleRack = () => click(q(el, TESTIDS.jinnangToggle)!);
     const pickCity = () => click(el.querySelector(TESTIDS.cityTarget(tileIndex))!);
+    const counters = () =>
+      el.querySelectorAll(`[data-testid="${TESTIDS.jinnangCard("识破诡计")}"]`);
 
     expect(banner()!.textContent).toContain(`${engine.players[1].guohao} 用「火烧连营」`);
     expect(banner()!.textContent).toContain(`受击城 ${cityName}`);
@@ -305,7 +325,7 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     expect(Number(openedTimer!.textContent)).toBeLessThanOrEqual(4);
     const openedDeadline = useGameStore.getState().reactionDeadlineAt;
 
-    click(q(el, TESTIDS.jinnangCard("识破诡计"))!);
+    click(counters()[1]);
     expect(q(el, TESTIDS.jinnangRack)).toBeNull();
     expect(banner()!.textContent).toContain("已选 识破诡计");
     expect(banner()!.textContent).toContain("在地图上选一座城保护");
@@ -320,7 +340,8 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     expect(confirm().hasAttribute("disabled")).toBe(true);
     pickCity();
     toggleRack();
-    expect(q(el, TESTIDS.jinnangCard("识破诡计"))!.getAttribute("aria-pressed")).toBe("true");
+    expect(counters()[0].getAttribute("aria-pressed")).toBe("false");
+    expect(counters()[1].getAttribute("aria-pressed")).toBe("true");
     toggleRack();
     expect(el.querySelector(TESTIDS.cityTargetPicked(tileIndex))).not.toBeNull();
     expect(banner()!.textContent).toContain(`受击城 ${cityName}`);
@@ -329,7 +350,7 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
 
     click(confirm());
     await finishExit(banner, "识破出牌后收窗");
-    expect(snap().players[0].jinnangHand).toEqual([]);
+    expect(snap().players[0].jinnangHand).toEqual(["识破诡计", "火烧连营"]);
     expect(engine.log.map((line) => line.detail).join("\n")).toContain(
       `use=1 card=识破诡计 share=${tileIndex}`,
     );

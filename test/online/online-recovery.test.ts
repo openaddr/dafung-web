@@ -8,7 +8,10 @@ import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
 import { OnlineController } from "@app/controllers/online";
 import type { GameControllerDiagnosticEvent } from "@app/controllers/controller";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
-import { reactionQueriesSeat } from "@dafung/core/protocol/reaction-choices";
+import {
+  reactionChoicesForSeat,
+  reactionQueriesSeat,
+} from "@dafung/core/protocol/reaction-choices";
 import { getEngine, useGameStore } from "@app/store/gameStore";
 import { getController, setController } from "@app/controllers/registry";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
@@ -164,7 +167,9 @@ function hydrate(socket: FakeSocket, engine: GameEngine, autoPilot = false): voi
           pendingJinnang: engine.pendingJinnang,
           pendingSkill: engine.pendingSkill,
         }
-      : undefined;
+      : answeringReaction
+        ? reactionChoicesForSeat(engine, controller.seat)
+        : undefined;
   socket.receive({
     type: "snapshot",
     ...roomFields(true, autoPilot),
@@ -450,11 +455,15 @@ describe("OnlineController 原座恢复", () => {
     expect(useGameStore.getState().interactive).toBe(false);
     const point = "原反应窗";
     const seq = engine.pendingReaction!.seq;
-    socket.receive(JSON.parse(eventsMsg([], { seq, remainingMs: 8000 }, point)));
+    socket.receive(
+      JSON.parse(
+        eventsMsg([], { seq, remainingMs: 8000 }, point, reactionChoicesForSeat(engine, 1)),
+      ),
+    );
     expect(useGameStore.getState().interactive).toBe(false);
     socket.receive({ type: "lobby", seatCount: 3, ...roomFields(true, false, 3) });
     expect(controller.seatView).toMatchObject({ decisionPoint: point, interactive: true });
-    expect(controller.dispatchIntent({ type: "respondReaction", use: false })).toEqual({
+    expect(controller.dispatchIntent({ type: "pass" })).toEqual({
       status: "submitted",
     });
     const sent = JSON.parse(socket.sent.at(-1)!) as Extract<InboundMsg, { type: "submit" }>;
@@ -486,7 +495,13 @@ describe("OnlineController 原座恢复", () => {
     expect(reaction).toMatchObject({
       targets: { kind: "seat", ids: [1], requiresSelection: true },
     });
-    const respond = { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" } as const;
+    const respond = {
+      type: "respondReaction",
+      seat: 1,
+      use: true,
+      cardId: "识破诡计",
+      handIndex: 0,
+    } as const;
     const latest = () => JSON.parse(socket.sent.at(-1)!) as Extract<InboundMsg, { type: "submit" }>;
     const observations: GameControllerDiagnosticEvent[] = [];
     controller.subscribeDiagnostics((event) => observations.push(event));

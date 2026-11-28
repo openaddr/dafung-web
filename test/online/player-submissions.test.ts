@@ -298,6 +298,7 @@ it("权威时钟到期但回调未执行时拒绝首次应答，原回执不变�
     seat: 2,
     use: true,
     cardId: "识破诡计",
+    handIndex: 0,
     target: { kind: "seat", id: 2 },
   });
   now = 999;
@@ -469,6 +470,7 @@ it("各受问席独立作答；同席进入下一轮识破后首次迟到的原�
     seat: 1,
     use: true,
     cardId: "识破诡计",
+    handIndex: 0,
   });
   const decline = submission(room, 2, "第一轮不用", {
     type: "respondReaction",
@@ -480,6 +482,7 @@ it("各受问席独立作答；同席进入下一轮识破后首次迟到的原�
     seat: 2,
     use: true,
     cardId: "识破诡计",
+    handIndex: 0,
   });
   const malformed = submission(room, 2, "带牌面弃权", {
     type: "respondReaction",

@@ -231,9 +231,9 @@ it.each(["截止前手答", "到期代答"] as const)(
     expect(shu.view.snapshot.players[1]).toMatchObject({ jinnangHand: [], jinnangHandCount: 1 });
     expect(wu.view.reaction).toMatchObject({
       canRespond: true,
-      playable: ["识破诡计"],
+      playable: [{ cardId: "识破诡计", handIndex: 0 }],
       deadlineAt: deadline,
-      targets: { kind: "seat", ids: [1, 2], requiresSelection: false },
+      shares: null,
     });
     expect(wu.view.snapshot.players[0]).toMatchObject({ jinnangHand: [], jinnangHandCount: 2 });
     await room.advance(749);
@@ -242,9 +242,8 @@ it.each(["截止前手答", "到期代答"] as const)(
 
     const manual = mode === "截止前手答";
     if (manual) {
-      expect(wu.act({ type: "respondReaction", use: true, cardId: "识破诡计" })).toEqual({
-        status: "submitted",
-      });
+      expect(wu.act({ type: "selectCard", handIndex: 0 })).toEqual({ status: "draft" });
+      expect(wu.act({ type: "confirm" })).toEqual({ status: "submitted" });
     } else {
       await room.advance(1);
     }

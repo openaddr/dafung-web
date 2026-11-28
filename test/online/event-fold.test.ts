@@ -1562,7 +1562,8 @@ describe("折叠投影器 · 锦囊族", () => {
         kind: "reactionAnswered",
         use: true,
         cardId: "半路杀出",
-        spentCards: [{ seat: 1, cardId: "半路杀出" }],
+        handIndex: 0,
+        spentCards: [{ seat: 1, cardId: "半路杀出", handIndex: 0 }],
       }),
       ev(1, {
         kind: "reactionFailed",
