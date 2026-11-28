@@ -22,19 +22,29 @@ import {
   CALIBRATION_BACKED_KINDS,
   CALIBRATION_EVENT_KINDS,
   CALIBRATION_WINDOWS,
+  INITIAL_GAME_LOG_CURSOR,
+  isPrivateJinnangStepBatch,
   lobbyView,
+  projectGameLog,
   publicLogWarningReason,
+  type GameLogCursor,
 } from "./seat-projection";
 // wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
 // assembleDownlinkShot 单口(#431,内用 wire 构造函数);元数据指纹仅复用 wire 序列化。
 // 本模块只管排空、校准判定与节流后的发送。
-import { encodeDownlink, type ReportCommandProcessing } from "../protocol/wire";
 import {
-  decisionSeatOf,
-  driveBots as driveBotsSession,
-  reactionQueriedSeats,
-  type DriveBotsHost,
-} from "./bot-driver";
+  encodeDownlink,
+  requiresPlayerSubmission,
+  type PlayerSubmission,
+  type PlayerSubmissionResult,
+  type ReportCommandProcessing,
+} from "../protocol/wire";
+import {
+  stagePlayerSubmission,
+  submissionPayload,
+  type RoomSubmissions,
+} from "./player-submissions";
+import { decisionSeatOf, driveBots as driveBotsSession, type DriveBotsHost } from "./bot-driver";
 import { createWatchdogs, type WatchdogHost, type Watchdogs } from "./watchdogs";
 
 // ──────────────────────────── 运行时同构原语(#398 单机统一 B)────────────────────────────
@@ -110,7 +120,7 @@ export type RoomEvent =
 /** 房间事件观察者(注入;测试与 server.ts 各持一份实现)。 */
 export type RoomObserver = (roomId: string, event: RoomEvent) => void;
 
-/** 对局日志增量落盘钩子(ADR-0014,注入):persist 后/房间行写入后调用,
+/** 对局日志增量落盘钩子(ADR-0014,注入):房间保存后或解散时调用,
  *  传输层(server.ts)把 engine.log 新增行追加进 data/logs/<gameId>.jsonl。room.ts 自身零 fs。 */
 export type RoomLogSink = (room: RoomSession) => void;
 
@@ -128,6 +138,7 @@ export interface RoomSession {
   /** 本房间所选地图 id(建房时 null;host setMap 后填;startGame 前 must 非 null)。 */
   mapId: string | null;
   engine: GameEngine | null; // null = Lobby
+  submissions: RoomSubmissions;
 }
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ"; // 去掉易混 I/L/O
@@ -206,6 +217,7 @@ const globalClock: RoomClock = {
 
 export class RoomRegistry {
   private readonly rooms = new Map<string, RoomSession>();
+  private readonly diagnosticLogCursors = new WeakMap<RoomSession, GameLogCursor>();
   private readonly persistence: RoomPersistence;
   private readonly observer: RoomObserver | null;
   private readonly logSink: RoomLogSink | null;
@@ -229,6 +241,7 @@ export class RoomRegistry {
 
   // ── 传输面状态(#397):roomId → 座位 → 端点,及下行合并的批通道 ──
   private readonly seatEndpoints = new Map<string, Map<number, SeatEndpoint>>();
+  private readonly seatDecisions = new WeakMap<SeatEndpoint, string | null>();
   /** 事件批累积/去重/排空/合并拍归共享通道(#411,event-batch.ts)——
    *  与 server.ts 联机通路同一份批语义,双端行为零变化。 */
   private readonly batches = new EventBatchChannel();
@@ -255,7 +268,7 @@ export class RoomRegistry {
     this.watchdogs = createWatchdogs(this.watchdogHost());
     this.ops = {
       observe: (r, ev) => this.observe(r, ev),
-      persist: (r) => this.persist(r),
+      persist: (r) => this.persist(r, true),
       applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
       abortGame: (r, reason, onUpdate) => this.abortGame(r.roomId, reason, onUpdate),
       decisionTimeoutMs: this.decisionTimeoutMs,
@@ -289,12 +302,19 @@ export class RoomRegistry {
     this.observer?.(r.roomId, event);
   }
 
-  /** 房间生命周期行写进对局日志(ADR-0014 category "room";开局前无引擎则跳过),
-   *  写完立即触发日志落盘钩子(解散等场景不再有后续 persist)。 */
+  /** 房间生命周期行随房间保存和归档。开局前无对局日志。 */
   private logRoom(r: RoomSession, brief: string, detail: string): void {
     if (!r.engine) return;
     r.engine.logRoomEvent(brief, detail);
-    this.logSink?.(r);
+  }
+
+  /** 对局日志归档单独报告故障，已保存的裁决仍须下行并继续驱动。 */
+  private writeGameLog(r: RoomSession): void {
+    try {
+      this.logSink?.(r);
+    } catch (error) {
+      console.error(`[room] 房间 ${r.roomId} 的对局日志归档失败`, error);
+    }
   }
 
   /** 房间码冲突检测:查内存 + persistence.exists(后者由适配器实现,默认查 fs)。 */
@@ -333,6 +353,11 @@ export class RoomRegistry {
 
   /** 内部:RoomRecord → RoomSession(零 WS 句柄;引擎重建走共享纯模块 engineFromRecord,#427 单源)。 */
   private hydrate(rec: RoomRecord, mapProvider?: (mapId: string) => LoadedMap): RoomSession {
+    if (
+      !Number.isSafeInteger(rec.submissions.decisionRevision) ||
+      !Array.isArray(rec.submissions.entries)
+    )
+      throw new Error(`房间 ${rec.roomId} 的玩家提交记录损坏`);
     return {
       roomId: rec.roomId,
       seatCount: rec.seatCount,
@@ -342,6 +367,7 @@ export class RoomRegistry {
       hostConfig: rec.hostConfig,
       mapId: rec.mapId ?? null,
       engine: engineFromRecord(rec, mapProvider, this.reactionWindowMsOverride),
+      submissions: rec.submissions,
     };
   }
 
@@ -395,6 +421,7 @@ export class RoomRegistry {
       hostConfig,
       mapId: null,
       engine: null,
+      submissions: { decisionRevision: 0, entries: [] },
     };
     this.rooms.set(roomId, room);
     this.persist(room);
@@ -526,7 +553,7 @@ export class RoomRegistry {
     if (!r.ok) throw new RoomError(400, r.reason ?? "选都失败");
     this.persist(room);
     onUpdate?.(room); // 落子结果先推(候选滚换/推进)
-    report?.({ outcome: "accepted", logOffset });
+    report?.({ outcome: "accepted", logOffset: this.publicLogOffset(room, logOffset) });
     await this.driveBots(room, onUpdate); // 余下服务器驱动座位接棒(全 bot 驱动房直接跑完进 Playing)
     return room;
   }
@@ -565,7 +592,7 @@ export class RoomRegistry {
     );
     this.persist(room);
     onUpdate?.(room); // 先广播托管状态
-    report?.({ outcome: "accepted", logOffset });
+    report?.({ outcome: "accepted", logOffset: this.publicLogOffset(room, logOffset) });
     void this.driveBots(room, onUpdate); // 只调度第一拍,链经注入时钟自续(#529,见方法注)
     return room;
   }
@@ -576,9 +603,13 @@ export class RoomRegistry {
     const room = this.rooms.get(roomId);
     if (!room) throw new RoomError(404, "房间不存在");
     if (hostToken !== room.seats[room.hostSeat].token) throw new RoomError(403, "仅 host 可解散");
-    // 解散房间行(ADR-0014):房间删除前先落盘(logRoom 内触发 logSink)
-    this.logRoom(room, `房主解散房间(${room.roomId})`, JSON.stringify({ type: "dismiss" }));
     const id = room.roomId;
+    this.persistence.remove(id);
+    // 房间删除后直接归档最后一行，并清理运行态。
+    if (room.engine) {
+      this.logRoom(room, `房主解散房间(${room.roomId})`, JSON.stringify({ type: "dismiss" }));
+      this.writeGameLog(room);
+    }
     // #118/#188/#281/#380:撤四组看门狗计时器(到点动作自身有房间存在重校验,此为即时清理)
     this.watchdogs.stall.clear(id);
     this.watchdogs.autoRoll.clear(id);
@@ -591,7 +622,6 @@ export class RoomRegistry {
     this.lastRoomMeta.delete(id);
     this.seatEndpoints.delete(id);
     this.rooms.delete(id);
-    this.persistence.remove(id);
     return id;
   }
 
@@ -600,8 +630,7 @@ export class RoomRegistry {
    *  onUpdate:每次可见状态变化后调(初始命令结果后 + 每个 botAct 步后),传输层在回调里 broadcast。
    *  这保留了原 server.ts 的逐步直播 UX(network-client 的渐进 snapshot 反馈)。
    *  异步:连锁可能含托管步进(在途时本调用被重入守卫跳过,由既有链接管)。
-   *  信任面:本方法是无座位鉴权的内部通路(服务器自驱:bot-driver/watchdogs 代发,及
-   *  单机 local.ts 唯一真人自证身份);联机 WS 面的外部输入必须走 applyCommandFromSeat。 */
+   *  本方法供 bot 和看门狗在房间内部代发。玩家输入由座位连接交给房间校验。 */
   async applyCommand(
     roomId: string,
     cmd: GameCommand,
@@ -621,17 +650,21 @@ export class RoomRegistry {
       throw new RoomError(400, rejection);
     }
     // 只定位本次同步权威处理写出的警告。日志原文可能含牌面。
-    const warning = report ? log.slice(logOffset).findIndex(isLogWarning) : -1;
+    const warning = log.slice(logOffset).findIndex(isLogWarning);
     this.watchdogs.syncReaction(room, onUpdate);
-    this.persist(room);
+    this.persist(room, warning === -1);
     onUpdate?.(room); // 人类命令结果先推
     if (report) {
-      if (warning === -1) report({ outcome: "accepted", logOffset });
-      else {
+      if (warning === -1) {
+        report({
+          outcome: "accepted",
+          ...this.publicLogAnchor(room, log, logOffset),
+        });
+      } else {
         const warningOffset = logOffset + warning;
         report({
           outcome: "warning",
-          logOffset: warningOffset,
+          logOffset: this.publicLogOffset(room, warningOffset),
           reason: publicLogWarningReason(log[warningOffset]),
         });
       }
@@ -639,17 +672,64 @@ export class RoomRegistry {
     await this.driveBots(room, onUpdate); // bot/托管座位的连锁,逐步 persist+onUpdate
   }
 
-  /** 联机 cmd 提交者座位校验(#454,#445 Bug3):WS 连接只能以本连接绑定的座位提交
-   *  命令,非决策归属座位一律 403 拒绝(与 pickCapital「未轮到该座位选都」同款房间
-   *  编排拒绝;经 wire.dispatchInbound rejected → error 消息回执发送者)。
-   *  归属口径与引擎 submitCommand 的 issuer 判定同源(引擎侧语义零改动,校验前置编排层):
-   *  - respondReaction:被询问座位(本窗待应答),且 cmd.seat 必须=提交者座位——应答
-   *    归属随 cmd.seat 过网,替他人应答即越权(识破代打/代弃权的实锤面);
-   *  - 其余命令:decisionSeatOf(Setup=当前选都位;Playing=decisionOwner,含珍宝交涉
-   *    城主与 AwaitingBankruptcySettle 清算抉择者=activePlayer)。
-   *  无身份座位(-1 旁观/越界)不归属任何决策点,天然(显式)拒于门外。
-   *  内部通路不经此口:bot-driver/watchdogs 直调 applyCommand(服务器自驱,座位天然
-   *  正确),单机 local.ts 同走内部通路——均不受本校验影响。 */
+  /** 座位提交：查原结果先于决策点时效。校验、裁决和原子保存之间不让出执行权。 */
+  async submitFromSeat(
+    roomId: string,
+    seat: number,
+    submission: PlayerSubmission,
+    onUpdate?: (room: RoomSession) => void,
+  ): Promise<PlayerSubmissionResult> {
+    const room = this.rooms.get(roomId);
+    if (
+      !room ||
+      roomId !== submission.roomId ||
+      seat !== submission.seat ||
+      !room.seats[seat]?.token
+    )
+      return { outcome: "rejected", reason: "提交与入座房间或座位不符" };
+    const payload = submissionPayload(submission);
+    const old = room.submissions.entries.find(
+      (entry) => entry.seat === seat && entry.submissionId === submission.submissionId,
+    );
+    if (old)
+      return old.payload === payload
+        ? { ...old.result }
+        : { outcome: "rejected", reason: "这个提交编号已用于其他内容" };
+
+    const staged = stagePlayerSubmission(room, submission);
+    const { snapshot } = staged;
+    const result =
+      snapshot === undefined
+        ? staged.result
+        : {
+            ...staged.result,
+            ...this.publicLogAnchor(room, snapshot.log, room.engine!.log.length),
+          };
+    const submissions = {
+      decisionRevision: room.submissions.decisionRevision + (result.outcome === "accepted" ? 1 : 0),
+      entries: [
+        ...room.submissions.entries,
+        { seat, submissionId: submission.submissionId, payload, result },
+      ],
+    };
+    this.save(
+      room,
+      submissions,
+      snapshot === undefined ? (room.engine?.snapshot() ?? null) : snapshot,
+    );
+    room.submissions = submissions;
+    if (snapshot !== undefined) {
+      room.engine!.restoreFromSnapshot(snapshot);
+      staged.commitDicePins?.();
+      this.writeGameLog(room);
+      this.watchdogs.syncReaction(room, onUpdate);
+      onUpdate?.(room);
+      void this.driveBots(room, onUpdate);
+    }
+    return { ...result };
+  }
+
+  /** 尚未迁移的玩家命令只放行决策归属座位。已迁移的操作须走 submitFromSeat。 */
   async applyCommandFromSeat(
     roomId: string,
     seat: number,
@@ -665,16 +745,10 @@ export class RoomRegistry {
     if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
       throw new RoomError(400, "seat 非法"); // 旁观/越界座位不可提交任何游戏命令
     const e = room.engine;
-    if (cmd.type === "respondReaction") {
-      const pr = e.pendingReaction;
-      const queried = pr != null ? reactionQueriedSeats(pr.view) : [];
-      const alreadyAnswered = pr != null && pr.answers.some((a) => a.seat === seat);
-      if (cmd.seat !== seat || !queried.includes(seat) || alreadyAnswered)
-        throw new RoomError(403, "非本窗被询问座位,不能应答(更不能替他人应答)");
-    } else {
-      const owner = decisionSeatOf(e);
-      if (seat !== owner) throw new RoomError(403, `未轮到该座位决策(归属:座位 ${owner})`);
-    }
+    if (requiresPlayerSubmission(cmd, e.pendingJinnang?.cardId ?? null))
+      throw new RoomError(403, "请携带原决策点和提交编号提交此操作");
+    const owner = decisionSeatOf(e);
+    if (seat !== owner) throw new RoomError(403, `未轮到该座位决策(归属:座位 ${owner})`);
     await this.applyCommand(roomId, cmd, onUpdate, report);
   }
 
@@ -754,21 +828,25 @@ export class RoomRegistry {
   // ──────────────────────────── 传输面端点(#397 单机统一 A)────────────────────────────
   /** 内存端点入座(单机通路):鉴权同 WS upgrade(validateSeat)→ attachSeat 语义
    *  (持 token 重连归座;托管开关不动,ADR-0028)→ 立即经装配单口下发首连整房摘要
-   *  (viewerSeat=null 显式 god-view,与 server.ts open 处理器同一装配函数、同一消息形状)。
+   *  (与 server.ts open 处理器共用逐座位装配)。
    *  此后编排每次可见变化都会经 transportBroadcast 合并下行到本端点。 */
   connectSeat(roomId: string, seat: number, token: string, ep: SeatEndpoint): RoomSession {
     if (!this.validateSeat(roomId, seat, token)) throw new RoomError(401, "座位鉴权失败");
     const room = this.attachSeat(roomId, seat, () => this.transportBroadcast(roomId));
     if (!room) throw new RoomError(404, "房间不存在");
+    // 重连只接当前摘要。待交付的旧拍先给原连接，无端点时累积的拍由摘要覆盖。
+    if (this.batches.cancelScheduled(roomId)) this.flushTransport(roomId);
+    else this.batches.drain(roomId);
+    if (room.engine) this.batches.seedSeen(roomId, room.engine.gameEvents);
     let eps = this.seatEndpoints.get(roomId);
     if (!eps) {
       eps = new Map();
       this.seatEndpoints.set(roomId, eps);
     }
     eps.set(seat, ep);
-    // 首连整房摘要(#431 装配单口):batch=[] 纯摘要拍;viewerSeat=null = 单机显式
-    // god-view(本机单真人无跨设备泄密面,唯一合法退化口)。
-    ep.send(assembleDownlinkShot(room, this.transportOnlineSeats(roomId), null, [], true).snapshot);
+    const shot = assembleDownlinkShot(room, this.transportOnlineSeats(roomId), seat, [], true);
+    this.seatDecisions.set(ep, shot.decisionPoint);
+    ep.send(shot.snapshot);
     this.settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
     this.lastRoomMeta.set(
       roomId,
@@ -825,28 +903,31 @@ export class RoomRegistry {
       e != null &&
       (e.phase === "Setup" ||
         batch.some((event) => CALIBRATION_EVENT_KINDS.has(event.kind)) ||
-        (settled != null && CALIBRATION_WINDOWS.has(settled)) ||
+        (settled != null &&
+          CALIBRATION_WINDOWS.has(settled) &&
+          !isPrivateJinnangStepBatch(prev, settled, batch)) ||
         (prev != null && CALIBRATION_WINDOWS.has(prev) && closeEdgeBatch));
     const withSnapshot = forceSnapshot || calibrate;
     const online = this.transportOnlineSeats(roomId);
-    const shot = withSnapshot
-      ? assembleDownlinkShot(room, online, null, batch, true)
-      : assembleDownlinkShot(room, online, null, batch, false);
-    if (shot.events != null) {
-      for (const ep of eps.values()) if (ep.open) ep.send(shot.events);
-    }
     const metaJson = encodeDownlink(lobbyView(room, online));
-    if (shot.snapshot != null) {
-      for (const ep of eps.values()) if (ep.open) ep.send(shot.snapshot);
-      this.lastRoomMeta.set(roomId, metaJson);
-    } else if (this.lastRoomMeta.get(roomId) !== metaJson) {
-      this.lastRoomMeta.set(roomId, metaJson);
-      for (const ep of eps.values()) if (ep.open) ep.send(metaJson);
+    const metaChanged = this.lastRoomMeta.get(roomId) !== metaJson;
+    for (const [seat, ep] of eps) {
+      if (!ep.open) continue;
+      const shot = withSnapshot
+        ? assembleDownlinkShot(room, online, seat, batch, true)
+        : assembleDownlinkShot(room, online, seat, batch, false, this.seatDecisions.get(ep));
+      if (shot.events !== null || shot.snapshot !== null)
+        this.seatDecisions.set(ep, shot.decisionPoint);
+      if (shot.events !== null) ep.send(shot.events);
+      if (shot.snapshot !== null) ep.send(shot.snapshot);
+      else if (metaChanged) ep.send(metaJson);
     }
+    this.lastRoomMeta.set(roomId, metaJson);
   }
 
   /** 时钟挂死的异常终局立即下行,不等待已失效的驱动节拍。 */
   flushTransportNow(roomId: string): void {
+    this.batches.cancelScheduled(roomId);
     this.batches.accumulate(roomId, this.rooms.get(roomId)?.engine?.gameEvents);
     this.flushTransport(roomId, true);
   }
@@ -875,8 +956,27 @@ export class RoomRegistry {
     return driveBotsSession(this.ops, r, onUpdate);
   }
 
+  /** 回执引用公开日志行号。按尚未计数的新增行推进。 */
+  private publicLogOffset(r: RoomSession, rawOffset: number): number {
+    const prev = this.diagnosticLogCursors.get(r) ?? INITIAL_GAME_LOG_CURSOR;
+    const publicOffset =
+      prev.publicOffset + projectGameLog(r.engine!.log, prev.rawOffset, rawOffset).length;
+    this.diagnosticLogCursors.set(r, { rawOffset, publicOffset });
+    return publicOffset;
+  }
+
+  private publicLogAnchor(r: RoomSession, log: GameEngine["log"], rawOffset: number) {
+    return projectGameLog(log, rawOffset).length === 0
+      ? {}
+      : { logOffset: this.publicLogOffset(r, rawOffset) };
+  }
+
   // ──────────────────────────── 持久化投影 ────────────────────────────
-  private persist(r: RoomSession): void {
+  private save(
+    r: RoomSession,
+    submissions: RoomSubmissions,
+    snapshot: RoomRecord["snapshot"],
+  ): void {
     const rec: RoomRecord = {
       roomId: r.roomId,
       seatCount: r.seatCount,
@@ -889,11 +989,20 @@ export class RoomRegistry {
       autoPilot: [...r.autoPilot],
       hostConfig: r.hostConfig,
       mapId: r.mapId,
-      snapshot: r.engine ? r.engine.snapshot() : null,
+      submissions,
+      snapshot,
     };
     this.persistence.save(rec);
+  }
+
+  private persist(r: RoomSession, decisionAdvanced = false): void {
+    const submissions = decisionAdvanced
+      ? { ...r.submissions, decisionRevision: r.submissions.decisionRevision + 1 }
+      : r.submissions;
+    this.save(r, submissions, r.engine ? r.engine.snapshot() : null);
+    r.submissions = submissions;
     // ADR-0014 对局日志:每手快照后把引擎新增日志行经钩子交传输层落盘(data/logs/<gameId>.jsonl)
-    if (r.engine) this.logSink?.(r);
+    if (r.engine) this.writeGameLog(r);
   }
 }
 

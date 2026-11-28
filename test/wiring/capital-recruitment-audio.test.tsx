@@ -49,9 +49,7 @@ it.each(["继续招贤", "归账后断线", "归账后跳过"])(
     pinDice(engine, "march", [1]);
 
     class CapitalController extends GameController {
-      readonly viewSeat = seat;
       protected readonly mySeat = seat;
-      protected readonly hotSeat = false;
       get engine() {
         return engine;
       }
@@ -90,7 +88,7 @@ it.each(["继续招贤", "归账后断线", "归账后跳过"])(
     const clock = installControlledClock();
     const controller = new CapitalController();
     setController(controller, mapData as MapData);
-    useGameStore.getState().syncFromEngine(engine);
+    controller.sync();
     const sounds = recordAudio();
     const cues = () => sounds.filter((sound) => sound === "coin" || sound === "scrollOpen");
     const host = document.body.appendChild(document.createElement("div"));

@@ -149,7 +149,7 @@ beforeAll(async () => {
   const ctrlMod = await import("@app/controllers/controller");
   GameScreen = screenMod.GameScreen;
   setController = registryMod.setController;
-  // WiringController:生产基类最小子型——单机 hotSeat 参数 + submitCommand 命令腿
+  // WiringController:生产基类最小子型——submitCommand 命令腿
   // + 基类 sync 状态桥(模板同款;房间编排/传输/看门狗是层③领域不进来)。
   const Base = ctrlMod.GameController;
   class WiringControllerImpl extends Base {
@@ -159,14 +159,10 @@ beforeAll(async () => {
     override get engine(): GameEngine {
       return this.e;
     }
-    // 单机热座:视角跟随决策方(LocalController 同口径)。
-    override get viewSeat(): number {
-      return this.e.decisionOwner;
-    }
     protected override get mySeat(): number {
       return 0;
     }
-    protected override readonly hotSeat = true;
+
     override dispatchCommand(cmd: GameCommand): void {
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
       this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)

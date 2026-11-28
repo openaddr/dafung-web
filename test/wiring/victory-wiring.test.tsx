@@ -75,7 +75,6 @@ beforeAll(async () => {
   const { GameController } = await import("@app/controllers/controller");
   class TerminalController extends GameController {
     protected readonly mySeat = 0;
-    protected readonly hotSeat = true;
 
     constructor(readonly engine: GameEngine) {
       super();

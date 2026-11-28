@@ -3,7 +3,15 @@
 // 与原 server.ts 行为逐字节一致(同一目录、同一文件名、同一 JSON 形状)。
 // 测试可注入 InMemory 实现。记录形状(RoomRecord 及子形状)与水合纯逻辑单源在
 // room-record.ts(#427);本模块只管介质(fs 落盘/读档),形状消费方直引 room-record.ts。
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+  existsSync,
+  renameSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import type { RoomPersistence } from "@dafung/core/room/room-persistence";
 import type { RoomRecord } from "@dafung/core/room/room-record";
@@ -21,7 +29,10 @@ export class FileRoomPersistence implements RoomPersistence {
   }
 
   save(rec: RoomRecord): void {
-    writeFileSync(this.path(rec.roomId), JSON.stringify(rec, null, 2), "utf-8");
+    const destination = this.path(rec.roomId);
+    const pending = `${destination}.pending`;
+    writeFileSync(pending, JSON.stringify(rec, null, 2), { encoding: "utf8", flush: true });
+    renameSync(pending, destination);
   }
 
   load(roomId: string): RoomRecord | null {
@@ -38,7 +49,9 @@ export class FileRoomPersistence implements RoomPersistence {
   }
 
   remove(roomId: string): void {
-    rmSync(this.path(roomId), { force: true });
+    const destination = this.path(roomId);
+    rmSync(`${destination}.pending`, { force: true });
+    rmSync(destination, { force: true });
   }
 
   exists(roomId: string): boolean {

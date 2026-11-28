@@ -11,7 +11,7 @@
 // 一个组件两种皮。挂载不夺焦 = Dialog.Popup initialFocus={false}。
 //
 // 出牌阶段态(#256,旧弹窗退役):轮到玩家且 hasUsableJinnang 时,架就地进窗态
-// ——不弹窗。useJinnangPlay 从快照派生窗态，本件负责呈现牌面与转发手势:
+// ——不弹窗。牌架消费本座位的锦囊视图，负责呈现牌面与转发手势:
 //   卡牌段:可出牌金边上浮(.usable);不可用灰置+原因印条(.off+.reason,原因文案
 //   单源 choices,不另写);点牌选中后在架上方阅读锦囊全文；点它牌换选，再点同牌取消。
 //   灰置牌可看不可出(#715):点/长按开详情,不进选中/出牌通路(aria-disabled+自门控)。
@@ -60,7 +60,7 @@ import type { ChoiceOption } from "@dafung/core/engine/choices";
 import type { TreasureDef } from "@dafung/core/engine/treasures";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import type { SkillGlossaryTarget } from "./SkillGlossaryDialog";
-import type { CardSelection } from "./jinnang-play";
+import type { ReactionCardSelection } from "./reaction-play";
 import { TESTIDS } from "./testids";
 import "./hand-rack.css";
 
@@ -79,15 +79,12 @@ function heroSlotByHeroId(heroes: HeroSlotRow[], heroId: string): HeroSlotRow {
 /** 出牌阶段态载荷(#256;缺省=常态架)。 */
 interface JunshiWindow {
   /** 卡牌段选项(锦囊+技能卡,choices 原序,含灰置;目标段传空数组)。 */
-  options: ChoiceOption[];
-  /** 目标段载荷:pendingJinnang.cardId / pendingSkill.skillId(目标段判定只问在场与否,
-   *  技实例定位已随选项 id 形状进命令通路,本架不消费);卡牌段恒 null。 */
-  pendingCardId: string | null;
-  pendingSkillId: string | null;
-  /** 当前选中渲染项 key(卡牌段;同名锦囊独立选择)。 */
-  selectedKey: string | null;
+  options: readonly ChoiceOption[];
+  targeting: boolean;
+  selected: ChoiceOption | null;
+  selectedHandIndex: number | null;
   /** 选中/取消(null 取消;选中音效本件自管)。 */
-  onSelect: (selection: CardSelection | null) => void;
+  onSelect: (option: ChoiceOption | null) => void;
 }
 
 /** 窗态下单张手牌的呈现/交互槽(null=常态牌:点/长按开详情)。
@@ -292,7 +289,7 @@ function RackCard({
         data-testid={TESTIDS.jinnangCard(cardId)}
         data-rack-key={openKey}
         aria-label={cardId}
-        aria-pressed={s.available && !s.played ? s.selected : undefined}
+        aria-pressed={s.played ?? (s.available ? s.selected : undefined)}
         /* #715:卡牌段灰置弃原生 disabled(禁用契约吞全部 pointer→不可查看),改
             aria-disabled+自门控(手势层:点/长按开详情,不进选中通路)——出牌命令
             通路仍只对 available 开(点选与 GameScreen 确认过滤
@@ -452,8 +449,8 @@ interface RackReaction {
   reactiveIds: string[];
   /** 权威窗实例号，连续同种反应窗也会结束上次检视。 */
   seq: number;
-  selection: CardSelection | null;
-  onSelect: (selection: CardSelection) => void;
+  selection: ReactionCardSelection | null;
+  onSelect: (selection: ReactionCardSelection) => void;
 }
 
 export type RackInspection =
@@ -535,8 +532,7 @@ export const HandRack = memo(function HandRack({
   const [box, setBox] = useState<RackBox | null>(null);
 
   // 窗态两段:pendingJinnang/pendingSkill 在场 = 目标段(架退出交互,选目标在席位格)。
-  const targeting =
-    junshi != null && (junshi.pendingCardId != null || junshi.pendingSkillId != null);
+  const targeting = junshi?.targeting === true;
   const hand = player.jinnangHand;
   // 渲染项实例键区分同名牌，不替代引擎的语义 id。
   const cardOptions = junshi != null && !targeting ? junshi.options : [];
@@ -545,11 +541,12 @@ export const HandRack = memo(function HandRack({
     option,
     key: isSkillOption(option) ? option.id : `${option.id}-${nthSame(hand, index, option.id)}`,
   }));
-  const selectedOption = cardItems.find(({ key }) => key === junshi?.selectedKey)?.option;
+  const selectedOption = junshi?.selected;
+  const selectedKey = selectedOption?.handIndex ?? selectedOption?.id;
   const selectedCardId =
     selectedOption != null && selectedOption.available && !isSkillOption(selectedOption)
       ? selectedOption.id
-      : reaction?.selection?.optionId;
+      : reaction?.selection?.cardId;
   const selectedCard = selectedCardId == null ? null : jinnangCardOf(selectedCardId);
   const renderCount =
     junshi != null && !targeting ? cardOptions.length + skillBooks.length : hand.length;
@@ -571,7 +568,7 @@ export const HandRack = memo(function HandRack({
   // (骰子 overlay 同族语言,z 序压盘面、让位牌面、正文与动作条),取消选中/出牌/进
   // 目标段即撤。开关态走 fxStore.spotlight(渲染在 FxLayer 的 body portal,本件
   // 只挂摘);effect 卸载兜摘,防架体带着选中态下屏时聚光滞留。
-  const spotlightOn = junshi != null && !targeting && junshi.selectedKey != null;
+  const spotlightOn = junshi != null && !targeting && selectedOption != null;
   useEffect(() => {
     useFxStore.getState().setSpotlight(spotlightOn);
     return () => useFxStore.getState().setSpotlight(false);
@@ -598,7 +595,6 @@ export const HandRack = memo(function HandRack({
 
   // 常态 wrapper 无布局盒；每次检视从首端起。选中槽扩宽后才滚入原生视口，
   // block:nearest 保持页面与架体纵向锚点，不另造浮层牌面。
-  const selectedKey = junshi?.selectedKey;
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
@@ -615,7 +611,7 @@ export const HandRack = memo(function HandRack({
   }, [spreadAll, selectedKey]);
 
   // 窗态选中(音效在此收口:选中是动作,取消是撤销不出声——一期口径)。
-  const select = (selection: CardSelection | null) => {
+  const select = (selection: ChoiceOption | null) => {
     if (selection != null) {
       getAudio().play("jinnangSelect");
     }
@@ -696,7 +692,7 @@ export const HandRack = memo(function HandRack({
     if (junshi != null && targeting) {
       // 目标段的牌架只供查看。当前锦囊保留金边，步骤提示由顶部动作条显示。
       return hand.map((id, i) => {
-        const played = junshi.pendingCardId === id;
+        const played = junshi.selectedHandIndex === i;
         const openKey = `${id}-${nthSame(hand, i, id)}`;
         return (
           <RackCard
@@ -728,8 +724,8 @@ export const HandRack = memo(function HandRack({
               option={o}
               heroId={slot.heroId}
               index={i + skillBooks.length}
-              selected={junshi.selectedKey === key && o.available}
-              onSelect={() => select({ key, optionId: o.id })}
+              selected={selectedOption?.id === o.id}
+              onSelect={() => select(o)}
               onDeselect={() => select(null)}
               onInspect={(chipSkillId) => {
                 collapseSpread();
@@ -753,9 +749,9 @@ export const HandRack = memo(function HandRack({
             index={i}
             junshi={{
               available: o.available,
-              selected: junshi.selectedKey === key && o.available,
+              selected: junshi.selectedHandIndex === o.handIndex,
               reason: o.reason,
-              onSelect: () => select({ key, optionId: o.id }),
+              onSelect: () => select(o),
               onDeselect: () => select(null),
             }}
             openKey={key}
@@ -781,8 +777,8 @@ export const HandRack = memo(function HandRack({
           reaction={
             reactive
               ? {
-                  selected: reaction!.selection?.key === openKey,
-                  onSelect: () => reaction!.onSelect({ key: openKey, optionId: id }),
+                  selected: reaction!.selection?.handIndex === i,
+                  onSelect: () => reaction!.onSelect({ handIndex: i, cardId: id }),
                 }
               : null
           }

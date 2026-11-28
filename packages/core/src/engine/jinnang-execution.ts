@@ -59,6 +59,7 @@ import type { Player } from "./model";
  *  picked 保存两步流的首选座位，返回首段时作为可改选的草稿；随快照恢复。 */
 export interface PendingJinnang {
   cardId: string;
+  handIndex: number;
   stage: "one" | "two-a" | "two-b";
   picked: number[];
 }
@@ -171,6 +172,15 @@ export function beginTurnJinnang(g: GameEngine): void {
   }
 }
 
+function emitJinnangTargetStep(g: GameEngine): void {
+  const pending = g.pendingJinnang;
+  emitGameEvent(g, g.activeIndex, {
+    kind: "jinnangTargetStepChanged",
+    pendingJinnang: pending === null ? null : { ...pending, picked: [...pending.picked] },
+    choices: g.choicesFor(),
+  });
+}
+
 /** 用锦囊(#122/T2):cardId=null=今不用(收卷进 Roll);否则校验持有/时机/效果条件。
  *  结算后重算选项集，仍有可用项则留在出牌阶段，否则进 Roll。
  *  用牌是公开事件(战报+宣布事件,浮字由 fx 面派生),暗的只有持有(ADR-0016)。
@@ -182,18 +192,48 @@ export function resolveJinnang(
   targets?: number[],
   cancel?: boolean,
   back?: boolean,
+  handIndex?: number,
 ): void {
   if (!g.assertPhase("AwaitingJinnang", "resolveJinnang")) return;
   const p = g.activePlayer;
   const userSeat = g.players.indexOf(p);
   const pending = g.pendingJinnang;
 
+  if (
+    (handIndex !== undefined && (cardId == null || g.pendingSkill)) ||
+    (targets !== undefined && (!pending || cardId == null || cancel))
+  ) {
+    g.warnCommand("targetStepMismatch", "当前锦囊步骤不能使用所提交的牌位或目标");
+    return;
+  }
+  if (pending) {
+    if (
+      (cardId != null && cardId !== pending.cardId) ||
+      (handIndex !== undefined && handIndex !== pending.handIndex)
+    ) {
+      g.warnCommand("targetStepMismatch", "命令指向的锦囊与已选手牌不同");
+      return;
+    }
+    if (p.jinnangHand[pending.handIndex] !== pending.cardId) {
+      g.warnCommand(
+        "jinnangUnavailable",
+        `已选手牌位置 ${pending.handIndex} 无锦囊【${pending.cardId}】`,
+      );
+      return;
+    }
+  }
   if (back === true) {
-    if (pending?.stage !== "two-b" || cardId !== pending.cardId || targets != null || cancel) {
+    if (
+      pending?.stage !== "two-b" ||
+      cardId !== pending.cardId ||
+      targets !== undefined ||
+      cancel
+    ) {
       g.warnCommand("backUnavailable", "当前锦囊目标段不能返回上一步");
       return;
     }
     g.pendingJinnang = { ...pending, stage: "two-a" };
+    emitJinnangTargetStep(g);
     return;
   }
 
@@ -218,13 +258,12 @@ export function resolveJinnang(
         `jinnangCancel player=${p.id} card=${def.id}`,
       );
       g.pendingJinnang = null;
-      settleJinnangExit(g); // 牌未消耗,回卡牌段或收卷
+      settleJinnangExit(g, pending.stage !== "one"); // 牌未消耗，回卡牌段或收卷
       return;
     }
     const flow = TARGET_DOMAIN_STAGES[def.targetDomain];
     if (flow.stages === 0) throw new Error(`锦囊【${def.id}】没有目标段`);
     if (
-      cardId !== pending.cardId ||
       !Array.isArray(targets) ||
       targets.length < flow.selection.min ||
       targets.length > flow.selection.max ||
@@ -247,14 +286,15 @@ export function resolveJinnang(
     }
     if (pending.stage === "one") {
       g.pendingJinnang = null;
-      settleJinnangPlay(g, p, userSeat, def, targets);
+      settleJinnangPlay(g, p, userSeat, def, pending.handIndex, targets);
       return;
     }
     const [target] = targets;
     // 两步流(stages=2 声明单源 TARGET_DOMAIN_STAGES,#1067;连环计为首例,T4):
     // two-a 存首挑进 two-b;two-b 合并执行
     if (pending.stage === "two-a") {
-      g.pendingJinnang = { cardId: pending.cardId, stage: "two-b", picked: [target] };
+      g.pendingJinnang = { ...pending, stage: "two-b", picked: [target] };
+      emitJinnangTargetStep(g);
       return; // 留在相位,选项集重算为第二段候选
     }
     const [first] = pending.picked;
@@ -263,7 +303,7 @@ export function resolveJinnang(
       return;
     }
     g.pendingJinnang = null;
-    settleJinnangPlay(g, p, userSeat, def, [first, target]);
+    settleJinnangPlay(g, p, userSeat, def, pending.handIndex, [first, target]);
     return;
   }
 
@@ -277,29 +317,36 @@ export function resolveJinnang(
     g.turnPhase = "Roll";
     return;
   }
-  const def = jinnangCardOf(cardId);
-  if (!p.jinnangHand.includes(cardId)) {
-    g.warnCommand("jinnangUnavailable", `${p.guohao} 手中无锦囊【${def.id}】`);
+  // 只给牌名的既有命令按从左到右的顺序出第一张同名牌。
+  const index = handIndex === undefined ? p.jinnangHand.indexOf(cardId) : handIndex;
+  const option = computeChoices(g, "AwaitingJinnang").find(
+    (o) => o.handIndex === index && o.id === cardId,
+  );
+  if (!option) {
+    g.warnCommand("jinnangUnavailable", `${p.guohao} 手牌位置 ${index} 无锦囊【${cardId}】`);
     return;
   }
-  const option = computeChoices(g, "AwaitingJinnang").find((o) => o.id === cardId);
-  if (!option?.available) {
-    g.warnCommand(
-      "jinnangUnavailable",
-      `${p.guohao} 锦囊【${def.id}】不可用:${option?.reason ?? "未知原因"}`,
-    );
+  if (!option.available) {
+    g.warnCommand("jinnangUnavailable", `${p.guohao} 锦囊【${cardId}】不可用:${option.reason}`);
     return;
   }
   // 目标段分流读声明表 TARGET_DOMAIN_STAGES(#1067):stages 0=无目标段(self 自指/
   // all-others 全体/reaction 唯反应)直接宣布执行;1=单段选择;2=两步流(第二步排除
   // 首目标)。入目标段时牌暂不消耗(作罢可全退)。
+  const def = jinnangCardOf(cardId);
   const flow = TARGET_DOMAIN_STAGES[def.targetDomain];
   if (flow.stages >= 1) {
-    g.pendingJinnang = { cardId, stage: flow.stages === 2 ? "two-a" : "one", picked: [] };
+    g.pendingJinnang = {
+      cardId,
+      handIndex: index,
+      stage: flow.stages === 2 ? "two-a" : "one",
+      picked: [],
+    };
+    if (flow.stages === 2) emitJinnangTargetStep(g);
     return; // 留在相位,选项集重算为候选名单
   }
   // 无目标段:立即宣布执行
-  settleJinnangPlay(g, p, userSeat, def, []);
+  settleJinnangPlay(g, p, userSeat, def, index, []);
 }
 
 /** 城指向域宣布/结算共用的中心城格读取(#1389):targets 缺格=目标段载荷缺失,
@@ -312,8 +359,8 @@ function requireCenter(def: ReturnType<typeof jinnangCardOf>, targets: number[])
 }
 
 /** 出牌时将锦囊从手牌移入弃牌堆。 */
-function consumeJinnangCard(g: GameEngine, p: Player, cardId: string): void {
-  p.jinnangHand.splice(p.jinnangHand.indexOf(cardId), 1);
+function consumeJinnangCard(g: GameEngine, p: Player, cardId: string, handIndex: number): void {
+  p.jinnangHand.splice(handIndex, 1);
   p.jinnangHandCount = p.jinnangHand.length;
   g.jinnangDiscard.push(cardId);
 }
@@ -328,9 +375,10 @@ function settleJinnangPlay(
   user: Player,
   userSeat: number,
   def: ReturnType<typeof jinnangCardOf>,
+  handIndex: number,
   targets: number[],
 ): void {
-  consumeJinnangCard(g, user, def.id); // 出牌即扣账:被识破也不回手(识破只护份)
+  consumeJinnangCard(g, user, def.id, handIndex); // 出牌即扣账:被识破也不回手(识破只护份)
   let announcedSeats: number[];
   let reactionTargets: JinnangReactionView["targets"];
   if (def.targetDomain === "one-city") {
@@ -357,6 +405,7 @@ function settleJinnangPlay(
   g.dispatchMoment("JinnangAnnounced", {
     subject: userSeat,
     cardId: def.id,
+    handIndex,
     targetSeats: announcedSeats,
   }); // 时机·JinnangAnnounced:锦囊宣布、结算前(识破诡计反应窗挂点)
   const queried = g
@@ -663,11 +712,13 @@ function cityAfterLoss(g: GameEngine, propertyId: string): string {
 }
 
 /** 待决时机结清才恢复出牌阶段或进入掷骰，并同步权威相位。 */
-export function settleJinnangExit(g: GameEngine): void {
+export function settleJinnangExit(g: GameEngine, cancelledTwoStepTargets = false): void {
   if (g.pendingMoment !== null) return;
   const turnPhase = !g.pendingExtraTurn && hasUsableJinnang(g) ? "AwaitingJinnang" : "Roll";
   g.turnPhase = turnPhase;
-  emitGameEvent(g, g.activeIndex, { kind: "jinnangPhaseResumed", turnPhase });
+  if (cancelledTwoStepTargets) emitJinnangTargetStep(g);
+  if (!cancelledTwoStepTargets || turnPhase !== "AwaitingJinnang")
+    emitGameEvent(g, g.activeIndex, { kind: "jinnangPhaseResumed", turnPhase });
 }
 
 // ──────────────────────────── 技能书·用书学技(#1146)────────────────────────────

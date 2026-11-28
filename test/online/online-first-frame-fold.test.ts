@@ -67,6 +67,7 @@ function guanzhongRoomSnapshot(): { msg: Record<string, unknown>; botCapitalInde
   return {
     msg: {
       type: "snapshot",
+      decisionPoint: null,
       roomId: "TEST",
       seatCount: 3,
       host: 0,
@@ -100,7 +101,7 @@ describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
 
     // 开局 flush 的 events 先到:3 座房的 bot 首批(capitalSelected seat=2 越界 2 座壳)
     expect(() =>
-      x.onMessage({ type: "events", events: firstBatchCapitalSelected() }),
+      x.onMessage({ type: "events", decisionPoint: null, events: firstBatchCapitalSelected() }),
     ).not.toThrow();
     expect(x.enteredGame).toBe(false); // 未水合,壳状态不许被批推进
     expect(c.engine.players).toHaveLength(2);
@@ -123,6 +124,7 @@ describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
     expect(() =>
       x.onMessage({
         type: "events",
+        decisionPoint: null,
         events: [
           {
             kind: "capitalSelected",

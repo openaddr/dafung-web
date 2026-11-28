@@ -139,6 +139,8 @@ export interface MomentCtx {
   heroId?: string;
   /** 锦囊牌 id(JinnangAnnounced)。 */
   cardId?: string;
+  /** 出牌阶段扣除的手牌位置，仅持牌席可见。反应牌在收窗时扣除。 */
+  handIndex?: number;
   /** 目标座位集(JinnangAnnounced:全体域=受影响全员,自身域=[使用者];其余时机不带)。 */
   targetSeats?: number[];
   /** 跳回合缘由(TurnSkipImposed):jinnang=缓兵之计 / exhaustion=体力耗竭善后 /

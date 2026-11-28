@@ -15,7 +15,7 @@ import { HEROES } from "@dafung/core/engine/heroes";
 import { HERO_CAPACITY } from "@dafung/core/engine/constants";
 import { isSkillBook, makeSkillBook, SKILL_BOOK_ID_PREFIX } from "@dafung/core/engine/treasures";
 import { armHero, sweepTestHeroes, testEngine } from "@dafung/core/engine/testing";
-import { grantProperty } from "@dafung/core/engine/planter";
+import { giveJinnang, grantProperty } from "@dafung/core/engine/planter";
 import { botAct } from "@dafung/core/engine/bot";
 
 // ── fixture 图:20 城全城池(招贤城 + 填充城;同 city-event.test 制式)──
@@ -199,7 +199,8 @@ describe("用书学技(#1146 命令面)", () => {
     e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "leigu", me.heroes[0]!.heroId);
     expect(me.treasures.some(isSkillBook)).toBe(true); // 未消耗
     e.turnPhase = "AwaitingJinnang";
-    e.pendingJinnang = { cardId: "求贤令", stage: "one", picked: [] }; // 锦囊目标段挂起
+    giveJinnang(e, e.activeIndex, ["军情密探"]);
+    e.resolveJinnang("军情密探");
     e.resolveBookSkill(SKILL_BOOK_ID_PREFIX + "leigu", me.heroes[0]!.heroId);
     expect(me.treasures.some(isSkillBook)).toBe(true); // 跨子状态误用拒绝
   });

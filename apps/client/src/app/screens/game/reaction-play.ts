@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GameCommand } from "@dafung/core/engine/authority";
 import type { Board } from "@dafung/core/engine/board";
 import { SINGLE_TARGET } from "@dafung/core/engine/jinnang";
 import type { ReactionView } from "@dafung/core/engine/reaction-window";
-import type { GameSnapshot } from "@dafung/core/engine/snapshot";
-import { reactionChoicesForSeat } from "@app/controllers/reaction";
+import type { GameSnapshot } from "@app/store/gameStore";
+import {
+  reactionChoicesForSeat,
+  type ReactionIntent,
+} from "@dafung/core/protocol/reaction-choices";
+import type { SeatInteractionView } from "@dafung/core/protocol/seat-interaction";
 import { getAudio } from "@app/fx/audio";
-import type { CardSelection } from "./jinnang-play";
 import { reactionMuteEngage, reactionMuted, type ReactionMuteState } from "./reaction-mute";
 import type { TargetSelection, TargetSelectionStep } from "./target-selection";
+
+export interface ReactionCardSelection {
+  handIndex: number;
+  cardId: string;
+}
 
 function reactionAnnouncement(
   view: ReactionView,
@@ -54,19 +61,16 @@ export function useReactionPlay({
   seat,
   board,
   autopilotOn,
-  interactive,
-  deadlineAt,
-  dispatchCommand,
+  choices,
+  respond,
 }: {
   snapshot: GameSnapshot;
   seat: number;
   board: Board;
   autopilotOn: boolean;
-  interactive: boolean;
-  deadlineAt: number | null;
-  dispatchCommand: (command: GameCommand) => void;
+  choices: SeatInteractionView<GameSnapshot>["reaction"];
+  respond: (intent: ReactionIntent) => void;
 }) {
-  const choices = reactionChoicesForSeat(snapshot, seat);
   const seq = choices?.asked ? snapshot.pendingReaction!.seq : null;
   // 已答仍是同一权威窗。提醒的身份跟窗号走，可操作范围另看是否已答。
   const identity = seq !== null ? JSON.stringify([snapshot.gameId, seat, seq]) : null;
@@ -81,36 +85,45 @@ export function useReactionPlay({
       const muted =
         mute?.scope === turnScope(state) && reactionMuted(mute.state, state.activeIndex);
       const canDecline = choices.asked && !choices.answered && !muted && canAct;
-      return { ...choices, muted, canDecline, playable: canDecline ? choices.playable : [] };
+      return {
+        kind: choices.kind,
+        asked: choices.asked,
+        answered: choices.answered,
+        muted,
+        canDecline,
+        playable: canDecline ? choices.playable : [],
+      };
     },
     [mute],
   );
 
   const lastMutedAnswer = useRef<string | null>(null);
+  const canRespond = choices?.canRespond === true;
   useEffect(() => {
-    if (!interactive || !muted || scope == null || lastMutedAnswer.current === scope) return;
+    if (!canRespond || !muted || scope == null || lastMutedAnswer.current === scope) return;
     lastMutedAnswer.current = scope;
-    dispatchCommand({ type: "respondReaction", seat, use: false });
-  }, [dispatchCommand, interactive, muted, scope, seat]);
+    respond({ type: "respondReaction", use: false });
+  }, [respond, canRespond, muted, scope]);
 
-  const [draft, setDraft] = useState<(CardSelection & { scope: string }) | null>(null);
+  const [draft, setDraft] = useState<(ReactionCardSelection & { scope: string }) | null>(null);
   useEffect(() => {
     setDraft((selected) => (selected?.scope === scope ? selected : null));
   }, [scope]);
 
   const reaction = scope != null && !muted ? snapshot.reaction : null;
   if (reaction == null) return { identity, scope, window: null, readDiagnosticChoices };
+  const deadlineAt = choices!.deadlineAt;
   if (deadlineAt == null) throw new Error(`反应窗 ${seq} 缺少截止时刻`);
 
   const playable = choices!.playable;
-  const selected = draft?.scope === scope && playable.includes(draft.optionId) ? draft : null;
+  const selected = draft?.scope === scope && playable.includes(draft.cardId) ? draft : null;
   const seatLabel = (seat: number) => snapshot.players[seat].guohao;
   const cityName = (tileIndex: number) => board.at(tileIndex).name;
   const shares = reaction.kind === "jinnang" ? reaction.targets : null;
   const targetStep: TargetSelectionStep | null =
     selected != null && shares?.requiresSelection
       ? {
-          scope: JSON.stringify(["reaction", scope, selected.key]),
+          scope: JSON.stringify(["reaction", scope, selected.handIndex]),
           domain: shares.kind,
           ...SINGLE_TARGET,
           candidates: shares.ids.map((id) => ({
@@ -132,9 +145,9 @@ export function useReactionPlay({
         reactiveIds: playable,
         seq: seq!,
         selection: selected,
-        onSelect(selection: CardSelection) {
-          if (!interactive) return;
-          if (selected?.key === selection.key) {
+        onSelect(selection: ReactionCardSelection) {
+          if (!canRespond) return;
+          if (selected?.handIndex === selection.handIndex) {
             setDraft(null);
             return;
           }
@@ -148,15 +161,14 @@ export function useReactionPlay({
         const share = targets.selected[0];
         const target =
           targetStep != null && share != null ? { kind: targetStep.domain, id: share } : undefined;
-        const respond = (use: boolean) => {
-          if (!interactive) return;
+        const answer = (use: boolean) => {
+          if (!canRespond) return;
           getAudio().stop("reaction", "fade");
-          dispatchCommand({
-            type: "respondReaction",
-            seat,
-            use,
-            ...(use ? { cardId: selected!.optionId, target } : {}),
-          });
+          respond(
+            use
+              ? { type: "respondReaction", use: true, cardId: selected!.cardId, target }
+              : { type: "respondReaction", use: false },
+          );
         };
         return {
           ...notice,
@@ -164,7 +176,7 @@ export function useReactionPlay({
             selected == null
               ? null
               : {
-                  cardId: selected.optionId,
+                  cardId: selected.cardId,
                   target:
                     targetStep == null
                       ? null
@@ -178,14 +190,14 @@ export function useReactionPlay({
           deadlineAt,
           confirmEnabled,
           onConfirm() {
-            if (confirmEnabled) respond(true);
+            if (confirmEnabled) answer(true);
           },
-          onDecline: () => respond(false),
+          onDecline: () => answer(false),
           onMute() {
-            if (!interactive) return;
+            if (!canRespond) return;
             lastMutedAnswer.current = scope;
             setMute({ scope: turn, state: reactionMuteEngage(snapshot.activeIndex) });
-            respond(false);
+            answer(false);
           },
         };
       },

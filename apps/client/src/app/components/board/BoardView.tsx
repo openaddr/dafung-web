@@ -8,7 +8,7 @@ import { CanvasBoard } from "./CanvasBoard";
 import { BoardHost } from "./boardHost";
 import type { CityScene, TileVisualState } from "./city-scene";
 import { capitalHolderOf, holdingsOf, type TileHolding } from "./tileOwnership";
-import { TokenLayer } from "./TokenLayer";
+import { TokenLayer, type PawnTargets } from "./TokenLayer";
 import { BoardFxLayer } from "@app/fx/FxLayer";
 import "./board.css";
 
@@ -55,8 +55,8 @@ interface BoardViewProps {
   isSetupPhase?: boolean;
   /** 行军动画接管中的棋子(阶段 6):从声明式定位中剔除。 */
   skipTokenIds?: ReadonlySet<string>;
-  /** #256 目标段:候选呼吸的棋子 id 集(available 候选席位;透传 TokenLayer)。 */
-  targetedPlayerIds?: ReadonlySet<string>;
+  /** 目标段的候选棋子、草选与点按动作。 */
+  pawnTargets?: PawnTargets;
   /** #762 当前回合方玩家 id(棋子金呼吸环,「谁在打」的棋盘锚;透传 TokenLayer)。 */
   activePlayerId?: string;
   className?: string;
@@ -107,7 +107,7 @@ export function BoardView({
   activeTileIndex,
   isSetupPhase = false,
   skipTokenIds,
-  targetedPlayerIds,
+  pawnTargets,
   activePlayerId,
   className,
 }: BoardViewProps) {
@@ -247,8 +247,7 @@ export function BoardView({
         skipTokenIds={skipTokenIds}
         /* L47:视角玩家 id → 自己棋子玩家色微光圈 */
         mineId={viewSeat}
-        /* #256 目标段:候选棋子金虚线环呼吸(与席位格金圈同步) */
-        targetedIds={targetedPlayerIds}
+        targets={pawnTargets}
         /* #762 当前回合方:棋子金呼吸环(与常驻回合胶囊双锚点「谁在打」) */
         activeId={activePlayerId}
         svgRef={svgRef}

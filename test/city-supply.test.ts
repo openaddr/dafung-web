@@ -12,7 +12,8 @@ import {
   setStamina,
 } from "@dafung/core/engine/planter";
 import { extractBatchEvents } from "@app/fx/event-extract";
-import { foldEventBatch } from "@app/net/event-fold";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 import { cmdMsg, type InboundMsg } from "@dafung/core/protocol/wire";
 import guanzhongData from "../packages/core/maps/guanzhong.json";
@@ -48,7 +49,8 @@ function submit(e: GameEngine, command: GameCommand): void {
 
 function restore(e: GameEngine, seat: number): GameEngine {
   const replica = makeEngine();
-  replica.restoreFromSnapshot(
+  hydrateSeatReplica(
+    replica,
     JSON.parse(JSON.stringify(redactSnapshotForSeat(e.snapshot(), seat))),
   );
   return replica;

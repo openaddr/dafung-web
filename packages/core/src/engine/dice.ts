@@ -61,6 +61,59 @@ export function createDice(seed?: number): Dice {
   };
 }
 
+export type DiceChannel = "march" | "duel";
+
+const pinnedRolls = new WeakMap<Dice, Record<DiceChannel, number[]>>();
+
+function readPinnedDie(queue: number[], channel: DiceChannel, faces = DEFAULT_DIE_FACES) {
+  const value = queue.shift();
+  if (value !== undefined && value > faces) {
+    throw new Error(
+      `pinDice:钉值 ${value} 超本次掷骰面数 ${faces}(${channel} 通道，面数由技能决定)`,
+    );
+  }
+  return value;
+}
+
+/** 种植件专用。钉骰不消耗种子流，行程与拼点各用自己的队列。 */
+export function pinDiceValues(dice: Dice, channel: DiceChannel, values: readonly number[]): void {
+  if (values.length === 0) throw new Error("pinDice:空值队列(至少钉一个骰值)");
+  for (const value of values) {
+    if (!Number.isInteger(value) || value < 1 || value > DEFAULT_DIE_FACES + 1) {
+      throw new Error(`pinDice:骰值 ${value} 出 1..${DEFAULT_DIE_FACES + 1} 契约`);
+    }
+  }
+  let queues = pinnedRolls.get(dice);
+  if (queues === undefined) {
+    const pins: Record<DiceChannel, number[]> = { march: [], duel: [] };
+    const roll = dice.roll.bind(dice);
+    const rollDie = dice.rollDie.bind(dice);
+    dice.roll = (faces) => {
+      const value = readPinnedDie(pins.march, "march", faces);
+      return value === undefined ? roll(faces) : { die: value };
+    };
+    dice.rollDie = (faces) => {
+      const value = readPinnedDie(pins.duel, "duel", faces);
+      return value === undefined ? rollDie(faces) : value;
+    };
+    pinnedRolls.set(dice, pins);
+    queues = pins;
+  }
+  queues[channel] = [...values, ...queues[channel]];
+}
+
+/** 草稿裁决可恢复钉骰队列。生产骰只需按快照恢复种子。 */
+export function checkpointDicePins(dice: Dice): (() => void) | undefined {
+  const queues = pinnedRolls.get(dice);
+  if (queues === undefined) return undefined;
+  const march = [...queues.march];
+  const duel = [...queues.duel];
+  return () => {
+    queues.march = [...march];
+    queues.duel = [...duel];
+  };
+}
+
 /** Fisher-Yates 洗牌(rng 注入,确定性,返回打乱副本):开局分配国号与排列选都顺序
  *  (setup-flow)/招贤候选序(recruitment)/授技子集抽取(roster.rollGrantedSkills)
  *  共用单源。放骰子域:消费方(roster)与其上游(锦囊域)有环,叶子模块承接共用件。 */

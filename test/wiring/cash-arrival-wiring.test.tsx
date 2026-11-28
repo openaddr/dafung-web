@@ -71,7 +71,7 @@ function mountPresentation(engine: GameEngine) {
   });
   setAudio(new MediaAudioPlayer());
   act(() => {
-    useGameStore.getState().syncFromEngine(engine);
+    useGameStore.setState({ snapshot: engine.snapshot() });
     root.render(
       <>
         <svg id="board" />
@@ -94,7 +94,7 @@ function mountPresentation(engine: GameEngine) {
       await act(async () => {
         stashEventBatch(events);
         effects.play(engine.players.map((player) => player.position));
-        useGameStore.getState().syncFromEngine(engine);
+        useGameStore.setState({ snapshot: engine.snapshot() });
       });
     },
     disconnect() {

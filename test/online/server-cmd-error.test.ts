@@ -10,13 +10,27 @@
 // spawn 端口按 workspace 名派生(#1181,单源 scripts/dev-ports.ts,基址 4280 与
 // protocol-online 的 4281 保持历史 1 间隔——同 workspace 两测试同跑各占一口):
 // 并行 workspace 同跑慢池不撞口;显式 env DAFUNG_CMD_ERROR_PORT 最高优先可覆盖。
-import { describe, it, expect, afterAll, beforeAll } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { describe, it, expect, afterAll, beforeAll, spyOn } from "bun:test";
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { cmdErrorTestPort } from "../../scripts/dev-ports";
 import { OnlineClient } from "../../scripts/online-client";
-import { cmdMsg, pickCapitalMsg, type GameLogMsg } from "@dafung/core/protocol/wire";
+import { FaultProxy } from "../../scripts/fault-proxy";
+import { MAP } from "../../scripts/engine-helpers";
+import { FileRoomPersistence } from "../../apps/server/src/room-persistence";
+import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
+import { RoomRegistry } from "@dafung/core/room/room";
+import { seatDecisionPointOf } from "@dafung/core/room/player-submissions";
+import {
+  autoPilotMsg,
+  cmdMsg,
+  pickCapitalMsg,
+  submissionMsg,
+  type GameLogMsg,
+  type PlayerSubmission,
+  type SubmissionResultMsg,
+} from "@dafung/core/protocol/wire";
 
 // 慢例池开关:describe 级 skip 连钩子一起跳(默认池不白起服务器);DAFUNG_SLOW=1 才跑,判据见文件头注。
 const describeSlow = describe.skipIf(!process.env.DAFUNG_SLOW);
@@ -32,6 +46,40 @@ let proc: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
 // 房间临时目录在 beforeAll 里创建(describe 级 skip 时钩子不跑,模块级 mkdtemp 会
 // 每轮默认池白漏一个临时目录);清理在 describe 内 afterAll 配对。
 let ROOMS_DIR: string;
+
+let live: Awaited<ReturnType<typeof recoveryFixture>>;
+let expired: Awaited<ReturnType<typeof recoveryFixture>>;
+
+async function recoveryFixture(roomsDir: string) {
+  const persistence = new FileRoomPersistence(roomsDir);
+  const registry = new RoomRegistry(persistence, undefined, undefined, {
+    clock: { setTimeout: () => 1, clearTimeout: () => {} },
+  });
+  const { room, token } = registry.createRoom({
+    seatCount: 3,
+    botIdx: new Set(),
+    hostConfig: { seed: 1 },
+  });
+  const { roomId } = room;
+  const tokens = [token, registry.joinSeat(roomId).token, registry.joinSeat(roomId).token];
+  registry.setMap(roomId, "guanzhong", token, new Set(["guanzhong"]));
+  await registry.startGame(roomId, token, undefined, () => MAP);
+  const engine = room.engine!;
+  while (engine.phase === "Setup")
+    await registry.pickCapital(roomId, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
+  armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+  giveJinnang(engine, 0, ["横征暴敛"]);
+  for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
+  await registry.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
+  const point = seatDecisionPointOf(room, 1);
+  if (point === null) throw new Error("恢复场景缺少受问席的决策点");
+  // 模拟托管已保存、下一拍代答前进程中断，归档也可仍欠最后一行。
+  const record = persistence.load(roomId)!;
+  persistence.save({ ...record, autoPilot: [1] });
+  const log = engine.log.map((line) => JSON.stringify(line));
+  const archive = join(roomsDir, `${engine.gameId}.jsonl`);
+  return { roomId, tokens, point, log, archive };
+}
 
 async function waitHealthy(
   server: Bun.Subprocess<"ignore", "pipe", "pipe">,
@@ -50,6 +98,25 @@ async function waitHealthy(
   throw new Error(
     `服务器 ${timeoutMs}ms 内未就绪;stderr:${await new Response(server.stderr).text()}`,
   );
+}
+
+async function startServer(): Promise<void> {
+  proc = Bun.spawn([process.execPath, "apps/server/src/server.ts"], {
+    cwd: join(import.meta.dir, "..", ".."), // 仓库根:地图清单 ./public/maps 相对 cwd 解析(缺失即抛)
+    env: {
+      ...process.env,
+      PORT,
+      HOST: "127.0.0.1",
+      ROOMS_DIR,
+      LOGS_DIR: ROOMS_DIR, // 对局日志一并落临时目录,不污染仓库 data/
+      LOG_TTL_DAYS: "30",
+      DECISION_TIMEOUT_MS: "0",
+      RETENTION_WINDOW_MS: "0",
+    },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  await waitHealthy(proc);
 }
 
 function post(path: string, body: unknown): Promise<Record<string, unknown>> {
@@ -119,21 +186,19 @@ describeSlow("server WS 命令回报与对局日志", () => {
           `处置:netstat -ano | grep :${PORT} 查 PID → tasklist 验名为 bun.exe → taskkill //PID <pid> //F`,
       );
     }
-    proc = Bun.spawn([process.execPath, "apps/server/src/server.ts"], {
-      cwd: join(import.meta.dir, "..", ".."), // 仓库根:地图清单 ./public/maps 相对 cwd 解析(缺失即抛)
-      env: {
-        ...process.env,
-        PORT,
-        HOST: "127.0.0.1",
-        ROOMS_DIR,
-        LOGS_DIR: ROOMS_DIR, // 对局日志一并落临时目录,不污染仓库 data/
-        DECISION_TIMEOUT_MS: "0",
-        RETENTION_WINDOW_MS: "0",
-      },
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    await waitHealthy(proc);
+    live = await recoveryFixture(ROOMS_DIR);
+    writeFileSync(live.archive, live.log.slice(0, -1).join("\n") + "\n");
+    const oldTime = Date.now() - 31 * 86_400_000;
+    const age = spyOn(Date, "now").mockReturnValue(oldTime);
+    try {
+      expired = await recoveryFixture(ROOMS_DIR);
+    } finally {
+      age.mockRestore();
+    }
+    writeFileSync(expired.archive, expired.log.join("\n") + "\n");
+    const oldDate = new Date(oldTime);
+    utimesSync(expired.archive, oldDate, oldDate);
+    await startServer();
   });
 
   afterAll(() => {
@@ -182,7 +247,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
 
       const firstSnapshot = nextMessageOfType(ws, "snapshot");
       const started = await post("/room/start", { roomId, seatToken: token });
-      expect(started.ok).toBe(true);
+      expect(started).toEqual({ ok: true });
       const first = await firstSnapshot;
       expect(first.currentSetupPlayerIndex).toBe(0);
       const firstLogLength = (first.log as unknown[]).length;
@@ -197,14 +262,45 @@ describeSlow("server WS 命令回报与对局日志", () => {
         logOffset: firstLogLength + 1,
       });
 
-      // 替越界座位应答仍被房间拒绝，回到原有 error 通道。
+      // 旧应答不可绕开玩家提交协议。
       ws.send(cmdMsg({ type: "respondReaction", seat: 99, use: false }, 7));
       expect(await nextMessageOfType(ws, "error")).toEqual({
         type: "error",
         requestId: 7,
-        error: "非本窗被询问座位,不能应答(更不能替他人应答)",
+        error: "请携带原决策点和提交编号提交此操作",
       });
 
+      const late: PlayerSubmission = {
+        roomId,
+        seat: 0,
+        submissionId: "旧识破",
+        decisionPoint: "旧窗",
+        cmd: { type: "respondReaction", seat: 0, use: false },
+      };
+      ws.send(submissionMsg(late));
+      const rejected = await nextMessageOfType(ws, "submissionResult");
+      expect(rejected).toMatchObject({
+        submissionId: "旧识破",
+        outcome: "rejected",
+        reason: expect.stringContaining("原反应窗已结束"),
+      });
+      ws.send(submissionMsg(late, 10));
+      expect(await nextMessageOfType(ws, "submissionResult")).toEqual({
+        ...rejected,
+        requestId: 10,
+      });
+      ws.send(
+        submissionMsg({
+          ...late,
+          submissionId: "迟到出牌",
+          cmd: { type: "useJinnang", cardId: "连环计", handIndex: 0 },
+        }),
+      );
+      expect(await nextMessageOfType(ws, "submissionResult")).toMatchObject({
+        submissionId: "迟到出牌",
+        outcome: "rejected",
+        reason: expect.stringContaining("原决策点已结束"),
+      });
       ws.send(pickCapitalMsg((first.offeredCapitals as number[])[0], 8));
       expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
         type: "commandResult",
@@ -219,6 +315,269 @@ describeSlow("server WS 命令回报与对局日志", () => {
       expect(proc!.exitCode).toBeNull();
     } finally {
       ws.close();
+    }
+  });
+
+  it("启动清扫保持过期日志删除，活局的已保存缺行照常补写", async () => {
+    expect(existsSync(expired.archive)).toBe(false);
+    expect(readFileSync(live.archive, "utf8").trimEnd().split("\n")).toEqual(live.log);
+    const peer = await OnlineClient.connect(
+      `ws://127.0.0.1:${PORT}/ws?room=${expired.roomId}&seat=1&token=${expired.tokens[1]}`,
+    );
+    try {
+      const snapshot = await peer.waitSnapshot(null, "过期归档对应房间的原座摘要", 2000);
+      expect(snapshot.roomId).toBe(expired.roomId);
+      expect(existsSync(expired.archive)).toBe(false);
+    } finally {
+      peer.close();
+    }
+  });
+
+  it("恢复反应窗后，原座收回托管可继续应答并追加归档", async () => {
+    const connect = (seat: number) =>
+      OnlineClient.connect(
+        `ws://127.0.0.1:${PORT}/ws?room=${live.roomId}&seat=${seat}&token=${live.tokens[seat]}`,
+      );
+    const peer = await connect(1);
+    const other = await connect(2);
+    try {
+      const pending = await peer.waitSnapshot(null, "托管时的反应窗摘要", 2000);
+      await other.waitSnapshot(null, "另一受问席的摘要", 2000);
+      expect(pending).toMatchObject({ decisionPoint: null, turnPhase: "AwaitingReaction" });
+      peer.sendRaw(autoPilotMsg(false));
+      const restored = await peer.waitFor(
+        (message) => message.type === "events" && message.decisionPoint === live.point,
+        "原反应窗授权",
+        2000,
+      );
+      expect(restored).toMatchObject({
+        type: "events",
+        events: [],
+        decisionPoint: live.point,
+        reactionTiming: { seq: pending.pendingReaction!.seq, remainingMs: expect.any(Number) },
+      });
+      peer.sendRaw(
+        submissionMsg({
+          roomId: live.roomId,
+          seat: 1,
+          submissionId: "收回后不用",
+          decisionPoint: live.point,
+          cmd: { type: "respondReaction", seat: 1, use: false },
+        }),
+      );
+      expect(
+        await peer.waitFor((m) => m.type === "submissionResult", "收回后的原座回执", 2000),
+      ).toMatchObject({ outcome: "accepted" });
+      const answered = await other.waitFor(
+        (msg) =>
+          msg.type === "events" && msg.events.some((event) => event.kind === "reactionAnswered"),
+        "另一受问席收到已答进度",
+        2000,
+      );
+      expect(answered).toMatchObject({
+        events: [expect.objectContaining({ kind: "reactionAnswered", seat: 1 })],
+      });
+      expect(other.frames.some((msg) => msg.type === "events" && msg.events.length === 0)).toBe(
+        false,
+      );
+      const lines = readFileSync(live.archive, "utf8").trimEnd().split("\n");
+      expect(lines.slice(0, live.log.length)).toEqual(live.log);
+      expect(lines.at(-1)).toContain("reactionRespond ");
+    } finally {
+      peer.close();
+      other.close();
+    }
+  });
+
+  it("连环计私有步骤不外发，公开出牌在丢回执重启后只结算一次", async () => {
+    const created = await post("/room/new", { seats: 3, seed: 96 });
+    expect(created.ok).toBe(true);
+    const roomId = created.roomId as string;
+    const hostAuth = { roomId, seatToken: created.seatToken as string };
+    const tokens = [hostAuth.seatToken];
+    for (const seat of [1, 2]) {
+      const joined = await post("/room/join", { roomId });
+      expect(joined).toMatchObject({ ok: true, seat });
+      tokens.push(joined.seatToken as string);
+    }
+    const peers: OnlineClient[] = [];
+    let markDrop!: () => void;
+    const receiptLost = new Promise<void>((resolve) => {
+      markDrop = resolve;
+    });
+    const proxy = FaultProxy.start({
+      targetOrigin: `ws://127.0.0.1:${PORT}`,
+      onNotice: (notice) => {
+        if (notice.kind === "dropped" && notice.direction === "toClient") markDrop();
+      },
+    });
+    const connect = async (seat: number) => {
+      const port = seat === 2 ? proxy.port : PORT;
+      const peer = await OnlineClient.connect(
+        `ws://127.0.0.1:${port}/ws?room=${roomId}&seat=${seat}&token=${tokens[seat]}`,
+      );
+      peers.push(peer);
+      return peer;
+    };
+    try {
+      for (const seat of [0, 1, 2]) await connect(seat);
+      const observer = peers[0];
+      const actor = peers[2];
+      expect((await post("/room/map", { ...hostAuth, mapId: "guanzhong" })).ok).toBe(true);
+      expect((await post("/room/start", hostAuth)).ok).toBe(true);
+      for (let index = 0; index < 3; index++) {
+        const setup = await actor.waitSnapshot(
+          (s) => s.currentDraftIndex === index,
+          "当前选都席",
+          2000,
+        );
+        peers[setup.currentSetupPlayerIndex].sendPickCapital(setup.offeredCapitals[0]);
+      }
+      const playing = (peer: OnlineClient) =>
+        peer.waitSnapshot((s) => s.phase === "Playing", "开局后的座位摘要", 2000);
+      const publicAnchor = await playing(observer);
+      const ready = await playing(actor);
+      expect(ready.choices).toContainEqual(
+        expect.objectContaining({ id: "连环计", handIndex: 0, available: true }),
+      );
+      const observerStart = observer.frames.indexOf(publicAnchor) + 1;
+      const readDebug = async () => {
+        const response = await fetch(`${BASE}/room/debug?room=${roomId}`);
+        expect(response.ok).toBe(true);
+        return (await response.json()) as { events: unknown[] };
+      };
+      const publicDebug = await readDebug();
+      let point = ready.decisionPoint;
+      const card = { type: "useJinnang", cardId: "连环计", handIndex: 0 } as const;
+      const encode = (submissionId: string, cmd: PlayerSubmission["cmd"]) => {
+        if (point === null) throw new Error("缺少出牌决策点");
+        return submissionMsg({ roomId, seat: 2, submissionId, decisionPoint: point, cmd });
+      };
+      async function privateStep(
+        submissionId: string,
+        fields: { targets?: number[]; back?: boolean; cancel?: boolean } = {},
+      ) {
+        actor.sendRaw(encode(submissionId, { ...card, ...fields }));
+        const reply = await actor.waitFor<SubmissionResultMsg>(
+          (msg) => msg.type === "submissionResult" && msg.submissionId === submissionId,
+          "出牌步骤回执",
+          2000,
+        );
+        expect(reply.outcome).toBe("accepted");
+        expect(reply).not.toHaveProperty("logOffset");
+        const frame = await actor.waitFor(
+          (m) =>
+            m.type === "events" && m.events.some((ev) => ev.kind === "jinnangTargetStepChanged"),
+          "出牌步骤下行",
+          2000,
+        );
+        if (frame.type !== "events") throw new Error("缺少出牌步骤事件批");
+        point = frame.decisionPoint;
+      }
+      await privateStep("选牌");
+      await privateStep("首选", { targets: [0] });
+      await privateStep("返回", { back: true });
+      await privateStep("作罢", { cancel: true });
+      await privateStep("重选牌");
+      await privateStep("重选首位", { targets: [0] });
+      // 同一旁席连接的回执可作收包屏障。权威拒绝旁席提前应答，不产生广播。
+      observer.sendRaw(
+        submissionMsg({
+          roomId,
+          seat: 0,
+          submissionId: "尚无反应",
+          decisionPoint: "尚无反应窗",
+          cmd: { type: "respondReaction", seat: 0, use: false },
+        }),
+      );
+      const barrier = await observer.waitFor(
+        (msg) => msg.type === "submissionResult" && msg.submissionId === "尚无反应",
+        "旁席确认已收齐先前下行",
+        2000,
+      );
+      expect(observer.frames.slice(observerStart, observer.frames.indexOf(barrier))).toEqual([]);
+      expect((await readDebug()).events).toEqual(publicDebug.events);
+
+      const resumed = await connect(0);
+      const resumeAnchor = await playing(resumed);
+      expect(resumeAnchor).toEqual(publicAnchor);
+      const finalPlay = encode("出牌", { ...card, targets: [1] });
+      proxy.setDropEveryN("toClient", 1);
+      actor.sendRaw(finalPlay);
+      const announcement = await resumed.waitFor(
+        (m) => m.type === "events" && m.events.some((ev) => ev.kind === "jinnangAnnounced"),
+        "旁席收到已公开的牌和目标",
+        2000,
+      );
+      if (announcement.type !== "events") throw new Error("缺少出牌公告批");
+      expect(announcement.events).toContainEqual(
+        expect.objectContaining({
+          kind: "jinnangAnnounced",
+          cardId: "连环计",
+          targetSeats: [0, 1],
+        }),
+      );
+      const opened = await resumed.waitSnapshot(
+        (s) => s.turnPhase === "AwaitingReaction",
+        "开窗摘要",
+        2000,
+      );
+      expect(opened.log.slice(0, resumeAnchor.log.length)).toEqual(resumeAnchor.log);
+      expect(opened.log.slice(resumeAnchor.log.length)).toEqual([
+        expect.objectContaining({
+          detail: expect.stringContaining("reactionWindow kind=jinnang card=连环计"),
+        }),
+      ]);
+      expect(opened.players[2].jinnangHandCount).toBe(1);
+      if (opened.decisionPoint === null) throw new Error("缺少手答决策点");
+      resumed.sendRaw(
+        submissionMsg({
+          roomId,
+          seat: 0,
+          submissionId: "不用",
+          decisionPoint: opened.decisionPoint,
+          cmd: { type: "respondReaction", seat: 0, use: false },
+        }),
+      );
+      const log = await resumed.waitFor<GameLogMsg>(
+        (m) => m.type === "gameLog",
+        "手答日志尾段",
+        2000,
+      );
+      expect(log.offset).toBe(opened.log.length);
+      expect(log.lines).toContainEqual(
+        expect.objectContaining({
+          detail: expect.stringContaining("reactionRespond "),
+        }),
+      );
+      await receiptLost;
+      expect(
+        actor.frames.some((m) => m.type === "submissionResult" && m.submissionId === "出牌"),
+      ).toBe(false);
+
+      const previousProcess = proc!;
+      previousProcess.kill();
+      await previousProcess.exited;
+      await startServer();
+      proxy.setDropEveryN("toClient", null);
+      const recoveredActor = await connect(2);
+      const afterRestart = await recoveredActor.waitSnapshot(null, "重启后的原座摘要", 2000);
+      expect(afterRestart.players[2].jinnangHand).toEqual(["窃玉偷香"]);
+      expect(afterRestart.jinnangDiscard.filter((cardId) => cardId === "连环计")).toHaveLength(1);
+      recoveredActor.sendRaw(finalPlay);
+      expect(
+        await recoveredActor.waitFor((m) => m.type === "submissionResult", "重发原回执", 2000),
+      ).toMatchObject({
+        outcome: "accepted",
+        submissionId: "出牌",
+        logOffset: resumeAnchor.log.length,
+      });
+      const saved = new FileRoomPersistence(ROOMS_DIR).load(roomId)!.snapshot!;
+      expect(saved.players[2].jinnangHand).toEqual(["窃玉偷香"]);
+      expect(saved.jinnangDiscard.filter((cardId) => cardId === "连环计")).toHaveLength(1);
+    } finally {
+      for (const peer of peers) peer.close();
+      proxy.stop();
     }
   });
 

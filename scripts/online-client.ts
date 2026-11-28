@@ -36,6 +36,8 @@ interface Waiter {
 export interface OnlineClientOptions {
   /** 建连超时(ms);超时当场抛。缺省 5000(本机回环,常规裕量)。 */
   openTimeoutMs?: number;
+  /** 帧抵达本机的单调时钟；用于把房间公布的剩余时间换算为本机截止时刻。 */
+  now?: () => number;
 }
 
 export class OnlineClient {
@@ -51,6 +53,7 @@ export class OnlineClient {
   readonly frames: ServerMsg[] = [];
 
   private readonly buffer: ServerMsg[] = [];
+  private readonly arrivals = new WeakMap<ServerMsg, number>();
   private readonly waiters: Waiter[] = [];
   private readonly ws: WebSocket;
   private openFlag = false;
@@ -63,6 +66,7 @@ export class OnlineClient {
   private constructor(
     ws: WebSocket,
     readonly url: string,
+    private readonly now: () => number,
   ) {
     this.ws = ws;
     // 本构造只在 open 事件之后执行(connect 的 resolve 路径),开放态由此落定。
@@ -90,7 +94,7 @@ export class OnlineClient {
         "open",
         () => {
           clearTimeout(timer);
-          resolve(new OnlineClient(ws, url));
+          resolve(new OnlineClient(ws, url, options.now ?? (() => performance.now())));
         },
         { once: true },
       );
@@ -111,6 +115,12 @@ export class OnlineClient {
 
   get isClosed(): boolean {
     return this.closedFlag;
+  }
+
+  receivedAt(frame: ServerMsg): number {
+    const at = this.arrivals.get(frame);
+    if (at === undefined) throw new Error("下行帧不属于当前连接");
+    return at;
   }
 
   /** 等连接关闭(代理硬断/服务器解散后归零;超时当场抛)。 */
@@ -202,7 +212,8 @@ export class OnlineClient {
     }
   }
 
-  private sendRaw(text: string): void {
+  /** 发送由 wire 或 PlayerCommandOutbox 编码的原始帧；重发沿用原编号与决策点。 */
+  sendRaw(text: string): void {
     if (!this.openFlag) throw new Error(`连接已不在开放态,拒绝上行:${this.url}`);
     this.ws.send(text);
   }
@@ -211,6 +222,7 @@ export class OnlineClient {
   /** 一帧下行入站:形状校验(非协议形状当场炸,零兜底)→ 观测面归档 → 等待者
    *  FIFO 认领(首个命中者取走,其余继续等)→ 无人认领入缓冲。 */
   private ingest(ev: MessageEvent): void {
+    const receivedAt = this.now();
     const raw = ev.data;
     if (typeof raw !== "string") {
       throw new Error(`下行帧非文本(协议全文本 JSON):${String(raw).slice(0, 120)}`);
@@ -229,6 +241,7 @@ export class OnlineClient {
       throw new Error(`下行帧非 ServerMsg 形状(缺 type 判别):${raw.slice(0, 200)}`);
     }
     const msg = parsed as ServerMsg;
+    this.arrivals.set(msg, receivedAt);
     this.frames.push(msg);
     if (msg.type === "snapshot") this.snapshot = msg;
     else if (msg.type === "events") this.batches.push(msg);

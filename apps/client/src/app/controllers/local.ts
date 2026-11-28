@@ -17,11 +17,12 @@ import type { LoadedMap } from "@dafung/core/engine/board-loader";
 import { GameEngine } from "@dafung/core/engine/authority";
 import type { GameCommand, SeatConfig } from "@dafung/core/engine/authority";
 import { createDice } from "@dafung/core/engine/dice";
-import { setEngine, useGameStore, type GameSnapshotCore } from "@app/store/gameStore";
+import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
 import { stashEventBatch } from "@app/net/event-feed";
-import { foldEventBatch } from "@app/net/event-fold";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { e2eBotStepMs, e2eReactionWindowMs } from "@app/fx/timings";
 import { createMemorySocketPair, type MemoryHostEnd, type SeatTransport } from "@app/net/transport";
 import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
@@ -35,12 +36,12 @@ import type { RoomRecord } from "@dafung/core/room/room-record";
 // 下行消息类型(ServerMsg)全部从这里 import,与联机 server.ts/online.ts 同一份。
 import {
   autoPilotMsg,
-  cmdMsg,
   dispatchInbound,
   errorMsg,
   pickCapitalMsg,
   type ServerMsg,
 } from "@dafung/core/protocol/wire";
+import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
 import { GameController } from "./controller";
 
 /** 单机开局配置(房间通路):与联机 createRoom/hostConfig 同构。座位表只取
@@ -85,6 +86,7 @@ export class LocalController extends GameController {
   /** Worker 时钟(#399):看门狗/托管节拍挂 Worker,失焦照跑(后台节流免疫)。 */
   private readonly clock: WorkerClock;
   private readonly roomId: string;
+  private readonly outbox = new PlayerCommandOutbox();
   private readonly seatToken: string;
   /** 内存双工客户端端点(命令上行/消息下行的唯一通路;与联机 WS 传输同接口)。 */
   private readonly sock: SeatTransport;
@@ -97,9 +99,6 @@ export class LocalController extends GameController {
   private roomSeats: NetSeatMeta[] | null = null;
   /** 单机恒 seat 0(房主真人;createRoom 强约束 seat0=human)。 */
   readonly seat = 0;
-  /** 交互策略参数(#433 上收基类单源):热座=true——屏前唯一真人座即 seat,
-   *  决策方是 bot 则无人可操作,isBot 判定即座位匹配,不再要求决策方===本座。 */
-  protected override readonly hotSeat = true;
   protected override get mySeat(): number {
     return this.seat;
   }
@@ -177,7 +176,7 @@ export class LocalController extends GameController {
     );
     if (!created.room.engine) throw new Error("单机开局异常:startGame 同步段未产出引擎");
     // 内存双工 + 入座:客户端端点先接下行,再 connectSeat——入座即同步下发首连整房
-    // 摘要(装配单口 god-view),onMessage snapshot 分支当场水合副本:构造返回时副本
+    // 座位摘要,onMessage snapshot 分支当场水合副本:构造返回时副本
     // 已是当前对局态(含同步段 bot 落子),与旧「构造直读权威引擎」同观感。开局同步段
     // 的选都事件批仍供演出消费;Setup 拍按共享校准窗口覆盖副本。
     const pair = createMemorySocketPair(created.seat);
@@ -217,13 +216,6 @@ export class LocalController extends GameController {
     return message.replaceAll(this.seatToken, "[凭证已隐去]");
   }
 
-  // 热座视角跟随决策方(珍宝交涉相位=城主,其余=activeIndex);公式单源引擎 getter,
-  // 读水合副本。决策归属字段全在折叠覆盖面(turnStarted/marchArrived/reactionOpened
-  // 必折,#387 全覆盖),副本读数与权威同帧,无迟帧。
-  get viewSeat(): number {
-    return this._engine.decisionOwner;
-  }
-
   /** 我的座位托管中(下行快照房间字段回读,与联机 seats 广播回读同路,无本地乐观态)。
    *  构造返回前首帧已同步水合,缺少座位信息是协议装配错误。 */
   override get autoPilotOn(): boolean {
@@ -238,14 +230,25 @@ export class LocalController extends GameController {
   }
 
   // ─── 命令入口(上行经内存双工,与联机 WS 同一条 wire 编码)───
-  dispatchCommand(cmd: GameCommand): void {
+  dispatchCommand(cmd: GameCommand, decisionPoint = this.decisionPoint): void {
     const reason = this.commandBlockReason();
     if (reason !== null) {
       this.observeBlockedCommand(cmd.type, reason);
       return;
     }
     this.pending = true;
-    this.sendObservedCommand(cmd.type, (id) => this.sock.send(cmdMsg(cmd, id)));
+    this.sendObservedCommand(cmd.type, (id) => {
+      this.sock.send(
+        this.outbox.encode(
+          cmd,
+          this.roomId,
+          this.seat,
+          this.engine.pendingJinnang?.cardId ?? null,
+          decisionPoint,
+          id,
+        ),
+      );
+    });
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }
 
@@ -290,14 +293,15 @@ export class LocalController extends GameController {
     }
     if (msg.type === "snapshot") {
       const { type: _t, reactionTiming, ...snap } = msg;
+      this.decisionPoint = msg.decisionPoint;
       // 转移前各座位棋子位置(行军锚定基准):hydrate 覆盖引擎态前捕获——反应窗余段
       // 行军按「视觉停点 → 落点」截短播用(与联机快照帧同口径)。
       const prePositions = this._engine.players.map((p) => p.position);
       this.applyRoomFields(msg.seats); // 托管态等房间字段单源下行(不再直查房间会话)
       // 水合无条件覆盖全部字段(校准锚,ADR-0020 决策 3):折叠漂移在此归零。
-      this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
+      hydrateSeatReplica(this._engine, snap);
       this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
-      this.pending = false;
+      this.pending = this.outbox.waitingFor(this.decisionPoint);
       // 演出(#385):netStore 暂存的事件批经 SnapshotEffects 直译播放;本帧无批
       //(空批 flush)时游标不推进,自然跳过。
       this.fx.play(prePositions);
@@ -309,7 +313,7 @@ export class LocalController extends GameController {
       return;
     }
     if (msg.type === "events") {
-      // 折叠(ADR-0020 决策 1):事件批投影进本地副本,经既有 syncFromEngine 通路
+      // 折叠(ADR-0020 决策 1):事件批投影进本地副本,经既有 控制器发布通路
       // 重渲(界面读口不变;一次事件批一次重渲)。折叠前先捕获棋子位置当行军锚点
       // (「转移前视觉停点」,同联机事件帧口径)。
       const prePositions = this._engine.players.map((p) => p.position);
@@ -318,24 +322,36 @@ export class LocalController extends GameController {
       // 首帧摘要随建连同步到达,此门正常恒开;保留同形门 = 消息处理与联机一处形制。
       const hydrated = this.enteredGame;
       if (hydrated) {
+        this.decisionPoint = msg.decisionPoint;
         foldEventBatch(this._engine, msg.events);
         this.observeReactionTiming(msg.reactionTiming, receivedAtMonotonic);
       }
       // 表现消费(#385):批入 netStore 暂存 → SnapshotEffects 直译播放,与联机同一
       // 消费面;快照帧的 play 由消费游标去重,同批不会播两次。
-      stashEventBatch(msg.events);
-      if (hydrated) this.fx.play(prePositions);
-      this.pending = false;
+      if (msg.events.length > 0) {
+        stashEventBatch(msg.events);
+        if (hydrated) this.fx.play(prePositions);
+      }
+      this.pending = this.outbox.waitingFor(this.decisionPoint);
       this.checkRollSeal();
       this.sync();
       return;
     }
     if (msg.type === "dismissed") return; // 单机解散由 destroy 主动发起,无远端解散
     if (msg.type === "gameLog") throw new Error("单机日志应由权威引擎直接归档");
+    if (msg.type === "submissionResult") {
+      if (!this.outbox.acknowledge(msg)) return;
+      this.observeCommandResult(msg, receivedAtMonotonic);
+      if (msg.outcome === "rejected") useGameStore.getState().pushHint(msg.reason);
+      this.pending = this.outbox.waitingFor(this.decisionPoint);
+      this.sync();
+      return;
+    }
     this.observeCommandResult(msg, receivedAtMonotonic);
     if (msg.type === "error") {
+      this.outbox.discardFailed(msg.requestId);
       useGameStore.getState().pushHint(msg.error);
-      this.pending = false;
+      this.pending = this.outbox.waitingFor(this.decisionPoint);
       this.sync();
     }
   }
@@ -355,7 +371,10 @@ export class LocalController extends GameController {
     void dispatchInbound(
       raw,
       {
-        cmd: (cmd, report) => this.registry.applyCommand(this.roomId, cmd, broadcast, report),
+        cmd: (cmd, report) =>
+          this.registry.applyCommandFromSeat(this.roomId, this.seat, cmd, broadcast, report),
+        submit: (submission) =>
+          this.registry.submitFromSeat(this.roomId, this.seat, submission, broadcast),
         pickCapital: (tileIndex, report) =>
           this.registry.pickCapital(this.roomId, this.seat, tileIndex, broadcast, report),
         setAutoPilot: (on, report) =>

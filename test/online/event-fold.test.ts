@@ -51,8 +51,13 @@ import { useFxStore } from "@app/fx/fxStore";
 import { present, resetFxOrchestration } from "@app/fx/orchestrator";
 import { createEngineSink, createMemorySink } from "@app/fx/sinks";
 import { abandonAllMarches } from "@app/fx/useMarch";
-import { computeTokenSlots } from "@app/components/board/TokenLayer";
-import { foldEventBatch } from "@app/net/event-fold";
+import { computeTokenSlots } from "@app/components/board/tokenSlots";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import {
+  hydrateSeatReplica,
+  readSeatReplica,
+  seatReactionOf,
+} from "@dafung/core/protocol/seat-replica";
 import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 
 const MAP = loadMap(guanzhongData);
@@ -128,7 +133,8 @@ describe("反应窗选份与出牌宣布的联机契约", () => {
 
   function hydrate(authority: GameEngine, seats?: SeatConfig[]) {
     const replica = makeEngine(7, seats);
-    replica.restoreFromSnapshot(
+    hydrateSeatReplica(
+      replica,
       JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), 1))),
     );
     return replica;
@@ -139,6 +145,38 @@ describe("反应窗选份与出牌宣布的联机契约", () => {
     const slot = TOKEN_SLOT_OFFSETS[0];
     return { x: center.x + slot.x, y: center.y + slot.y };
   }
+
+  it("右侧连环计在确认首选、重连和返回后仍从同一位置离手", async () => {
+    const seats = ["魏", "蜀", "吴"].map((guohao) => ({ name: guohao, guohao, isBot: false }));
+    const authority = makeEngine(7, seats);
+    armPhase(authority, { phase: "Playing", activeIndex: 1, turnPhase: "AwaitingJinnang" });
+    giveJinnang(authority, 1, ["连环计", "火烧连营", "连环计"]);
+    const choices = readSeatReplica(hydrate(authority, seats), 1).choices;
+    const right = { type: "useJinnang", cardId: "连环计", handIndex: 2 } as const;
+    const submit = (cmd: GameCommand) => dispatch(authority, cmdMsg(cmd));
+    await submit(right);
+    await submit({ ...right, targets: [2] });
+    const resumed = hydrate(authority, seats);
+    const confirmed = readSeatReplica(resumed, 1).pendingJinnang;
+    await submit({ ...right, back: true });
+    const previous = readSeatReplica(hydrate(authority, seats), 1).pendingJinnang;
+    await submit({ ...right, targets: [0] });
+    const replica = hydrate(authority, seats);
+    const events = await apply(authority, replica, cmdMsg({ ...right, targets: [2] }));
+
+    for (const engine of [authority, replica]) {
+      expect(engine.players[1].jinnangHand).toEqual(["连环计", "火烧连营"]);
+      expect(engine.players[1].jinnangHandCount).toBe(2);
+      expect(engine.jinnangDiscard).toEqual(["连环计"]);
+      expect(engine.pendingJinnang).toBeNull();
+    }
+    expect(choices.filter((o) => o.id === "连环计").map((o) => o.handIndex)).toEqual([0, 2]);
+    expect(confirmed).toEqual({ cardId: "连环计", handIndex: 2, stage: "two-b", picked: [2] });
+    expect(previous).toEqual({ cardId: "连环计", handIndex: 2, stage: "two-a", picked: [2] });
+    expect(events).toContainEqual(
+      expect.objectContaining({ kind: "jinnangAnnounced", handIndex: 2, targetSeats: [0, 2] }),
+    );
+  });
 
   it("同主两城各可点选，错种类、错编号和漏选保留应答机会，出牌线指向城主棋子", async () => {
     const authority = makeEngine();
@@ -155,10 +193,12 @@ describe("反应窗选份与出牌宣布的联机契约", () => {
     const use = { type: "useJinnang", cardId: "火烧连营" } as const;
     await apply(authority, replica, cmdMsg(use));
     const announce = await apply(authority, replica, cmdMsg({ ...use, targets: [1] }));
-    expect(replica.snapshot().reaction).toMatchObject({
+    expect(readSeatReplica(replica, 1).reaction).toMatchObject({
       targets: { kind: "city", ids: [1, 2], requiresSelection: true },
     });
-    expect(hydrate(authority).snapshot().reaction).toEqual(replica.snapshot().reaction);
+    expect(readSeatReplica(hydrate(authority), 1).reaction).toEqual(
+      readSeatReplica(replica, 1).reaction,
+    );
     expect(announce[0]).toMatchObject({ kind: "jinnangAnnounced", targetSeats: [1] });
     const from = loneTokenPosition(replica, 4);
     const to = loneTokenPosition(replica, 9);
@@ -180,7 +220,9 @@ describe("反应窗选份与出牌宣布的联机契约", () => {
       expect(authority.submitCommand(cmd)).toBe("respondReaction:识破【火烧连营】须指定合法的城格");
       expect(authority.gameEvents).toEqual([]);
     }
-    expect(hydrate(authority).snapshot().reaction).toEqual(replica.snapshot().reaction);
+    expect(readSeatReplica(hydrate(authority), 1).reaction).toEqual(
+      readSeatReplica(replica, 1).reaction,
+    );
 
     const openWindow = JSON.parse(JSON.stringify(authority.snapshot()));
     await apply(authority, replica, cmdMsg({ ...counter, target: { kind: "city", id: 1 } }));
@@ -234,7 +276,7 @@ describe("反应窗选份与出牌宣布的联机契约", () => {
     expect(replica.players[1].cash).toBe(before + 10);
     expect(replica.players[1].jinnangHand).toEqual(["识破诡计"]);
     expect(replica.jinnangDiscard.at(-1)).toBe("火烧连营");
-    expect(replica.snapshot().reaction).toBeNull();
+    expect(readSeatReplica(replica, 1).reaction).toBeNull();
     expect(replica.turnPhase).toBe("Roll");
   });
 
@@ -258,7 +300,7 @@ describe("反应窗选份与出牌宣布的联机契约", () => {
 
     const pending = JSON.parse(JSON.stringify(authority.snapshot()));
     const restored = hydrate(authority, seats);
-    expect(restored.snapshot().reaction).toMatchObject({
+    expect(readSeatReplica(restored, 1).reaction).toMatchObject({
       targets: { kind: "seat", ids: [1, 2], requiresSelection: false },
       counter: { rootCardId: "连环计", rootUserSeat: 0, protects: true },
     });
@@ -410,7 +452,7 @@ describe("额外回合的联机命令与事件批", () => {
     const replica = makeEngine();
     const project = () =>
       JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), last)));
-    replica.restoreFromSnapshot(project());
+    hydrateSeatReplica(replica, project());
     const submit = (command: GameCommand) => submitAndFold(authority, replica, last, command);
     const expectTurn = (
       activeIndex: number,
@@ -488,7 +530,8 @@ describe("额外回合的联机命令与事件批", () => {
     armPhase(authority, { turnPhase: "AwaitingJinnang" });
 
     const replica = makeEngine();
-    replica.restoreFromSnapshot(
+    hydrateSeatReplica(
+      replica,
       JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), active))),
     );
     const submit = (command: GameCommand) => submitAndFold(authority, replica, active, command);
@@ -535,7 +578,8 @@ describe("额外回合的联机命令与事件批", () => {
     giveJinnang(authority, 0, ["横征暴敛", "识破诡计"]);
     for (const seat of [1, 2, 3]) giveJinnang(authority, seat, ["识破诡计"]);
     const replica = makeEngine(7, seats);
-    replica.restoreFromSnapshot(
+    hydrateSeatReplica(
+      replica,
       JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), 0))),
     );
     const submit = (command: GameCommand) => submitAndFold(authority, replica, 0, command);
@@ -581,6 +625,31 @@ describe("额外回合的联机命令与事件批", () => {
 });
 
 describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
+  it("落入敌城只收到事件批，交涉选项转给城主", () => {
+    const authority = makeEngine();
+    armPhase(authority, { phase: "Playing", activeIndex: 0, turnPhase: "Roll" });
+    placePlayer(authority, 0, CHANGAN);
+    grantProperty(authority, 1, "prop-jinyang", 1);
+    giveTreasure(authority, 1, [{ ...TREASURES[0], id: "edict-0" }]);
+    pinDice(authority, "march", [1]);
+    const replicas = [0, 1].map((seat) => {
+      const replica = makeEngine();
+      hydrateSeatReplica(replica, redactSnapshotForSeat(authority.snapshot(), seat));
+      return replica;
+    });
+    authority.submitCommand({ type: "rollAndMove" });
+    const views = replicas.map((replica, seat) => {
+      foldEventBatch(replica, redactEvents(authority.gameEvents, seat));
+      return readSeatReplica(replica, seat);
+    });
+    expect(views[0]).toMatchObject({
+      turnPhase: "AwaitingTreasureOwner",
+      decisionOwner: 1,
+      choices: [],
+    });
+    expect(views[1].choices.map((option) => option.id)).toEqual(["fair", "premium", "decline"]);
+  });
+
   it("银行债清偿后推进回合，事件使持牌者收下反应锦囊，其余座位只见张数", () => {
     const e = makeEngine();
     finishSetupLeavingCitiesUnowned(e, "prop-jinyang");
@@ -592,9 +661,9 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     setCash(e, debtor, 50);
     e.payOrLiquidate(e.activePlayer, null, 400);
     const replica = makeEngine();
-    replica.restoreFromSnapshot(redactSnapshotForSeat(e.snapshot(), nextSeat));
+    hydrateSeatReplica(replica, redactSnapshotForSeat(e.snapshot(), nextSeat));
     const otherReplica = makeEngine();
-    otherReplica.restoreFromSnapshot(redactSnapshotForSeat(e.snapshot(), debtor));
+    hydrateSeatReplica(otherReplica, redactSnapshotForSeat(e.snapshot(), debtor));
     const message = JSON.parse(
       cmdMsg({
         type: "confirmBankruptcySettle",
@@ -638,7 +707,7 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
       round: e.round,
       turn: e.turnNumber,
     });
-    otherReplica.restoreFromSnapshot(recovered);
+    hydrateSeatReplica(otherReplica, recovered);
     expect(otherReplica.players[nextSeat]).toMatchObject({ jinnangHand: [], jinnangHandCount: 1 });
   });
 
@@ -656,7 +725,7 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     e.submitCommand({ type: "useJinnang", cardId: "缓兵之计", targets: [skipped] });
     setJinnangPiles(e, [], ["横征暴敛"]);
     const replica = makeEngine();
-    replica.restoreFromSnapshot(redactSnapshotForSeat(e.snapshot(), active));
+    hydrateSeatReplica(replica, redactSnapshotForSeat(e.snapshot(), active));
 
     const finishTurn = () => {
       armPhase(e, { turnPhase: "AwaitingDecision" });
@@ -943,7 +1012,7 @@ describe("折叠投影器 · 城池族", () => {
     giveJinnang(e, 0, ["火烧连营"]);
     e.submitCommand({ type: "useJinnang", cardId: "火烧连营" });
     const replica = makeEngine();
-    replica.restoreFromSnapshot(JSON.parse(JSON.stringify(redactSnapshotForSeat(e.snapshot(), 1))));
+    hydrateSeatReplica(replica, JSON.parse(JSON.stringify(redactSnapshotForSeat(e.snapshot(), 1))));
     const linzi = MAP.board.tiles.find((tile) => tile.propertyId === "prop-linzi")!;
     const message = JSON.parse(
       cmdMsg({ type: "useJinnang", cardId: "火烧连营", targets: [linzi.index] }),
@@ -1320,15 +1389,23 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(e.players[0].jinnangHand).toEqual([]); // 暗牌内容不折(ADR-0016)
   });
 
-  it("jinnangAnnounced 消耗手牌并将牌移入弃牌堆", () => {
+  it("主动出牌公告的本席牌位缺失或不符时拒绝扣牌", () => {
     const e = makeEngine();
-    e.players[0].jinnangHand = ["连环计"];
-    e.players[0].jinnangHandCount = 1;
-    foldEventBatch(e, [ev(0, { kind: "jinnangAnnounced", cardId: "连环计", targetSeats: [1, 2] })]);
+    giveJinnang(e, 0, ["火烧连营", "连环计"]);
+    const announced = {
+      kind: "jinnangAnnounced",
+      cardId: "连环计",
+      targetSeats: [1],
+    } satisfies GameEventBody;
+    for (const handIndex of [undefined, 0]) {
+      expect(() => foldEventBatch(e, [ev(0, { ...announced, handIndex })])).toThrow("手牌位置");
+    }
+    expect(e.players[0].jinnangHand).toEqual(["火烧连营", "连环计"]);
 
-    expect(e.players[0].jinnangHandCount).toBe(0);
+    foldEventBatch(e, [ev(0, { ...announced, handIndex: 1 })]);
+    expect(e.players[0].jinnangHandCount).toBe(1);
     expect(e.jinnangDiscard).toEqual(["连环计"]);
-    expect(e.players[0].jinnangHand).toEqual([]);
+    expect(e.players[0].jinnangHand).toEqual(["火烧连营"]);
   });
 
   it("peekApplied 零折(#575):窥探即时一次性,无任何客户端状态(声明性零转移)", () => {
@@ -1370,7 +1447,7 @@ describe("折叠投影器 · 锦囊族", () => {
     grantProperty(authority, 1, "prop-jinyang", 3);
     grantProperty(authority, 1, "prop-youzhou", 3);
     const replica = makeEngine();
-    replica.restoreFromSnapshot(redactSnapshotForSeat(authority.snapshot(), 1));
+    hydrateSeatReplica(replica, redactSnapshotForSeat(authority.snapshot(), 1));
 
     function submit(command: GameCommand) {
       const { cmd } = JSON.parse(cmdMsg(command)) as Extract<InboundMsg, { type: "cmd" }>;
@@ -1380,7 +1457,7 @@ describe("折叠投影器 · 锦囊族", () => {
 
     submit({ type: "useJinnang", cardId: "火烧连营" });
     submit({ type: "useJinnang", cardId: "火烧连营", targets: [1] });
-    expect(replica.snapshot().reaction).toMatchObject({
+    expect(readSeatReplica(replica, 1).reaction).toMatchObject({
       cardId: "火烧连营",
       targets: { kind: "city", ids: [1, 2], requiresSelection: true },
       queriedBySeat: [1],
@@ -1392,7 +1469,7 @@ describe("折叠投影器 · 锦囊族", () => {
       cardId: "识破诡计",
       target: { kind: "city", id: 2 },
     });
-    expect(replica.snapshot().reaction).toMatchObject({
+    expect(readSeatReplica(replica, 1).reaction).toMatchObject({
       cardId: "识破诡计",
       targets: { kind: "city", ids: [2], requiresSelection: false },
       queriedBySeat: [-1],
@@ -1400,15 +1477,15 @@ describe("折叠投影器 · 锦囊族", () => {
     });
     const recovered = makeEngine();
     const projected = redactSnapshotForSeat(authority.snapshot(), 1);
-    recovered.restoreFromSnapshot(JSON.parse(JSON.stringify(projected)));
-    expect(recovered.snapshot().reaction).toEqual(replica.snapshot().reaction);
-    expect(recovered.pendingReaction?.seq).toBe(replica.pendingReaction?.seq);
+    hydrateSeatReplica(recovered, JSON.parse(JSON.stringify(projected)));
+    expect(readSeatReplica(recovered, 1).reaction).toEqual(readSeatReplica(replica, 1).reaction);
+    expect(seatReactionOf(recovered)?.seq).toBe(seatReactionOf(replica)?.seq);
     expect(projected.events.find((event) => event.kind === "reactionOpened")?.view).toMatchObject({
       queriedBySeat: [-1],
     });
 
     submit({ type: "respondReaction", seat: 0, use: true, cardId: "识破诡计" });
-    expect(replica.pendingReaction).toBeNull();
+    expect(seatReactionOf(replica)).toBeNull();
     expect(replica.players.map((p) => p.jinnangHandCount)).toEqual([0, 0]);
     expect(replica.players.map((p) => p.jinnangHand)).toEqual([[], []]);
     expect(replica.jinnangDiscard).toEqual(["火烧连营", "识破诡计", "识破诡计"]);
@@ -1442,8 +1519,8 @@ describe("折叠投影器 · 锦囊族", () => {
     ]);
 
     expect(e.turnPhase).toBe("AwaitingReaction");
-    expect(e.pendingReaction?.seq).toBe(7);
-    expect(e.pendingReaction?.view).toEqual({
+    expect(seatReactionOf(e)?.seq).toBe(7);
+    expect(seatReactionOf(e)?.view).toEqual({
       kind: "jinnang",
       cardId: "缓兵之计",
       userSeat: 0,
@@ -1451,10 +1528,10 @@ describe("折叠投影器 · 锦囊族", () => {
       queriedBySeat: [1],
       windowMs: 3750,
     });
-    expect(e.pendingReaction?.answers).toEqual([]);
+    expect(seatReactionOf(e)?.answers).toEqual([]);
 
     foldEventBatch(e, [ev(1, { kind: "reactionAnswered", use: false, spentCards: [] })]);
-    expect(e.pendingReaction).toBeNull(); // 应答齐即闭窗
+    expect(seatReactionOf(e)).toBeNull(); // 应答齐即闭窗
   });
 
   it("行军窗:闭窗应答点扣拦检牌(胜负两路同折);reactionFailed 无状态转移", () => {
@@ -1490,7 +1567,7 @@ describe("折叠投影器 · 锦囊族", () => {
       }),
     ]);
 
-    expect(e.pendingReaction).toBeNull();
+    expect(seatReactionOf(e)).toBeNull();
     expect(e.players[1].jinnangHandCount).toBe(0); // 拦检牌胜负两路皆扣(折于闭窗应答点)
     expect(e.jinnangDiscard.slice(discard0)).toEqual(["半路杀出"]);
   });
@@ -1534,16 +1611,16 @@ describe("折叠投影器 · 锦囊族", () => {
         1,
       ),
     ]);
-    const view = e.pendingReaction?.view;
+    const view = seatReactionOf(e)?.view;
     expect(view?.kind).toBe("jinnang");
     expect(view?.kind === "jinnang" && view.queriedBySeat).toEqual([-1, 1]);
     // 他人(host,座位 0)首答:1 < 2 → 非应答端(guest)窗不得误闭(#461 回归判据)
     foldEventBatch(e, [ev(0, { kind: "reactionAnswered", use: false })]);
-    expect(e.pendingReaction).not.toBeNull();
-    expect(e.pendingReaction?.answers).toEqual([{ seat: 0, use: false }]);
+    expect(seatReactionOf(e)).not.toBeNull();
+    expect(seatReactionOf(e)?.answers).toEqual([{ seat: 0, use: false }]);
     // 自己应答:2 ≥ 2 → 收窗
     foldEventBatch(e, [ev(1, { kind: "reactionAnswered", use: false, spentCards: [] })]);
-    expect(e.pendingReaction).toBeNull();
+    expect(seatReactionOf(e)).toBeNull();
   });
 
   it("应答无窗时报告事件序错误", () => {
@@ -1565,7 +1642,7 @@ describe("折叠投影器 · 体力/跳过族", () => {
     expect(e.damageStamina(0, 94, 1)).toBe(6);
 
     const replica = makeEngine();
-    replica.restoreFromSnapshot(JSON.parse(JSON.stringify(redactSnapshotForSeat(e.snapshot(), 1))));
+    hydrateSeatReplica(replica, JSON.parse(JSON.stringify(redactSnapshotForSeat(e.snapshot(), 1))));
     beginGameEventBatch(e);
     e.damageStamina(0, 10, null);
     const events = JSON.parse(JSON.stringify(redactEvents(e.snapshot().events, 1)));

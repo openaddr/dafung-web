@@ -30,12 +30,18 @@ import {
   armHero,
   armLanding,
   armPhase,
+  armReaction,
   giveJinnang,
   placePlayer,
   setCash,
   setStamina,
 } from "@dafung/core/engine/planter";
-import { foldEventBatch } from "@app/net/event-fold";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import {
+  hydrateSeatReplica,
+  readSeatReplica,
+  seatReactionOf,
+} from "@dafung/core/protocol/seat-replica";
 import { reactionQueriesSeat } from "@app/controllers/reaction";
 
 // ──────────────────────────── ① redactEvents 隐私档位 ────────────────────────────
@@ -320,7 +326,7 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
     const online = new Set([0, 1]);
     const guestSummary = clientView(room, online, 1) as Record<string, any>;
     const hostSummary = clientView(room, online, 0) as Record<string, any>;
-    const god = clientView(room, online) as Record<string, any>;
+    const god = room.engine!.snapshot();
     // 他人(座位 0)手牌内容不出网:guest/host 视角互裁,god-view 照旧(重放/调试语义)
     expect(guestSummary.players[0].jinnangHand).toEqual([]);
     expect(hostSummary.players[1].jinnangHand).toEqual([]);
@@ -362,29 +368,27 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
     game.submitCommand({ type: "useJinnang", cardId: null });
 
     const snapshot = redactSnapshotForSeat(game.snapshot(), 2);
-    const delta = assembleGameLogDelta(game, offset, 123);
+    const delta = assembleGameLogDelta(
+      game,
+      { rawOffset: offset, publicOffset: offset },
+      123,
+    ).message;
     if (delta === null) throw new Error("命令后缺少日志尾段");
-    expect(snapshot.log).toHaveLength(game.log.length);
     expect(delta.offset).toBe(offset);
     expect(delta.lines).toEqual(snapshot.log.slice(offset));
     expect(
       delta.lines.filter((line) => line.category === "cmd").map((line) => JSON.parse(line.detail)),
     ).toEqual([
-      { type: "useJinnang" },
-      { type: "useJinnang" },
-      { type: "useJinnang" },
-      { type: "useJinnang", cancel: true },
-      { type: "useJinnang" },
       { type: "respondReaction", use: true },
       { type: "respondReaction", use: false },
-      { type: "useJinnang", cardId: null },
     ]);
     const visible = JSON.stringify(snapshot.log);
     expect(visible).not.toContain("连环计");
     expect(visible).not.toContain("半路杀出");
     expect(visible).not.toContain("queried=p1");
     expect(visible).toContain("queriedCount=1");
-    expect(visible).toContain("jinnangCancel player=p0");
+    expect(visible).not.toContain("jinnangCancel");
+    expect(visible).toContain("jinnangPass player=p0");
     expect(visible).toContain("[警告] 命令与当前操作步骤不符");
     expect(visible).toContain("jinnangUse player=p0 card=横征暴敛");
     const authority = JSON.stringify(game.log);
@@ -424,7 +428,9 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
         { type: "commandResult", requestId, outcome: "warning", reason, logOffset: offset + 1 },
       ]);
       const projected = redactSnapshotForSeat(game.snapshot(), 1 - seat).log.slice(offset);
-      expect(assembleGameLogDelta(game, offset, 15)?.lines).toEqual(projected);
+      expect(
+        assembleGameLogDelta(game, { rawOffset: offset, publicOffset: offset }, 15).message?.lines,
+      ).toEqual(projected);
       expect(projected[1]).toMatchObject({ detail: `warn: ${reason}，原文见服务器日志` });
       expect(projected[1]).not.toHaveProperty("warning");
       expect(game.log[offset + 1].detail).toBe(detail);
@@ -522,7 +528,9 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
     game.warn("AI 无可选都城,跳过");
 
     const projected = redactSnapshotForSeat(game.snapshot(), 1).log.slice(offset);
-    expect(assembleGameLogDelta(game, offset, 10)?.lines).toEqual(projected);
+    expect(
+      assembleGameLogDelta(game, { rawOffset: offset, publicOffset: offset }, 10).message?.lines,
+    ).toEqual(projected);
     expect(projected).toHaveLength(game.log.length - offset);
     expect(
       projected.filter((line) => line.category === "cmd").map((line) => JSON.parse(line.detail)),
@@ -531,7 +539,7 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
       { type: "resolveTreasureOwner", action: { type: "fair", treasureId: "seal-1" } },
       { type: "resolveTreasureOwner", action: { type: "premium" } },
       { type: "useHeroSkill" },
-      { type: "useHeroSkill", heroId: "zhangxingcai", skillId: "leigu" },
+      { type: "useHeroSkill" },
       { type: "useBookSkill", treasureId: "skillbook-leigu", heroId: "zhangxingcai" },
       {
         type: "confirmBankruptcySettle",
@@ -553,7 +561,7 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
 // ──────────────────────────── ③ 过滤 × 折叠咬合 ────────────────────────────
 
 /** 三席副本引擎(同 event-fold.test 口径;三席为造 AOE 双询问窗:user 与被询问者分离)。 */
-function makeEngine(): GameEngine {
+function makeEngine(targetNetWorth = 30000): GameEngine {
   const seats: SeatConfig[] = [
     { name: "A", isBot: false, guohao: "魏" },
     { name: "B", isBot: false, guohao: "蜀" },
@@ -561,11 +569,42 @@ function makeEngine(): GameEngine {
   ];
   return new GameEngine(MAP.board, MAP.catalog, createDice(7), {
     seats,
-    targetNetWorth: 30000,
+    targetNetWorth,
     startingCash: 10000,
     startingTreasures: 0,
   });
 }
+
+it("座位保留收到的选项，单次窥探不会重列选项或在座位摘要里重发牌面", () => {
+  const authority = makeEngine(45000);
+  armPhase(authority, { phase: "Playing", activeIndex: 0, turnPhase: "AwaitingJinnang" });
+  giveJinnang(authority, 0, ["连环计", "火烧连营", "连环计"]);
+  giveJinnang(authority, 1, ["识破诡计"]);
+  const summary = redactSnapshotForSeat(authority.snapshot(), 0);
+  // 无界面玩家可以接入不同的权威规则实现。本步房间只授权最右的连环计和跳过。
+  summary.choices = summary.choices.filter(
+    (option) => option.handIndex === 2 || option.id === "pass",
+  );
+  const replica = makeEngine();
+  hydrateSeatReplica(replica, summary);
+  expect(readSeatReplica(replica, 0).choices).toEqual(summary.choices);
+  const peek = ev(0, {
+    kind: "peekApplied",
+    viewerSeat: 0,
+    targetSeat: 1,
+    cardId: "军情密探",
+    hand: ["识破诡计"],
+  });
+  foldEventBatch(replica, [peek]);
+  const view = readSeatReplica(replica, 0);
+  expect(view.targetNetWorth).toBe(45000);
+  expect(view.choices).toEqual(summary.choices);
+  expect(view.events).toHaveLength(1);
+  expect(view.events[0]).toMatchObject({ kind: "peekApplied", targetSeat: 1, hand: [] });
+  expect(view.players[1].jinnangHand).toEqual([]);
+  expect(view).not.toHaveProperty("rngState");
+  expect(readSeatReplica(replica, -1).choices).toEqual([]);
+});
 
 describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」)", () => {
   /** AOE 窗场景(三席:seat2 用横征暴敛,seat0/seat1 各持识破):宣布+开窗(同一结算
@@ -574,7 +613,7 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
   function scenarioBatches(): GameEvent[][] {
     return [
       [
-        ev(2, { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [0, 1] }),
+        ev(2, { kind: "jinnangAnnounced", cardId: "横征暴敛", handIndex: 0, targetSeats: [0, 1] }),
         ev(2, {
           kind: "reactionOpened",
           seq: 1,
@@ -633,8 +672,8 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
     // 开窗批后:窗挂着——询问集数量一致、自己成员一致、他人身份不见
     foldEventBatch(god, batches[0]!);
     foldEventBatch(filtered, redactEvents(batches[0]!, 1));
-    const godView = god.pendingReaction!.view;
-    const myView = filtered.pendingReaction!.view;
+    const godView = seatReactionOf(god)!.view;
+    const myView = seatReactionOf(filtered)!.view;
     expect(godView.kind).toBe("jinnang");
     expect(godView.kind === "jinnang" && godView.queriedBySeat).toEqual([0, 1]);
     expect(myView.kind === "jinnang" && myView.queriedBySeat).toEqual([-1, 1]);
@@ -646,14 +685,14 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
     // 应答批:首条应答后窗必须仍开着(god 与 filtered 同步;清零口径会在此误闭窗)
     foldEventBatch(god, batches[1]!);
     foldEventBatch(filtered, redactEvents(batches[1]!, 1));
-    expect(god.pendingReaction).not.toBeNull();
-    expect(filtered.pendingReaction).not.toBeNull();
+    expect(seatReactionOf(god)).not.toBeNull();
+    expect(seatReactionOf(filtered)).not.toBeNull();
 
     // 应答齐批:闭窗+识破生效(两视角同时;第二条应答不炸「无挂起反应窗」)
     foldEventBatch(god, batches[2]!);
     foldEventBatch(filtered, redactEvents(batches[2]!, 1));
-    expect(god.pendingReaction).toBeNull();
-    expect(filtered.pendingReaction).toBeNull();
+    expect(seatReactionOf(god)).toBeNull();
+    expect(seatReactionOf(filtered)).toBeNull();
 
     // 可见面等价:弃堆/数量账(暗牌数组差异不外显)
     expect(filtered.players[0].jinnangHandCount).toBe(god.players[0].jinnangHandCount);
@@ -665,12 +704,13 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
   it("viewer=2(使用者,不在询问列):只匿他人身份,闭窗时机与可见面照旧", () => {
     const batches = scenarioBatches();
     const { god, filtered } = enginePair({ p0: 1, p1: 1, p2: 1 });
+    filtered.players[2].jinnangHand = ["横征暴敛"];
     for (const b of batches) {
       foldEventBatch(god, b);
       foldEventBatch(filtered, redactEvents(b, 2));
     }
     // 全程无炸;窗已收;开窗批里询问集对 viewer=2 全匿(数量保留)
-    expect(filtered.pendingReaction).toBeNull();
+    expect(seatReactionOf(filtered)).toBeNull();
     const opened = (redactEvents(batches[0]!, 2)[1] ?? null) as Extract<
       GameEvent,
       { kind: "reactionOpened" }
@@ -683,24 +723,21 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
 
 // ──────────────────────────── ④ 快照投影 × 折叠咬合(#461)────────────────────────────
 describe("redactSnapshotForSeat · 快照路径查询集数量语义(#461)", () => {
-  /** 开窗态快照:三席 AOE 窗挂着(seat2 用横征暴敛,询问集 [0,1]),走真实折叠器置窗。 */
+  /** 权威端的三席 AOE 窗：seat2 用横征暴敛，询问集 [0,1]。 */
   function snapshotAtOpenWindow() {
     const e = makeEngine();
-    foldEventBatch(e, [
-      ev(2, { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [0, 1] }),
-      ev(2, {
-        kind: "reactionOpened",
-        seq: 1,
-        view: {
-          kind: "jinnang",
-          cardId: "横征暴敛",
-          userSeat: 2,
-          targets: { kind: "seat", ids: [0, 1], requiresSelection: true },
-          queriedBySeat: [0, 1],
-          windowMs: 15000,
-        },
-      }),
-    ]);
+    armReaction(
+      e,
+      {
+        kind: "jinnang",
+        cardId: "横征暴敛",
+        userSeat: 2,
+        targets: { kind: "seat", ids: [0, 1], requiresSelection: true },
+        queriedBySeat: [0, 1],
+        windowMs: 15000,
+      },
+      { kind: "jinnang", cardId: "横征暴敛", userSeat: 2, targets: [0, 1] },
+    );
     return e.snapshot();
   }
 
@@ -723,10 +760,15 @@ describe("redactSnapshotForSeat · 快照路径查询集数量语义(#461)", () 
     // 咬合(校准拍真实次序=水合覆盖折叠态):首条应答后窗必须仍开着——修复前此处
     // 挂长度 1 的查询集,host 应答批一到副本即误闭窗(非应答端横幅提前消失)。
     const restored = makeEngine();
-    restored.restoreFromSnapshot(mine);
-    expect(restored.pendingReaction).not.toBeNull();
+    hydrateSeatReplica(restored, mine);
+    expect(readSeatReplica(restored, 1).pendingReaction).toEqual(mine.pendingReaction);
     foldEventBatch(restored, [ev(0, { kind: "reactionAnswered", use: false })]);
-    expect(restored.pendingReaction).not.toBeNull();
+    const partlyAnswered = readSeatReplica(restored, 1);
+    expect(partlyAnswered.pendingReaction?.answers).toEqual([{ seat: 0, use: false }]);
+    const reconnected = makeEngine();
+    hydrateSeatReplica(reconnected, partlyAnswered);
+    foldEventBatch(reconnected, [ev(1, { kind: "reactionAnswered", use: false, spentCards: [] })]);
+    expect(readSeatReplica(reconnected, 1).pendingReaction).toBeNull();
   });
 
   it("非被询问座位:全匿数量保留([-1,-1]),判定不被询问", () => {

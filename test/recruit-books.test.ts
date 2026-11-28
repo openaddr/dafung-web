@@ -7,7 +7,8 @@ import { createDice } from "@dafung/core/engine/dice";
 import { HEROES } from "@dafung/core/engine/heroes";
 import { armHero, armPhase, pinDice, placePlayer } from "@dafung/core/engine/planter";
 import { isSkillBook } from "@dafung/core/engine/treasures";
-import { foldEventBatch } from "@app/net/event-fold";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import guanzhongData from "../packages/core/maps/guanzhong.json";
 import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 import {
@@ -121,7 +122,7 @@ it.each([
   const recovered = makeEngine();
   recovered.restoreFromSnapshot(JSON.parse(JSON.stringify(engine.snapshot())));
   const replica = makeEngine();
-  replica.restoreFromSnapshot(redactSnapshotForSeat(engine.snapshot(), 1 - seat));
+  hydrateSeatReplica(replica, redactSnapshotForSeat(engine.snapshot(), 1 - seat));
 
   const ops: InboundOps = {
     cmd: (cmd) => engine.submitCommand(cmd),

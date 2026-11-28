@@ -2,7 +2,7 @@
 // 对局传输仍经 OnlineController → ReconnectingSocket → 真实 WebSocket。
 import type { useGameStore } from "@app/store/gameStore";
 import type { useNetStore } from "@app/store/netStore";
-import type { GameSnapshot } from "@dafung/core/engine/snapshot";
+import type { SeatSnapshot } from "@dafung/core/room/seat-projection";
 import type { GameCommand } from "@dafung/core/engine/authority";
 import type { GameEvent } from "@dafung/core/engine/game-events";
 
@@ -12,7 +12,7 @@ export interface DualClientObservation {
   seat: number;
   hydrated: boolean;
   sessionReady: boolean;
-  engine: GameSnapshot | null;
+  engine: SeatSnapshot | null;
   game: Pick<ReturnType<typeof useGameStore.getState>, "snapshot" | "viewSeat" | "screen" | "hint">;
   net: Pick<
     ReturnType<typeof useNetStore.getState>,

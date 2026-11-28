@@ -168,6 +168,7 @@ export type GameCommand =
   | {
       type: "useJinnang";
       cardId: string | null;
+      handIndex?: number;
       targets?: number[];
       cancel?: boolean;
       back?: boolean;
@@ -767,7 +768,7 @@ export class GameEngine {
       case "respondSkillChoice": // 「你可」应答(#1377):决策者=挂问属主=本相位 decisionOwner
         return this.respondSkillChoice(cmd.seat, cmd.use, cmd.targetSeat);
       case "useJinnang":
-        return this.resolveJinnang(cmd.cardId, cmd.targets, cmd.cancel, cmd.back);
+        return this.resolveJinnang(cmd.cardId, cmd.targets, cmd.cancel, cmd.back, cmd.handIndex);
       case "useHeroSkill":
         return this.resolveHeroSkill(cmd.heroId, cmd.skillId, cmd.targets, cmd.cancel);
       case "useBookSkill":
@@ -900,8 +901,9 @@ export class GameEngine {
     targets?: number[],
     cancel?: boolean,
     back?: boolean,
+    handIndex?: number,
   ): void {
-    resolveJinnang(this, cardId, targets, cancel, back);
+    resolveJinnang(this, cardId, targets, cancel, back, handIndex);
   }
 
   /** 发动主动技(#188 档 3;#817 实例定位):薄委托 → jinnang-execution.resolveHeroSkill。 */

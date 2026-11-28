@@ -16,7 +16,7 @@ import type { GameArchiveIdentity } from "@app/game-diagnostic-record";
 import { finishGameDiagnostics, recordGameDiagnosticError } from "@app/game-diagnostics";
 import { archiveGameLog, archiveGameLogTail } from "@app/gameLogArchive";
 import { FetchMapSource } from "@app/map-sources";
-import { setEngine, useGameStore, type GameSnapshotCore } from "@app/store/gameStore";
+import { setEngine, useGameStore } from "@app/store/gameStore";
 import {
   myAutoPilotOn,
   useNetStore,
@@ -30,15 +30,16 @@ import { stashEventBatch } from "@app/net/event-feed";
 // 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
 import {
   autoPilotMsg,
-  cmdMsg,
   pickCapitalMsg,
   type GameLogMsg,
   type ServerMsg,
   type SnapshotMsg,
 } from "@dafung/core/protocol/wire";
-import { foldEventBatch } from "@app/net/event-fold";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { abandonAllMarches } from "@app/fx/useMarch";
 import { setController } from "./registry";
+import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
 import { GameController } from "./controller";
 
 export type { RoomJoinReply };
@@ -71,7 +72,7 @@ export class OnlineController extends GameController {
   private ended = false;
   private roomId: string | null = null;
   private seatToken: string | null = null;
-  private pendingReactionRequest: number | undefined;
+  private outbox = new PlayerCommandOutbox();
   /** 归档使用独立的权威日志前缀，水合副本的日志仍由既有状态通路维护。 */
   private gameLog: GameLogPrefix | null = null;
   /** 当前占位引擎对应的地图 id(换图守卫:同图不重建)。 */
@@ -79,9 +80,6 @@ export class OnlineController extends GameController {
   /** 当前地图(占位引擎重建用:快照座位数与占位引擎不一致时按数重建)。 */
   private map: LoadedMap;
   seat = -1;
-  /** 交互策略参数(#433 上收基类单源):热座=false——各端座位固定,他座决策时
-   *  不得解锁本端操作,必须显式判定决策方===自己(决策方是否轮到「我的座位」)。 */
-  protected override readonly hotSeat = false;
   protected override get mySeat(): number {
     return this.seat;
   }
@@ -113,9 +111,6 @@ export class OnlineController extends GameController {
   get engine(): GameEngine {
     return this._engine;
   }
-  get viewSeat(): number {
-    return this.seat;
-  }
 
   override redactDiagnosticCredentials(message: string): string {
     return this.seatToken === null ? message : message.replaceAll(this.seatToken, "[凭证已隐去]");
@@ -135,9 +130,8 @@ export class OnlineController extends GameController {
   }
 
   private clearPending(): void {
-    this.pending = false;
-    this.pendingReactionRequest = undefined;
-    useNetStore.getState().setPending(false);
+    this.pending = this.outbox.waitingFor(this.decisionPoint);
+    useNetStore.getState().setPending(this.pending);
   }
   /** 我的座位托管中(netStore seats 广播回读,公式单源 myAutoPilotOn)。 */
   get autoPilotOn(): boolean {
@@ -159,7 +153,7 @@ export class OnlineController extends GameController {
   }
 
   // ─── 命令入口:发 WS,状态由服务器广播 snapshot 驱动 ───
-  dispatchCommand(cmd: GameCommand): void {
+  dispatchCommand(cmd: GameCommand, decisionPoint = this.decisionPoint): void {
     const reason = this.commandBlockReason();
     if (reason !== null) {
       this.observeBlockedCommand(cmd.type, reason);
@@ -171,13 +165,23 @@ export class OnlineController extends GameController {
       useGameStore.getState().pushHint("连接未就绪");
       return;
     }
+    const roomId = this.roomId;
+    if (roomId === null) throw new Error("已连接的玩家缺少房间号");
     this.pending = true;
     // UI F3:pending 透传 netStore(HandPanel 读 netStore.pending 显示「行军中…」;
     // 不给基类加 seam,联机/单机经同一 store 字段取态,单机恒 false)。
     useNetStore.getState().setPending(true);
     this.sendObservedCommand(cmd.type, (id) => {
-      this.pendingReactionRequest = cmd.type === "respondReaction" ? id : undefined;
-      sock.send(cmdMsg(cmd, id));
+      sock.send(
+        this.outbox.encode(
+          cmd,
+          roomId,
+          this.seat,
+          this.engine.pendingJinnang?.cardId ?? null,
+          decisionPoint,
+          id,
+        ),
+      );
     });
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }
@@ -251,12 +255,12 @@ export class OnlineController extends GameController {
 
   /** 从已收窄的入座回包取凭证并建立 WS;房间字段灌 netStore(大厅屏初渲染)。 */
   private adoptRoom(reply: RoomJoinReply): void {
+    this.outbox = new PlayerCommandOutbox();
     this.roomId = reply.roomId;
     this.seat = reply.seat;
     this.seatToken = reply.seatToken;
     this.applyRoomFields(reply);
     useNetStore.getState().setMySeat(this.seat);
-    useGameStore.getState().setViewSeat(this.seat);
     this.connect();
   }
 
@@ -286,7 +290,7 @@ export class OnlineController extends GameController {
     const previous = this.sock;
     this.sock = null;
     previous?.close();
-    this.forgetCommandRequests();
+    this.forgetCommandRequests(this.outbox.requestId);
     this.fx.dropStalledBatch();
     this.setConnectionStatus("connecting");
     this.sync();
@@ -308,7 +312,7 @@ export class OnlineController extends GameController {
       if (s === "open") {
         this.fx.resetEventFace();
       } else {
-        this.forgetCommandRequests();
+        this.forgetCommandRequests(this.outbox.requestId);
         this.fx.dropStalledBatch();
       }
       this.setConnectionStatus(s === "open" ? "calibrating" : s);
@@ -350,6 +354,14 @@ export class OnlineController extends GameController {
     receivedAt: number,
     receivedAtMonotonic = performance.now(),
   ): void {
+    if (msg.type === "submissionResult") {
+      if (!this.outbox.acknowledge(msg)) return;
+      this.observeCommandResult(msg, receivedAtMonotonic);
+      if (msg.outcome === "rejected") useGameStore.getState().pushHint(msg.reason);
+      this.clearPending();
+      this.sync();
+      return;
+    }
     if (msg.type === "commandResult") {
       this.observeCommandResult(msg, receivedAtMonotonic);
       return;
@@ -361,6 +373,7 @@ export class OnlineController extends GameController {
     }
     if (msg.type === "lobby") {
       // lobby/snapshot 两种消息都带完整 NetRoomFields(ServerMsg 已声明),直接透传
+      const previousAutoPilot = this.autoPilotOn;
       this.applyRoomFields(msg);
       // 房主换图可回到已加载的图，此时撤销在途请求即可。
       if (msg.mapId && msg.mapId !== this.mapId) void this.rebuildForMap(msg.mapId);
@@ -369,7 +382,7 @@ export class OnlineController extends GameController {
       if (!msg.started && this.connectionStatus === "calibrating") {
         this.setConnectionStatus("open");
         this.sync();
-      }
+      } else if (this.autoPilotOn !== previousAutoPilot) this.sync();
       return;
     }
     if (msg.type === "snapshot") {
@@ -385,9 +398,10 @@ export class OnlineController extends GameController {
       this.mapLoad = null;
       if (this._engine.gameId !== msg.gameId) {
         finishGameDiagnostics(this);
-        this.forgetCommandRequests();
+        this.forgetCommandRequests(this.outbox.requestId);
       }
       const { type: _t, reactionTiming, ...snap } = msg;
+      this.decisionPoint = msg.decisionPoint;
       // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
       // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
       // #386:同 tick 事件批已先行折叠推进 position,视觉停点改用折叠前捕获的锚点;
@@ -401,9 +415,10 @@ export class OnlineController extends GameController {
         this._engine = this.makePlaceholderEngine(this.map, snap.players.length);
         setEngine(this._engine);
       }
-      this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
+      hydrateSeatReplica(this._engine, snap);
       this.applyRoomFields(msg);
-      if (this.connectionStatus === "calibrating") this.resetReactionTiming();
+      const recovering = this.connectionStatus === "calibrating";
+      if (recovering) this.resetReactionTiming();
       this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
       this.setConnectionStatus("open");
       this.clearPending();
@@ -411,8 +426,13 @@ export class OnlineController extends GameController {
       // SnapshotEffects 直译播放;本帧无批(空批 flush)时游标不推进,自然跳过。
       this.fx.play(prePositions);
       this.checkRollSeal();
-      this.sync();
+      this.sync({ reconnect: recovering });
       this.anchorGameLog(msg, receivedAt, receivedAtMonotonic);
+      const retry = this.outbox.unacknowledged;
+      if (recovering && retry !== null) {
+        if (this.sock === null) throw new Error("重连摘要缺少原座连接");
+        this.sock.send(retry);
+      }
       // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
       if (!this.enteredGame) {
         this.enteredGame = true;
@@ -428,7 +448,7 @@ export class OnlineController extends GameController {
       // 恢复边界不折叠/暂存摘要前的旧批,也不能由 events 清 pending 提前解锁。
       if (!this.sessionReady) return;
       // 折叠最小闭环(#386,ADR-0020 决策 1):事件批投影进本地引擎副本(现金/位置
-      // 两族,折叠器见 net/event-fold.ts),经既有 syncFromEngine 通路重渲(界面读口
+      // 两族,折叠器见 net/event-fold.ts),经既有 控制器发布通路重渲(界面读口
       // 不变,不另起平行 store 切片;一次事件批一次重渲)。#388 切换后本通路是唯一
       // 对局状态下行,快照只在整房摘要/关键节点校准到达(水合无条件覆盖全部字段)。
       // 折叠前先捕获棋子位置当行军锚点(「转移前视觉停点」口径同快照帧)。
@@ -444,6 +464,7 @@ export class OnlineController extends GameController {
       // 该窗口内唯一状态来源。
       const hydrated = this.enteredGame;
       if (hydrated) {
+        this.decisionPoint = msg.decisionPoint;
         foldEventBatch(this._engine, msg.events);
         this.observeReactionTiming(msg.reactionTiming, receivedAtMonotonic);
       }
@@ -451,8 +472,10 @@ export class OnlineController extends GameController {
       // 正常对局快照不再随转移到达,表现锁(fxPlaying=本座位演出落定,#611 改绑,
       // L42 决策卷轴的时序门)不能等快照帧;快照帧的 play 由消费游标去重,同批不会
       // 播两次。
-      stashEventBatch(msg.events);
-      if (hydrated) this.fx.play(prePositions);
+      if (msg.events.length > 0) {
+        stashEventBatch(msg.events);
+        if (hydrated) this.fx.play(prePositions);
+      }
       // #388:命令在途锁在此解锁(旧世界靠快照回包清零;空批转移无 events 消息,由
       // 随后的决策窗校准快照解锁——见 server.ts 校准口径)。
       this.clearPending();
@@ -469,19 +492,16 @@ export class OnlineController extends GameController {
       useGameStore.getState().setScreen("lobby");
       return;
     }
+    if (this.outbox.matchesRequest(msg.requestId)) {
+      // 通用错误未确认裁决结果；保留原提交与诊断配对，重连摘要后查询原结果。
+      this.failCalibration(msg.error);
+      return;
+    }
     this.observeCommandResult(msg, receivedAtMonotonic);
     // 恢复时收到明确拒绝即终止本次尝试;普通局内命令错误仍沿提示通路。
     if (!this.sessionReady) {
       this.failCalibration(msg.error);
       return;
-    }
-    // 错份拒绝没有状态下行，匹配该次应答的回执后立即恢复原窗操作。
-    if (
-      this.pendingReactionRequest !== undefined &&
-      msg.requestId === this.pendingReactionRequest
-    ) {
-      this.clearPending();
-      this.sync();
     }
     useGameStore.getState().pushHint(msg.error);
   }
@@ -491,7 +511,7 @@ export class OnlineController extends GameController {
     this.sock = null;
     sock?.close();
     this.mapLoad = null;
-    this.forgetCommandRequests();
+    this.forgetCommandRequests(this.outbox.requestId);
     this.fx.dropStalledBatch();
     this.clearPending();
     this.connectionStatus = "failed";
@@ -618,6 +638,7 @@ export class OnlineController extends GameController {
     this.sock = null;
     sock?.close();
     this.gameLog = null;
+    this.outbox = new PlayerCommandOutbox();
     this.clearPending();
     this.setConnectionStatus("idle");
     this.sync();

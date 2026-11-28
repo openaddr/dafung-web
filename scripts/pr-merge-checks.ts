@@ -19,6 +19,7 @@ const rules: Array<[RegExp, string[]]> = [
     [],
   ],
   [/^scripts\/.+\.(?:ts|mjs)$/, ["typecheck:scripts"]],
+  [/^scripts\/headless-player\.ts$/, ["test:protocol"]],
   [/^scripts\/rule-docs\.ts$/, ["check:rule-docs"]],
   [/\.md$|^scripts\/check-retired-phrases\.ts$/, ["check:retired"]],
   [

@@ -106,6 +106,20 @@
   will-change: transform;
   pointer-events: none;
 }
+.bv-token-target {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: max(100%, calc(var(--touch-target) / var(--bv-world-scale)));
+  height: max(100%, calc(var(--touch-target) / var(--bv-world-scale)));
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
 .bv-token-art {
   display: block;
   overflow: visible; /* 描边/旗面出 viewBox 不裁切 */

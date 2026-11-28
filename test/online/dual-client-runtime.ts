@@ -5,7 +5,8 @@ import { setController } from "@app/controllers/registry";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
-import { cmdMsg, type ServerMsg } from "@dafung/core/protocol/wire";
+import { readSeatReplica } from "@dafung/core/protocol/seat-replica";
+import { cmdMsg, submissionMsg, type ServerMsg } from "@dafung/core/protocol/wire";
 import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
 import type {
   DualClientObservation,
@@ -38,6 +39,8 @@ const urls: string[] = [];
 const receivedTypes: string[] = [];
 const events: DualClientObservation["wire"]["events"] = [];
 const errors: string[] = [];
+let decisionPoint: string | null = null;
+let lastReactionPoint: string | null = null;
 const retryDelays: number[] = [];
 const retries = new Map<number, () => void>();
 let retryId = 0;
@@ -53,7 +56,10 @@ let controller: OnlineController | null = new OnlineController(
         const data = JSON.parse(String(message.data)) as ServerMsg;
         receivedTypes.push(data.type);
         if (data.type === "events") events.push(...data.events);
+        if (data.type === "snapshot" || data.type === "events") decisionPoint = data.decisionPoint;
         if (data.type === "error") errors.push(data.error);
+        if (data.type === "submissionResult" && data.outcome === "rejected")
+          errors.push(data.reason);
       });
       return socket as unknown as WebSocketLike;
     },
@@ -89,7 +95,7 @@ function observe(): DualClientObservation {
     hydrated:
       controller !== null && (controller as unknown as { enteredGame: boolean }).enteredGame,
     sessionReady: controller !== null && controller.sessionReady,
-    engine: controller === null ? null : controller.engine.snapshot(),
+    engine: controller === null ? null : readSeatReplica(controller.engine, controller.seat),
     game: {
       snapshot: game.snapshot,
       viewSeat: game.viewSeat,
@@ -215,7 +221,24 @@ async function execute(operation: DualClientOperation): Promise<void> {
       if (!controller.sessionReady || socket === undefined || socket.readyState !== WebSocket.OPEN)
         throw new Error("当前会话未校准,不能发送公共命令");
       // headless 决策/反应应答沿既有传输缝,生产编码与服务器座位鉴权均保留。
-      socket.send(cmdMsg(operation.command));
+      const cmd = operation.command;
+      if (cmd.type === "respondReaction") {
+        // 用原窗已交付的标识复验同窗重复与窗后迟到的权威拒绝。
+        if (controller.seatView.reaction !== null && decisionPoint !== null) {
+          lastReactionPoint = decisionPoint;
+        }
+        const point = lastReactionPoint;
+        if (point === null) throw new Error("应答操作没有收到过决策点");
+        socket.send(
+          submissionMsg({
+            roomId: useNetStore.getState().roomId,
+            seat: controller.seat,
+            decisionPoint: point,
+            submissionId: crypto.randomUUID(),
+            cmd,
+          }),
+        );
+      } else socket.send(cmdMsg(cmd));
       return;
     }
   }

@@ -8,6 +8,7 @@
 // 3.0s(实测 2026-10-30);其余 68 例轻,常驻默认池。
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry, RoomError } from "@dafung/core/room/room";
+import { seatDecisionPointOf } from "@dafung/core/room/player-submissions";
 import type { RoomClock, SeatEndpoint } from "@dafung/core/room/room";
 import {
   lobbyView,
@@ -20,10 +21,18 @@ import {
 import { resolveGuohaoClash } from "@dafung/core/engine/guohao";
 import { JINNANG_CARDS } from "@dafung/core/engine/jinnang";
 import { GameEngine } from "@dafung/core/engine/authority";
-import { armHero, armPhase, giveJinnang, setStamina } from "@dafung/core/engine/planter";
+import {
+  armHero,
+  armPhase,
+  giveJinnang,
+  grantProperty,
+  setDefense,
+  setStamina,
+} from "@dafung/core/engine/planter";
 import { heroSlotOf, skillMarksOf } from "@dafung/core/engine/roster";
 import { createDice } from "@dafung/core/engine/dice";
-import { foldEventBatch } from "../../apps/client/src/app/net/event-fold";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import type { RoomPersistence } from "@dafung/core/room/room-persistence";
 import type { RoomRecord } from "@dafung/core/room/room-record";
 import type { ServerMsg } from "@dafung/core/protocol/wire";
@@ -447,7 +456,7 @@ describe("RoomRegistry · 联机国号预设与重名前缀(autos 28)", () => {
     // lobby/seats 元数据带 guohao 原样值(未预设=null,大厅不放假章)
     const view = lobbyView(reg.get(roomId)!, new Set([0]));
     expect(view.seats.map((s) => s.guohao)).toEqual([null, "魏", "魏"]);
-    expect(clientView(reg.get(roomId)!, new Set([0])).seats.map((s) => s.guohao)).toEqual([
+    expect(clientView(reg.get(roomId)!, new Set([0]), 0).seats.map((s) => s.guohao)).toEqual([
       null,
       "魏",
       "魏",
@@ -577,7 +586,7 @@ describe("RoomRegistry · 选图(mapId / setMap)", () => {
 describe("clientView · snapshot 消息房间字段(架构待办③:协议自描述)", () => {
   it("开局后 snapshot 分支携带 seatCount/started/mapId——客户端无需从 seats 推断手抄", async () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 3, bot: [2], mapId: "zhongyuan" });
-    const view = clientView(reg.get(roomId)!, new Set([0]));
+    const view = clientView(reg.get(roomId)!, new Set([0]), 0);
     expect(view.type).toBe("snapshot");
     if (view.type !== "snapshot") throw new Error("expected snapshot");
     expect(view.seatCount).toBe(3);
@@ -590,7 +599,7 @@ describe("clientView · snapshot 消息房间字段(架构待办③:协议自描
   it("未开局退化为 lobbyView:started=false、mapId=null、seatCount 齐全", async () => {
     const reg = new RoomRegistry(new InMemoryPersistence());
     const { room } = reg.createRoom({ seatCount: 4, botIdx: new Set([3]), hostConfig: {} });
-    const view = clientView(reg.get(room.roomId)!, new Set());
+    const view = clientView(reg.get(room.roomId)!, new Set(), 0);
     expect(view.type).toBe("lobby");
     expect(view.started).toBe(false);
     expect(view.mapId).toBeNull();
@@ -928,34 +937,26 @@ describe("RoomRegistry · 命令 + onUpdate 直播", () => {
 });
 
 describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
-  /** 开一个识破反应窗:活跃座位手「火烧连营」(城指向 #1389,中心=受害者都城),
-   *  另一座位手「识破诡计」+ 都城持仓。布场口径同 test/reaction-window.test.ts
-   *  (直调引擎公共面摆测试态,不经 cmd 通道)。 */
+  /** 火烧连营以另一席的都城为中心，由房间命令打开识破窗并登记时限。 */
   async function openCounterWindow(reg: RoomRegistry, roomId: string) {
     const e = reg.get(roomId)!.engine!;
     if (e.players.length !== 2) throw new Error("测试预期 2 座房间");
     const userSeat = e.activeIndex;
     const victimSeat = 1 - userSeat;
-    e.players[userSeat].jinnangHand = ["火烧连营"];
-    e.players[userSeat].jinnangHandCount = 1;
-    e.players[victimSeat].jinnangHand = ["识破诡计"];
-    e.players[victimSeat].jinnangHandCount = 1;
-    // 本场景只验反应窗的座位校验——未进窗就直置出牌相位,与进相路径无关。
-    if (e.turnPhase !== "AwaitingJinnang") e.turnPhase = "AwaitingJinnang";
-    const capId = e.board.at(e.players[victimSeat].capitalIndex!)?.propertyId;
-    e.players[victimSeat].properties = [
-      {
-        burning: null,
-        damageRanking: [],
-        propertyId: capId!,
-        group: "a",
-        level: 3,
-        maxLevel: 4,
-        defense: 20,
-      },
-    ];
-    e.resolveJinnang("火烧连营"); // 入目标段
-    e.resolveJinnang("火烧连营", [e.players[victimSeat].capitalIndex!]); // 宣布 → 反应窗挂起
+    giveJinnang(e, userSeat, ["火烧连营"]);
+    giveJinnang(e, victimSeat, ["识破诡计"]);
+    armPhase(e, { turnPhase: "AwaitingJinnang" });
+    const center = e.players[victimSeat].capitalIndex;
+    const capital = e.board.at(center).propertyId;
+    if (capital === null) throw new Error("测试预期受影响座位已定都");
+    grantProperty(e, victimSeat, capital, 3);
+    setDefense(e, victimSeat, capital, 20);
+    await reg.applyCommand(roomId, { type: "useJinnang", cardId: "火烧连营" });
+    await reg.applyCommand(roomId, {
+      type: "useJinnang",
+      cardId: "火烧连营",
+      targets: [center],
+    });
     expect(e.turnPhase as string).toBe("AwaitingReaction");
     return { e, userSeat, victimSeat };
   }
@@ -1038,11 +1039,15 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
     await pickAllHumanCapitals(reg, roomId);
     const { e, victimSeat } = await openCounterWindow(reg, roomId);
-    await reg.applyCommandFromSeat(roomId, victimSeat, {
-      type: "respondReaction",
+    const decisionPoint = seatDecisionPointOf(reg.get(roomId)!, victimSeat)!;
+    const result = await reg.submitFromSeat(roomId, victimSeat, {
+      roomId,
       seat: victimSeat,
-      use: false,
+      submissionId: "本人弃用",
+      decisionPoint,
+      cmd: { type: "respondReaction", seat: victimSeat, use: false },
     });
+    expect(result.outcome).toBe("accepted");
     expect(e.pendingReaction).toBeNull();
     expect(e.turnPhase).toBe("Roll"); // 结算收卷(同 reaction-window.test 口径)
   });
@@ -1281,12 +1286,12 @@ describe("锦囊暗牌投影(ADR-0016 · redactSnapshotForSeat)", () => {
     expect(JSON.stringify(snap)).toBe(before); // 未改输入
   });
 
-  it("clientView 带座位 → 投影视图;缺省 → god-view;lobby 态不受影响", async () => {
+  it("clientView 将权威快照投影给接收席位，开局前返回大厅", async () => {
     const { reg, roomId, hostToken } = await roomWithHands();
     const room = reg.get(roomId)!;
     const online = new Set([0]);
     const view0 = clientView(room, online, 0) as Record<string, unknown>;
-    const god = clientView(room, online) as Record<string, unknown>;
+    const god = room.engine!.snapshot();
     const p1view = (view0.players as { jinnangHand: string[]; jinnangHandCount?: number }[])[1];
     const p1god = (god.players as { jinnangHand: string[] }[])[1];
     expect(p1view.jinnangHand).toEqual([]);
@@ -1463,8 +1468,8 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
           startingCash: MAP.startingCash,
           startingTreasures: 0,
         });
-        replica.restoreFromSnapshot(redactSnapshotForSeat(first, f.seat));
-        for (const batch of batches) foldEventBatch(replica, redactEvents(batch.events, f.seat));
+        hydrateSeatReplica(replica, first);
+        for (const batch of batches) foldEventBatch(replica, batch.events);
         expect(replica.isOver).toBe(true);
         expect(replica.phase).toBe("GameOver");
         expect(replica.winner?.id, "事件批副本与权威胜者一致").toBe(winner.id);
@@ -1479,7 +1484,7 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
         const summary = reconnect[0];
         if (summary?.type !== "snapshot") throw new Error("端点缺少重连快照");
         expect(summary.phase).toBe("GameOver");
-        expect(redactSnapshotForSeat(summary, f.seat).winner).toBe(winner.id);
+        expect(summary.winner).toBe(winner.id);
       }
     },
     120_000,

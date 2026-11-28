@@ -14,7 +14,8 @@
 //  2. 显式产出(emitGameEvent):行军落格、反应窗开合、名将技能、抽锦囊、体力变更、
 //     清算交割等由各领域在结算点直接产出事件。reason 记录对应的结算来源。
 import type { GameEngine, GameCommand, TurnPhase, VictoryReason } from "./authority";
-import type { PendingSkillChoice } from "./choices";
+import type { ChoiceOption, PendingSkillChoice } from "./choices";
+import type { PendingJinnang } from "./jinnang-execution";
 import type { LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
 import type { ReactionCardSpend, ReactionTarget, ReactionView } from "./reaction-window";
@@ -373,10 +374,18 @@ export interface ExhaustionResolvedBody {
   strongestImpact: CityDamageImpact | null;
   restTurns: number;
 }
+/** 两步用牌的已确认步骤及权威选项，仅交付操作座位。 */
+export interface JinnangTargetStepChangedBody {
+  kind: "jinnangTargetStepChanged";
+  pendingJinnang: PendingJinnang | null;
+  choices: ChoiceOption[];
+}
 /** 出牌扣账后、识破窗打开前宣布受影响的座位，座位去重。 */
 export interface JinnangAnnouncedBody {
   kind: "jinnangAnnounced";
   cardId: string;
+  /** 仅出牌席收到其离手前的手牌位置。反应牌随应答扣账。 */
+  handIndex?: number;
   targetSeats: number[];
 }
 /** 回合摸牌后进入出牌阶段，或城损技能应答后收尾时的权威相位。 */
@@ -395,6 +404,8 @@ export interface ReactionAnsweredBody {
   kind: "reactionAnswered";
   use: boolean;
   cardId?: string;
+  /** 按份应答所选对象，仅交付应答座位。 */
+  target?: ReactionTarget;
   /** 最终应答随附实际离手的反应锦囊，按权威扣账顺序；此窗无人消耗时为空数组。 */
   spentCards?: ReactionCardSpend[];
 }
@@ -492,6 +503,7 @@ export type GameEventBody =
   | StaminaChangedBody
   | TurnSkippedBody
   | ExhaustionResolvedBody
+  | JinnangTargetStepChangedBody
   | JinnangAnnouncedBody
   | JinnangPhaseResumedBody
   | ReactionOpenedBody
@@ -551,6 +563,7 @@ export const GAME_EVENT_KINDS = [
   "staminaChanged",
   "turnSkipped",
   "exhaustionResolved",
+  "jinnangTargetStepChanged",
   "jinnangAnnounced",
   "jinnangPhaseResumed",
   "reactionOpened",
@@ -652,6 +665,7 @@ const MOMENT_EVENT_FACTORIES: Partial<Record<GameMoment, MomentEventFactory>> = 
   JinnangAnnounced: (_g, ctx) => ({
     kind: "jinnangAnnounced",
     cardId: requireMomentField(ctx.cardId, "JinnangAnnounced.cardId"),
+    ...(ctx.handIndex !== undefined ? { handIndex: ctx.handIndex } : {}),
     targetSeats: [...requireMomentField(ctx.targetSeats, "JinnangAnnounced.targetSeats")],
   }),
 };

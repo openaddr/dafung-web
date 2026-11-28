@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // 模块求值读构建期注入的 __APP_VERSION__——按生产同一值源(package.json CalVer)先行
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
-import { targetCandidates } from "@app/screens/game/target-selection";
+import { targetCandidates } from "@dafung/core/protocol/target-selection";
 import { TESTIDS } from "@app/screens/game/testids";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
@@ -197,30 +197,29 @@ beforeAll(async () => {
   const ctrlMod = await import("@app/controllers/controller");
   GameScreen = screenMod.GameScreen;
   setController = registryMod.setController;
-  // WiringController:生产基类最小子型——单机 hotSeat 参数 + submitCommand 命令腿
+  // WiringController:生产基类最小子型——submitCommand 命令腿
   // + 基类 sync 状态桥(模板同款;房间编排/传输/看门狗是层③领域不进来)。
   const Base = ctrlMod.GameController;
   class WiringControllerImpl extends Base {
+    private decisionNumber = 0;
     constructor(private readonly e: GameEngine) {
       super();
     }
     override get engine(): GameEngine {
       return this.e;
     }
-    // 单机热座:视角跟随决策方(LocalController 同口径)。
-    override get viewSeat(): number {
-      return this.e.decisionOwner;
-    }
     protected override get mySeat(): number {
       return 0;
     }
-    protected override readonly hotSeat = true;
+
     override dispatchCommand(cmd: GameCommand): void {
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
+      this.decisionPoint = String(++this.decisionNumber);
       this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
     }
     // 测试侧重灌口(protected sync 的公开面;种植后调)。
     resync(remainingMs?: number): void {
+      this.decisionPoint = String(++this.decisionNumber);
       const current = this.e.pendingReaction;
       if (current != null) {
         this.observeReactionTiming(
@@ -331,11 +330,9 @@ describe("出牌窗交互链(自 react-jinnang-use 迁入,#1317 批T3)", () => {
     click(confirm());
     await finishExit(banner, "识破出牌后收窗");
     expect(snap().players[0].jinnangHand).toEqual([]);
-    expect(
-      snap()
-        .log.map((line) => line.detail)
-        .join("\n"),
-    ).toContain(`use=1 card=识破诡计 share=${tileIndex}`);
+    expect(engine.log.map((line) => line.detail).join("\n")).toContain(
+      `use=1 card=识破诡计 share=${tileIndex}`,
+    );
     const holding = engine
       .findOwner(propertyId)!
       .properties.find((h) => h.propertyId === propertyId)!;

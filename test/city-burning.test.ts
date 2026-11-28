@@ -1,5 +1,6 @@
 import { expect, it } from "bun:test";
-import { foldEventBatch } from "@app/net/event-fold";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
 import { loadMap } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
@@ -42,7 +43,7 @@ function json<T>(value: T): T {
 
 function reconnect(authority: GameEngine): GameEngine {
   const replica = makeEngine();
-  replica.restoreFromSnapshot(json(redactSnapshotForSeat(authority.snapshot(), VIEW_SEAT)));
+  hydrateSeatReplica(replica, json(redactSnapshotForSeat(authority.snapshot(), VIEW_SEAT)));
   return replica;
 }
 
