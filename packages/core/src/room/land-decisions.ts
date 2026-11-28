@@ -26,12 +26,6 @@ export interface LandDecision {
   options: readonly LandDecisionOption[];
 }
 
-export function landDecisionPointOf(engine: GameEngine, revision: number): string | null {
-  return engine.phase === "Playing" && engine.turnPhase === "AwaitingDecision"
-    ? `${engine.gameId}/land/${engine.turnNumber}/${revision}/${engine.decisionOwner}`
-    : null;
-}
-
 /** 权威处理固定事件后挂起的落格选项，同一份可用性供下行与玩家提交校验。 */
 export function landDecisionOf(engine: GameEngine): LandDecision {
   const pending = engine.pendingLand;

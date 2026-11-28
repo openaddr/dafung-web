@@ -355,7 +355,7 @@ describe("assembleDownlinkShot · 座位下行", () => {
   });
 
   it("招贤候选仅入招贤者的摘要，录用名将全桌可见", async () => {
-    const { reg, roomId, token, engine, summary } = await roomAtPlaying();
+    const { reg, roomId, token, engine, summary, submit } = await roomAtPlaying();
     try {
       armPhase(engine, { activeIndex: 0 });
       engine.tryRecruitHero(engine.activePlayer);
@@ -366,7 +366,7 @@ describe("assembleDownlinkShot · 座位下行", () => {
       expect(other.log.find((line) => line.detail.startsWith("offerHeroes "))).toMatchObject({
         detail: "offerHeroes player=p0 count=3",
       });
-      await reg.applyCommandFromSeat(roomId, 0, { type: "resolveHeroPick", index: 0 });
+      await submit(0, "招将", { type: "resolveHeroPick", index: 0 });
       expect(summary(1).players[0].heroes).toContainEqual(
         expect.objectContaining({
           heroId: offers[0].id,

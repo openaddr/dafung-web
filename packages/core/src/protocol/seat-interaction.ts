@@ -39,6 +39,7 @@ export interface SeatInteractionState<S extends PlayerSeatSnapshot> extends Seat
 export type SeatIntent =
   | { type: "selectCapital"; tileIndex: number }
   | { type: "chooseLand"; command: LandDecisionCommand["type"] }
+  | { type: "chooseRecruitment"; optionId: string }
   | { type: "selectCard"; handIndex: number }
   | { type: "selectSkill"; optionId: string }
   | { type: "toggleTarget"; id: number }
@@ -275,6 +276,16 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       const option = decision.options.find(({ command }) => command === intent.command);
       if (option === undefined) return unavailable("本次落格没有此城池选项");
       return option.available ? send({ type: option.command }) : unavailable(option.reason);
+    }
+    if (intent.type === "chooseRecruitment") {
+      const decision = state.decisionOptions;
+      if (decision?.kind !== "recruitment") return unavailable("本席当前没有招贤抉择");
+      const option = decision.options.find(({ id }) => id === intent.optionId);
+      if (option === undefined) return unavailable("本次招贤没有此选项");
+      if (!option.available) return unavailable(option.reason);
+      return "index" in option
+        ? send({ type: "resolveHeroPick", index: option.index })
+        : send({ type: "resolveHeroPick", action: option.action });
     }
     if (intent.type === "respondReaction") {
       if (!state.reaction?.canRespond) return unavailable("本席当前不能应答此反应窗");

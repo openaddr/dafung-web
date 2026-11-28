@@ -1,4 +1,4 @@
-import { GameEngine } from "../engine/authority";
+import { GameEngine, type TurnPhase } from "../engine/authority";
 import { checkpointDicePins } from "../engine/dice";
 import { isLogWarning } from "../engine/model";
 import { capitalChoiceOf } from "../engine/setup-flow";
@@ -10,8 +10,9 @@ import {
   type PlayerSubmissionResult,
 } from "../protocol/wire";
 import { reactionQueriedSeats } from "./bot-driver";
-import { isLandDecisionCommand, landDecisionOf, landDecisionPointOf } from "./land-decisions";
+import { isLandDecisionCommand, landDecisionOf } from "./land-decisions";
 import { reactionTimingOf } from "./reaction-deadline";
+import { recruitmentDecisionOf } from "./recruitment-decisions";
 import type { RoomSession } from "./room";
 import { publicLogWarningReason, seatControlled } from "./seat-projection";
 
@@ -31,7 +32,28 @@ function capitalDecisionPoint(e: GameEngine): string | null {
     : null;
 }
 
-/** 选都按当前选都席授权，反应窗各受问席独立，出牌与地产步骤按权威进度编号。 */
+const SINGLE_OWNER_DECISIONS = {
+  AwaitingJinnang: "jinnang",
+  AwaitingDecision: "land",
+  AwaitingHeroPick: "recruitment",
+} as const satisfies Partial<Record<TurnPhase, string>>;
+
+type SingleOwnerDecisionPhase = keyof typeof SINGLE_OWNER_DECISIONS;
+
+function isSingleOwnerDecision(phase: TurnPhase): phase is SingleOwnerDecisionPhase {
+  return Object.hasOwn(SINGLE_OWNER_DECISIONS, phase);
+}
+
+function singleOwnerDecisionPointOf(
+  room: RoomSession,
+  phase: SingleOwnerDecisionPhase,
+): string | null {
+  const engine = room.engine;
+  if (engine?.phase !== "Playing" || engine.turnPhase !== phase) return null;
+  return `${engine.gameId}/${SINGLE_OWNER_DECISIONS[phase]}/${engine.turnNumber}/${room.submissions.decisionRevision}/${engine.decisionOwner}`;
+}
+
+/** 选都按当前选都席授权，反应窗各受问席独立，单属主抉择按权威进度编号。 */
 export function seatDecisionPointOf(room: RoomSession, seat: number): string | null {
   const e = room.engine;
   if (!e || seat < 0 || seatControlled(room, seat)) return null;
@@ -47,10 +69,8 @@ export function seatDecisionPointOf(room: RoomSession, seat: number): string | n
       return null;
     return `${e.gameId}/reaction/${pending.seq}/${seat}`;
   }
-  if (e.turnPhase === "AwaitingJinnang" && e.decisionOwner === seat)
-    return `${e.gameId}/jinnang/${e.turnNumber}/${room.submissions.decisionRevision}/${seat}`;
-  if (e.turnPhase === "AwaitingDecision" && e.decisionOwner === seat)
-    return landDecisionPointOf(e, room.submissions.decisionRevision);
+  if (isSingleOwnerDecision(e.turnPhase) && e.decisionOwner === seat)
+    return singleOwnerDecisionPointOf(room, e.turnPhase);
   return null;
 }
 
@@ -67,10 +87,27 @@ export function submissionPayload({ decisionPoint, cmd }: PlayerSubmission): str
   });
 }
 
-function submissionError(
+type SubmissionError = Omit<PlayerSubmissionRejection, "outcome">;
+
+const STALE_DECISION = {
+  reasonCode: "staleDecisionPoint",
+  reason: "原决策点已结束，请按当前步骤重新选择",
+} as const;
+
+/** 确认命令仍指向该类抉择的当前步骤，且认证座位仍持有操作权。 */
+function singleOwnerSubmissionError(
   room: RoomSession,
-  submission: PlayerSubmission,
-): Omit<PlayerSubmissionRejection, "outcome"> | null {
+  { seat, decisionPoint }: PlayerSubmission,
+  phase: SingleOwnerDecisionPhase,
+  wrongSeatReason: string,
+): SubmissionError | null {
+  if (decisionPoint !== singleOwnerDecisionPointOf(room, phase)) return STALE_DECISION;
+  if (seat !== room.engine!.decisionOwner || seatControlled(room, seat))
+    return { reasonCode: "wrongSeat", reason: wrongSeatReason };
+  return null;
+}
+
+function submissionError(room: RoomSession, submission: PlayerSubmission): SubmissionError | null {
   const { seat, decisionPoint, cmd } = submission;
   if (cmd.type === "pickCapital") {
     const e = room.engine;
@@ -92,16 +129,32 @@ function submissionError(
       return { reason: "选择不用时不能指定反应牌或对象" };
     return null;
   }
-  const stale = {
-    reasonCode: "staleDecisionPoint",
-    reason: "原决策点已结束，请按当前步骤重新选择",
-  } as const;
+  if (cmd.type === "resolveHeroPick") {
+    const error = singleOwnerSubmissionError(
+      room,
+      submission,
+      "AwaitingHeroPick",
+      "本席当前无权招贤",
+    );
+    if (error !== null) return error;
+    const option = recruitmentDecisionOf(e!).options.find((option) =>
+      "action" in cmd
+        ? "action" in option && option.action === cmd.action
+        : "index" in option && option.index === cmd.index,
+    );
+    if (option === undefined)
+      return { reasonCode: "invalidCandidate", reason: "本次招贤没有此选项" };
+    return option.available ? null : { reasonCode: "invalidCandidate", reason: option.reason };
+  }
   if (isLandDecisionCommand(cmd)) {
-    if (e === null || decisionPoint !== landDecisionPointOf(e, room.submissions.decisionRevision))
-      return stale;
-    if (seat !== e.decisionOwner || seatControlled(room, seat))
-      return { reasonCode: "wrongSeat", reason: "本席当前无权处理这座城池" };
-    const option = landDecisionOf(e).options.find(({ command }) => command === cmd.type);
+    const error = singleOwnerSubmissionError(
+      room,
+      submission,
+      "AwaitingDecision",
+      "本席当前无权处理这座城池",
+    );
+    if (error !== null) return error;
+    const option = landDecisionOf(e!).options.find(({ command }) => command === cmd.type);
     if (option === undefined)
       return { reasonCode: "invalidCandidate", reason: "本次落格没有此城池选项" };
     if (!option.available)
@@ -111,10 +164,10 @@ function submissionError(
       };
     return null;
   }
-  if (e?.phase !== "Playing" || e.turnPhase !== "AwaitingJinnang") return stale;
+  if (e?.phase !== "Playing" || e.turnPhase !== "AwaitingJinnang") return STALE_DECISION;
   if (seat !== e.decisionOwner || seatControlled(room, seat))
     return { reasonCode: "wrongSeat", reason: "本席当前无权出牌" };
-  if (decisionPoint !== seatDecisionPointOf(room, seat)) return stale;
+  if (decisionPoint !== seatDecisionPointOf(room, seat)) return STALE_DECISION;
   if (!requiresPlayerSubmission(cmd, e.pendingJinnang?.cardId ?? null))
     return { reason: "该操作不属于此次玩家提交" };
   const pending = e.pendingJinnang;

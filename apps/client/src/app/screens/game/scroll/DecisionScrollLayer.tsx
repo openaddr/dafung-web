@@ -335,12 +335,20 @@ export function DecisionScrollLayer({
     // HandRack 窗态消费,#818 起为 SkillCardFace 技能卡)──
 
     // 招贤无候选时仍可求书或跳过。
-    if (snapshot.turnPhase === "AwaitingHeroPick" && showDecision) {
+    if (
+      showDecision &&
+      seatView?.decisionPoint != null &&
+      seatView.decisionOptions?.kind === "recruitment"
+    ) {
+      const { decisionPoint, decisionOptions } = seatView;
       return (
         <HeroPickScroll
-          offered={snapshot.offeredHeroes}
-          choices={snapshot.choices}
-          onCommand={dispatch}
+          key={decisionPoint}
+          options={decisionOptions.options}
+          onChoose={(optionId) => {
+            if (interactive && !parked)
+              controller?.dispatchIntent({ type: "chooseRecruitment", optionId }, decisionPoint);
+          }}
         />
       );
     }

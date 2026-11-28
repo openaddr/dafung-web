@@ -296,13 +296,13 @@ describeSlow("server WS 命令回报与对局日志", () => {
       expect(first.currentSetupPlayerIndex).toBe(0);
       const firstLogLength = (first.log as unknown[]).length;
 
-      // 非招贤阶段，权威只记告警，回执带安全原因和告警序位。
-      ws.send(cmdMsg({ type: "resolveHeroPick", index: 0 }, 6));
+      // 非出牌阶段发动主动技，权威只记告警，回执带安全原因和告警序位。
+      ws.send(cmdMsg({ type: "useHeroSkill", heroId: "zhouyu", skillId: "huogong" }, 6));
       expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
         type: "commandResult",
         requestId: 6,
         outcome: "warning",
-        reason: "阶段不符（需要 AwaitingHeroPick，当前 Roll）",
+        reason: "阶段不符（需要 AwaitingJinnang，当前 Roll）",
         logOffset: firstLogLength + 1,
       });
 
@@ -758,15 +758,15 @@ describeSlow("server WS 命令回报与对局日志", () => {
       expect(restored.players[0].jinnangHand).toEqual([]);
       expect(restored.players[0].jinnangHandCount).toBeGreaterThan(0);
 
-      // 行军后的购地决策仍由座位 1 持有。非招贤阶段的招贤命令只追加审计和警告。
+      // 行军后的购地决策仍由座位 1 持有。非出牌阶段发动主动技只追加审计和警告。
       expect(restored.turnPhase).toBe("AwaitingDecision");
-      reconnected.sendCmd({ type: "resolveHeroPick", action: "skip" });
+      reconnected.sendCmd({ type: "useHeroSkill", heroId: "zhouyu", skillId: "huogong" });
       const audit = await waitLog(reconnected, "仅追加日志的命令");
       expect(audit.offset).toBe(restored.log.length);
       expect(audit.lines.map((line) => line.category)).toEqual(["cmd", "system"]);
       expect(audit.lines[1]).toMatchObject({
-        brief: "[警告] 阶段不符（需要 AwaitingHeroPick，当前 AwaitingDecision），原文见服务器日志",
-        detail: "warn: 阶段不符（需要 AwaitingHeroPick，当前 AwaitingDecision），原文见服务器日志",
+        brief: "[警告] 阶段不符（需要 AwaitingJinnang，当前 AwaitingDecision），原文见服务器日志",
+        detail: "warn: 阶段不符（需要 AwaitingJinnang，当前 AwaitingDecision），原文见服务器日志",
       });
       expect(audit.lines[1]).not.toHaveProperty("warning");
       expect(await waitLog(host, "同局命令审计")).toEqual(audit);

@@ -25,6 +25,7 @@ import {
   type LandDecision,
   type LandDecisionCommand,
 } from "../room/land-decisions";
+import type { RecruitmentDecision } from "../room/recruitment-decisions";
 import type { LobbyView, SeatSnapshot } from "../room/seat-projection";
 
 export type { CapitalOption } from "../engine/setup-flow";
@@ -33,6 +34,7 @@ export {
   type LandDecisionCommand,
   type LandDecisionOption,
 } from "../room/land-decisions";
+export type { RecruitmentOption } from "../room/recruitment-decisions";
 
 export type PlayerCommand = GameCommand | { type: "pickCapital"; tileIndex: number };
 
@@ -43,7 +45,10 @@ export interface PlayerSubmission {
   submissionId: string;
   decisionPoint: string;
   cmd:
-    | Extract<PlayerCommand, { type: "pickCapital" | "useJinnang" | "respondReaction" }>
+    | Extract<
+        PlayerCommand,
+        { type: "pickCapital" | "useJinnang" | "respondReaction" | "resolveHeroPick" }
+      >
     | LandDecisionCommand;
 }
 
@@ -73,7 +78,12 @@ export function requiresPlayerSubmission(
   cmd: PlayerCommand,
   pendingCardId: string | null = null,
 ): cmd is PlayerSubmission["cmd"] {
-  if (cmd.type === "pickCapital" || cmd.type === "respondReaction" || isLandDecisionCommand(cmd))
+  if (
+    cmd.type === "pickCapital" ||
+    cmd.type === "respondReaction" ||
+    cmd.type === "resolveHeroPick" ||
+    isLandDecisionCommand(cmd)
+  )
     return true;
   if (cmd.type !== "useJinnang") return false;
   if (cmd.cardId === null || cmd.cardId === "连环计" || pendingCardId === "连环计") return true;
@@ -112,7 +122,8 @@ export type JinnangDecisionOptions = {
 export type DecisionOptions =
   | { kind: "pickCapital"; options: readonly CapitalOption[] }
   | JinnangDecisionOptions
-  | LandDecision;
+  | LandDecision
+  | RecruitmentDecision;
 
 /** 选项随决策点只发给有权操作的座位。 */
 export interface SeatDecision {
@@ -247,6 +258,11 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
     return false;
   if (cmd.type === "pickCapital") return Number.isSafeInteger(cmd.tileIndex);
   if (isLandDecisionCommand(cmd)) return Object.keys(cmd).length === 1;
+  if (cmd.type === "resolveHeroPick")
+    return (
+      Object.keys(cmd).length === 2 &&
+      (Number.isSafeInteger(cmd.index) || cmd.action === "seekBook" || cmd.action === "skip")
+    );
   if (cmd.type === "useJinnang")
     return (
       (cmd.cardId === null || typeof cmd.cardId === "string") &&

@@ -23,6 +23,8 @@ import { formatMoney } from "@dafung/core/engine/money";
 import { applyPlant, type PlantOp } from "@dafung/core/engine/planter";
 import { AUTO_ROLL_DELAY_MS, BOT_STEP_MS } from "@dafung/core/engine/timings";
 import { guidePriceOf, makeSkillBook } from "@dafung/core/engine/treasures";
+import type { DecisionOptions } from "@dafung/core/protocol/wire";
+import { recruitmentDecisionOf } from "@dafung/core/room/recruitment-decisions";
 import { IDBFactory } from "fake-indexeddb";
 import type { Window as HappyDomWindow } from "happy-dom";
 import { act } from "react";
@@ -147,7 +149,11 @@ function q(scope: ParentNode, id: string): Element | null {
   return scope.querySelector(`[data-testid="${id}"]`);
 }
 
-function patchSeatView(patch: { snapshot?: GameSnapshot; interactive?: boolean }): void {
+function patchSeatView(patch: {
+  snapshot?: GameSnapshot;
+  interactive?: boolean;
+  decisionOptions?: DecisionOptions;
+}): void {
   act(() => {
     const seatView = { ...useGameStore.getState().seatView!, ...patch };
     useGameStore.setState({
@@ -256,25 +262,32 @@ beforeAll(async () => {
       return 0;
     }
 
-    override dispatchCommand(cmd: GameCommand): void {
+    override dispatchCommand(cmd: GameCommand, decisionPoint?: string): void {
+      if (cmd.type === "resolveHeroPick" && decisionPoint !== this.seatView.decisionPoint)
+        throw new Error("卷轴未提交原招贤决策点");
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
       this.resync();
     }
     // 测试侧重灌口(protected sync 的公开面;种植后调)。
     resync(): void {
-      this.observeSeatDecision(
-        this.e.turnPhase === "AwaitingJinnang" && this.e.decisionOwner === this.mySeat
-          ? {
-              decisionPoint: `出牌-${this.e.turnNumber}`,
-              decisionOptions: {
-                kind: "playJinnang",
-                choices: this.e.choicesFor(),
-                pendingJinnang: this.e.pendingJinnang,
-                pendingSkill: this.e.pendingSkill,
-              },
-            }
-          : { decisionPoint: null },
-      );
+      if (this.e.decisionOwner === this.mySeat && this.e.turnPhase === "AwaitingJinnang") {
+        this.observeSeatDecision({
+          decisionPoint: `出牌-${this.e.turnNumber}`,
+          decisionOptions: {
+            kind: "playJinnang",
+            choices: this.e.choicesFor(),
+            pendingJinnang: this.e.pendingJinnang,
+            pendingSkill: this.e.pendingSkill,
+          },
+        });
+      } else if (this.e.decisionOwner === this.mySeat && this.e.turnPhase === "AwaitingHeroPick") {
+        this.observeSeatDecision({
+          decisionPoint: `招贤-${this.e.turnNumber}`,
+          decisionOptions: recruitmentDecisionOf(this.e),
+        });
+      } else {
+        this.observeSeatDecision({ decisionPoint: null });
+      }
       this.sync();
     }
   }
@@ -438,18 +451,21 @@ describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(docQ(T.heroPickDecline)?.textContent).toBe("跳过");
     const seekBookButton = () => docQ(TESTIDS.actionButton("seek-book"));
     expect(seekBookButton()?.textContent).toBe("求书");
-    const snapshot = snap();
+    const { decisionOptions } = useGameStore.getState().seatView!;
+    if (decisionOptions?.kind !== "recruitment") throw new Error("接线测试缺少本席招贤选项");
     patchSeatView({
-      snapshot: {
-        ...snapshot,
-        choices: snapshot.choices.map((option) =>
-          option.id === "seekBook" ? { ...option, label: "暂歇求书", available: false } : option,
+      decisionOptions: {
+        ...decisionOptions,
+        options: decisionOptions.options.map((option) =>
+          option.id === "seekBook"
+            ? { ...option, label: "暂歇求书", available: false, reason: "本次不可求书" }
+            : option,
         ),
       },
     });
     expect(seekBookButton()?.hasAttribute("disabled")).toBe(true);
     expect(seekBookButton()?.textContent).toBe("暂歇求书");
-    patchSeatView({ snapshot });
+    patchSeatView({ decisionOptions });
     const rows = snap().offeredHeroes;
     expect(rows).toHaveLength(3);
     for (let i = 0; i < rows.length; i++) {
