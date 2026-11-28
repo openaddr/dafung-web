@@ -16,7 +16,9 @@ export interface RoomJoinReply extends WireRoomFields {
   seatToken: string;
 }
 
-type RoomCredentials = Pick<RoomJoinReply, "roomId" | "seatToken">;
+export type RoomSeatCredentials = Pick<RoomJoinReply, "roomId" | "seat" | "seatToken">;
+
+type RoomCredentials = Pick<RoomSeatCredentials, "roomId" | "seatToken">;
 type LobbyFetch = (url: string, init: RequestInit) => Promise<Response>;
 
 export class LobbyHttpError extends Error {
@@ -94,6 +96,10 @@ export class LobbyApi {
 
   async startGame({ roomId, seatToken }: RoomCredentials): Promise<void> {
     await this.post("/room/start", { roomId, seatToken });
+  }
+
+  async dismissRoom({ roomId, seatToken }: RoomCredentials): Promise<void> {
+    await this.post("/room/dismiss", { roomId, seatToken });
   }
 
   wsUrl({ roomId, seatToken }: RoomCredentials, seat: number): string {
