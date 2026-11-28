@@ -179,11 +179,10 @@ function projectLogCommand(cmd: LoggedCommand): Record<string, unknown> | null {
               }))
           : undefined,
       };
-    case "useJinnang":
-      // 选牌、选目标与结算走同一命令。公开面只记出牌公告和玩法结果。
-      return null;
     case "useHeroSkill":
-      return { type, cancel: cmd.cancel === true ? true : undefined };
+    case "useJinnang":
+      // 选中、选目标与结算走同一命令。公开战报记录宣布和结算结果。
+      return null;
     case "useBookSkill":
       return {
         type,
@@ -236,10 +235,8 @@ function projectGameLogLine(line: LogEvent): LogEvent | null {
     return { ...line, detail: line.detail.split(" heroes=")[0] };
   }
   if (line.category !== "system") return line;
-  if (line.detail.startsWith("jinnangCancel ")) return null;
-  if (line.detail.startsWith("heroSkillCancel ")) {
-    return { ...line, brief: `${line.player} 作罢主动技`, detail: line.detail.split(" skill=")[0] };
-  }
+  if (line.detail.startsWith("jinnangCancel ") || line.detail.startsWith("heroSkillCancel "))
+    return null;
   if (line.detail.startsWith("reactionWindow kind=jinnang ")) {
     const [announcement, queried] = line.detail.split(" queried=");
     const count = queried === "" ? 0 : queried.split("+").length;

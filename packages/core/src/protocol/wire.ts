@@ -19,6 +19,7 @@ import type { GameEvent } from "../engine/game-events";
 import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-execution";
 import type { LogEvent } from "../engine/model";
 import type { CapitalOption } from "../engine/setup-flow";
+import type { ActiveSkillCommand } from "../room/active-skill-decisions";
 import {
   isBankruptcyDecisionCommand,
   type BankruptcyDecision,
@@ -59,7 +60,8 @@ export interface PlayerSubmission {
     | LandDecisionCommand
     | TreasureOwnerCommand
     | BankruptcyDecisionCommand
-    | SkillChoiceCommand;
+    | SkillChoiceCommand
+    | ActiveSkillCommand;
 }
 
 /** 没有公开日志行的操作仍有受理回执。 */
@@ -88,6 +90,7 @@ export function requiresPlayerSubmission(cmd: PlayerCommand): cmd is PlayerSubmi
   return (
     cmd.type === "pickCapital" ||
     cmd.type === "useJinnang" ||
+    cmd.type === "useHeroSkill" ||
     cmd.type === "respondReaction" ||
     cmd.type === "respondSkillChoice" ||
     cmd.type === "resolveHeroPick" ||
@@ -303,6 +306,16 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
       typeof cmd.use === "boolean" &&
       (cmd.targetSeat === undefined || Number.isSafeInteger(cmd.targetSeat)) &&
       Object.keys(cmd).length === (cmd.targetSeat === undefined ? 3 : 4)
+    );
+  if (cmd.type === "useHeroSkill")
+    return (
+      typeof cmd.heroId === "string" &&
+      cmd.heroId.length > 0 &&
+      typeof cmd.skillId === "string" &&
+      cmd.skillId.length > 0 &&
+      (cmd.targets === undefined ||
+        (Array.isArray(cmd.targets) && cmd.targets.every(Number.isSafeInteger))) &&
+      (cmd.cancel === undefined || typeof cmd.cancel === "boolean")
     );
   if (cmd.type === "useJinnang")
     return (

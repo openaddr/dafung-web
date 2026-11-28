@@ -69,6 +69,8 @@ export interface ChoiceOption {
   skillHeroId?: string;
   skillText?: string;
   skillHero?: string;
+  /** 该主动技实例剩余的冷却轮数。 */
+  skillCooldownLeft?: number;
   /** 城目标段选项专属(#1388 T2):候选城四件随选项派生透出(快照 choices 通道,棒2 UI
    *  消费)。id=`c${targetTileIndex}`(拼接单源 cityTargetOptionId,label=城名);
    *  targetTileIndex=提交通道(命令 targets=[tileIndex],与席位域 targetSeat 同款对称);
@@ -561,6 +563,7 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
         skillHeroId: slot.heroId,
         skillText: skill.desc,
         skillHero: hero.name,
+        skillCooldownLeft: cdLeft,
       });
     }
   }

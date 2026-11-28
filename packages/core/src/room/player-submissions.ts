@@ -9,6 +9,7 @@ import {
   type PlayerSubmissionRejection,
   type PlayerSubmissionResult,
 } from "../protocol/wire";
+import { activeSkillSubmissionError } from "./active-skill-decisions";
 import { isBankruptcyDecisionCommand } from "./bankruptcy-decisions";
 import { reactionQueriedSeats } from "./bot-driver";
 import { isLandDecisionCommand, landDecisionOf } from "./land-decisions";
@@ -211,6 +212,10 @@ function submissionError(room: RoomSession, submission: PlayerSubmission): Submi
   if (seat !== e.decisionOwner || seatControlled(room, seat))
     return { reasonCode: "wrongSeat", reason: "本席当前无权出牌" };
   if (decisionPoint !== seatDecisionPointOf(room, seat)) return STALE_DECISION;
+  if (cmd.type === "useHeroSkill") {
+    const reason = activeSkillSubmissionError(e, cmd);
+    return reason === null ? null : { reasonCode: "invalidCandidate", reason };
+  }
   const pending = e.pendingJinnang;
   if (cmd.cardId === null) {
     if (
@@ -293,6 +298,7 @@ export function stagePlayerSubmission(
       result: {
         outcome: "rejected",
         ...(cmd.type === "useJinnang" ||
+        cmd.type === "useHeroSkill" ||
         cmd.type === "respondSkillChoice" ||
         isBankruptcyDecisionCommand(cmd)
           ? { reasonCode: "invalidCandidate" }
