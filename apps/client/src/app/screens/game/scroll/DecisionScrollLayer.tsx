@@ -1,6 +1,4 @@
-// 决策卷轴路由层(阶段 6 接线):按 snapshot 相位决定弹哪个卷轴。
-// 数据全部来自 gameStore 快照 + registry 的静态上下文(board/catalog 只读查询),
-// 命令统一经 controller.dispatchCommand 下发——组件不直接改引擎,与旧 openScroll 体系同构。
+// 决策卷轴使用座位视图和地图目录，玩家选择交给控制器。
 // Wave3(候选5):不再 import getEngine 摸活引擎,城名/地产定义经 getControllerContext。
 // 挂载于 GameScreen #scroll-layer(absolute 覆盖,pointer-events 由各弹层自身开启)。
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -8,7 +6,8 @@ import type { GameCommand } from "@dafung/core/engine/authority";
 import { sellValueOf, type CityTier } from "@dafung/core/engine/economy";
 import { tileIndexOfProperty } from "@dafung/core/engine/board";
 import { Theme } from "@dafung/core/engine/theme";
-import { useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
+import type { LandDecisionCommand } from "@dafung/core/protocol/wire";
+import { useGameStore, useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import { getAudio } from "@app/fx/audio";
 import { playRecruitmentAfterSupply } from "@app/fx/capital-supply-audio";
@@ -136,6 +135,7 @@ export function DecisionScrollLayer({
   onDecisionVisibilityChange,
 }: DecisionScrollLayerProps) {
   const controller = getController();
+  const seatView = useGameStore((state) => state.seatView);
   const showDecision = interactive || parked;
   const map = getControllerMap();
   const ctx = getControllerContext();
@@ -283,49 +283,50 @@ export function DecisionScrollLayer({
       }
     }
 
-    // ── 常规决策卷轴(交互重构:从侧栏 ActionInline 迁入,轮到即自动弹出)──
-    // 判定逻辑原样迁自 HandPanel.ActionInline;数据走 snapshot + registry 静态上下文。
-    // spec #107 C1(选项集消费缝):卷轴的可用性/原因经 snapshot.choices 消费引擎
-    // 注册表口径(ADR-0013),本层只透传,不自行判定。
-    // 联机 pending 期间 interactive=false,卷轴暂不弹——命令回包后相位离开,无需「…中」占位。
-    if (showDecision && snapshot.phase === "Playing") {
-      const tp = snapshot.turnPhase;
-      if (tp === "AwaitingDecision") {
-        const p = players[snapshot.activeIndex];
-        const pending = snapshot.pendingLand;
-        if (pending == null) throw new Error("购地/扩军卷轴:AwaitingDecision 缺 pendingLand");
-        const def = catalog.get(pending.propertyId);
-        if (def == null) throw new Error(`购地/扩军卷轴:目录无城池 ${pending.propertyId}`);
-        // 决策入口只读 pendingLand;落格金额等表现信息不参与路由。
-        const tile = board.at(tileIndexOfProperty(board, def.id));
-        if (pending.kind === "PropertyAvailable") {
-          return (
-            <BuyDecisionScroll
-              tileName={tile.name}
-              groupLabel={groupLineLabel(def.group)}
-              tierLabel={tierLineLabel(def.tier)}
-              property={def}
-              cash={p.cash}
-              choices={snapshot.choices}
-              onCommand={dispatch}
-            />
-          );
-        }
-        const holding = p.properties.find((x) => x.propertyId === def.id);
-        if (holding == null) throw new Error(`扩军卷轴:决策方未持有城池 ${def.id}`);
+    if (
+      showDecision &&
+      seatView?.decisionPoint != null &&
+      seatView.decisionOptions?.kind === "landDecision"
+    ) {
+      const {
+        decisionPoint,
+        decisionOptions: { landing, options },
+      } = seatView;
+      const p = players[viewSeat];
+      const tile = board.at(landing.tileIndex);
+      const def = catalog.get(landing.propertyId);
+      if (def == null) throw new Error(`购地/扩军卷轴:目录无城池 ${landing.propertyId}`);
+      const choose = (command: LandDecisionCommand["type"]) => {
+        if (interactive && !parked)
+          controller?.dispatchIntent({ type: "chooseLand", command }, decisionPoint);
+      };
+      if (landing.kind === "PropertyAvailable") {
         return (
-          <UpgradeDecisionScroll
+          <BuyDecisionScroll
             tileName={tile.name}
+            groupLabel={groupLineLabel(def.group)}
             tierLabel={tierLineLabel(def.tier)}
-            level={holding.level}
-            defense={holding.defense}
             property={def}
-            isCapital={p.capitalIndex >= 0 && board.at(p.capitalIndex).propertyId === def.id}
-            choices={snapshot.choices}
-            onCommand={dispatch}
+            cash={p.cash}
+            options={options}
+            onChoose={choose}
           />
         );
       }
+      const holding = p.properties.find((h) => h.propertyId === landing.propertyId);
+      if (holding == null) throw new Error(`扩军卷轴:决策方未持有城池 ${landing.propertyId}`);
+      return (
+        <UpgradeDecisionScroll
+          tileName={tile.name}
+          tierLabel={tierLineLabel(def.tier)}
+          level={holding.level}
+          defense={holding.defense}
+          property={def}
+          isCapital={p.capitalIndex === landing.tileIndex}
+          options={options}
+          onChoose={choose}
+        />
+      );
     }
 
     // ── 出牌阶段路由已退役(#256):AwaitingJinnang 不再弹卷轴,出牌面上架手牌架

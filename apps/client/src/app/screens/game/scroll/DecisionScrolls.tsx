@@ -1,21 +1,10 @@
-// 城池决策弹层(购地/扩军):从旧侧栏 ActionInline 迁入弹层体系(S9 起壳为
-// 全屏宣告横幅,卷轴壳退役)。
-// 交互重构原则:所有需要玩家权衡的选择一律走弹层,侧栏手牌区不再有决策按钮;
-// 弹层轮到即自动弹出(DecisionScrollLayer 按相位路由),且无可关 ×——决策相位必须选择。
-// 按钮 testid 沿用旧 action-* 命名(action-buy/…),文案与语义不变,
-// 只是位置从侧栏搬进弹层,e2e 断言零语义变化。
-// (经过都城必停后「驻跸或行进」卷轴已删:引擎直接结算,无玩家抉择。)
-// spec #107 C1(UI 半边选项集消费缝):购地与扩军的可用性/不可用原因一律从快照
-// choices(choices.ts 注册表产出,ADR-0013)读取,UI 不再重推 canBuy/maxed/reason
-// ——全游戏不可购原因只有引擎一处口径。
 import { useState } from "react";
-import type { GameCommand } from "@dafung/core/engine/authority";
-import type { ChoiceOption } from "@dafung/core/engine/choices";
 import { cityIncomeOf } from "@dafung/core/engine/city-income";
 import { fullDefenseOf } from "@dafung/core/engine/defense";
 import { INITIAL_CITY_LEVEL } from "@dafung/core/engine/constants";
 import { cityTradeTermsOf, sellValueOf, type PropertyDef } from "@dafung/core/engine/economy";
 import { formatMoney } from "@dafung/core/engine/money";
+import type { LandDecisionCommand, LandDecisionOption } from "@dafung/core/protocol/wire";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { AffordRow } from "./AffordRow";
 import { ValueTable, type ValueTableProperty } from "./ValueTable";
@@ -29,8 +18,8 @@ export function BuyDecisionScroll({
   tierLabel,
   property,
   cash,
-  choices,
-  onCommand,
+  options,
+  onChoose,
 }: {
   tileName: string;
   /** 地域行区名(=分组名,Theme.groupNames 单源经 DecisionScrollLayer;空=未知分组省略段)。 */
@@ -40,14 +29,11 @@ export function BuyDecisionScroll({
   /** 城池定义直传(catalog PropertyDef 结构超集,手工收窄已收口)。 */
   property: PropertyDef;
   cash: number;
-  /** 当前相位选项集(快照透出):buy 项的 available/reason 单源引擎注册表。 */
-  choices: ChoiceOption[];
-  onCommand: (cmd: GameCommand) => void;
+  options: readonly LandDecisionOption[];
+  onChoose: (command: LandDecisionCommand["type"]) => void;
 }) {
-  // 选项集单源(spec #107 C1 / ADR-0013):可购与否与原因只读引擎注册表产出
-  // (「银两不足」),UI 不再重推 cash 判定——旧手抄文案与引擎 reason 的漂移在此
-  // 绝根。选项缺失 = 相位与注册表不符(数据 bug),非空断言让其抛(零兜底)。
-  const buy = choices.find((o) => o.id === "buy")!;
+  const buy = options.find((option) => option.command === "buyProperty")!;
+  const skip = options.find((option) => option.command === "endDecision")!;
   // G-20:买不起时价值表默认折叠(决策已不可行,全表只是噪音);可点开查看
   const [showValues, setShowValues] = useState(buy.available);
   // #729:拍板两钮钉底(壳 footer 槽)——说明文段/主数值行/等级表/不可购原因留正文井,
@@ -62,7 +48,7 @@ export function BuyDecisionScroll({
             {tileName} · {tierLabel}
             {groupLabel ? ` · ${groupLabel}` : ""} · 每轮收益 {formatMoney(cityIncomeOf(property))}
           </p>
-          <AffordRow cash={cash} need={property.purchasePrice} purpose="purchase" />
+          <AffordRow cash={cash} need={buy.cost} purpose="purchase" />
           {!buy.available && <p className="text-center text-sm text-danger">{buy.reason}</p>}
         </>
       }
@@ -72,15 +58,16 @@ export function BuyDecisionScroll({
             primary
             disabled={!buy.available}
             testid={TESTIDS.actionButton("buy")}
-            onClick={() => onCommand({ type: "buyProperty" })}
+            onClick={() => onChoose(buy.command)}
           >
-            购地
+            {buy.label}
           </BannerButton>
           <BannerButton
+            disabled={!skip.available}
             testid={TESTIDS.actionButton("skip")}
-            onClick={() => onCommand({ type: "endDecision" })}
+            onClick={() => onChoose(skip.command)}
           >
-            不取
+            {skip.label}
           </BannerButton>
         </div>
       }
@@ -117,8 +104,8 @@ export function UpgradeDecisionScroll({
   defense,
   property,
   isCapital,
-  choices,
-  onCommand,
+  options,
+  onChoose,
 }: {
   tileName: string;
   /** 城池档位两字名(Theme.cityTierNames 单源经 DecisionScrollLayer,ADR-0042 决策 6)。 */
@@ -129,15 +116,13 @@ export function UpgradeDecisionScroll({
   property: ValueTableProperty;
   /** 是否城主的都城(#671):都城第二列显示补给(固定值,不随档位;都城不可变卖)。 */
   isCapital: boolean;
-  /** 当前相位选项集(快照透传):upgrade 项的 available/reason 单源引擎注册表。 */
-  choices: ChoiceOption[];
-  onCommand: (cmd: GameCommand) => void;
+  options: readonly LandDecisionOption[];
+  onChoose: (command: LandDecisionCommand["type"]) => void;
 }) {
-  // 选项集单源(spec #107 C1 / ADR-0013):可否扩军与原因(「已满级」)只读引擎注册表
-  // 产出,UI 不再重推 level >= maxLevel(升级免费,无银两门槛)。选项缺失 = 相位与
-  // 注册表不符(数据 bug),非空断言让其抛(零兜底)。
-  const upgrade = choices.find((o) => o.id === "upgrade")!;
+  const upgrade = options.find((option) => option.command === "upgradeProperty")!;
+  const skip = options.find((option) => option.command === "endDecision")!;
   const current = cityTradeTermsOf(property, level);
+  const reason = upgrade.available ? null : upgrade.reason;
   const next = upgrade.available
     ? { ...cityTradeTermsOf(property, level + 1), defense: fullDefenseOf(level + 1) }
     : null;
@@ -168,7 +153,7 @@ export function UpgradeDecisionScroll({
               )}
             </>
           ) : (
-            <p className="text-danger">{upgrade.reason}</p>
+            <p className="text-danger">{reason}</p>
           )}
         </div>
       }
@@ -178,15 +163,16 @@ export function UpgradeDecisionScroll({
             primary
             disabled={!upgrade.available}
             testid={TESTIDS.actionButton("upgrade")}
-            onClick={() => onCommand({ type: "upgradeProperty" })}
+            onClick={() => onChoose(upgrade.command)}
           >
-            扩军(免费)
+            {upgrade.label}
           </BannerButton>
           <BannerButton
+            disabled={!skip.available}
             testid={TESTIDS.actionButton("skip")}
-            onClick={() => onCommand({ type: "endDecision" })}
+            onClick={() => onChoose(skip.command)}
           >
-            按兵不动
+            {skip.label}
           </BannerButton>
         </div>
       }

@@ -23,6 +23,7 @@ import { EVENT_TIERS, type EventKind } from "../engine/event-tiers";
 import { HEROES } from "../engine/heroes";
 import { SKILLS } from "../engine/skills";
 import { createTreasureDeck, SKILL_BOOK_ID_PREFIX } from "../engine/treasures";
+import { landDecisionOf } from "./land-decisions";
 import { seatDecisionPointOf } from "./player-submissions";
 import { reactionTimingOf } from "./reaction-deadline";
 import type { RoomSession } from "./room";
@@ -497,6 +498,7 @@ function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions | undef
       pendingSkill: e.pendingSkill,
     };
   }
+  if (e.turnPhase === "AwaitingDecision") return landDecisionOf(e);
   return undefined;
 }
 

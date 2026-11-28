@@ -16,7 +16,13 @@ import {
   type TargetDraft,
   type TargetStep,
 } from "./target-selection";
-import type { CapitalOption, JinnangDecisionOptions, PlayerCommand, SeatDecision } from "./wire";
+import type {
+  CapitalOption,
+  JinnangDecisionOptions,
+  LandDecisionCommand,
+  PlayerCommand,
+  SeatDecision,
+} from "./wire";
 
 /** 交互只消费已经投给本座的局面。调用方可以保留其余公开字段供查询。 */
 type PlayerSeatSnapshot = ReactionSeatSnapshot & Pick<GameSnapshot, "gameId" | "players">;
@@ -32,6 +38,7 @@ export interface SeatInteractionState<S extends PlayerSeatSnapshot> extends Seat
 
 export type SeatIntent =
   | { type: "selectCapital"; tileIndex: number }
+  | { type: "chooseLand"; command: LandDecisionCommand["type"] }
   | { type: "selectCard"; handIndex: number }
   | { type: "selectSkill"; optionId: string }
   | { type: "toggleTarget"; id: number }
@@ -262,6 +269,13 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       this.submit(command, decisionPoint);
       return { status: "submitted" };
     };
+    if (intent.type === "chooseLand") {
+      const decision = state.decisionOptions;
+      if (decision?.kind !== "landDecision") return unavailable("本席当前没有城池抉择");
+      const option = decision.options.find(({ command }) => command === intent.command);
+      if (option === undefined) return unavailable("本次落格没有此城池选项");
+      return option.available ? send({ type: option.command }) : unavailable(option.reason);
+    }
     if (intent.type === "respondReaction") {
       if (!state.reaction?.canRespond) return unavailable("本席当前不能应答此反应窗");
       const command = { ...intent, seat: state.seat };

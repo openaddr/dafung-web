@@ -10,6 +10,7 @@ import {
   type PlayerSubmissionResult,
 } from "../protocol/wire";
 import { reactionQueriedSeats } from "./bot-driver";
+import { isLandDecisionCommand, landDecisionOf, landDecisionPointOf } from "./land-decisions";
 import { reactionTimingOf } from "./reaction-deadline";
 import type { RoomSession } from "./room";
 import { publicLogWarningReason, seatControlled } from "./seat-projection";
@@ -30,7 +31,7 @@ function capitalDecisionPoint(e: GameEngine): string | null {
     : null;
 }
 
-/** 选都按当前选都席授权，反应窗各受问席独立，出牌阶段每次推进后的新步骤单独编号。 */
+/** 选都按当前选都席授权，反应窗各受问席独立，出牌与地产步骤按权威进度编号。 */
 export function seatDecisionPointOf(room: RoomSession, seat: number): string | null {
   const e = room.engine;
   if (!e || seat < 0 || seatControlled(room, seat)) return null;
@@ -48,6 +49,8 @@ export function seatDecisionPointOf(room: RoomSession, seat: number): string | n
   }
   if (e.turnPhase === "AwaitingJinnang" && e.decisionOwner === seat)
     return `${e.gameId}/jinnang/${e.turnNumber}/${room.submissions.decisionRevision}/${seat}`;
+  if (e.turnPhase === "AwaitingDecision" && e.decisionOwner === seat)
+    return landDecisionPointOf(e, room.submissions.decisionRevision);
   return null;
 }
 
@@ -93,6 +96,21 @@ function submissionError(
     reasonCode: "staleDecisionPoint",
     reason: "原决策点已结束，请按当前步骤重新选择",
   } as const;
+  if (isLandDecisionCommand(cmd)) {
+    if (e === null || decisionPoint !== landDecisionPointOf(e, room.submissions.decisionRevision))
+      return stale;
+    if (seat !== e.decisionOwner || seatControlled(room, seat))
+      return { reasonCode: "wrongSeat", reason: "本席当前无权处理这座城池" };
+    const option = landDecisionOf(e).options.find(({ command }) => command === cmd.type);
+    if (option === undefined)
+      return { reasonCode: "invalidCandidate", reason: "本次落格没有此城池选项" };
+    if (!option.available)
+      return {
+        reasonCode: cmd.type === "buyProperty" ? "insufficientFunds" : "invalidCandidate",
+        reason: option.reason,
+      };
+    return null;
+  }
   if (e?.phase !== "Playing" || e.turnPhase !== "AwaitingJinnang") return stale;
   if (seat !== e.decisionOwner || seatControlled(room, seat))
     return { reasonCode: "wrongSeat", reason: "本席当前无权出牌" };

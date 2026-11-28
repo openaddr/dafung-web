@@ -720,8 +720,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
         expect(view.net.pending).toBe(false);
         expect(view.net.connectionFailure).toBeNull();
       }
-      // 固定 seed 4 首门为 guest 的购地决策,恢复后仅由 guest 放行一次。
-      // 传输面直派沿用 #1297 的 headless 输入锁边界,生产编码与服务器鉴权照走。
+      // 固定 seed 4 首门为 guest 的购地决策，原座恢复后经生产交互提交不取。
       const turn = before.turnNumber;
       const eventsBeforeContinuation = views[1].wire.events.length;
       await guest.request({ kind: "sendCommand", command: { type: "endDecision" } });
