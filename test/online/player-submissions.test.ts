@@ -427,8 +427,15 @@ it("受问席收回托管时经内存端点取回原反应窗授权", async () =
       decisionPoint: original.decisionPoint,
       reactionTiming: { seq: engine.pendingReaction!.seq, remainingMs: 1000 },
     });
-    for (const seat of [0, 2])
-      expect(messages[seat].slice(1).map(({ type }) => type)).toEqual(["lobby"]);
+    for (const seat of [0, 2]) {
+      const [metadata, log, ...extra] = messages[seat].slice(1);
+      expect(metadata).toMatchObject({ type: "lobby" });
+      expect(log).toMatchObject({
+        type: "gameLog",
+        lines: [expect.objectContaining({ brief: expect.stringContaining("收回操作") })],
+      });
+      expect(extra).toEqual([]);
+    }
     if (update?.decisionPoint == null) throw new Error("未收到原反应窗授权");
     expect(
       await rebooted.submitFromSeat(roomId, 1, {
