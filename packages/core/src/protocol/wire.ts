@@ -31,6 +31,7 @@ import {
   type LandDecisionCommand,
 } from "../room/land-decisions";
 import type { RecruitmentDecision } from "../room/recruitment-decisions";
+import type { HeroDismissalOption, SkillBookOption } from "../room/roster-decisions";
 import type { LobbyView, SeatSnapshot } from "../room/seat-projection";
 import type { SkillChoiceCommand, SkillChoiceDecision } from "../room/skill-choice-decisions";
 import type { TreasureDecision, TreasureOwnerCommand } from "../room/treasure-decisions";
@@ -55,7 +56,15 @@ export interface PlayerSubmission {
   cmd:
     | Extract<
         PlayerCommand,
-        { type: "pickCapital" | "useJinnang" | "respondReaction" | "resolveHeroPick" }
+        {
+          type:
+            | "pickCapital"
+            | "useJinnang"
+            | "useBookSkill"
+            | "dismissHero"
+            | "respondReaction"
+            | "resolveHeroPick";
+        }
       >
     | LandDecisionCommand
     | TreasureOwnerCommand
@@ -91,6 +100,8 @@ export function requiresPlayerSubmission(cmd: PlayerCommand): cmd is PlayerSubmi
     cmd.type === "pickCapital" ||
     cmd.type === "useJinnang" ||
     cmd.type === "useHeroSkill" ||
+    cmd.type === "useBookSkill" ||
+    cmd.type === "dismissHero" ||
     cmd.type === "respondReaction" ||
     cmd.type === "respondSkillChoice" ||
     cmd.type === "resolveHeroPick" ||
@@ -125,9 +136,11 @@ export type JinnangDecisionOptions = {
   choices: readonly ChoiceOption[];
   pendingJinnang: PendingJinnang | null;
   pendingSkill: PendingHeroSkill | null;
+  /** 有技能书时按持有顺序交付，含暂不能研读的书。 */
+  skillBooks?: readonly SkillBookOption[];
 };
 
-export type DecisionOptions =
+export type DecisionOptions = (
   | { kind: "pickCapital"; options: readonly CapitalOption[] }
   | JinnangDecisionOptions
   | LandDecision
@@ -135,7 +148,9 @@ export type DecisionOptions =
   | TreasureDecision
   | BankruptcyDecision
   | ReactionDecision
-  | SkillChoiceDecision;
+  | SkillChoiceDecision
+  | { kind: "heroDismissal" }
+) & { heroDismissals?: readonly HeroDismissalOption[] };
 
 /** 选项随决策点只发给有权操作的座位。 */
 export interface SeatDecision {
@@ -317,6 +332,16 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
         (Array.isArray(cmd.targets) && cmd.targets.every(Number.isSafeInteger))) &&
       (cmd.cancel === undefined || typeof cmd.cancel === "boolean")
     );
+  if (cmd.type === "useBookSkill")
+    return (
+      typeof cmd.treasureId === "string" &&
+      cmd.treasureId.length > 0 &&
+      typeof cmd.heroId === "string" &&
+      cmd.heroId.length > 0 &&
+      Object.keys(cmd).length === 3
+    );
+  if (cmd.type === "dismissHero")
+    return typeof cmd.heroId === "string" && cmd.heroId.length > 0 && Object.keys(cmd).length === 2;
   if (cmd.type === "useJinnang")
     return (
       (cmd.cardId === null || typeof cmd.cardId === "string") &&

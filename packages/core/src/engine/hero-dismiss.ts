@@ -13,6 +13,33 @@ import type { GameEngine } from "./authority";
 import { heroById } from "./heroes";
 import { foldSkillBookIntoTreasures } from "./roster";
 import { emitGameEvent } from "./game-events";
+import type { CommandWarningCode } from "./model";
+
+type HeroDismissalBlock = { code: CommandWarningCode; reason: string };
+
+/** 遣散属于正在行动的诸侯，清算和归他席的抉择期间停用。 */
+export function heroDismissalWindowBlock(g: GameEngine): HeroDismissalBlock | null {
+  if (g.phase !== "Playing") return { code: "dismissalWrongPhase", reason: "当前阶段不可遣散名将" };
+  if (g.decisionOwner !== g.activeIndex)
+    return { code: "dismissalOutsideOwnDecision", reason: "仅行动者自己的决策窗可遣散名将" };
+  if (g.turnPhase === "AwaitingBankruptcySettle")
+    return { code: "dismissalDuringSettlement", reason: "清算期间不可主动遣散名将" };
+  return null;
+}
+
+/** 权威命令和名册选项共用同一份遣散资格判定。 */
+export function heroDismissalBlock(g: GameEngine, heroId: string): HeroDismissalBlock | null {
+  const window = heroDismissalWindowBlock(g);
+  if (window !== null) return window;
+  if (
+    g.pendingSkill?.heroId === heroId ||
+    (g.turnPhase === "AwaitingSkillChoice" && g.pendingSkillChoices[0]?.heroId === heroId)
+  )
+    return { code: "dismissalUnavailable", reason: "请先结束此名将的待决技能" };
+  if (!g.activePlayer.heroes.some((slot) => slot.heroId === heroId))
+    return { code: "dismissalUnavailable", reason: "所选名将不在麾下" };
+  return null;
+}
 
 /** 遣散一名麾下名将(#1147,免费主动遣散)。校验四道(违规 g.warn 留痕拒绝,与变卖
  *  同款引擎硬闸风格,UI 永不裁决):
@@ -23,33 +50,15 @@ import { emitGameEvent } from "./game-events";
  *  ④ 目标在麾下，且该槽位的技能没有在等待应答。
  * 结算序:槽移除+回池划名 → heroDismissed 事件 → 逐册折书(每册 push 珍宝+战报一行+
  * TreasureGained 派发)。执行者恒为 activePlayer:命令语义即「遣散我自己的将」,
- * 联机侧座位归属校验在房间编排层(applyCommandFromSeat,与一切命令同闸)。 */
+ * 联机侧由房间校验提交座位和原决策点。 */
 export function dismissHero(g: GameEngine, heroId: string): void {
-  if (g.phase !== "Playing") {
-    g.warnCommand("dismissalWrongPhase", `遣散:对局 ${g.phase} 期不可遣散`);
-    return;
-  }
-  if (g.decisionOwner !== g.activeIndex) {
-    g.warnCommand(
-      "dismissalOutsideOwnDecision",
-      "遣散:当前决策窗不归行动者本人(自己回合随时可点,他座决策窗除外)",
-    );
-    return;
-  }
-  if (g.turnPhase === "AwaitingBankruptcySettle") {
-    g.warnCommand("dismissalDuringSettlement", "遣散:清算期间不可主动遣散名将");
-    return;
-  }
-  if (g.turnPhase === "AwaitingSkillChoice" && g.pendingSkillChoices[0]?.heroId === heroId) {
-    g.warnCommand("dismissalUnavailable", "遣散:请先应答此名将的待决技能");
+  const block = heroDismissalBlock(g, heroId);
+  if (block !== null) {
+    g.warnCommand(block.code, `遣散:${block.reason}`);
     return;
   }
   const p = g.activePlayer;
   const idx = p.heroes.findIndex((slot) => slot.heroId === heroId);
-  if (idx < 0) {
-    g.warnCommand("dismissalUnavailable", `遣散:名将 ${heroId} 不在麾下`);
-    return;
-  }
   const hero = heroById(heroId);
   const slot = p.heroes.splice(idx, 1)[0]!; // 整槽弃(#785):已授技与冷却账随槽俱弃
   g.recruitedHeroIds.delete(heroId); // 回池:再被招 = 重新预掷授技(破产释放同口径)

@@ -33,6 +33,7 @@ import {
   learnSkillInSlot,
   rollGrantedSkills,
   skillBookLearners,
+  skillBookStudyBlocked,
   type HeroSlot,
 } from "./roster";
 import { grantHeroOrBooks } from "./recruitment";
@@ -733,7 +734,7 @@ export function settleJinnangExit(g: GameEngine, cancelledTwoStepTargets = false
  *  目标段子状态(pendingJinnang/pendingSkill)在场时=跨子状态误用,警告拒绝。 */
 export function resolveBookSkill(g: GameEngine, treasureId: string, heroId: string): void {
   if (!g.assertPhase("AwaitingJinnang", "resolveBookSkill")) return;
-  if (g.pendingJinnang || g.pendingSkill) {
+  if (skillBookStudyBlocked(g)) {
     g.warnCommand("targetStepMismatch", `目标段内收到用书命令:${treasureId}`);
     return;
   }

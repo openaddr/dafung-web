@@ -28,6 +28,7 @@ import { landDecisionOf } from "./land-decisions";
 import { seatDecisionPointOf } from "./player-submissions";
 import { reactionTimingOf } from "./reaction-deadline";
 import { recruitmentDecisionOf } from "./recruitment-decisions";
+import { heroDismissalOptionsOf, skillBookOptionsOf } from "./roster-decisions";
 import { skillChoiceDecisionOf } from "./skill-choice-decisions";
 import { treasureDecisionOf } from "./treasure-decisions";
 import type { RoomSession } from "./room";
@@ -493,7 +494,7 @@ interface DownlinkShot {
   decisionPoint: string | null;
 }
 
-function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions | undefined {
+function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions {
   if (e.phase === "Setup") {
     return {
       kind: "pickCapital",
@@ -505,11 +506,13 @@ function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions | undef
     };
   }
   if (e.turnPhase === "AwaitingJinnang") {
+    const skillBooks = skillBookOptionsOf(e);
     return {
       kind: "playJinnang",
       choices: e.choicesFor(),
       pendingJinnang: e.pendingJinnang,
       pendingSkill: e.pendingSkill,
+      ...(skillBooks.length === 0 ? {} : { skillBooks }),
     };
   }
   if (e.turnPhase === "AwaitingDecision") return landDecisionOf(e);
@@ -518,7 +521,7 @@ function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions | undef
   if (e.turnPhase === "AwaitingBankruptcySettle") return bankruptcyDecisionOf(e);
   if (e.turnPhase === "AwaitingReaction") return reactionChoicesForSeat(e, seat);
   if (e.turnPhase === "AwaitingSkillChoice") return skillChoiceDecisionOf(e);
-  return undefined;
+  return { kind: "heroDismissal" };
 }
 
 /** 单机和联机按接收座位装配同一种 JSON 下行。事件批携带当次授权，首连、重连和校准
@@ -556,8 +559,13 @@ export function assembleDownlinkShot(
       ? reactionTimingOf(r)
       : undefined;
   const decisionPoint = seatDecisionPointOf(r, viewerSeat);
-  const decisionOptions =
-    e !== null && decisionPoint !== null ? decisionOptionsOf(e, viewerSeat) : undefined;
+  let decisionOptions: DecisionOptions | undefined;
+  if (e !== null && decisionPoint !== null) {
+    const main = decisionOptionsOf(e, viewerSeat);
+    const heroDismissals =
+      e.phase === "Playing" && viewerSeat === e.activeIndex ? heroDismissalOptionsOf(e) : [];
+    decisionOptions = heroDismissals.length === 0 ? main : { ...main, heroDismissals };
+  }
   const visibleEvents = redactEvents(batch, viewerSeat);
   // 房间元数据可单独改变本席的操作权，例如在原反应窗内收回托管。
   const decisionChanged =

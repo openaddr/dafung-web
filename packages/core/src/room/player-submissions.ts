@@ -1,5 +1,6 @@
 import { GameEngine, type TurnPhase } from "../engine/authority";
 import { checkpointDicePins } from "../engine/dice";
+import { heroDismissalBlock, heroDismissalWindowBlock } from "../engine/hero-dismiss";
 import { isLogWarning } from "../engine/model";
 import { reactionAnswerError } from "../engine/reaction-window";
 import { capitalChoiceOf } from "../engine/setup-flow";
@@ -78,6 +79,13 @@ export function seatDecisionPointOf(room: RoomSession, seat: number): string | n
   }
   if (isSingleOwnerDecision(e.turnPhase) && e.decisionOwner === seat)
     return singleOwnerDecisionPointOf(room, e.turnPhase);
+  // 起摇等阶段仍可遣散，名册操作不改变房间自动推进相位的规则。
+  if (
+    seat === e.activeIndex &&
+    e.activePlayer.heroes.length > 0 &&
+    heroDismissalWindowBlock(e) === null
+  )
+    return `${e.gameId}/heroDismissal/${e.turnNumber}/${e.turnPhase}/${room.submissions.decisionRevision}/${seat}`;
   return null;
 }
 
@@ -126,6 +134,14 @@ function submissionError(room: RoomSession, submission: PlayerSubmission): Submi
     return choice.available ? null : { reasonCode: choice.reasonCode, reason: choice.reason };
   }
   const e = room.engine;
+  if (cmd.type === "dismissHero") {
+    if (e?.phase !== "Playing") return STALE_DECISION;
+    if (seat !== e.activeIndex || seatControlled(room, seat))
+      return { reasonCode: "wrongSeat", reason: "仅行动者可遣散自己的名将" };
+    if (decisionPoint !== seatDecisionPointOf(room, seat)) return STALE_DECISION;
+    const block = heroDismissalBlock(e, cmd.heroId);
+    return block === null ? null : { reasonCode: "invalidCandidate", reason: block.reason };
+  }
   if (cmd.type === "respondReaction") {
     if (cmd.seat !== seat) return { reasonCode: "wrongSeat", reason: "不能替其他座位应答" };
     if (decisionPoint !== seatDecisionPointOf(room, seat))
@@ -216,6 +232,7 @@ function submissionError(room: RoomSession, submission: PlayerSubmission): Submi
     const reason = activeSkillSubmissionError(e, cmd);
     return reason === null ? null : { reasonCode: "invalidCandidate", reason };
   }
+  if (cmd.type === "useBookSkill") return null;
   const pending = e.pendingJinnang;
   if (cmd.cardId === null) {
     if (
@@ -298,6 +315,7 @@ export function stagePlayerSubmission(
       result: {
         outcome: "rejected",
         ...(cmd.type === "useJinnang" ||
+        cmd.type === "useBookSkill" ||
         cmd.type === "useHeroSkill" ||
         cmd.type === "respondSkillChoice" ||
         isBankruptcyDecisionCommand(cmd)

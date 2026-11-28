@@ -191,6 +191,10 @@ it("赈济由技能属主选择、取消和确认，拒绝越席及无效目标�
       reason: cooling.reason,
     });
     expect(actor.view.jinnang?.canPass).toBe(true);
+    await peer.readUntil(
+      (message) => message.type === "snapshot" && message.players[1].stamina === 80,
+      "赈济后的公开战报摘要",
+    );
     for (const frame of peerSocket.frames) {
       if (frame.type === "snapshot") expect(frame.pendingSkill).toBeNull();
       if (frame.type === "snapshot" || frame.type === "events")
@@ -272,7 +276,8 @@ it("擂鼓无需目标，赈济银两不足时仅擂鼓可用，发动后自动�
       "擂鼓发动事件",
     );
     expect(actor.view.snapshot.turnPhase).toBe("Roll");
-    expect(actor.view.decisionPoint).toBeNull();
+    expect(actor.view.jinnang).toBeNull();
+    expect(actor.view.decisionOptions?.kind).toBe("heroDismissal");
 
     await room.advance(AUTO_ROLL_DELAY_MS);
     const march = await actor.readUntil(

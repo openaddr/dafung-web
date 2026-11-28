@@ -15,7 +15,7 @@ import { HEROES } from "@dafung/core/engine/heroes";
 import { makeSkillBook, SKILL_BOOK_ID_PREFIX } from "@dafung/core/engine/treasures";
 import { armHero, sweepTestHeroes, testEngine } from "@dafung/core/engine/testing";
 import { dismissHero } from "@dafung/core/engine/hero-dismiss";
-import { armHero as plantHero, setCash } from "@dafung/core/engine/planter";
+import { armHero as plantHero, armPhase, setCash, setStamina } from "@dafung/core/engine/planter";
 
 // ── fixture 图:20 城全城池(同 skill-book.test 制式)──
 function cityTile(i: number, name: string, extra: Record<string, unknown> = {}) {
@@ -202,6 +202,29 @@ describe("遣散回池再招(#1147)", () => {
 
 // ────────────────────────── 校验:目标与回合 ──────────────────────────
 describe("遣散校验(#1147)", () => {
+  it("主动技待选目标时保留施展者，其他名将仍可遣散", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const seat = e.activeIndex;
+    plantHero(e, seat, "huatuo", ["zhenji"]);
+    plantHero(e, seat, "zhouyu", ["yingzi"]);
+    setCash(e, seat, 1000);
+    setStamina(e, seat, 60);
+    armPhase(e, { turnPhase: "AwaitingJinnang" });
+    e.submitCommand({ type: "useHeroSkill", heroId: "huatuo", skillId: "zhenji" });
+    expect(e.pendingSkill).toEqual({ heroId: "huatuo", skillId: "zhenji" });
+
+    e.submitCommand({ type: "dismissHero", heroId: "huatuo" });
+    expect(e.activePlayer.heroes.map(({ heroId }) => heroId)).toEqual(["huatuo", "zhouyu"]);
+    expect(e.activePlayer.treasures).toEqual([]);
+    e.submitCommand({ type: "dismissHero", heroId: "zhouyu" });
+    expect(e.activePlayer.heroes.map(({ heroId }) => heroId)).toEqual(["huatuo"]);
+
+    e.submitCommand({ type: "useHeroSkill", heroId: "huatuo", skillId: "zhenji", targets: [seat] });
+    expect(e.pendingSkill).toBeNull();
+    expect(e.activePlayer.stamina).toBe(90);
+  });
+
   it("清算中禁止主动遣散,不折书也不触发得宝技能筹款", () => {
     const e = makeEngine(7);
     finishSetup(e);

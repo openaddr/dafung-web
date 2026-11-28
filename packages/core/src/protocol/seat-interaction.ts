@@ -5,6 +5,7 @@ import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-executi
 import { isActiveSkill, skillById } from "../engine/skills";
 import type { GameSnapshot } from "../engine/snapshot";
 import type { BankruptcyDecision } from "../room/bankruptcy-decisions";
+import type { HeroDismissalOption, SkillBookOption } from "../room/roster-decisions";
 import type { SkillChoiceDecision } from "../room/skill-choice-decisions";
 import type {
   TreasureDecision,
@@ -45,6 +46,10 @@ export interface SeatInteractionState<S extends PlayerSeatSnapshot> extends Seat
   readonly reactionDeadlineAt?: number | null;
 }
 
+export type HeroDismissalIntent =
+  | { type: "selectHeroToDismiss"; heroId: string }
+  | { type: "confirmHeroDismissal" | "cancelHeroDismissal" };
+
 export type SeatIntent =
   | { type: "selectCapital"; tileIndex: number }
   | { type: "chooseLand"; command: LandDecisionCommand["type"] }
@@ -54,6 +59,9 @@ export type SeatIntent =
   | { type: "declareBankruptcy" }
   | { type: "selectCard"; handIndex: number }
   | { type: "selectSkill"; optionId: string }
+  | { type: "selectSkillBook"; treasureId: string }
+  | { type: "selectBookLearner"; heroId: string }
+  | HeroDismissalIntent
   | { type: "toggleTarget"; id: number }
   | { type: "muteReactions" }
   | { type: "confirm" | "back" | "cancel" | "pass" };
@@ -67,6 +75,7 @@ export interface JinnangInteractionView {
   readonly pendingJinnang: PendingJinnang | null;
   readonly pendingSkill: PendingHeroSkill | null;
   readonly options: readonly ChoiceOption[];
+  readonly skillBooks: readonly SkillBookOption[];
   readonly selectedOption: ChoiceOption | null;
   /** 草选或房间保留的实牌位置。 */
   readonly selectedHandIndex: number | null;
@@ -77,6 +86,17 @@ export interface JinnangInteractionView {
   readonly canBack: boolean;
   readonly canCancel: boolean;
   readonly canPass: boolean;
+}
+
+interface SkillBookStudyView {
+  readonly book: SkillBookOption & { available: true };
+  readonly learnerHeroId: string | null;
+  readonly canConfirm: boolean;
+}
+
+export interface HeroDismissalView {
+  readonly options: readonly HeroDismissalOption[];
+  readonly armedHeroId: string | null;
 }
 
 export interface CapitalInteractionView {
@@ -124,6 +144,8 @@ export interface SeatInteractionView<S extends PlayerSeatSnapshot> extends SeatI
   readonly skillChoice: SkillChoiceInteractionView | null;
   readonly ownsJinnangPhase: boolean;
   readonly jinnang: JinnangInteractionView | null;
+  readonly skillBookStudy: SkillBookStudyView | null;
+  readonly heroDismissal: HeroDismissalView | null;
   readonly reaction: ReactionInteractionView | null;
 }
 
@@ -203,6 +225,8 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
     treasureId: string | null;
   } | null = null;
   private selected: ChoiceOption | null = null;
+  private bookDraft: { treasureId: string; learnerHeroId: string | null } | null = null;
+  private armedHeroId: string | null = null;
   private selectedBankruptcyAssets: BankruptcyAsset[] = [];
   private targetDraft: TargetDraft | null = null;
   private reactionCard: ReactionCardOption | null = null;
@@ -238,7 +262,23 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
         : null;
     if (this.mutedReactionTurn !== reactionTurnOf(state)) this.mutedReactionTurn = null;
     const muted = this.mutedReactionTurn !== null;
-    if (newDecision || !open) this.selected = null;
+    if (newDecision || !open) {
+      this.selected = null;
+      this.bookDraft = null;
+    }
+    const heroDismissals =
+      decisionPoint === null || autopilotOn ? undefined : decisionOptions?.heroDismissals;
+    if (this.armedHeroId !== null) {
+      const previousRoster = previous?.heroDismissal?.options.map(({ heroId }) => heroId).join("|");
+      const currentRoster = heroDismissals?.map(({ heroId }) => heroId).join("|");
+      if (
+        newDecision ||
+        !interactive ||
+        previousRoster !== currentRoster ||
+        !heroDismissals?.some(({ heroId, available }) => available && heroId === this.armedHeroId)
+      )
+        this.armedHeroId = null;
+    }
     if (newDecision || reactionDecision === null || muted) this.reactionCard = null;
     if (newDecision || (!open && skillDecision === null && (reactionDecision === null || muted)))
       this.targetDraft = null;
@@ -297,8 +337,10 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       };
     }
     let jinnang: JinnangInteractionView | null = null;
+    let skillBookStudy: SkillBookStudyView | null = null;
     if (open) {
       const { choices, pendingJinnang, pendingSkill } = decisionOptions;
+      const skillBooks = decisionOptions.skillBooks ?? [];
       const step = currentTargets(decisionOptions, snapshot.players);
       const targets =
         step === null ? null : { ...step, ...targetSelection(step, this.targetDraft) };
@@ -316,6 +358,24 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       this.selected = selectedOption;
       const stage = pendingJinnang?.stage ?? (targets === null ? "hand" : "one");
       const enabled = interactive && decisionPoint !== null;
+      if (this.bookDraft !== null) {
+        const { treasureId, learnerHeroId } = this.bookDraft;
+        const book = skillBooks.find((option) => option.treasureId === treasureId);
+        if (book?.available === true) {
+          const learner =
+            learnerHeroId !== null && book.learnerHeroIds.includes(learnerHeroId)
+              ? learnerHeroId
+              : null;
+          this.bookDraft = { treasureId, learnerHeroId: learner };
+          skillBookStudy = {
+            book,
+            learnerHeroId: learner,
+            canConfirm: enabled && learner !== null,
+          };
+        } else {
+          this.bookDraft = null;
+        }
+      }
       let confirmUnavailableReason: string | null = null;
       if (!enabled) confirmUnavailableReason = "本座此刻不能操作";
       else if (targets !== null && !targets.canConfirm) confirmUnavailableReason = "请先选择目标";
@@ -325,6 +385,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
         pendingJinnang,
         pendingSkill,
         options,
+        skillBooks,
         selectedOption,
         selectedHandIndex: pendingJinnang?.handIndex ?? selectedOption?.handIndex ?? null,
         targets,
@@ -408,6 +469,11 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       skillChoice,
       ownsJinnangPhase,
       jinnang,
+      skillBookStudy,
+      heroDismissal:
+        heroDismissals === undefined
+          ? null
+          : { options: heroDismissals, armedHeroId: this.armedHeroId },
       reaction,
     };
     if (reaction?.muted && reaction.canRespond && decisionPoint !== null)
@@ -434,7 +500,16 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
 
   act(intent: SeatIntent, observedPoint = this.view.decisionPoint): SeatIntentResult {
     const state = this.view;
-    const { capital, treasure, bankruptcy, skillChoice, jinnang, reaction, decisionPoint } = state;
+    const {
+      capital,
+      treasure,
+      bankruptcy,
+      skillChoice,
+      jinnang,
+      skillBookStudy,
+      reaction,
+      decisionPoint,
+    } = state;
     const unavailable = (reason: string): SeatIntentResult => ({ status: "unavailable", reason });
     if (observedPoint !== decisionPoint) return unavailable("决策点已失效");
     if (capital !== null && intent.type === "cancel") {
@@ -448,11 +523,36 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       this.publish(state);
       return { status: "draft" };
     }
+    if (skillBookStudy !== null && intent.type === "cancel") {
+      this.bookDraft = null;
+      this.publish(state);
+      return { status: "draft" };
+    }
+    if (intent.type === "cancelHeroDismissal") {
+      this.armedHeroId = null;
+      this.publish(state);
+      return { status: "draft" };
+    }
     if (!state.interactive || decisionPoint === null) return unavailable("本座此刻不能操作");
     const send = (command: PlayerCommand): SeatIntentResult => {
       this.submit(command, decisionPoint);
       return { status: "submitted" };
     };
+    if (intent.type === "selectHeroToDismiss") {
+      const option = state.heroDismissal?.options.find(({ heroId }) => heroId === intent.heroId);
+      if (option === undefined) return unavailable("本席当前不能遣散此名将");
+      if (!option.available) return unavailable(option.reason);
+      this.armedHeroId = option.heroId;
+      this.publish(state);
+      return { status: "draft" };
+    }
+    if (intent.type === "confirmHeroDismissal") {
+      const heroId = this.armedHeroId;
+      if (heroId === null) return unavailable("请先选择要遣散的名将");
+      this.armedHeroId = null;
+      this.publish(state);
+      return send({ type: "dismissHero", heroId });
+    }
     if (intent.type === "chooseLand") {
       const decision = state.decisionOptions;
       if (decision?.kind !== "landDecision") return unavailable("本席当前没有城池抉择");
@@ -620,6 +720,27 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
     if (jinnang === null) return unavailable("当前没有出牌步骤");
     const { selectedOption, targets } = jinnang;
     switch (intent.type) {
+      case "selectSkillBook": {
+        if (targets !== null) return unavailable("请先结束当前目标步骤");
+        const book = jinnang.skillBooks.find(({ treasureId }) => treasureId === intent.treasureId);
+        if (book === undefined) return unavailable("本席没有此技能书");
+        if (!book.available) return unavailable(book.reason);
+        this.selected = null;
+        this.bookDraft = { treasureId: book.treasureId, learnerHeroId: null };
+        this.publish(state);
+        return { status: "draft" };
+      }
+      case "selectBookLearner": {
+        if (skillBookStudy === null) return unavailable("请先选择技能书");
+        if (!skillBookStudy.book.learnerHeroIds.includes(intent.heroId))
+          return unavailable("所选名将不可习得此技");
+        this.bookDraft = {
+          treasureId: skillBookStudy.book.treasureId,
+          learnerHeroId: intent.heroId,
+        };
+        this.publish(state);
+        return { status: "draft" };
+      }
       case "selectCard":
       case "selectSkill": {
         if (targets !== null) return unavailable("请先结束当前目标步骤");
@@ -634,6 +755,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
           return unavailable(option.reason);
         }
         this.selected = option;
+        this.bookDraft = null;
         this.publish(state);
         return { status: "draft" };
       }
@@ -663,6 +785,13 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
           back: true,
         });
       case "confirm":
+        if (skillBookStudy !== null) {
+          const { book, learnerHeroId } = skillBookStudy;
+          if (learnerHeroId === null) return unavailable("请先选择研读名将");
+          this.bookDraft = null;
+          this.publish(state);
+          return send({ type: "useBookSkill", treasureId: book.treasureId, heroId: learnerHeroId });
+        }
         if (jinnang.confirmUnavailableReason !== null)
           return unavailable(jinnang.confirmUnavailableReason);
         if (targets === null) return send(optionCommand(selectedOption!));
