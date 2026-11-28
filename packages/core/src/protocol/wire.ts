@@ -32,6 +32,7 @@ import {
 } from "../room/land-decisions";
 import type { RecruitmentDecision } from "../room/recruitment-decisions";
 import type { LobbyView, SeatSnapshot } from "../room/seat-projection";
+import type { SkillChoiceCommand, SkillChoiceDecision } from "../room/skill-choice-decisions";
 import type { TreasureDecision, TreasureOwnerCommand } from "../room/treasure-decisions";
 
 export type { CapitalOption } from "../engine/setup-flow";
@@ -57,7 +58,8 @@ export interface PlayerSubmission {
       >
     | LandDecisionCommand
     | TreasureOwnerCommand
-    | BankruptcyDecisionCommand;
+    | BankruptcyDecisionCommand
+    | SkillChoiceCommand;
 }
 
 /** 没有公开日志行的操作仍有受理回执。 */
@@ -89,6 +91,7 @@ export function requiresPlayerSubmission(
   if (
     cmd.type === "pickCapital" ||
     cmd.type === "respondReaction" ||
+    cmd.type === "respondSkillChoice" ||
     cmd.type === "resolveHeroPick" ||
     cmd.type === "resolveTreasureOwner" ||
     isBankruptcyDecisionCommand(cmd) ||
@@ -135,7 +138,8 @@ export type DecisionOptions =
   | LandDecision
   | RecruitmentDecision
   | TreasureDecision
-  | BankruptcyDecision;
+  | BankruptcyDecision
+  | SkillChoiceDecision;
 
 /** 选项随决策点只发给有权操作的座位。 */
 export interface SeatDecision {
@@ -299,6 +303,13 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
           asset.id.length > 0 &&
           Object.keys(asset).length === 2,
       )
+    );
+  if (cmd.type === "respondSkillChoice")
+    return (
+      Number.isSafeInteger(cmd.seat) &&
+      typeof cmd.use === "boolean" &&
+      (cmd.targetSeat === undefined || Number.isSafeInteger(cmd.targetSeat)) &&
+      Object.keys(cmd).length === (cmd.targetSeat === undefined ? 3 : 4)
     );
   if (cmd.type === "useJinnang")
     return (

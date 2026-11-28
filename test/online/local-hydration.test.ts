@@ -23,12 +23,19 @@ import {
   seatReactionOf,
 } from "@dafung/core/protocol/seat-replica";
 import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
+import { SeatInteraction } from "@dafung/core/protocol/seat-interaction";
 import { seatDecisionPointOf } from "@dafung/core/room/player-submissions";
-import { assembleDownlinkShot, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
+import {
+  assembleDownlinkShot,
+  redactSnapshotForSeat,
+  type SeatSnapshot,
+} from "@dafung/core/room/seat-projection";
 import {
   cmdMsg,
   dispatchInbound,
   type InboundMsg,
+  type PlayerCommand,
+  type SeatDecision,
   type ServerMsg,
 } from "@dafung/core/protocol/wire";
 import { expect, it } from "bun:test";
@@ -172,10 +179,14 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
   broadcast();
   await downlinkTurn();
   messages.length = 0;
-  const sendCommand = async (cmd: GameCommand, seat = 0) => {
+  const sendCommand = async (
+    cmd: PlayerCommand,
+    seat = 0,
+    decisionPoint = seatDecisionPointOf(room, seat),
+  ) => {
     messages.length = 0;
     const outbox = new PlayerCommandOutbox();
-    const frame = outbox.encode(cmd, room.roomId, seat, seatDecisionPointOf(room, seat));
+    const frame = outbox.encode(cmd, room.roomId, seat, decisionPoint);
     let rejectReason: string | null = null;
     const result = await dispatchInbound(
       frame,
@@ -510,7 +521,7 @@ it("非校准拍房间托管元数据按变化下行,不依赖全量快照", asy
 });
 
 it("袭扰归零后放逐、行殇先后下行，副本继续原出牌者回合", async () => {
-  const { registry, room, token, engine, replica, messages, broadcast, sendCommand, clock } =
+  const { registry, room, token, engine, replica, messages, sendCommand, clock } =
     await playingRoom((authority) => {
       armPhase(authority, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
       placePlayer(authority, 0, 1);
@@ -524,27 +535,31 @@ it("袭扰归零后放逐、行殇先后下行，副本继续原出牌者回合"
       grantProperty(authority, 1, "prop-xianyang", 2);
       setDefense(authority, 1, "prop-xianyang", 2);
     });
+  const declineSkill = async (seat: number, snapshot: SeatSnapshot, decision: SeatDecision) => {
+    let sent: ReturnType<typeof sendCommand> | undefined;
+    const interaction = new SeatInteraction<SeatSnapshot>((cmd, point) => {
+      sent = sendCommand(cmd, seat, point);
+    });
+    interaction.publish({ snapshot, seat, interactive: true, autopilotOn: false, ...decision });
+    expect(interaction.act({ type: "pass" })).toEqual({ status: "submitted" });
+    expect(await sent).toEqual({ ok: true });
+  };
   try {
-    await sendCommand({ type: "useJinnang", cardId: "袭扰" });
-    await sendCommand({ type: "useJinnang", cardId: "袭扰", targets: [1] });
+    await sendCommand({ type: "useJinnang", cardId: "袭扰", handIndex: 0 });
+    await sendCommand({ type: "useJinnang", cardId: "袭扰", handIndex: 0, targets: [1] });
     expect(replica.turnPhase).toBe("AwaitingSkillChoice");
     expect(replica.pendingSkillChoices).toEqual(engine.pendingSkillChoices);
     expect(replica.pendingSkillChoices.map((choice) => choice.skillId)).toEqual(["fangzhu"]);
-    expect(messages[0]?.type).toBe("events");
+    expect(messages[0]).toMatchObject({ type: "events", decisionPoint: null });
+    expect(messages[0]).not.toHaveProperty("decisionOptions");
 
-    const firstOwner = replica.decisionOwner;
     const onlineSeats = new Set([0, 1]);
     const reconnect = assembleDownlinkShot(room, onlineSeats, 1, [], true);
     const rejoined = JSON.parse(reconnect.snapshot) as Extract<ServerMsg, { type: "snapshot" }>;
     expect(rejoined.turnPhase).toBe("AwaitingSkillChoice");
     expect(rejoined.decisionOwner).toBe(1);
     expect(rejoined.players[0]).toMatchObject({ jinnangHand: [], jinnangHandCount: 1 });
-    await registry.applyCommand(
-      room.roomId,
-      { type: "respondSkillChoice", seat: firstOwner, use: false },
-      broadcast,
-    );
-    await downlinkTurn();
+    await declineSkill(1, rejoined, rejoined);
     expect(replica.pendingSkillChoices).toEqual(engine.pendingSkillChoices);
     expect(replica.pendingSkillChoices.map((choice) => choice.skillId)).toEqual(["xingshang"]);
     expect(replica.decisionOwner).toBe(0);
@@ -553,7 +568,12 @@ it("袭扰归零后放逐、行殇先后下行，副本继续原出牌者回合"
       expect.objectContaining({ propertyId: "prop-xianyang", level: 1 }),
     );
 
-    await sendCommand({ type: "respondSkillChoice", seat: 0, use: false });
+    const next = messages.find(
+      (message) => message.type === "events" && message.decisionOptions?.kind === "skillChoice",
+    );
+    if (next?.type !== "events") throw new Error("缺少本席行殇决策点");
+    expect(next.decisionOptions).toMatchObject({ skillId: "xingshang", fixedTargetSeat: 1 });
+    await declineSkill(0, readSeatReplica(replica, 0), next);
     expect(replica.pendingSkillChoices).toEqual([]);
     expect([replica.activeIndex, replica.turnPhase]).toEqual([0, "Roll"]);
     const beforeMarch = replica.players[0]!.position;

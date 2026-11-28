@@ -16,6 +16,7 @@ import { reactionTimingOf } from "./reaction-deadline";
 import { recruitmentDecisionOf } from "./recruitment-decisions";
 import type { RoomSession } from "./room";
 import { publicLogWarningReason, seatControlled } from "./seat-projection";
+import { skillChoiceAnswerError } from "./skill-choice-decisions";
 import { treasureDecisionOf } from "./treasure-decisions";
 
 export interface RoomSubmissions {
@@ -40,6 +41,7 @@ const SINGLE_OWNER_DECISIONS = {
   AwaitingHeroPick: "recruitment",
   AwaitingTreasureOwner: "treasure",
   AwaitingBankruptcySettle: "bankruptcy",
+  AwaitingSkillChoice: "skillChoice",
 } as const satisfies Partial<Record<TurnPhase, string>>;
 
 type SingleOwnerDecisionPhase = keyof typeof SINGLE_OWNER_DECISIONS;
@@ -171,6 +173,18 @@ function submissionError(room: RoomSession, submission: PlayerSubmission): Submi
       "AwaitingBankruptcySettle",
       "本席当前无权处理这笔债务",
     );
+  if (cmd.type === "respondSkillChoice") {
+    if (cmd.seat !== seat) return { reasonCode: "wrongSeat", reason: "不能替其他座位应答" };
+    const error = singleOwnerSubmissionError(
+      room,
+      submission,
+      "AwaitingSkillChoice",
+      "本席当前无权应答此技能",
+    );
+    if (error !== null) return error;
+    const reason = skillChoiceAnswerError(e!, cmd);
+    return reason === null ? null : { reasonCode: "invalidCandidate", reason };
+  }
   if (isLandDecisionCommand(cmd)) {
     const error = singleOwnerSubmissionError(
       room,
@@ -276,7 +290,9 @@ export function stagePlayerSubmission(
     return {
       result: {
         outcome: "rejected",
-        ...(cmd.type === "useJinnang" || isBankruptcyDecisionCommand(cmd)
+        ...(cmd.type === "useJinnang" ||
+        cmd.type === "respondSkillChoice" ||
+        isBankruptcyDecisionCommand(cmd)
           ? { reasonCode: "invalidCandidate" }
           : {}),
         reason: publicLogWarningReason(warning),

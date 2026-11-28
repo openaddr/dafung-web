@@ -6,6 +6,7 @@ import { reactionAnswerError } from "../engine/reaction-window";
 import { isActiveSkill, skillById } from "../engine/skills";
 import type { GameSnapshot } from "../engine/snapshot";
 import type { BankruptcyDecision } from "../room/bankruptcy-decisions";
+import type { SkillChoiceDecision } from "../room/skill-choice-decisions";
 import type {
   TreasureDecision,
   TreasureTradeCandidate,
@@ -98,10 +99,18 @@ export interface BankruptcyInteractionView {
   readonly canConfirm: boolean;
 }
 
+export interface SkillChoiceInteractionView {
+  readonly decision: SkillChoiceDecision;
+  readonly targets: (TargetStep & ReturnType<typeof targetSelection>) | null;
+  readonly canConfirm: boolean;
+  readonly canPass: boolean;
+}
+
 export interface SeatInteractionView<S extends PlayerSeatSnapshot> extends SeatInteractionState<S> {
   readonly capital: CapitalInteractionView | null;
   readonly treasure: TreasureInteractionView | null;
   readonly bankruptcy: BankruptcyInteractionView | null;
+  readonly skillChoice: SkillChoiceInteractionView | null;
   readonly ownsJinnangPhase: boolean;
   readonly jinnang: JinnangInteractionView | null;
   readonly reaction:
@@ -202,10 +211,12 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       previous.decisionPoint !== decisionPoint ||
       previous.seat !== seat ||
       previous.snapshot.gameId !== snapshot.gameId;
-    if (newDecision || !open) {
-      this.selected = null;
-      this.targetDraft = null;
-    }
+    const skillDecision =
+      decisionPoint !== null && decisionOptions?.kind === "skillChoice" && !autopilotOn
+        ? decisionOptions
+        : null;
+    if (newDecision || !open) this.selected = null;
+    if (newDecision || (!open && skillDecision === null)) this.targetDraft = null;
     const capitalOptions =
       decisionPoint !== null && decisionOptions?.kind === "pickCapital" && !autopilotOn
         ? decisionOptions.options
@@ -300,6 +311,30 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
         canPass: enabled && choices.some((option) => option.id === "pass" && option.available),
       };
     }
+    let skillChoice: SkillChoiceInteractionView | null = null;
+    if (skillDecision !== null) {
+      const step: TargetStep = {
+        domain: "seat",
+        ...SINGLE_TARGET,
+        candidates: skillDecision.targets,
+      };
+      const targets =
+        skillDecision.fixedTargetSeat === null
+          ? { ...step, ...targetSelection(step, this.targetDraft) }
+          : null;
+      const canFire =
+        targets === null
+          ? step.candidates.some(
+              ({ id, available }) => id === skillDecision.fixedTargetSeat && available,
+            )
+          : targets.canConfirm;
+      skillChoice = {
+        decision: skillDecision,
+        targets,
+        canConfirm: interactive && canFire,
+        canPass: interactive && skillDecision.canDecline,
+      };
+    }
     this.published = {
       snapshot,
       seat,
@@ -311,6 +346,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       capital,
       treasure,
       bankruptcy,
+      skillChoice,
       ownsJinnangPhase,
       jinnang,
       reaction:
@@ -332,7 +368,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
 
   act(intent: SeatIntent, observedPoint = this.view.decisionPoint): SeatIntentResult {
     const state = this.view;
-    const { capital, treasure, bankruptcy, jinnang, decisionPoint, snapshot } = state;
+    const { capital, treasure, bankruptcy, skillChoice, jinnang, decisionPoint, snapshot } = state;
     const unavailable = (reason: string): SeatIntentResult => ({ status: "unavailable", reason });
     if (observedPoint !== decisionPoint) return unavailable("决策点已失效");
     if (capital !== null && intent.type === "cancel") {
@@ -444,6 +480,31 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       if (intent.type !== "confirm") return unavailable("当前处于清算步骤");
       if (!bankruptcy.canConfirm) return unavailable("所选资产不足以清偿债务");
       return send({ type: "confirmBankruptcySettle", assets: [...this.selectedBankruptcyAssets] });
+    }
+    if (skillChoice !== null) {
+      const { targets, canConfirm, canPass } = skillChoice;
+      if (intent.type === "toggleTarget") {
+        if (targets === null) return unavailable("本次技能目标已定");
+        this.targetDraft = toggleTarget(targets, targets.selected, intent.id);
+        this.publish(state);
+        return this.targetDraft.unavailableReason === undefined
+          ? { status: "draft" }
+          : unavailable(this.targetDraft.unavailableReason);
+      }
+      if (intent.type === "confirm") {
+        if (!canConfirm) return unavailable("请先选择合法的技能目标");
+        return send({
+          type: "respondSkillChoice",
+          seat: state.seat,
+          use: true,
+          targetSeat: targets?.selected[0],
+        });
+      }
+      if (intent.type === "pass")
+        return canPass
+          ? send({ type: "respondSkillChoice", seat: state.seat, use: false })
+          : unavailable("本次技能不能放弃");
+      return unavailable("当前处于技能抉择");
     }
     if (jinnang === null) return unavailable("当前没有出牌步骤");
     const { selectedOption, targets } = jinnang;
