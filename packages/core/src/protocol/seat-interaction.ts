@@ -4,6 +4,12 @@ import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-executi
 import { reactionAnswerError } from "../engine/reaction-window";
 import { isActiveSkill, skillById } from "../engine/skills";
 import type { GameSnapshot } from "../engine/snapshot";
+import type {
+  TreasureDecision,
+  TreasureTradeCandidate,
+  TreasureTradeIntent,
+  TreasureTradeMode,
+} from "../room/treasure-decisions";
 import {
   reactionChoicesForSeat,
   type ReactionIntent,
@@ -40,6 +46,7 @@ export type SeatIntent =
   | { type: "selectCapital"; tileIndex: number }
   | { type: "chooseLand"; command: LandDecisionCommand["type"] }
   | { type: "chooseRecruitment"; optionId: string }
+  | TreasureTradeIntent
   | { type: "selectCard"; handIndex: number }
   | { type: "selectSkill"; optionId: string }
   | { type: "toggleTarget"; id: number }
@@ -73,8 +80,16 @@ export interface CapitalInteractionView {
   readonly canConfirm: boolean;
 }
 
+interface TreasureInteractionView {
+  readonly decision: TreasureDecision;
+  readonly mode: Exclude<TreasureTradeMode, "skip"> | null;
+  readonly selectedTreasure: TreasureTradeCandidate | null;
+  readonly canConfirm: boolean;
+}
+
 export interface SeatInteractionView<S extends PlayerSeatSnapshot> extends SeatInteractionState<S> {
   readonly capital: CapitalInteractionView | null;
+  readonly treasure: TreasureInteractionView | null;
   readonly ownsJinnangPhase: boolean;
   readonly jinnang: JinnangInteractionView | null;
   readonly reaction:
@@ -140,10 +155,14 @@ function pendingCommand({ pendingJinnang: card, pendingSkill }: JinnangInteracti
   return { type: "useHeroSkill" as const, heroId, skillId };
 }
 
-/** 每个本地座位独持一份草稿。只有 confirm、back、目标段 cancel 和 pass 走上行。 */
+/** 每个座位独持一份草选，确认后的操作经当前决策点提交。 */
 export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> {
   private published: SeatInteractionView<S> | null = null;
   private selectedCapital: number | null = null;
+  private treasureDraft: {
+    mode: Exclude<TreasureTradeMode, "skip">;
+    treasureId: string | null;
+  } | null = null;
   private selected: ChoiceOption | null = null;
   private targetDraft: TargetDraft | null = null;
 
@@ -184,6 +203,22 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
         options: capitalOptions,
         selectedOption,
         canConfirm: interactive && selectedOption?.available === true,
+      };
+    }
+    const treasureDecision =
+      decisionPoint !== null && decisionOptions?.kind === "treasureOwner" && !autopilotOn
+        ? decisionOptions
+        : null;
+    if (newDecision || treasureDecision === null) this.treasureDraft = null;
+    let treasure: TreasureInteractionView | null = null;
+    if (treasureDecision !== null) {
+      const selectedTreasure =
+        treasureDecision.candidates.find(({ id }) => id === this.treasureDraft?.treasureId) ?? null;
+      treasure = {
+        decision: treasureDecision,
+        mode: this.treasureDraft?.mode ?? null,
+        selectedTreasure,
+        canConfirm: interactive && selectedTreasure !== null,
       };
     }
     let jinnang: JinnangInteractionView | null = null;
@@ -235,6 +270,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       autopilotOn,
       reactionDeadlineAt: state.reactionDeadlineAt,
       capital,
+      treasure,
       ownsJinnangPhase,
       jinnang,
       reaction:
@@ -256,12 +292,17 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
 
   act(intent: SeatIntent, observedPoint = this.view.decisionPoint): SeatIntentResult {
     const state = this.view;
-    const { capital, jinnang, decisionPoint, snapshot } = state;
+    const { capital, treasure, jinnang, decisionPoint, snapshot } = state;
     const unavailable = (reason: string): SeatIntentResult => ({ status: "unavailable", reason });
     if (observedPoint !== decisionPoint) return unavailable("决策点已失效");
     if (capital !== null && intent.type === "cancel") {
       if (capital.selectedOption === null) return unavailable("请先选择都城");
       this.selectedCapital = null;
+      this.publish(state);
+      return { status: "draft" };
+    }
+    if (treasure?.mode != null && (intent.type === "cancel" || intent.type === "back")) {
+      this.treasureDraft = null;
       this.publish(state);
       return { status: "draft" };
     }
@@ -286,6 +327,31 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       return "index" in option
         ? send({ type: "resolveHeroPick", index: option.index })
         : send({ type: "resolveHeroPick", action: option.action });
+    }
+    if (intent.type === "chooseTreasureMode") {
+      if (treasure === null || !treasure.decision.modes.includes(intent.mode))
+        return unavailable("本次交涉没有此选项");
+      if (intent.mode === "skip")
+        return send({ type: "resolveTreasureOwner", action: { type: "skip" } });
+      this.treasureDraft = { mode: intent.mode, treasureId: null };
+      this.publish(state);
+      return { status: "draft" };
+    }
+    if (intent.type === "selectTreasure") {
+      if (treasure?.mode == null) return unavailable("请先选择交易方式");
+      if (!treasure.decision.candidates.some(({ id }) => id === intent.treasureId))
+        return unavailable("本次交涉没有这件珍宝");
+      this.treasureDraft = { mode: treasure.mode, treasureId: intent.treasureId };
+      this.publish(state);
+      return { status: "draft" };
+    }
+    if (treasure !== null && intent.type === "confirm") {
+      const { mode, selectedTreasure } = treasure;
+      if (mode === null || selectedTreasure === null) return unavailable("请先选定交易方式与珍宝");
+      return send({
+        type: "resolveTreasureOwner",
+        action: { type: mode, treasureId: selectedTreasure.id },
+      });
     }
     if (intent.type === "respondReaction") {
       if (!state.reaction?.canRespond) return unavailable("本席当前不能应答此反应窗");

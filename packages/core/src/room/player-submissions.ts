@@ -15,6 +15,7 @@ import { reactionTimingOf } from "./reaction-deadline";
 import { recruitmentDecisionOf } from "./recruitment-decisions";
 import type { RoomSession } from "./room";
 import { publicLogWarningReason, seatControlled } from "./seat-projection";
+import { treasureDecisionOf } from "./treasure-decisions";
 
 export interface RoomSubmissions {
   decisionRevision: number;
@@ -36,6 +37,7 @@ const SINGLE_OWNER_DECISIONS = {
   AwaitingJinnang: "jinnang",
   AwaitingDecision: "land",
   AwaitingHeroPick: "recruitment",
+  AwaitingTreasureOwner: "treasure",
 } as const satisfies Partial<Record<TurnPhase, string>>;
 
 type SingleOwnerDecisionPhase = keyof typeof SINGLE_OWNER_DECISIONS;
@@ -145,6 +147,20 @@ function submissionError(room: RoomSession, submission: PlayerSubmission): Submi
     if (option === undefined)
       return { reasonCode: "invalidCandidate", reason: "本次招贤没有此选项" };
     return option.available ? null : { reasonCode: "invalidCandidate", reason: option.reason };
+  }
+  if (cmd.type === "resolveTreasureOwner") {
+    const error = singleOwnerSubmissionError(
+      room,
+      submission,
+      "AwaitingTreasureOwner",
+      "本席当前无权处理珍宝交涉",
+    );
+    if (error !== null) return error;
+    const { action } = cmd;
+    if (action.type === "skip") return null;
+    return treasureDecisionOf(e!).candidates.some(({ id }) => id === action.treasureId)
+      ? null
+      : { reasonCode: "invalidCandidate", reason: "本次交涉没有这件珍宝" };
   }
   if (isLandDecisionCommand(cmd)) {
     const error = singleOwnerSubmissionError(

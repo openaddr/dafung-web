@@ -249,38 +249,41 @@ export function DecisionScrollLayer({
       );
     }
 
-    // ── 珍宝使交涉:城主决策视角;本地是访客时给只读等待视角 ──
-    // L42:城主卷轴是决策卷轴,补 interactive 门控(本座位演出落定前不弹,#611:
-    // canAct 改绑 fxStore 行军会话,他座棋子照飞、队列积压不进门);访客只读等待
-    // 面板视同 WaitingBar 的过程反馈,保持即时。
-    if (snapshot.treasureVisitor && snapshot.turnPhase === "AwaitingTreasureOwner") {
-      const tv = snapshot.treasureVisitor;
-      const owner = players[tv.ownerIdx];
-      const visitor = players[snapshot.activeIndex];
-      if (owner && visitor) {
-        const showOwner = viewSeat === tv.ownerIdx && showDecision;
-        const isVisitorView = viewSeat === snapshot.activeIndex;
-        if (showOwner || isVisitorView) {
-          const propDef = catalog.get(tv.propertyId);
-          const holding = owner.properties.find((h) => h.propertyId === tv.propertyId);
-          if (holding === undefined)
-            throw new Error(`珍宝交涉:城 ${tv.propertyId} 不在 ${owner.guohao} 名下`);
-          if (propDef) {
-            return (
-              <TreasureVisitorScroll
-                role={showOwner ? "owner" : "visitor"}
-                ownerGuohao={owner.guohao}
-                visitorGuohao={visitor.guohao}
-                tileName={board.at(visitor.position)?.name ?? ""}
-                treasures={owner.treasures}
-                property={propDef}
-                cityLevel={holding.level}
-                onCommand={dispatch}
-              />
-            );
-          }
-        }
-      }
+    if (showDecision && seatView?.decisionPoint != null && seatView.treasure !== null) {
+      const { treasure, decisionPoint } = seatView;
+      const { decision, mode, selectedTreasure } = treasure;
+      const enabled = interactive && !parked;
+      return (
+        <TreasureVisitorScroll
+          role="owner"
+          ownerGuohao={players[viewSeat].guohao}
+          visitorGuohao={players[decision.visitorSeat].guohao}
+          tileName={board.at(decision.tileIndex).name}
+          decision={decision}
+          mode={mode}
+          selectedTreasure={selectedTreasure}
+          interactive={enabled}
+          canConfirm={enabled && treasure.canConfirm}
+          onIntent={(intent) => {
+            if (enabled || intent.type === "cancel")
+              controller?.dispatchIntent(intent, decisionPoint);
+          }}
+        />
+      );
+    }
+    // 访客等待反馈随公开落格事实即时显示。
+    if (snapshot.turnPhase === "AwaitingTreasureOwner" && viewSeat === snapshot.activeIndex) {
+      const { ownerIdx, propertyId } = snapshot.treasureVisitor!;
+      const owner = players[ownerIdx];
+      return (
+        <TreasureVisitorScroll
+          role="visitor"
+          ownerGuohao={owner.guohao}
+          visitorGuohao={players[viewSeat].guohao}
+          tileName={board.at(tileIndexOfProperty(board, propertyId)).name}
+          treasureCount={owner.treasures.length}
+        />
+      );
     }
 
     if (

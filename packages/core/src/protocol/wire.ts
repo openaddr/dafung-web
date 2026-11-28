@@ -27,6 +27,7 @@ import {
 } from "../room/land-decisions";
 import type { RecruitmentDecision } from "../room/recruitment-decisions";
 import type { LobbyView, SeatSnapshot } from "../room/seat-projection";
+import type { TreasureDecision, TreasureOwnerCommand } from "../room/treasure-decisions";
 
 export type { CapitalOption } from "../engine/setup-flow";
 export {
@@ -49,7 +50,8 @@ export interface PlayerSubmission {
         PlayerCommand,
         { type: "pickCapital" | "useJinnang" | "respondReaction" | "resolveHeroPick" }
       >
-    | LandDecisionCommand;
+    | LandDecisionCommand
+    | TreasureOwnerCommand;
 }
 
 /** 没有公开日志行的操作仍有受理回执。 */
@@ -82,6 +84,7 @@ export function requiresPlayerSubmission(
     cmd.type === "pickCapital" ||
     cmd.type === "respondReaction" ||
     cmd.type === "resolveHeroPick" ||
+    cmd.type === "resolveTreasureOwner" ||
     isLandDecisionCommand(cmd)
   )
     return true;
@@ -123,7 +126,8 @@ export type DecisionOptions =
   | { kind: "pickCapital"; options: readonly CapitalOption[] }
   | JinnangDecisionOptions
   | LandDecision
-  | RecruitmentDecision;
+  | RecruitmentDecision
+  | TreasureDecision;
 
 /** 选项随决策点只发给有权操作的座位。 */
 export interface SeatDecision {
@@ -263,6 +267,17 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
       Object.keys(cmd).length === 2 &&
       (Number.isSafeInteger(cmd.index) || cmd.action === "seekBook" || cmd.action === "skip")
     );
+  if (cmd.type === "resolveTreasureOwner") {
+    const { action } = cmd;
+    if (!isRecord(action) || Object.keys(cmd).length !== 2) return false;
+    if (action.type === "skip") return Object.keys(action).length === 1;
+    return (
+      (action.type === "fair" || action.type === "premium") &&
+      typeof action.treasureId === "string" &&
+      action.treasureId.length > 0 &&
+      Object.keys(action).length === 2
+    );
+  }
   if (cmd.type === "useJinnang")
     return (
       (cmd.cardId === null || typeof cmd.cardId === "string") &&

@@ -25,6 +25,7 @@ import { AUTO_ROLL_DELAY_MS, BOT_STEP_MS } from "@dafung/core/engine/timings";
 import { guidePriceOf, makeSkillBook } from "@dafung/core/engine/treasures";
 import type { DecisionOptions } from "@dafung/core/protocol/wire";
 import { recruitmentDecisionOf } from "@dafung/core/room/recruitment-decisions";
+import { treasureDecisionOf } from "@dafung/core/room/treasure-decisions";
 import { IDBFactory } from "fake-indexeddb";
 import type { Window as HappyDomWindow } from "happy-dom";
 import { act } from "react";
@@ -263,8 +264,11 @@ beforeAll(async () => {
     }
 
     override dispatchCommand(cmd: GameCommand, decisionPoint?: string): void {
-      if (cmd.type === "resolveHeroPick" && decisionPoint !== this.seatView.decisionPoint)
-        throw new Error("卷轴未提交原招贤决策点");
+      if (
+        (cmd.type === "resolveHeroPick" || cmd.type === "resolveTreasureOwner") &&
+        decisionPoint !== this.seatView.decisionPoint
+      )
+        throw new Error("卷轴未提交原决策点");
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
       this.resync();
     }
@@ -284,6 +288,14 @@ beforeAll(async () => {
         this.observeSeatDecision({
           decisionPoint: `招贤-${this.e.turnNumber}`,
           decisionOptions: recruitmentDecisionOf(this.e),
+        });
+      } else if (
+        this.e.decisionOwner === this.mySeat &&
+        this.e.turnPhase === "AwaitingTreasureOwner"
+      ) {
+        this.observeSeatDecision({
+          decisionPoint: `珍宝-${this.e.turnNumber}`,
+          decisionOptions: treasureDecisionOf(this.e),
         });
       } else {
         this.observeSeatDecision({ decisionPoint: null });
@@ -545,6 +557,7 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(docQ(T.treasureModeFair)!.textContent).toBe("公道买卖");
     expect(docQ(T.treasureModePremium)!.textContent).toBe("坐地起价");
     click(docQ(T.treasureModeFair)!);
+    expect(useGameStore.getState().seatView?.treasure?.mode).toBe("fair");
     expect(sounds).toEqual(["scrollOpen"]);
     const pick = () => docQ(T.treasurePick);
     expect(pick()).not.toBeNull();
@@ -563,6 +576,7 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     // 点选=金描边上浮:aria-pressed 翻真 + 价签转「成交 · 至 N 两」
     click(item());
     click(item());
+    expect(useGameStore.getState().seatView?.treasure?.selectedTreasure?.id).toBe("seal");
     expect(sounds).toEqual(["scrollOpen", "jinnangSelect"]);
     expect(item().getAttribute("aria-pressed")).toBe("true");
     expect(item().textContent).toContain(`成交 · 至 ${formatMoney(guidePriceOf(3))}`);

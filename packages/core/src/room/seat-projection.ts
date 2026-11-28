@@ -27,6 +27,7 @@ import { landDecisionOf } from "./land-decisions";
 import { seatDecisionPointOf } from "./player-submissions";
 import { reactionTimingOf } from "./reaction-deadline";
 import { recruitmentDecisionOf } from "./recruitment-decisions";
+import { treasureDecisionOf } from "./treasure-decisions";
 import type { RoomSession } from "./room";
 // 下行封装构造收口 wire.ts(#429):装配口只管形状与裁剪,序列化不另起炉灶。
 // (wire 对本模块/room 的引用全是 type 导入,构建期擦除,无运行时环。)
@@ -501,6 +502,7 @@ function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions | undef
   }
   if (e.turnPhase === "AwaitingDecision") return landDecisionOf(e);
   if (e.turnPhase === "AwaitingHeroPick") return recruitmentDecisionOf(e);
+  if (e.turnPhase === "AwaitingTreasureOwner") return treasureDecisionOf(e);
   return undefined;
 }
 

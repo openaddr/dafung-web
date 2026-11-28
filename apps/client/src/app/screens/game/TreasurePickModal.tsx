@@ -1,11 +1,11 @@
 // 组件收口:交易选宝沿用 PileShell→ui/dialog;先预选并显示报价，再提交交涉命令。
 // 坐地起价与公道买卖共用装裱卡网格,点选=预选,点成交提交 treasureId。
 // 交易条件与结算预览、成交钮同处固定 footer。
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@base-ui/react/button";
 import { getAudio } from "@app/fx/audio";
+import type { TreasureTradeCandidate } from "@dafung/core/room/treasure-decisions";
 import { PileShell, PileZone, treasureFace } from "./PileModal";
-import type { SnapshotTreasure } from "@app/store/gameStore";
 import "./pile-modal.css";
 import "./treasure-pick.css";
 
@@ -30,17 +30,20 @@ interface TreasurePickModalProps {
   sub: string;
   /** 固定操作区的报价和城池结果。 */
   context?: ReactNode;
-  treasures: SnapshotTreasure[];
+  treasures: readonly TreasureTradeCandidate[];
+  picked: TreasureTradeCandidate | null;
+  interactive: boolean;
+  canConfirm: boolean;
   /** 价签(随选中态):交涉未选=「指导价 N」/坐地双行「指导价+要价」小节,选中=「成交 ·
    *  至 N 两」。返回 ReactNode(字符串或双行小节)。 */
-  tagOf: (t: SnapshotTreasure, selected: boolean) => ReactNode;
+  tagOf: (t: TreasureTradeCandidate, selected: boolean) => ReactNode;
   /** 底部结算预览句(选中才显示):「卖出 X · 入账 N 两」。 */
-  summaryOf: (t: SnapshotTreasure) => string;
+  summaryOf: (t: TreasureTradeCandidate) => string;
   /** 成交钮文案。 */
   confirmLabel: string;
   testids: TreasurePickTestids;
-  /** 按选中的珍宝提交。 */
-  onConfirm: (treasureId: string) => void;
+  onSelect: (treasureId: string) => void;
+  onConfirm: () => void;
   onClose: () => void;
 }
 
@@ -50,16 +53,17 @@ export function TreasurePickModal({
   sub,
   context,
   treasures,
+  picked,
+  interactive,
+  canConfirm,
   tagOf,
   summaryOf,
   confirmLabel,
   testids,
+  onSelect,
   onConfirm,
   onClose,
 }: TreasurePickModalProps) {
-  const [pickedId, setPickedId] = useState<string | null>(null);
-  const picked = treasures.find((t) => t.id === pickedId);
-
   return (
     <PileShell
       title={title}
@@ -85,13 +89,13 @@ export function TreasurePickModal({
           {context != null && <div className="treasure-pick-foot-context">{context}</div>}
           {/* aria-live:预选/结算预览随点选播报(点选语言的状态反馈,不加文字标牌) */}
           <span className="treasure-pick-sum" aria-live="polite">
-            {picked !== undefined && summaryOf(picked)}
+            {picked !== null && summaryOf(picked)}
           </span>
           <Button
             type="button"
             data-testid={testids.confirm}
-            disabled={picked === undefined}
-            onClick={() => onConfirm(picked!.id)}
+            disabled={!canConfirm}
+            onClick={onConfirm}
             className="treasure-pick-btn treasure-pick-ok"
           >
             {confirmLabel}
@@ -101,17 +105,18 @@ export function TreasurePickModal({
     >
       <PileZone>{treasures.length} 件可选</PileZone>
       <div className="pile-grid">
-        {treasures.map((t) => {
-          const sel = t.id === pickedId;
+        {treasures.map((t, index) => {
+          const sel = t.id === picked?.id;
           return (
             <button
               type="button"
-              key={t.id}
+              key={`${t.id}:${index}`}
               data-testid={testids.item(t.id)}
               aria-pressed={sel}
+              disabled={!interactive}
               onClick={() => {
                 if (sel) return;
-                setPickedId(t.id);
+                onSelect(t.id);
                 getAudio().play("jinnangSelect");
               }}
               className={"pile-cell treasure-pick-cell" + (sel ? " treasure-pick-sel" : "")}
