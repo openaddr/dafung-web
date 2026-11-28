@@ -556,15 +556,13 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
     expect(
       assembleGameLogDelta(game, { rawOffset: offset, publicOffset: offset }, 10).message?.lines,
     ).toEqual(projected);
-    expect(projected).toHaveLength(game.log.length - offset);
+    expect(projected).toHaveLength(game.log.length - offset - 2);
     expect(
       projected.filter((line) => line.category === "cmd").map((line) => JSON.parse(line.detail)),
     ).toEqual([
       { type: "pickCapital", seat, tileIndex },
       { type: "resolveTreasureOwner", action: { type: "fair", treasureId: "seal-1" } },
       { type: "resolveTreasureOwner", action: { type: "premium" } },
-      { type: "useHeroSkill" },
-      { type: "useHeroSkill" },
       { type: "useBookSkill", treasureId: "skillbook-leigu", heroId: "zhangxingcai" },
       {
         type: "confirmBankruptcySettle",

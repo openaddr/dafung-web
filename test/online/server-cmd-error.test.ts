@@ -41,6 +41,11 @@ const PORT =
   process.env.DAFUNG_CMD_ERROR_PORT ||
   String(cmdErrorTestPort(basename(join(import.meta.dir, "..", ".."))));
 const BASE = `http://127.0.0.1:${PORT}`;
+const studyOutOfPhase = {
+  type: "useBookSkill",
+  treasureId: "skillbook-huogong",
+  heroId: "zhouyu",
+} as const;
 
 function capitalSubmission(snapshot: SnapshotMsg): PlayerSubmission {
   const { decisionPoint, decisionOptions, roomId, currentSetupPlayerIndex: seat } = snapshot;
@@ -296,8 +301,8 @@ describeSlow("server WS 命令回报与对局日志", () => {
       expect(first.currentSetupPlayerIndex).toBe(0);
       const firstLogLength = (first.log as unknown[]).length;
 
-      // 非出牌阶段发动主动技，权威只记告警，回执带安全原因和告警序位。
-      ws.send(cmdMsg({ type: "useHeroSkill", heroId: "zhouyu", skillId: "huogong" }, 6));
+      // 非出牌阶段用书学技，权威告警的回执带安全原因和公开序位。
+      ws.send(cmdMsg(studyOutOfPhase, 6));
       expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
         type: "commandResult",
         requestId: 6,
@@ -758,9 +763,9 @@ describeSlow("server WS 命令回报与对局日志", () => {
       expect(restored.players[0].jinnangHand).toEqual([]);
       expect(restored.players[0].jinnangHandCount).toBeGreaterThan(0);
 
-      // 行军后的购地决策仍由座位 1 持有。非出牌阶段发动主动技只追加审计和警告。
+      // 行军后的购地决策仍由座位 1 持有。非出牌阶段用书学技追加审计和告警。
       expect(restored.turnPhase).toBe("AwaitingDecision");
-      reconnected.sendCmd({ type: "useHeroSkill", heroId: "zhouyu", skillId: "huogong" });
+      reconnected.sendCmd(studyOutOfPhase);
       const audit = await waitLog(reconnected, "仅追加日志的命令");
       expect(audit.offset).toBe(restored.log.length);
       expect(audit.lines.map((line) => line.category)).toEqual(["cmd", "system"]);

@@ -310,31 +310,22 @@ describe("assembleDownlinkShot · 座位下行", () => {
   });
 
   it("选择和作罢主动技只给决策席目标选项，日志保留已发动的技能和目标", async () => {
-    const { reg, roomId, token, engine, summary } = await roomAtPlaying();
+    const { reg, roomId, token, engine, summary, submit } = await roomAtPlaying();
     try {
       armPhase(engine, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
       armHero(engine, 0, "huatuo", ["zhenji"]);
       const skill = { type: "useHeroSkill", heroId: "huatuo", skillId: "zhenji" } as const;
-      await reg.applyCommandFromSeat(roomId, 0, skill);
+      const publicLog = summary(1).log;
+      await submit(0, "选择赈济", skill);
       expect(summary(0).pendingSkill).toEqual({ heroId: "huatuo", skillId: "zhenji" });
       const waiting = summary(1);
       expect(waiting.pendingSkill).toBeNull();
       expect(waiting.choices).toEqual([]);
-      expect(JSON.parse(waiting.log.at(-1)!.detail)).toEqual({ type: "useHeroSkill" });
-      await reg.applyCommandFromSeat(roomId, 0, { ...skill, targets: [12] });
-      await reg.applyCommandFromSeat(roomId, 0, { ...skill, cancel: true });
-      const cancelled = summary(1).log;
-      expect(
-        cancelled
-          .filter((line) => line.category === "cmd")
-          .slice(-2)
-          .map((line) => JSON.parse(line.detail)),
-      ).toEqual([{ type: "useHeroSkill" }, { type: "useHeroSkill", cancel: true }]);
-      expect(cancelled.find((line) => line.detail.includes("heroSkillCancel"))).toMatchObject({
-        detail: "heroSkillCancel player=p0",
-      });
-      await reg.applyCommandFromSeat(roomId, 0, skill);
-      await reg.applyCommandFromSeat(roomId, 0, { ...skill, targets: [1] });
+      expect(waiting.log).toEqual(publicLog);
+      await submit(0, "作罢赈济", { ...skill, cancel: true });
+      expect(summary(1).log).toEqual(publicLog);
+      await submit(0, "重选赈济", skill);
+      await submit(0, "发动赈济", { ...skill, targets: [1] });
       const shot = assembleDownlinkShot(
         reg.get(roomId)!,
         new Set([0, 1]),
@@ -348,6 +339,12 @@ describe("assembleDownlinkShot · 座位下行", () => {
           kind: "heroSkillActivated",
           skillId: "zhenji",
           targetSeat: 1,
+        }),
+      );
+      expect(summary(1).log.slice(publicLog.length)).toContainEqual(
+        expect.objectContaining({
+          category: "skill",
+          detail: "heroSkill owner=p0 skill=zhenji kind=relief target=p1",
         }),
       );
     } finally {

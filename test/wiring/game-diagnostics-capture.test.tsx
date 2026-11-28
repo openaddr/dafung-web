@@ -25,7 +25,12 @@ import {
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { assembleGameLogDelta, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
-import { encodeDownlink, type ReactionTiming, type ServerMsg } from "@dafung/core/protocol/wire";
+import {
+  encodeDownlink,
+  type InboundMsg,
+  type ReactionTiming,
+  type ServerMsg,
+} from "@dafung/core/protocol/wire";
 import pkg from "../../package.json";
 import rawGuanzhongData from "../../packages/core/maps/guanzhong.json";
 import { installControlledClock } from "./controlled-clock";
@@ -65,8 +70,11 @@ class BoundarySocket implements WebSocketLike {
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
   onmessage: ((event: { data: unknown }) => void) | null = null;
+  sent: string | null = null;
 
-  send(): void {}
+  send(frame: string): void {
+    this.sent = frame;
+  }
 
   close(): void {
     this.readyState = 3;
@@ -627,12 +635,20 @@ it("保存离场前的同局交互、报错和帧诊，另起一局各自可取"
   await act(async () => getAudio().play("cityConquest"));
 
   act(() => {
+    const socket = sockets[1]!;
     controller.dispatchCommand({ type: "useHeroSkill", heroId: "zhangxingcai", skillId: "leigu" });
-    sockets[1]!.receive({
-      type: "error",
-      requestId: 1,
-      error: "令牌失效：token=seat-only-secret wss://diagnostics.test/ws",
+    if (socket.sent === null) throw new Error("主动技未发送");
+    const frame = JSON.parse(socket.sent) as InboundMsg;
+    if (frame.type !== "submit") throw new Error("主动技缺少座位提交");
+    socket.receive({
+      type: "submissionResult",
+      requestId: frame.requestId,
+      submissionId: frame.submission.submissionId,
+      outcome: "rejected",
+      reasonCode: "wrongSeat",
+      reason: "令牌失效：token=seat-only-secret wss://diagnostics.test/ws",
     });
+    controller.dispatchCommand({ type: "useJinnang", cardId: "横征暴敛", handIndex: 0 });
     useGameStore.getState().pushHint("出牌等待回包");
     window.dispatchEvent(
       new ErrorEvent("error", {
@@ -680,6 +696,7 @@ it("保存离场前的同局交互、报错和帧诊，另起一局各自可取"
       outcome: "rejected",
       reason: expect.stringContaining("令牌失效"),
     }),
+    expect.objectContaining({ stage: "sent", command: "useJinnang", id: 2 }),
   ]);
   const conquest = events
     ?.filter((event) => event.kind === "audio")
