@@ -364,7 +364,15 @@ export class RoomRegistry {
       }
       this.rooms.set(rec.roomId, room);
       onRestored?.(room);
-      this.resumeReaction(room, onUpdate);
+      if (room.engine?.phase === "Playing" && room.engine.turnPhase === "Roll") {
+        // 已提交的出牌阶段可以在自动起摇前保存，恢复时重挂同一房间节拍。
+        this.clock.setTimeout(() => {
+          if (this.rooms.get(id) === room && room.engine?.turnPhase === "Roll")
+            void this.driveBots(room, onUpdate);
+        }, 0);
+      } else {
+        this.resumeReaction(room, onUpdate);
+      }
       count++;
     }
     return count;
@@ -759,6 +767,7 @@ export class RoomRegistry {
     }
     if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
       throw new RoomError(400, "seat 非法"); // 旁观/越界座位不可提交任何游戏命令
+    if (cmd.type === "rollAndMove") throw new RoomError(403, "行军由房间自动起摇");
     const e = room.engine;
     if (requiresPlayerSubmission(cmd, e.pendingJinnang?.cardId ?? null))
       throw new RoomError(403, "请携带原决策点和提交编号提交此操作");

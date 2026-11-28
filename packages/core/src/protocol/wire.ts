@@ -14,7 +14,10 @@
 // - 穷尽纪律:dispatch 对 InboundMsg 穷尽 switch(新增消息类型漏分支 = 编译红,
 //   default 收 never),与 seat-projection redactEvents 同机器。
 import type { GameCommand } from "../engine/authority";
+import type { ChoiceOption } from "../engine/choices";
 import type { GameEvent } from "../engine/game-events";
+import { JINNANG_CARDS, TARGET_DOMAIN_STAGES } from "../engine/jinnang";
+import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-execution";
 import type { LogEvent } from "../engine/model";
 import type { CapitalOption } from "../engine/setup-flow";
 import type { LobbyView, SeatSnapshot } from "../room/seat-projection";
@@ -56,12 +59,13 @@ export type SubmissionResultMsg = {
 
 export function requiresPlayerSubmission(
   cmd: PlayerCommand,
-  pendingCardId: string | null,
+  pendingCardId: string | null = null,
 ): cmd is PlayerSubmission["cmd"] {
-  return (
-    cmd.type === "pickCapital" ||
-    cmd.type === "respondReaction" ||
-    (cmd.type === "useJinnang" && (cmd.cardId === "连环计" || pendingCardId === "连环计"))
+  if (cmd.type === "pickCapital" || cmd.type === "respondReaction") return true;
+  if (cmd.type !== "useJinnang") return false;
+  if (cmd.cardId === null || cmd.cardId === "连环计" || pendingCardId === "连环计") return true;
+  return JINNANG_CARDS.some(
+    (card) => card.id === cmd.cardId && TARGET_DOMAIN_STAGES[card.targetDomain].stages === 0,
   );
 }
 
@@ -85,7 +89,16 @@ export function autoPilotMsg(on: boolean, requestId?: number): string {
 }
 
 // ──────────────────────────── 下行:union + 构造 ────────────────────────────
-export type DecisionOptions = { kind: "pickCapital"; options: readonly CapitalOption[] };
+export type JinnangDecisionOptions = {
+  kind: "playJinnang";
+  choices: readonly ChoiceOption[];
+  pendingJinnang: PendingJinnang | null;
+  pendingSkill: PendingHeroSkill | null;
+};
+
+export type DecisionOptions =
+  | { kind: "pickCapital"; options: readonly CapitalOption[] }
+  | JinnangDecisionOptions;
 
 /** 选项随决策点只发给有权操作的座位。 */
 export interface SeatDecision {
@@ -222,6 +235,7 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
   if (cmd.type === "useJinnang")
     return (
       (cmd.cardId === null || typeof cmd.cardId === "string") &&
+      (cmd.handIndex === undefined || Number.isSafeInteger(cmd.handIndex)) &&
       (cmd.targets === undefined ||
         (Array.isArray(cmd.targets) && cmd.targets.every(Number.isSafeInteger))) &&
       (cmd.cancel === undefined || typeof cmd.cancel === "boolean") &&

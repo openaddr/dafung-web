@@ -313,8 +313,9 @@ async function drivePickCapital(c: OnlineClient, seat: number): Promise<void> {
     `轮到座位 ${seat} 选都`,
     20000,
   );
-  expect(snap.decisionOptions?.options.length, "本席选都三选一候选").toBe(3);
-  const candidate = snap.decisionOptions!.options.find((option) => option.available)!;
+  if (snap.decisionOptions?.kind !== "pickCapital") throw new Error("缺少本席选都候选");
+  expect(snap.decisionOptions.options.length, "本席选都三选一候选").toBe(3);
+  const candidate = snap.decisionOptions.options.find((option) => option.available)!;
   c.sendSubmission({
     roomId: snap.roomId,
     seat,

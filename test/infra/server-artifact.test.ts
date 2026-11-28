@@ -154,7 +154,8 @@ test("解包后独立运行 HTTP 大厅和 WebSocket，同版本重启后持原�
     });
     expect(restored.decisionPoint).toBe(before.decisionPoint);
     expect(restored.decisionOptions).toEqual(before.decisionOptions);
-    const option = restored.decisionOptions!.options.find((candidate) => candidate.available)!;
+    if (restored.decisionOptions?.kind !== "pickCapital") throw new Error("缺少恢复选都候选");
+    const option = restored.decisionOptions.options.find((candidate) => candidate.available)!;
     client.sendSubmission({
       roomId,
       seat,

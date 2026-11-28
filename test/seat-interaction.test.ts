@@ -2,6 +2,7 @@ import { expect, it } from "bun:test";
 import type { GameCommand } from "@dafung/core/engine/authority";
 import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
 import { SeatInteraction } from "@dafung/core/protocol/seat-interaction";
+import type { SeatDecision } from "@dafung/core/protocol/wire";
 import { redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 import { autoSetup, createEngine, MAP } from "../scripts/engine-helpers";
 
@@ -33,6 +34,12 @@ it("无界面座位的草选只在发起的决策点有效，重连恢复已提�
     interactive: true,
     autopilotOn: false,
     decisionPoint,
+    decisionOptions: {
+      kind: "playJinnang",
+      choices: engine.choicesFor(),
+      pendingJinnang: engine.pendingJinnang,
+      pendingSkill: engine.pendingSkill,
+    } satisfies SeatDecision["decisionOptions"],
   });
   seat.publish(frame("选牌"));
   seat.act({ type: "selectCard", handIndex: 2 });

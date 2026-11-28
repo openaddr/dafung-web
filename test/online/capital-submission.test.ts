@@ -68,14 +68,14 @@ it("认证内存房只接收本席有效候选，两席共同观察扣款，恢�
       const actor = summary(seat);
       const peer = summary(1 - seat);
       expect(actor.decisionPoint).toEqual(expect.any(String));
-      expect(actor.decisionOptions?.kind).toBe("pickCapital");
-      expect(actor.decisionOptions?.options.map((candidate) => candidate.tileIndex)).toEqual(
+      if (actor.decisionOptions?.kind !== "pickCapital") throw new Error("缺少本席选都候选");
+      expect(actor.decisionOptions.options.map((candidate) => candidate.tileIndex)).toEqual(
         actor.offeredCapitals,
       );
       expect(peer.decisionOptions).toBeUndefined();
       expect(peer.decisionPoint).toBeNull();
       expect(peer.offeredCapitals).toEqual(actor.offeredCapitals);
-      const candidate = actor.decisionOptions!.options.find((option) => option.available)!;
+      const candidate = actor.decisionOptions.options.find((option) => option.available)!;
       const tile = MAP.board.at(candidate.tileIndex);
       expect(candidate).toMatchObject({
         propertyId: tile.propertyId,
@@ -98,7 +98,7 @@ it("认证内存房只接收本席有效候选，两席共同观察扣款，恢�
           outcome: "rejected",
           reasonCode: "wrongSeat",
         });
-        const unavailable = actor.decisionOptions!.options.find((option) => !option.available)!;
+        const unavailable = actor.decisionOptions.options.find((option) => !option.available)!;
         expect(unavailable).toMatchObject({
           reasonCode: "insufficientFunds",
           reason: "建城费不足",

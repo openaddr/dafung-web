@@ -8,6 +8,7 @@ import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
 import { OnlineController } from "@app/controllers/online";
 import type { GameControllerDiagnosticEvent } from "@app/controllers/controller";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
+import { reactionQueriesSeat } from "@dafung/core/protocol/reaction-choices";
 import { getEngine, useGameStore } from "@app/store/gameStore";
 import { getController, setController } from "@app/controllers/registry";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
@@ -140,6 +141,14 @@ function authority(seatCount = 2): GameEngine {
 function hydrate(socket: FakeSocket, engine: GameEngine, autoPilot = false): void {
   const selectingCapital =
     engine.phase === "Setup" && engine.currentSetupPlayerIndex === controller.seat;
+  const playingJinnang =
+    !autoPilot &&
+    engine.phase === "Playing" &&
+    engine.turnPhase === "AwaitingJinnang" &&
+    engine.decisionOwner === controller.seat;
+  const reaction = engine.pendingReaction;
+  const answeringReaction =
+    !autoPilot && reaction !== null && reactionQueriesSeat(reaction.view, controller.seat);
   const decisionOptions: DecisionOptions | undefined = selectingCapital
     ? {
         kind: "pickCapital",
@@ -148,12 +157,25 @@ function hydrate(socket: FakeSocket, engine: GameEngine, autoPilot = false): voi
           return { tileIndex, propertyId: property.id, cost: property.buildCost, available: true };
         }),
       }
-    : undefined;
+    : playingJinnang
+      ? {
+          kind: "playJinnang",
+          choices: engine.choicesFor(),
+          pendingJinnang: engine.pendingJinnang,
+          pendingSkill: engine.pendingSkill,
+        }
+      : undefined;
   socket.receive({
     type: "snapshot",
     ...roomFields(true, autoPilot),
     ...redactSnapshotForSeat(engine.snapshot(), controller.seat),
-    decisionPoint: selectingCapital ? "capital-step" : "calibrated",
+    decisionPoint: selectingCapital
+      ? "capital-step"
+      : playingJinnang
+        ? "jinnang-step"
+        : answeringReaction
+          ? `reaction-${reaction.seq}`
+          : null,
     decisionOptions,
   });
 }
@@ -370,6 +392,8 @@ describe("OnlineController 原座恢复", () => {
       const result = engine.pickCapital(engine.currentSetupPlayerIndex, engine.offeredCapitals[0]!);
       expect(result.ok).toBe(true);
     }
+    armPhase(engine, { turnPhase: "AwaitingJinnang", activeIndex: controller.seat });
+    giveJinnang(engine, controller.seat, ["横征暴敛"]);
     hydrate(current, engine);
     expect(controller.interactive).toBe(true);
     current.disconnect();
@@ -392,10 +416,16 @@ describe("OnlineController 原座恢复", () => {
       requestId: expect.any(Number),
     });
     hydrate(third, engine);
-    controller.dispatchCommand({ type: "useJinnang", cardId: null });
-    expect(JSON.parse(third.sent[1]!)).toEqual({
-      type: "cmd",
-      cmd: { type: "useJinnang", cardId: null },
+    expect(controller.dispatchIntent({ type: "pass" })).toEqual({ status: "submitted" });
+    expect(JSON.parse(third.sent[1]!)).toMatchObject({
+      type: "submit",
+      submission: {
+        roomId: "SAME",
+        seat: controller.seat,
+        decisionPoint: "jinnang-step",
+        submissionId: expect.any(String),
+        cmd: { type: "useJinnang", cardId: null },
+      },
       requestId: expect.any(Number),
     });
   });

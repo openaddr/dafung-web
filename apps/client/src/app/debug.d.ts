@@ -33,7 +33,7 @@ declare global {
       /** 加载地图、创建 LocalController、注册并切屏,再经 setupPickCapital 选都。
        *  默认值与单机准备共用，显式 seats 须为合法对局人数。 */
       seedSolo: (opts?: { seed?: number; mapId?: string; seats?: number }) => Promise<void>;
-      /** seedSolo 开局后冻结房间时钟,经公共命令推进到目标回合的稳定停靠态后解冻。
+      /** seedSolo 开局后经玩家入口和房间时钟推进到目标回合的稳定停靠态。
        *  afterFirstRoll 要求首掷已发生;应答/停靠规则见 registry.ts answerAtHumanStop/driveToRound。
        *  演出排空由调用方等待。 */
       seedSoloToRound: (opts: {

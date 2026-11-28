@@ -25,11 +25,13 @@ import {
   giveJinnang,
   giveTreasure,
   grantProperty,
+  pinDice,
   placePlayer,
   setCash,
 } from "@dafung/core/engine/planter";
 import { skillOptionId } from "@dafung/core/engine/choices";
 import { makeSkillBook } from "@dafung/core/engine/treasures";
+import { AUTO_ROLL_DELAY_MS } from "@dafung/core/engine/timings";
 import { redactEvents } from "@dafung/core/room/seat-projection";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -409,34 +411,75 @@ async function waitForGameState(
   });
 }
 
+async function mountOnlineJinnang(room: Awaited<ReturnType<typeof openHeadlessTestRoom>>) {
+  setServerBase("http://android-room.test");
+  const join = async (input: Parameters<typeof fetch>[0]) => {
+    expect(new URL(String(input)).pathname).toBe("/room/join");
+    return Response.json(room.joinReply(0));
+  };
+  using _join = spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(join, { preconnect: fetch.preconnect }),
+  );
+  const controller = new OnlineController(MAP, "guanzhong", {
+    socketFactory(url) {
+      const { pathname, search } = new URL(url);
+      return new NativeWebSocket(
+        new URL(pathname + search, room.wsUrl(0)),
+      ) as unknown as WebSocketLike;
+    },
+  });
+  setController(controller, guanzhongData as MapData);
+  await controller.joinRoom(room.id);
+  await waitForGameState(
+    "入座后的出牌阶段",
+    (s) => s.interactive && s.seatView?.jinnang?.stage === "hand",
+  );
+  return mount();
+}
+
+it("安卓点具体无目标锦囊确认后更新手牌，结束出牌由房间起摇", async () => {
+  const previousServer = getServerBase();
+  const room = await openHeadlessTestRoom([], (engine) => {
+    giveJinnang(engine, 0, ["横征暴敛", "识破诡计", "横征暴敛"]);
+    placePlayer(engine, 0, 13);
+    pinDice(engine, "march", [1]);
+  });
+  try {
+    const el = await mountOnlineJinnang(room);
+    const state = () => useGameStore.getState();
+    const levy = el.querySelectorAll(`[data-testid="${TESTIDS.jinnangCard("横征暴敛")}"]`);
+    const initialStep = state().seatView!.decisionPoint;
+    click(levy[1]);
+    expect(state().seatView?.jinnang?.selectedHandIndex).toBe(2);
+    expect(state().seatView?.decisionPoint).toBe(initialStep);
+    click(q(el, TESTIDS.actionbarPlay)!);
+    await waitForGameState(
+      "符合同一牌位置的结算与新授权",
+      (s) => s.seatView?.jinnang?.canPass === true && s.seatView.decisionPoint !== initialStep,
+    );
+    expect(state().snapshot?.players[0].jinnangHand).toEqual(["横征暴敛", "识破诡计"]);
+
+    click(q(el, TESTIDS.actionbarPass)!);
+    await waitForGameState("结束出牌事件", (s) => s.snapshot?.turnPhase === "Roll");
+    expect(state().seatView?.decisionPoint).toBeNull();
+    expect(state().snapshot?.players[0].position).toBe(13);
+    await room.advance(AUTO_ROLL_DELAY_MS);
+    await waitForGameState("房间自动行军到达", (s) => s.snapshot?.players[0].position === 14);
+  } finally {
+    setServerBase(previousServer);
+    await act(async () => {
+      setController(null);
+      setEngine(null);
+      await room.close();
+    });
+  }
+});
+
 it("联机右侧连环计在命令在途和返回改选时逐张高亮，最终只扣指定的一张", async () => {
   const previousServer = getServerBase();
   const room = await openHeadlessTestRoom();
   try {
-    setServerBase("http://android-room.test");
-    const join = async (input: Parameters<typeof fetch>[0]) => {
-      expect(new URL(String(input)).pathname).toBe("/room/join");
-      return Response.json(room.joinReply(0));
-    };
-    using _join = spyOn(globalThis, "fetch").mockImplementation(
-      Object.assign(join, { preconnect: fetch.preconnect }),
-    );
-    const controller = new OnlineController(MAP, "guanzhong", {
-      socketFactory(url) {
-        const { pathname, search } = new URL(url);
-        return new NativeWebSocket(
-          new URL(pathname + search, room.wsUrl(0)),
-        ) as unknown as WebSocketLike;
-      },
-    });
-    setController(controller, guanzhongData as MapData);
-    await controller.joinRoom(room.id);
-    await waitForGameState(
-      "入座后的出牌阶段",
-      (s) => s.interactive && s.seatView?.jinnang?.stage === "hand",
-    );
-
-    const el = mount();
+    const el = await mountOnlineJinnang(room);
     const confirm = () => q(el, TESTIDS.actionbarTarget)!;
     const seat = (index: number) => q(el, TESTIDS.seatTarget(index))!;
     const pawn = (index: number) => q(el, TESTIDS.pawnTarget(snap().players[index].id));
@@ -673,7 +716,21 @@ beforeAll(async () => {
     }
     // 测试侧重灌口(protected sync 的公开面;直写引擎后调)。
     resync(): void {
-      this.decisionPoint = String(++this.decisionNumber);
+      const ownsJinnang =
+        this.e.phase === "Playing" &&
+        this.e.turnPhase === "AwaitingJinnang" &&
+        this.e.decisionOwner === this.mySeat;
+      this.observeSeatDecision({
+        decisionPoint: String(++this.decisionNumber),
+        decisionOptions: ownsJinnang
+          ? {
+              kind: "playJinnang",
+              choices: this.e.choicesFor(),
+              pendingJinnang: this.e.pendingJinnang,
+              pendingSkill: this.e.pendingSkill,
+            }
+          : undefined,
+      });
       const current = this.e.pendingReaction;
       if (current != null) {
         this.observeReactionTiming(

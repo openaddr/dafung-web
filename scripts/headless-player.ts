@@ -31,14 +31,7 @@ export class HeadlessPlayer {
   private readonly interaction = new SeatInteraction<SeatSnapshot>((command, point) => {
     const socket = this.socket!;
     const requestId = ++this.requestId;
-    const frame = this.outbox.encode(
-      command,
-      this.roomId,
-      this.seat,
-      this.snapshot!.pendingJinnang?.cardId ?? null,
-      point,
-      requestId,
-    );
+    const frame = this.outbox.encode(command, this.roomId, this.seat, point, requestId);
     if (this.outbox.unacknowledged === null) this.pendingRequest = requestId;
     socket.sendRaw(frame);
     this.publish();
@@ -205,21 +198,14 @@ export class HeadlessPlayer {
   private publish(reconnect = false): void {
     const snapshot = this.snapshot;
     if (snapshot === null) return;
-    const { decisionPoint, decisionOptions } = this.decision;
-    const eligible =
-      snapshot.phase === "Setup"
-        ? decisionOptions?.kind === "pickCapital" && decisionPoint !== null
-        : snapshot.phase === "Playing" &&
-          (snapshot.turnPhase === "AwaitingReaction"
-            ? decisionPoint !== null
-            : snapshot.decisionOwner === this.seat);
+    const { decisionPoint } = this.decision;
     this.interaction.publish(
       {
         snapshot,
         seat: this.seat,
         interactive:
           this.ready &&
-          eligible &&
+          decisionPoint !== null &&
           !snapshot.players[this.seat].isBot &&
           !this.autoPilotOn &&
           this.pendingRequest === null &&

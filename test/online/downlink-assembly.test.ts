@@ -251,7 +251,7 @@ describe("assembleDownlinkShot · 座位下行", () => {
       giveJinnang(engine, 0, ["横征暴敛"]);
       giveJinnang(engine, 1, ["识破诡计"]);
       giveJinnang(engine, 2, ["识破诡计"]);
-      await reg.applyCommandFromSeat(roomId, 0, { type: "useJinnang", cardId: "横征暴敛" });
+      await submit(0, "横征暴敛", { type: "useJinnang", cardId: "横征暴敛", handIndex: 0 });
       const beforeAnswer = [summary(1), summary(2)];
       const target = { kind: "seat", id: 2 } as const;
       await submit(1, "应答", {

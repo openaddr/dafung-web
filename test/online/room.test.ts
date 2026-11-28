@@ -930,21 +930,10 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     const owner = e.decisionOwner;
     const other = owner === 0 ? 1 : 0;
     await expectRoomError(
-      () => reg.applyCommandFromSeat(roomId, other, { type: "rollAndMove" }),
+      () => reg.applyCommandFromSeat(roomId, other, { type: "dismissHero", heroId: "huatuo" }),
       403,
     );
     expect(e.decisionOwner).toBe(owner); // 引擎状态未动
-  });
-
-  it("决策归属座位放行:rollAndMove 正常起摇", async () => {
-    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
-    await pickAllHumanCapitals(reg, roomId);
-    const e = reg.get(roomId)!.engine!;
-    await reg.applyCommandFromSeat(roomId, e.decisionOwner, { type: "rollAndMove" });
-    // 命令已达引擎:cmd 流记行(每回合开头都是锦囊相位,turnPhase 值会循环回原值,不作断言)
-    expect(e.log.some((l) => l.category === "cmd" && l.detail.includes('"rollAndMove"'))).toBe(
-      true,
-    );
   });
 
   it("Setup 期非当前选都位发命令 → 403", async () => {
@@ -953,7 +942,7 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     const cur = e.currentSetupPlayerIndex;
     const other = cur === 0 ? 1 : 0;
     await expectRoomError(
-      () => reg.applyCommandFromSeat(roomId, other, { type: "rollAndMove" }),
+      () => reg.applyCommandFromSeat(roomId, other, { type: "dismissHero", heroId: "huatuo" }),
       403,
     );
   });

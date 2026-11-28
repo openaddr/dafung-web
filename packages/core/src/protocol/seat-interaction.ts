@@ -1,6 +1,6 @@
 import { isSkillOption, type ChoiceOption } from "../engine/choices";
 import { jinnangCardOf, SINGLE_TARGET, TARGET_DOMAIN_STAGES } from "../engine/jinnang";
-import type { PendingJinnang } from "../engine/jinnang-execution";
+import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-execution";
 import { reactionAnswerError } from "../engine/reaction-window";
 import { isActiveSkill, skillById } from "../engine/skills";
 import type { GameSnapshot } from "../engine/snapshot";
@@ -16,21 +16,10 @@ import {
   type TargetDraft,
   type TargetStep,
 } from "./target-selection";
-import type { CapitalOption, PlayerCommand, SeatDecision } from "./wire";
+import type { CapitalOption, JinnangDecisionOptions, PlayerCommand, SeatDecision } from "./wire";
 
 /** 交互只消费已经投给本座的局面。调用方可以保留其余公开字段供查询。 */
-type PlayerSeatSnapshot = ReactionSeatSnapshot &
-  Pick<
-    GameSnapshot,
-    | "gameId"
-    | "phase"
-    | "turnPhase"
-    | "decisionOwner"
-    | "choices"
-    | "pendingJinnang"
-    | "pendingSkill"
-    | "players"
-  >;
+type PlayerSeatSnapshot = ReactionSeatSnapshot & Pick<GameSnapshot, "gameId" | "players">;
 
 export interface SeatInteractionState<S extends PlayerSeatSnapshot> extends SeatDecision {
   readonly snapshot: S;
@@ -55,6 +44,8 @@ export type SeatIntentResult =
 
 export interface JinnangInteractionView {
   readonly stage: "hand" | PendingJinnang["stage"];
+  readonly pendingJinnang: PendingJinnang | null;
+  readonly pendingSkill: PendingHeroSkill | null;
   readonly options: readonly ChoiceOption[];
   readonly selectedOption: ChoiceOption | null;
   /** 草选或房间保留的实牌位置。 */
@@ -86,8 +77,10 @@ export interface SeatInteractionView<S extends PlayerSeatSnapshot> extends SeatI
     | null;
 }
 
-function currentTargets(snapshot: PlayerSeatSnapshot): TargetStep | null {
-  const { pendingJinnang: card, pendingSkill, choices } = snapshot;
+function currentTargets(
+  { pendingJinnang: card, pendingSkill, choices }: JinnangDecisionOptions,
+  players: PlayerSeatSnapshot["players"],
+): TargetStep | null {
   if (card !== null) {
     const flow = TARGET_DOMAIN_STAGES[jinnangCardOf(card.cardId).targetDomain];
     if (flow.stages === 0) throw new Error(`锦囊【${card.cardId}】没有目标段`);
@@ -96,9 +89,7 @@ function currentTargets(snapshot: PlayerSeatSnapshot): TargetStep | null {
       ...flow.selection,
       candidates: targetCandidates(choices, flow.selection.domain),
       ...(card.stage === "two-a" ? { initial: card.picked } : {}),
-      ...(card.stage === "two-b"
-        ? { firstSeat: { id: first, label: snapshot.players[first].guohao } }
-        : {}),
+      ...(card.stage === "two-b" ? { firstSeat: { id: first, label: players[first].guohao } } : {}),
     };
   }
   if (pendingSkill === null) return null;
@@ -118,12 +109,11 @@ function optionCommand(option: ChoiceOption) {
 }
 
 function confirmAction(
-  snapshot: PlayerSeatSnapshot,
+  { pendingJinnang, pendingSkill }: JinnangDecisionOptions,
   selected: ChoiceOption | null,
 ): JinnangInteractionView["confirmAction"] {
-  if (snapshot.pendingJinnang !== null)
-    return snapshot.pendingJinnang.stage === "two-a" ? "nextTarget" : "playCard";
-  if (snapshot.pendingSkill !== null) return "useSkill";
+  if (pendingJinnang !== null) return pendingJinnang.stage === "two-a" ? "nextTarget" : "playCard";
+  if (pendingSkill !== null) return "useSkill";
   if (selected === null) return "selectTargets";
   if (isSkillOption(selected)) {
     const skill = skillById(selected.skillId);
@@ -135,11 +125,10 @@ function confirmAction(
     : "selectTargets";
 }
 
-function pendingCommand(snapshot: PlayerSeatSnapshot) {
-  const card = snapshot.pendingJinnang;
+function pendingCommand({ pendingJinnang: card, pendingSkill }: JinnangInteractionView) {
   if (card !== null)
     return { type: "useJinnang" as const, cardId: card.cardId, handIndex: card.handIndex };
-  const { heroId, skillId } = snapshot.pendingSkill!;
+  const { heroId, skillId } = pendingSkill!;
   return { type: "useHeroSkill" as const, heroId, skillId };
 }
 
@@ -161,13 +150,8 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
     const { seat, snapshot, decisionPoint, decisionOptions, interactive, autopilotOn } = state;
     const previous = this.published;
     const reaction = reactionChoicesForSeat(snapshot, seat);
-    const ownsJinnangPhase =
-      seat >= 0 &&
-      snapshot.phase === "Playing" &&
-      snapshot.turnPhase === "AwaitingJinnang" &&
-      snapshot.decisionOwner === seat &&
-      snapshot.choices.some((option) => option.id === "pass" || option.id === "cancel");
-    const open = ownsJinnangPhase && !autopilotOn && !snapshot.players[seat].isBot;
+    const ownsJinnangPhase = decisionOptions?.kind === "playJinnang" && decisionPoint !== null;
+    const open = ownsJinnangPhase && !autopilotOn;
     const newDecision =
       reconnect ||
       previous === null ||
@@ -196,11 +180,11 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
     }
     let jinnang: JinnangInteractionView | null = null;
     if (open) {
-      const step = currentTargets(snapshot);
+      const { choices, pendingJinnang, pendingSkill } = decisionOptions;
+      const step = currentTargets(decisionOptions, snapshot.players);
       const targets =
         step === null ? null : { ...step, ...targetSelection(step, this.targetDraft) };
-      const options =
-        targets === null ? snapshot.choices.filter((option) => option.id !== "pass") : [];
+      const options = targets === null ? choices.filter((option) => option.id !== "pass") : [];
       const selection = this.selected;
       const selectedOption =
         selection === null
@@ -212,7 +196,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
                 option.handIndex === selection.handIndex,
             ) ?? null);
       this.selected = selectedOption;
-      const stage = snapshot.pendingJinnang?.stage ?? (targets === null ? "hand" : "one");
+      const stage = pendingJinnang?.stage ?? (targets === null ? "hand" : "one");
       const enabled = interactive && decisionPoint !== null;
       let confirmUnavailableReason: string | null = null;
       if (!enabled) confirmUnavailableReason = "本座此刻不能操作";
@@ -220,16 +204,18 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       else if (targets === null && selectedOption === null) confirmUnavailableReason = "请先选牌";
       jinnang = {
         stage,
+        pendingJinnang,
+        pendingSkill,
         options,
         selectedOption,
-        selectedHandIndex: snapshot.pendingJinnang?.handIndex ?? selectedOption?.handIndex ?? null,
+        selectedHandIndex: pendingJinnang?.handIndex ?? selectedOption?.handIndex ?? null,
         targets,
-        confirmAction: confirmAction(snapshot, selectedOption),
+        confirmAction: confirmAction(decisionOptions, selectedOption),
         canConfirm: confirmUnavailableReason === null,
         confirmUnavailableReason,
         canBack: enabled && stage === "two-b",
         canCancel: enabled && (targets !== null || selectedOption !== null),
-        canPass: enabled && stage === "hand",
+        canPass: enabled && choices.some((option) => option.id === "pass" && option.available),
       };
     }
     this.published = {
@@ -331,7 +317,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
         return send({ type: "useJinnang", cardId: null });
       case "cancel":
         if (!jinnang.canCancel) return unavailable("尚未选牌");
-        if (targets !== null) return send({ ...pendingCommand(snapshot), cancel: true });
+        if (targets !== null) return send({ ...pendingCommand(jinnang), cancel: true });
         this.selected = null;
         this.publish(state);
         return { status: "draft" };
@@ -339,15 +325,15 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
         if (!jinnang.canBack) return unavailable("当前步骤不能返回上一步");
         return send({
           type: "useJinnang",
-          cardId: snapshot.pendingJinnang!.cardId,
-          handIndex: snapshot.pendingJinnang!.handIndex,
+          cardId: jinnang.pendingJinnang!.cardId,
+          handIndex: jinnang.pendingJinnang!.handIndex,
           back: true,
         });
       case "confirm":
         if (jinnang.confirmUnavailableReason !== null)
           return unavailable(jinnang.confirmUnavailableReason);
         if (targets === null) return send(optionCommand(selectedOption!));
-        return send({ ...pendingCommand(snapshot), targets: [...targets.selected] });
+        return send({ ...pendingCommand(jinnang), targets: [...targets.selected] });
     }
   }
 }

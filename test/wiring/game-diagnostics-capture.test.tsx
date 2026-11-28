@@ -17,6 +17,7 @@ import { GameEngine } from "@dafung/core/engine/authority";
 import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
+import { capitalChoiceOf } from "@dafung/core/engine/setup-flow";
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { assembleGameLogDelta, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
@@ -159,11 +160,39 @@ function snapshotOf(
   engine: GameEngine,
   reactionTiming?: ReactionTiming,
 ): Extract<ServerMsg, { type: "snapshot" }> {
+  const capital = engine.phase === "Setup" && engine.currentSetupPlayerIndex === 1;
+  const jinnang =
+    engine.phase === "Playing" &&
+    engine.turnPhase === "AwaitingJinnang" &&
+    engine.decisionOwner === 1;
   return {
     type: "snapshot",
     ...ROOM,
     ...redactSnapshotForSeat(engine.snapshot(), 1),
-    decisionPoint: engine.pendingReaction ? `test/reaction/${engine.pendingReaction.seq}/1` : null,
+    decisionPoint: capital
+      ? "test/capital/1"
+      : engine.pendingReaction
+        ? `test/reaction/${engine.pendingReaction.seq}/1`
+        : jinnang
+          ? "test/jinnang/1"
+          : null,
+    decisionOptions: capital
+      ? {
+          kind: "pickCapital",
+          options: engine.offeredCapitals.map((tileIndex) => {
+            const option = capitalChoiceOf(engine, 1, tileIndex);
+            if (!("tileIndex" in option)) throw new Error(option.reason);
+            return option;
+          }),
+        }
+      : jinnang
+        ? {
+            kind: "playJinnang",
+            choices: engine.choicesFor(),
+            pendingJinnang: engine.pendingJinnang,
+            pendingSkill: engine.pendingSkill,
+          }
+        : undefined,
     reactionTiming,
   };
 }
@@ -588,7 +617,7 @@ it("保存离场前的同局交互、报错和帧诊，另起一局各自可取"
   await act(async () => getAudio().play("cityConquest"));
 
   act(() => {
-    controller.dispatchCommand({ type: "useJinnang", cardId: null });
+    controller.dispatchCommand({ type: "useHeroSkill", heroId: "zhangxingcai", skillId: "leigu" });
     sockets[1]!.receive({
       type: "error",
       requestId: 1,
@@ -634,7 +663,7 @@ it("保存离场前的同局交互、报错和帧诊，另起一局各自可取"
   );
   expect(connections).toEqual(["closed", "gaveUp", "connecting", "calibrating", "open"]);
   expect(events?.filter((event) => event.kind === "command")).toEqual([
-    expect.objectContaining({ stage: "sent", command: "useJinnang", id: 1 }),
+    expect.objectContaining({ stage: "sent", command: "useHeroSkill", id: 1 }),
     expect.objectContaining({
       stage: "result",
       id: 1,

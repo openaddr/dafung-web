@@ -44,7 +44,10 @@ const BASE = `http://127.0.0.1:${PORT}`;
 
 function capitalSubmission(snapshot: SnapshotMsg): PlayerSubmission {
   const { decisionPoint, decisionOptions, roomId, currentSetupPlayerIndex: seat } = snapshot;
-  const candidate = decisionOptions?.options.find((option) => option.available);
+  const candidate =
+    decisionOptions?.kind === "pickCapital"
+      ? decisionOptions.options.find((option) => option.available)
+      : undefined;
   if (decisionPoint === null || candidate === undefined) throw new Error("缺少本席可用选都选项");
   return {
     roomId,
@@ -293,13 +296,13 @@ describeSlow("server WS 命令回报与对局日志", () => {
       expect(first.currentSetupPlayerIndex).toBe(0);
       const firstLogLength = (first.log as unknown[]).length;
 
-      // 非购买阶段，权威只记告警，回执带安全原因和告警序位。
-      ws.send(cmdMsg({ type: "buyProperty" }, 6));
+      // 非招贤阶段，权威只记告警，回执带安全原因和告警序位。
+      ws.send(cmdMsg({ type: "resolveHeroPick", index: 0 }, 6));
       expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
         type: "commandResult",
         requestId: 6,
         outcome: "warning",
-        reason: "阶段不符（需要 AwaitingDecision，当前 Roll）",
+        reason: "阶段不符（需要 AwaitingHeroPick，当前 Roll）",
         logOffset: firstLogLength + 1,
       });
 
@@ -625,8 +628,8 @@ describeSlow("server WS 命令回报与对局日志", () => {
   });
 
   it("联机日志从校准锚连续下行，重连归座后继续交付至解散", async () => {
-    // 客席首动，直接掷骰落在无主城的购地决策。
-    const created = await post("/room/new", { seats: 2, seed: 13 });
+    // 客席首动，持横征暴敛并有后续可用选项，结束出牌后落在无主城。
+    const created = await post("/room/new", { seats: 2, seed: 22 });
     expect(created.ok).toBe(true);
     const roomId = created.roomId as string;
     const hostToken = created.seatToken as string;
@@ -665,14 +668,61 @@ describeSlow("server WS 命令回报与对局日志", () => {
         );
       }
       expect(anchor.phase).toBe("Playing");
-      expect(anchor.turnPhase).toBe("Roll");
+      expect(anchor.turnPhase).toBe("AwaitingJinnang");
       expect(anchor.activeIndex).toBe(1);
       const guestAnchor = await guest.waitSnapshot((s) => s.phase === "Playing", "开局校准", 2000);
       expect(guestAnchor.log).toEqual(anchor.log);
       expect(guest.frames.some((m) => m.type === "gameLog")).toBe(false);
+      expect(anchor.decisionOptions).toBeUndefined();
+      expect(guestAnchor.decisionOptions).toMatchObject({
+        kind: "playJinnang",
+        choices: expect.arrayContaining([
+          expect.objectContaining({ id: "横征暴敛", handIndex: 0, available: true }),
+        ]),
+      });
+      const submit = async (
+        submissionId: string,
+        decisionPoint: string | null,
+        cmd: PlayerSubmission["cmd"],
+      ) => {
+        if (decisionPoint === null) throw new Error("客席缺少出牌授权");
+        guest.sendSubmission({ roomId, seat: 1, submissionId, decisionPoint, cmd });
+        expect(
+          await guest.waitFor(
+            (m) => m.type === "submissionResult" && m.submissionId === submissionId,
+            submissionId,
+            2000,
+          ),
+        ).toMatchObject({ outcome: "accepted" });
+      };
+      await submit("横征暴敛", guestAnchor.decisionPoint, {
+        type: "useJinnang",
+        cardId: "横征暴敛",
+        handIndex: 0,
+      });
+      const played = (s: SnapshotMsg) => s.jinnangDiscard.includes("横征暴敛");
+      const guestAfter = await guest.waitSnapshot(played, "新出牌选项", 2000);
+      anchor = await host.waitSnapshot(played, "出牌校准", 2000);
+      expect(guestAfter.players[1].jinnangHand).toEqual(["窃玉偷香"]);
+      await submit("结束出牌", guestAfter.decisionPoint, { type: "useJinnang", cardId: null });
+      const passed = await guest.waitFor(
+        (m) =>
+          m.type === "events" &&
+          m.events.some((ev) => ev.kind === "jinnangPhaseResumed" && ev.turnPhase === "Roll"),
+        "结束出牌事件",
+        2000,
+      );
+      expect(passed).toMatchObject({ decisionPoint: null });
+      const passLog = await waitLog(guest, "结束出牌日志");
+      expect(await waitLog(host, "同局结束出牌日志")).toEqual(passLog);
+      expect(passLog.offset).toBe(anchor.log.length);
+      guest.sendRaw(cmdMsg({ type: "rollAndMove" }, 20));
+      expect(await guest.waitFor((m) => m.type === "error", "拒绝玩家掷骰", 2000)).toMatchObject({
+        requestId: 20,
+        error: "行军由房间自动起摇",
+      });
 
       const beforeRoll = guest.frames.length;
-      guest.sendCmd({ type: "rollAndMove" });
       await guest.waitFor(
         (m) => m.type === "events" && m.events.some((ev) => ev.kind === "landingResolved"),
         "普通行军事件",
@@ -682,7 +732,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
       expect(guest.frames.slice(beforeRoll).map((m) => m.type)).toEqual(["events", "gameLog"]);
       expect(await waitLog(host, "同局行军日志")).toEqual(roll);
       expect(roll.gameId).toBe(first.gameId);
-      expect(roll.offset).toBe(anchor.log.length);
+      expect(roll.offset).toBe(passLog.offset + passLog.lines.length);
       expect(roll.capturedAt).toBeGreaterThan(0);
       expect(roll.lines[0]).toMatchObject({ category: "cmd", detail: '{"type":"rollAndMove"}' });
       expect(roll.lines.some((line) => line.category === "roll")).toBe(true);
@@ -699,19 +749,24 @@ describeSlow("server WS 命令回报与对局日志", () => {
       const restored = await reconnected.next(2000, "重连整房摘要");
       if (restored.type !== "snapshot") throw new Error(`重连首帧不是摘要:${restored.type}`);
       expect(restored.gameId).toBe(first.gameId);
-      expect(restored.log).toEqual([...anchor.log, ...roll.lines, ...offline.lines]);
+      expect(restored.log).toEqual([
+        ...anchor.log,
+        ...passLog.lines,
+        ...roll.lines,
+        ...offline.lines,
+      ]);
       expect(restored.players[0].jinnangHand).toEqual([]);
       expect(restored.players[0].jinnangHandCount).toBeGreaterThan(0);
 
-      // 行军后的购地决策仍由座位 1 持有。重复抽签只会新增命令审计和警告。
+      // 行军后的购地决策仍由座位 1 持有。非招贤阶段的招贤命令只追加审计和警告。
       expect(restored.turnPhase).toBe("AwaitingDecision");
-      reconnected.sendCmd({ type: "rollAndMove" });
+      reconnected.sendCmd({ type: "resolveHeroPick", action: "skip" });
       const audit = await waitLog(reconnected, "仅追加日志的命令");
       expect(audit.offset).toBe(restored.log.length);
       expect(audit.lines.map((line) => line.category)).toEqual(["cmd", "system"]);
       expect(audit.lines[1]).toMatchObject({
-        brief: "[警告] 阶段不符（需要 Roll，当前 AwaitingDecision），原文见服务器日志",
-        detail: "warn: 阶段不符（需要 Roll，当前 AwaitingDecision），原文见服务器日志",
+        brief: "[警告] 阶段不符（需要 AwaitingHeroPick，当前 AwaitingDecision），原文见服务器日志",
+        detail: "warn: 阶段不符（需要 AwaitingHeroPick，当前 AwaitingDecision），原文见服务器日志",
       });
       expect(audit.lines[1]).not.toHaveProperty("warning");
       expect(await waitLog(host, "同局命令审计")).toEqual(audit);

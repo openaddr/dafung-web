@@ -171,16 +171,7 @@ export class OnlineController extends GameController {
     // 不给基类加 seam,联机/单机经同一 store 字段取态,单机恒 false)。
     useNetStore.getState().setPending(true);
     this.sendObservedCommand(cmd.type, (id) => {
-      sock.send(
-        this.outbox.encode(
-          cmd,
-          roomId,
-          this.seat,
-          this.engine.pendingJinnang?.cardId ?? null,
-          decisionPoint,
-          id,
-        ),
-      );
+      sock.send(this.outbox.encode(cmd, roomId, this.seat, decisionPoint, id));
     });
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }

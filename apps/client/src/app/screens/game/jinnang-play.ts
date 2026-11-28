@@ -16,11 +16,11 @@ export function jinnangPlay(
   view: SeatInteractionView<GameSnapshot>,
   act: (intent: SeatIntent) => void,
 ) {
-  const { jinnang, snapshot } = view;
+  const { jinnang } = view;
   if (jinnang === null) return null;
   const { options, selectedOption: selected, targets, stage, canConfirm } = jinnang;
-  const pendingCard = snapshot.pendingJinnang;
-  const skill = snapshot.pendingSkill === null ? null : skillById(snapshot.pendingSkill.skillId);
+  const pendingCard = jinnang.pendingJinnang;
+  const skill = jinnang.pendingSkill === null ? null : skillById(jinnang.pendingSkill.skillId);
   const detail =
     targets !== null
       ? [

@@ -315,6 +315,7 @@ export function resolveJinnang(
   if (cardId == null) {
     g.logEvent("system", p.guohao, `${p.guohao} 锦囊今不用`, `jinnangPass player=${p.id}`);
     g.turnPhase = "Roll";
+    emitGameEvent(g, userSeat, { kind: "jinnangPhaseResumed", turnPhase: "Roll" });
     return;
   }
   // 只给牌名的既有命令按从左到右的顺序出第一张同名牌。

@@ -28,12 +28,11 @@ export class PlayerCommandOutbox {
     cmd: PlayerCommand,
     roomId: string,
     seat: number,
-    pendingCard: string | null,
     decisionPoint: string | null,
     requestId?: number,
   ): string {
     if (this.waitingFor(decisionPoint)) throw new Error("已有玩家提交等待回执或局面更新");
-    if (!requiresPlayerSubmission(cmd, pendingCard)) return cmdMsg(cmd, requestId);
+    if (!requiresPlayerSubmission(cmd)) return cmdMsg(cmd, requestId);
     if (decisionPoint === null) throw new Error("当前座位没有可提交的决策点");
     const submissionId = crypto.randomUUID();
     const frame = submissionMsg({ cmd, roomId, seat, decisionPoint, submissionId }, requestId);

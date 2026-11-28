@@ -78,32 +78,49 @@ function submissionError(
     const choice = capitalChoiceOf(e, seat, cmd.tileIndex);
     return choice.available ? null : { reasonCode: choice.reasonCode, reason: choice.reason };
   }
-  if (cmd.type === "respondReaction" && cmd.seat !== seat) return { reason: "不能替其他座位应答" };
-  if (decisionPoint !== seatDecisionPointOf(room, seat))
-    return {
-      reason:
-        cmd.type === "respondReaction"
-          ? "原反应窗已结束或本席已应答"
-          : "原决策点已结束，请按当前步骤重新选择",
-    };
-  const e = room.engine!;
+  const e = room.engine;
   if (cmd.type === "respondReaction") {
-    if (e.turnPhase !== "AwaitingReaction" || reactionTimingOf(room).remainingMs === 0)
+    if (cmd.seat !== seat) return { reason: "不能替其他座位应答" };
+    if (decisionPoint !== seatDecisionPointOf(room, seat))
+      return { reason: "原反应窗已结束或本席已应答" };
+    if (e?.turnPhase !== "AwaitingReaction" || reactionTimingOf(room).remainingMs === 0)
       return { reason: "原反应窗已结束" };
     if (!cmd.use && (cmd.cardId !== undefined || cmd.target !== undefined))
       return { reason: "选择不用时不能指定反应牌或对象" };
     return null;
   }
+  const stale = {
+    reasonCode: "staleDecisionPoint",
+    reason: "原决策点已结束，请按当前步骤重新选择",
+  } as const;
+  if (e?.phase !== "Playing" || e.turnPhase !== "AwaitingJinnang") return stale;
+  if (seat !== e.decisionOwner || seatControlled(room, seat))
+    return { reasonCode: "wrongSeat", reason: "本席当前无权出牌" };
+  if (decisionPoint !== seatDecisionPointOf(room, seat)) return stale;
   if (!requiresPlayerSubmission(cmd, e.pendingJinnang?.cardId ?? null))
     return { reason: "该操作不属于此次玩家提交" };
-  if (e.turnPhase !== "AwaitingJinnang") return { reason: "当前不是出牌步骤" };
-  if (cmd.handIndex === undefined || !Number.isInteger(cmd.handIndex) || cmd.handIndex < 0)
-    return { reason: "请选择具体的手牌" };
-  const cardId = e.pendingJinnang?.cardId ?? cmd.cardId;
-  if (e.pendingSkill !== null || (cmd.cardId !== null && cmd.cardId !== cardId))
-    return { reason: "本次操作与已选锦囊不符" };
-  if (e.players[seat].jinnangHand[cmd.handIndex] !== cardId)
-    return { reason: "所选手牌不在该位置" };
+  const pending = e.pendingJinnang;
+  if (cmd.cardId === null) {
+    if (
+      pending !== null ||
+      e.pendingSkill !== null ||
+      cmd.handIndex !== undefined ||
+      cmd.targets !== undefined ||
+      cmd.cancel ||
+      cmd.back
+    )
+      return { reasonCode: "invalidCandidate", reason: "请先结束当前目标步骤" };
+    return null;
+  }
+  if (cmd.handIndex === undefined || !Number.isSafeInteger(cmd.handIndex) || cmd.handIndex < 0)
+    return { reasonCode: "invalidCandidate", reason: "请选择具体的手牌" };
+  if (
+    e.pendingSkill !== null ||
+    (pending !== null && (cmd.cardId !== pending.cardId || cmd.handIndex !== pending.handIndex))
+  )
+    return { reasonCode: "invalidCandidate", reason: "本次操作与已选锦囊不符" };
+  if (e.players[seat].jinnangHand[cmd.handIndex] !== cmd.cardId)
+    return { reasonCode: "invalidCandidate", reason: "所选手牌不在该位置" };
   return null;
 }
 
@@ -159,6 +176,13 @@ export function stagePlayerSubmission(
   const warning = change.snapshot.log
     .slice(authority.log.length)
     .find((line) => isLogWarning(line) && line.warning !== undefined);
-  if (warning) return { result: { outcome: "rejected", reason: publicLogWarningReason(warning) } };
+  if (warning)
+    return {
+      result: {
+        outcome: "rejected",
+        ...(cmd.type === "useJinnang" ? { reasonCode: "invalidCandidate" } : {}),
+        reason: publicLogWarningReason(warning),
+      },
+    };
   return { result: { outcome: "accepted" }, change };
 }

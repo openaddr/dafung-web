@@ -291,6 +291,7 @@ export abstract class GameController {
       return null;
     }
     if (e.phase !== "Playing") return "对局未处于进行阶段";
+    if (command?.type === "rollAndMove") return "行军由房间自动起摇";
     if (e.turnPhase === "AwaitingReaction") {
       const pr = this.seatReaction;
       if (pr == null) return "当前反应窗缺失";

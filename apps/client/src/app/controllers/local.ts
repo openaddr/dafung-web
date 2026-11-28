@@ -238,16 +238,7 @@ export class LocalController extends GameController {
     }
     this.pending = true;
     this.sendObservedCommand(cmd.type, (id) => {
-      this.sock.send(
-        this.outbox.encode(
-          cmd,
-          this.roomId,
-          this.seat,
-          this.engine.pendingJinnang?.cardId ?? null,
-          decisionPoint,
-          id,
-        ),
-      );
+      this.sock.send(this.outbox.encode(cmd, this.roomId, this.seat, decisionPoint, id));
     });
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }

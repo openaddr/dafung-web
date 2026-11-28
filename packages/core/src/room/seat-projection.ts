@@ -478,6 +478,28 @@ interface DownlinkShot {
   decisionPoint: string | null;
 }
 
+function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions | undefined {
+  if (e.phase === "Setup") {
+    return {
+      kind: "pickCapital",
+      options: e.offeredCapitals.map((tileIndex) => {
+        const option = capitalChoiceOf(e, seat, tileIndex);
+        if (!("tileIndex" in option)) throw new Error(`选都候选 ${tileIndex}：${option.reason}`);
+        return option;
+      }),
+    };
+  }
+  if (e.turnPhase === "AwaitingJinnang") {
+    return {
+      kind: "playJinnang",
+      choices: e.choicesFor(),
+      pendingJinnang: e.pendingJinnang,
+      pendingSkill: e.pendingSkill,
+    };
+  }
+  return undefined;
+}
+
 /** 单机和联机按接收座位装配同一种 JSON 下行。事件批携带当次授权，首连、重连和校准
  *  附上座位摘要；常规事件拍可跳过整份日志的序列化。日志游标按实际发送的行数计算。 */
 export function assembleDownlinkShot(
@@ -513,18 +535,8 @@ export function assembleDownlinkShot(
       ? reactionTimingOf(r)
       : undefined;
   const decisionPoint = seatDecisionPointOf(r, viewerSeat);
-  const decisionOptions: DecisionOptions | undefined =
-    e?.phase === "Setup" && decisionPoint !== null
-      ? {
-          kind: "pickCapital",
-          options: e.offeredCapitals.map((tileIndex) => {
-            const option = capitalChoiceOf(e, viewerSeat, tileIndex);
-            if (!("tileIndex" in option))
-              throw new Error(`选都候选 ${tileIndex}：${option.reason}`);
-            return option;
-          }),
-        }
-      : undefined;
+  const decisionOptions =
+    e !== null && decisionPoint !== null ? decisionOptionsOf(e, viewerSeat) : undefined;
   const visibleEvents = redactEvents(batch, viewerSeat);
   // 房间元数据可单独改变本席的操作权，例如在原反应窗内收回托管。
   const decisionChanged =

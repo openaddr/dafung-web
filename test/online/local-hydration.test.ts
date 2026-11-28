@@ -1,6 +1,8 @@
 import { submitCapitalForSetup } from "./room-capitals";
 import { RoomRegistry } from "@dafung/core/room/room";
 import { createEngine, type RoomRecord } from "@dafung/core/room/room-record";
+import { createClock } from "@sinonjs/fake-timers";
+import { AUTO_ROLL_DELAY_MS } from "@dafung/core/engine/timings";
 import {
   armHero,
   armPhase,
@@ -94,6 +96,7 @@ it("单机选都水合后，错误选份收到提示并可在原窗重答", asyn
 
 async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatCount = 2 } = {}) {
   const records = new Map<string, RoomRecord>();
+  const clock = createClock();
   const registry = new RoomRegistry(
     {
       save: (record) => {
@@ -109,7 +112,11 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
     undefined,
     undefined,
     {
-      clock: { setTimeout: () => ({}), clearTimeout: () => {} },
+      clock: {
+        now: () => clock.now,
+        setTimeout: clock.setTimeout,
+        clearTimeout: (id) => clock.clearTimeout(id as ReturnType<typeof clock.setTimeout>),
+      },
     },
   );
   const { room, token } = registry.createRoom({
@@ -164,13 +171,7 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
   const sendCommand = async (cmd: GameCommand, seat = 0) => {
     messages.length = 0;
     const outbox = new PlayerCommandOutbox();
-    const frame = outbox.encode(
-      cmd,
-      room.roomId,
-      seat,
-      engine.pendingJinnang?.cardId ?? null,
-      seatDecisionPointOf(room, seat),
-    );
+    const frame = outbox.encode(cmd, room.roomId, seat, seatDecisionPointOf(room, seat));
     let rejectReason: string | null = null;
     const result = await dispatchInbound(
       frame,
@@ -192,7 +193,18 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
     if (rejectReason !== null) return { ok: false, reason: "rejected", message: rejectReason };
     return result;
   };
-  return { registry, room, token, engine, replica, messages, broadcast, sendCommand, records };
+  return {
+    registry,
+    room,
+    token,
+    engine,
+    replica,
+    messages,
+    broadcast,
+    sendCommand,
+    records,
+    clock,
+  };
 }
 
 it("连环计返回改选经真实下行保留首选，最终提交才消耗并结算", async () => {
@@ -494,7 +506,7 @@ it("非校准拍房间托管元数据按变化下行,不依赖全量快照", asy
 });
 
 it("袭扰归零后放逐、行殇先后下行，副本继续原出牌者回合", async () => {
-  const { registry, room, token, engine, replica, messages, broadcast, sendCommand } =
+  const { registry, room, token, engine, replica, messages, broadcast, sendCommand, clock } =
     await playingRoom((authority) => {
       armPhase(authority, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
       placePlayer(authority, 0, 1);
@@ -542,7 +554,8 @@ it("袭扰归零后放逐、行殇先后下行，副本继续原出牌者回合"
     expect([replica.activeIndex, replica.turnPhase]).toEqual([0, "Roll"]);
     const beforeMarch = replica.players[0]!.position;
     pinDice(engine, "march", [1]);
-    await sendCommand({ type: "rollAndMove" });
+    await clock.tickAsync(AUTO_ROLL_DELAY_MS);
+    await downlinkTurn();
     expect(replica.players[0]!.position).not.toBe(beforeMarch);
     expect(replica.turnPhase).toBe(engine.turnPhase);
   } finally {
