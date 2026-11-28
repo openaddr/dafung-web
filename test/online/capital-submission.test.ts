@@ -48,7 +48,6 @@ it("认证内存房只接收本席有效候选，两席共同观察扣款，恢�
         {
           cmd: (cmd, report) => registry.applyCommandFromSeat(roomId, seat, cmd, broadcast, report),
           submit: (cmd) => registry.submitFromSeat(roomId, seat, cmd, broadcast),
-          setAutoPilot: (on, report) => registry.setAutoPilot(roomId, seat, on, broadcast, report),
         },
         { sendCommandResult: (frame) => send(seat, frame) },
       ),

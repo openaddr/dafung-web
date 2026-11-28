@@ -6,7 +6,6 @@ import { describe, it, expect } from "bun:test";
 import type { GameCommand } from "@dafung/core/engine/authority";
 import type { GameEvent } from "@dafung/core/engine/game-events";
 import {
-  autoPilotMsg,
   cmdMsg,
   dispatchInbound,
   dismissedMsg,
@@ -49,9 +48,6 @@ function noCallOps(): InboundOps & { calls: string[] } {
     cmd: () => {
       calls.push("cmd");
     },
-    setAutoPilot: () => {
-      calls.push("setAutoPilot");
-    },
   };
 }
 
@@ -83,8 +79,15 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
     submissionId: "confirm",
     cmd: { type: "pickCapital", tileIndex: 3 },
   };
+  const autopilot: PlayerSubmission = {
+    roomId: "ABCD",
+    seat: 0,
+    decisionPoint: "autopilot-step",
+    submissionId: "enable-autopilot",
+    cmd: { type: "setAutoPilot", on: true },
+  };
 
-  it("编码→分发 round-trip:三族消息各达其 op,载荷原样", async () => {
+  it("命令与座位提交从编码到分发保留载荷和回执编号", async () => {
     const seen: unknown[] = [];
     const results: ServerMsg[] = [];
     const ops: InboundOps = {
@@ -95,9 +98,6 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
         seen.push(input);
         return { outcome: "accepted" };
       },
-      setAutoPilot: (on) => {
-        seen.push({ on });
-      },
     };
     const cmd = { type: "respondReaction", seat: 0, use: false } as GameCommand;
     expect(await dispatchInbound(cmdMsg(cmd), ops)).toEqual({ ok: true });
@@ -106,43 +106,41 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
         sendCommandResult: (frame) => results.push(JSON.parse(frame)),
       }),
     ).toEqual({ ok: true, requestId: 8 });
+    expect(
+      await dispatchInbound(submissionMsg(autopilot, 9), ops, {
+        sendCommandResult: (frame) => results.push(JSON.parse(frame)),
+      }),
+    ).toEqual({ ok: true, requestId: 9 });
     expect(results).toEqual([
       { type: "submissionResult", outcome: "accepted", submissionId: "confirm", requestId: 8 },
+      {
+        type: "submissionResult",
+        outcome: "accepted",
+        submissionId: "enable-autopilot",
+        requestId: 9,
+      },
     ]);
-    expect(await dispatchInbound(autoPilotMsg(true), ops)).toEqual({ ok: true });
-    expect(seen).toEqual([cmd, submission, { on: true }]);
+    expect(seen).toEqual([cmd, submission, autopilot]);
   });
 
-  it("已编号的普通命令和托管均保留诊断请求号", async () => {
+  it("已编号的普通命令及托管保存失败均保留诊断请求号", async () => {
     const ops = noCallOps();
     expect(await dispatchInbound(cmdMsg({ type: "rollAndMove" }, 7), ops)).toEqual({
       ok: true,
       requestId: 7,
     });
     expect(
-      await dispatchInbound(autoPilotMsg(true, 9), {
-        ...ops,
-        setAutoPilot: () => Promise.reject(new Error("对局未开始,不可托管")),
-      }),
+      await dispatchInbound(
+        submissionMsg(autopilot, 9),
+        { ...ops, submit: () => Promise.reject(new Error("房间保存失败")) },
+        { sendCommandResult: () => {} },
+      ),
     ).toEqual({
       ok: false,
       reason: "rejected",
-      message: "对局未开始,不可托管",
+      message: "房间保存失败",
       requestId: 9,
     });
-  });
-
-  it("入向归一(#580):autoPilot 只收 on——带冗余 speed 的报文按 {on} 接受(非兼容代码,字段不参与形状)", async () => {
-    const seen: { on: boolean }[] = [];
-    const ops: InboundOps = {
-      cmd: () => {},
-      setAutoPilot: (on) => {
-        seen.push({ on });
-      },
-    };
-    await dispatchInbound(JSON.stringify({ type: "autoPilot", on: true }), ops);
-    await dispatchInbound(JSON.stringify({ type: "autoPilot", on: false, speed: "slow" }), ops);
-    expect(seen).toEqual([{ on: true }, { on: false }]);
   });
 
   it("badJson:JSON 解析失败归 badJson,ops 不被触达", async () => {
@@ -165,8 +163,11 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
       JSON.stringify({ type: "cmd", cmd: null }),
       JSON.stringify({ type: "pickCapital", tileIndex: 3 }), // 裸选都形状已退役
       submissionMsg({ ...submission, cmd: { type: "pickCapital", tileIndex: 1.5 } }),
-      JSON.stringify({ type: "autoPilot" }), // 缺 on
-      JSON.stringify({ type: "autoPilot", on: "yes" }),
+      JSON.stringify({ type: "autoPilot", on: true }), // 裸托管形状已退役
+      JSON.stringify({
+        type: "submit",
+        submission: { ...autopilot, cmd: { type: "setAutoPilot", on: "yes" } },
+      }),
     ];
     for (const raw of shapes) {
       expect(await dispatchInbound(raw, ops)).toEqual({
@@ -187,7 +188,6 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
       cmd: () => {
         throw boom;
       },
-      setAutoPilot: () => {},
     });
     expect(r1).toEqual({ ok: false, reason: "rejected", message: "座位非法" });
 
@@ -201,9 +201,8 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
     );
     expect(r2).toEqual({ ok: false, reason: "rejected", message: "提交保存失败" });
 
-    const r3 = await dispatchInbound(autoPilotMsg(false), {
-      cmd: () => {},
-      setAutoPilot: () => {
+    const r3 = await dispatchInbound(cmdMsg({ type: "rollAndMove" }), {
+      cmd: () => {
         throw "纯字符串异常"; // eslint-disable-line no-throw-literal
       },
     });
@@ -223,7 +222,6 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
               `Cannot read properties of undefined (seat=${(cmd as { seat: number }).seat})`,
             );
         },
-        setAutoPilot: () => {},
       },
     );
     expect(r.ok).toBe(false);

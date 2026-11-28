@@ -32,6 +32,8 @@ export interface RoomRecord {
   hostSeat: number;
   /** 托管座位集(ADR-0028 单一开关);重连不清除,只有本人收回/看门狗代开。 */
   autoPilot: number[];
+  /** 各席托管权限的修订号，与开关和提交回执同一笔保存。 */
+  autopilotRevisions: number[];
   hostConfig: HostConfig;
   /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
   mapId: string | null;

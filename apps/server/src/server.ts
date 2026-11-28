@@ -62,6 +62,7 @@ import {
   lobbyView,
   seatMeta,
   type GameLogCursor,
+  type SeatDecisionCursor,
 } from "@dafung/core/room/seat-projection";
 import type { HostConfig } from "@dafung/core/room/room-record";
 import { loadExtensionPackages } from "./extension-loader";
@@ -288,7 +289,7 @@ export interface WsSeat {
   roomId: string;
   seat: number;
   logCursor: GameLogCursor;
-  decisionPoint: string | null;
+  decisions: SeatDecisionCursor;
 }
 type SeatSocket = import("bun").ServerWebSocket<WsSeat>;
 
@@ -317,7 +318,7 @@ function sendSeatSummary(room: RoomSession, online: Set<number>, ws: SeatSocket)
   // Bun.send 的 0 表示丢弃，-1 表示已排队。游标随已接受的下行推进。
   if (ws.send(shot.snapshot) !== 0) {
     ws.data.logCursor = shot.logCursor;
-    ws.data.decisionPoint = shot.decisionPoint;
+    ws.data.decisions = shot.decisionCursor;
   }
 }
 
@@ -399,10 +400,10 @@ function flushRoom(roomId: string): void {
   if (batch.length > 0 || !calibrate) {
     for (const ws of socketsOf(roomId).values()) {
       if (ws.readyState !== WebSocket.OPEN) continue;
-      const previousDecision = calibrate ? undefined : ws.data.decisionPoint;
+      const previousDecision = calibrate ? undefined : ws.data.decisions;
       const shot = assembleDownlinkShot(r, online, ws.data.seat, batch, false, previousDecision);
       if (shot.events !== null && ws.send(shot.events) !== 0) {
-        ws.data.decisionPoint = shot.decisionPoint;
+        ws.data.decisions = shot.decisionCursor;
       }
     }
   }
@@ -498,7 +499,7 @@ const HELP = {
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/托管)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=":
-      "入座连接；选都、连环计和反应应答发 {type:'submit',submission}，收 submissionResult；其余操作发 cmd 或 autoPilot",
+      "入座连接；协议化操作（含托管与收回）发 {type:'submit',submission}，收 submissionResult；其余操作发 cmd",
   },
   retention:
     "掉线座位保留窗口(#380):对局中断线的座位保留 RETENTION_WINDOW_MS(env 可调,默认 600000=10 分钟,0=关);" +
@@ -702,7 +703,12 @@ export const engineServer = Bun.serve<WsSeat>({
     }
     if (
       !srv.upgrade(req, {
-        data: { roomId, seat, logCursor: INITIAL_GAME_LOG_CURSOR, decisionPoint: null },
+        data: {
+          roomId,
+          seat,
+          logCursor: INITIAL_GAME_LOG_CURSOR,
+          decisions: { decisionPoint: null, autopilotDecisionPoint: null },
+        },
       })
     ) {
       return new Response("WebSocket upgrade failed", { status: 500 });
@@ -738,7 +744,7 @@ export const engineServer = Bun.serve<WsSeat>({
     },
     message(ws, raw) {
       const { roomId, seat } = ws.data;
-      // 上行解析+分发收口 wire.dispatchInbound(#429):三族消息一个本体,错误回报是
+      // 上行解析+分发收口 wire.dispatchInbound(#429):错误回报是
       // 返回值的一部分——传输面只负责把失败送到 WS 通道(error 消息下行,#428 口径
       // 全分支同款,漏 catch 无处藏身);观测流水在 ops 闭包内记(仅已识别形状,同旧)。
       void dispatchInbound(
@@ -765,11 +771,6 @@ export const engineServer = Bun.serve<WsSeat>({
               () => broadcast(roomId),
               report,
             );
-          },
-          setAutoPilot: (on, report) => {
-            // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
-            recordEvent(roomId, { ev: "ws-autopilot", seat, on });
-            return registry.setAutoPilot(roomId, seat, on, () => broadcast(roomId), report);
           },
         },
         {

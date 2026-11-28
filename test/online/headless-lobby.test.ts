@@ -212,6 +212,8 @@ test("安卓与无界面原座恢复已确认选都和托管，移交后的房�
 
     await host.pickMap("guanzhong");
     await host.startGame();
+    const hostPlayer = new HeadlessPlayer(roomId, seat);
+    await hostPlayer.connect(host.connection, WAIT_MS);
     const opening = await waitForAndroid(
       android,
       (view) => view.sessionReady && view.hydrated,
@@ -227,7 +229,14 @@ test("安卓与无界面原座恢复已确认选都和托管，移交后的房�
       WAIT_MS,
     );
     expect(confirmed.players[2].capitalIndex).toBe(capital);
-    host.connection.sendAutoPilot(true);
+    expect(hostPlayer.act({ type: "setAutoPilot", on: true })).toEqual({ status: "submitted" });
+    expect(
+      await hostPlayer.readUntil(
+        (message) => message.type === "submissionResult",
+        "房主托管回执",
+        WAIT_MS,
+      ),
+    ).toMatchObject({ outcome: "accepted" });
     await android.request({ kind: "setAutoPilot", on: true });
     await host.connection.waitSnapshot(
       (snapshot) => snapshot.seats[seat].autoPilot && snapshot.seats[2].autoPilot,
@@ -260,6 +269,8 @@ test("安卓与无界面原座恢复已确认选都和托管，移交后的房�
       currentDraftIndex: 1,
     });
     expect(recovered.game.snapshot!.players[2].capitalIndex).toBe(capital);
+    await android.request({ kind: "setAutoPilot", on: false });
+    await waitForAndroid(android, (view) => !view.net.seats[2].autoPilot, "安卓收回原座");
 
     host.close();
     const transferred = (room: WireRoomFields) => room.host === 1 && !room.seats[seat].online;
@@ -278,6 +289,19 @@ test("安卓与无界面原座恢复已确认选都和托管，移交后的房�
       snapshot: { gameId: confirmed.gameId, currentDraftIndex: 1 },
     });
     expect(player.view.snapshot.players[2].capitalIndex).toBe(capital);
+    expect(player.act({ type: "setAutoPilot", on: false })).toEqual({ status: "submitted" });
+    expect(
+      await player.readUntil(
+        (message) => message.type === "submissionResult",
+        "无界面收回回执",
+        WAIT_MS,
+      ),
+    ).toMatchObject({ outcome: "accepted" });
+    await player.readUntil(
+      (message) => message.type === "snapshot" && !message.seats[seat].autoPilot,
+      "原座已恢复本人控制",
+      WAIT_MS,
+    );
 
     await expect(restored.dismissRoom()).rejects.toMatchObject({
       status: 403,

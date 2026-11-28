@@ -118,8 +118,6 @@ it("上行把回执只发给连接座位，诊断请求号可换；旧命令不�
       {
         submit: (input) => registry.submitFromSeat(roomId, seat, input),
         cmd: (cmd) => registry.applyCommandFromSeat(roomId, seat, cmd),
-
-        setAutoPilot: (on) => registry.setAutoPilot(roomId, seat, on),
       },
       { sendCommandResult: (frame) => replies.push(JSON.parse(frame)) },
     );
@@ -385,8 +383,10 @@ it("代答保存失败保留原反应窗和截止，重试只结算一次", asyn
   expect(engine.log.filter(({ detail }) => detail.startsWith("reactionRespond "))).toHaveLength(1);
 });
 
-it("受问席收回托管时经内存端点取回原反应窗授权", async () => {
-  const { room, roomId, registry, persistence, engine } = await playingRoom();
+it("受问席提交收回托管后取回原反应窗授权与剩余时间", async () => {
+  let now = 0;
+  const clock = { now: () => now, setTimeout: () => 1, clearTimeout: () => {} };
+  const { room, roomId, registry, persistence, engine } = await playingRoom({ clock });
   giveJinnang(engine, 0, ["横征暴敛"]);
   for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
   await registry.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
@@ -397,8 +397,8 @@ it("受问席收回托管时经内存端点取回原反应窗授权", async () =
   });
   const saved = persistence.load(roomId)!;
   // 模拟进程在托管保存后、授权交给驱动链前退出。
-  persistence.save({ ...saved, autoPilot: [1] });
-  const rebooted = registryFor(persistence);
+  persistence.save({ ...saved, autoPilot: [1], autopilotRevisions: [0, 1, 0] });
+  const rebooted = registryFor(persistence, { clock });
   expect(rebooted.restoreAll(() => MAP)).toBe(1);
   const messages: ServerMsg[][] = [[], [], []];
   let resolveLobby!: () => void;
@@ -417,16 +417,38 @@ it("受问席收回托管时经内存端点取回原反应窗授权", async () =
         },
       });
     }
-    expect(messages[1][0]).toMatchObject({ type: "snapshot", decisionPoint: null });
+    const summary = messages[1][0];
+    expect(summary).toMatchObject({
+      type: "snapshot",
+      decisionPoint: null,
+      autopilot: { on: true },
+    });
+    if (summary.type !== "snapshot" || summary.autopilot === undefined)
+      throw new Error("受问席缺少托管授权");
+    now = 250;
     const broadcast = () => rebooted.transportBroadcast(roomId);
-    await rebooted.setAutoPilot(roomId, 1, false, broadcast);
+    expect(
+      await rebooted.submitFromSeat(
+        roomId,
+        1,
+        {
+          roomId,
+          seat: 1,
+          submissionId: "反应窗中收回托管",
+          decisionPoint: summary.autopilot.decisionPoint,
+          cmd: { type: "setAutoPilot", on: false },
+        },
+        broadcast,
+      ),
+    ).toMatchObject({ outcome: "accepted" });
     await lobby;
     const update = messages[1].find((message) => message.type === "events");
     expect(update).toMatchObject({
       type: "events",
       events: [],
       decisionPoint: original.decisionPoint,
-      reactionTiming: { seq: engine.pendingReaction!.seq, remainingMs: 1000 },
+      reactionTiming: { seq: engine.pendingReaction!.seq, remainingMs: 750 },
+      autopilot: { on: false },
     });
     for (const seat of [0, 2]) {
       const [metadata, log, ...extra] = messages[seat].slice(1);

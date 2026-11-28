@@ -35,7 +35,13 @@ import type { RoomSession } from "./room";
 import { reactionChoicesForSeat } from "../protocol/reaction-choices";
 // 下行封装构造收口 wire.ts(#429):装配口只管形状与裁剪,序列化不另起炉灶。
 // (wire 对本模块/room 的引用全是 type 导入,构建期擦除,无运行时环。)
-import { encodeDownlink, eventsMsg, type DecisionOptions, type GameLogMsg } from "../protocol/wire";
+import {
+  encodeDownlink,
+  eventsMsg,
+  type AutopilotDecision,
+  type DecisionOptions,
+  type GameLogMsg,
+} from "../protocol/wire";
 
 // ──────────────────────────── 纯视图(传输层与持久化都不参与)────────────────────────────
 /** 座位元数据:lobbyView/clientView 都从这里取(字段与原 server.ts 一致,客户端依赖)。
@@ -489,9 +495,30 @@ export function redactEvents(
 }
 
 // ──────────────────────────── 单拍下行装配(#431,发送总口单点执行体)────────────────────────────
+export interface SeatDecisionCursor {
+  decisionPoint: string | null;
+  autopilotDecisionPoint: string | null;
+}
+
 interface DownlinkShot {
   events: string | null;
-  decisionPoint: string | null;
+  decisionCursor: SeatDecisionCursor;
+}
+
+/** 已入座真人可以在对局期间切换本席托管，权限随实际开关转移而更新。 */
+export function autopilotDecisionOf(r: RoomSession, seat: number): AutopilotDecision | undefined {
+  const engine = r.engine;
+  if (
+    engine === null ||
+    engine.isOver ||
+    r.seats[seat]?.token == null ||
+    engine.players[seat].isBot
+  )
+    return undefined;
+  return {
+    decisionPoint: `${engine.gameId}/autopilot/${seat}/${r.autopilotRevisions[seat]}`,
+    on: r.autoPilot.has(seat),
+  };
 }
 
 function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions {
@@ -539,7 +566,7 @@ export function assembleDownlinkShot(
   viewerSeat: number,
   batch: readonly GameEvent[],
   withSnapshot: false,
-  previousDecisionPoint?: string | null,
+  previousDecision?: SeatDecisionCursor,
 ): DownlinkShot & { snapshot: null; logCursor: null };
 export function assembleDownlinkShot(
   r: RoomSession,
@@ -547,7 +574,7 @@ export function assembleDownlinkShot(
   viewerSeat: number,
   batch: readonly GameEvent[],
   withSnapshot: boolean,
-  previousDecisionPoint?: string | null,
+  previousDecision?: SeatDecisionCursor,
 ): DownlinkShot & { snapshot: string | null; logCursor: GameLogCursor | null } {
   const e = r.engine;
   const view = e?.turnPhase === "AwaitingReaction" ? e.pendingReaction?.view : null;
@@ -566,22 +593,29 @@ export function assembleDownlinkShot(
       e.phase === "Playing" && viewerSeat === e.activeIndex ? heroDismissalOptionsOf(e) : [];
     decisionOptions = heroDismissals.length === 0 ? main : { ...main, heroDismissals };
   }
+  const autopilot = autopilotDecisionOf(r, viewerSeat);
+  const decisionCursor = {
+    decisionPoint,
+    autopilotDecisionPoint: autopilot?.decisionPoint ?? null,
+  };
   const visibleEvents = redactEvents(batch, viewerSeat);
   // 房间元数据可单独改变本席的操作权，例如在原反应窗内收回托管。
   const decisionChanged =
-    previousDecisionPoint !== undefined && decisionPoint !== previousDecisionPoint;
+    previousDecision !== undefined &&
+    (decisionPoint !== previousDecision.decisionPoint ||
+      decisionCursor.autopilotDecisionPoint !== previousDecision.autopilotDecisionPoint);
   const events =
     visibleEvents.length > 0 || decisionChanged
-      ? eventsMsg(visibleEvents, reactionTiming, decisionPoint, decisionOptions)
+      ? eventsMsg(visibleEvents, reactionTiming, decisionPoint, decisionOptions, autopilot)
       : null;
-  if (!withSnapshot) return { events, decisionPoint, snapshot: null, logCursor: null };
+  if (!withSnapshot) return { events, decisionCursor, snapshot: null, logCursor: null };
   const snapshot = clientView(r, onlineSeats, viewerSeat);
   return {
     events,
-    decisionPoint,
+    decisionCursor,
     snapshot: encodeDownlink(
       snapshot.type === "snapshot"
-        ? { ...snapshot, reactionTiming, decisionPoint, decisionOptions }
+        ? { ...snapshot, reactionTiming, decisionPoint, decisionOptions, autopilot }
         : snapshot,
     ),
     logCursor:

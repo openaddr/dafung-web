@@ -826,8 +826,8 @@ export class GameEngine {
   /** 房间层日志行(ADR-0014):把房间/控制器层的生命周期事件(托管开关/离线/解散/
    *  开局)写进对局日志(category "room")。brief 中文;detail 为机读 JSON——
    *  重放脚本据此动态调整「bot 驱动座位集」(autopilot 行与 room.seatControlled 同源)。 */
-  logRoomEvent(brief: string, detail: string): void {
-    this.logEvent("room", null, brief, detail);
+  logRoomEvent(brief: string, detail: string, loggedAt?: number): void {
+    this.logEvent("room", null, brief, detail, undefined, undefined, loggedAt);
   }
 
   logEvent(
@@ -837,9 +837,10 @@ export class GameEngine {
     detail: string,
     amount?: number,
     warning?: LogEvent["warning"],
+    loggedAt?: number,
   ): void {
     this.log.push({
-      ts: Date.now(),
+      ts: loggedAt ?? Date.now(),
       round: this.round,
       turn: this.turnNumber,
       player,

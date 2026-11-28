@@ -6,7 +6,7 @@
 //   #281/#284 反应窗 reactionWait:开窗超时 → 代发「不用」(ADR-0017)
 //   #380 掉线保留窗 retention:对局中断线座位保留窗口到期 → 看门狗代开托管(ADR-0028)
 //   #642 驱动链停摆作废 stallAbort:no-progress 断链超时 → abortGame 响亮终局(零无声软锁)
-// 代开托管 = 拨唯一「托管」开关(autoPilot.add,by:"watchdog",只开不关;重连不清,
+// 代开托管 = 拨唯一「托管」开关(by:"watchdog",只开不关;重连不清,
 // 本人点「收回」拿回控制)。原三份手写 clear/arm/fire 同构三件套收敛为 createWatchdog
 // 工厂:返回 {clear, arm, disarm} 实例,三组各自配置「武装窗口(tag+delayMs)」与
 // 「到点动作」;行为(超时时长/触发动作/清理时机)与拆分前逐一对齐,由 room.test.ts
@@ -28,11 +28,8 @@ export interface WatchdogHost {
   isCurrentRoom(r: RoomSession): boolean;
   /** 观测事件(可观测性基建,ADR-0007)。 */
   observe(r: RoomSession, event: RoomEvent): void;
-  /** 房间生命周期行写进对局日志(ADR-0014),写完触发日志落盘钩子。 */
-  logRoom(r: RoomSession, brief: string, detail: string): void;
-  persist(r: RoomSession): void;
+  openAutopilot(r: RoomSession, seat: number, brief: string, onUpdate?: UpdateFn): Promise<void>;
   applyCommand(roomId: string, cmd: GameCommand, onUpdate?: UpdateFn): Promise<void>;
-  driveBots(r: RoomSession, onUpdate?: UpdateFn): Promise<void>;
   /** #642 响亮终局房间入口:引擎 abortGame + persist + 常规下行广播(stallAbort 点火用)。 */
   abortGame(r: RoomSession, reason: string, onUpdate?: UpdateFn): void;
   /** #118 决策停摆超时(ms);0 = 关闭(缺省关,测试友好)。 */
@@ -129,22 +126,6 @@ let armSeq = 0;
 
 /** 五组看门狗(registry 构造时创建一次,随注册表生命周期)。 */
 export function createWatchdogs(host: WatchdogHost): Watchdogs {
-  // 看门狗代开托管(stall/retention 两道 fire 共用,ADR-0028):拨唯一「托管」开关 +
-  // autopilot(by:"watchdog")观测行 + 对局日志行(brief 同形状机读 detail)+ persist,
-  // 再由调用方续推 driveBots 解冻。开关只开不关;出处只进日志,行为与自助托管无分叉。
-  const watchdogOpenAutoPilot = async (
-    r: RoomSession,
-    seat: number,
-    brief: string,
-    onUpdate?: UpdateFn,
-  ): Promise<void> => {
-    r.autoPilot.add(seat);
-    host.observe(r, { ev: "autopilot", seat, on: true, by: "watchdog" });
-    host.logRoom(r, brief, JSON.stringify({ type: "autopilot", seat, on: true, by: "watchdog" }));
-    host.persist(r);
-    onUpdate?.(r); // 先广播托管(客户端「托管中」徽章置位;托管座位 isBot 不变,等待条走真人措辞)
-    await host.driveBots(r, onUpdate); // 若该座位正轮到,解冻续推
-  };
   // 所有待答席共用当前窗的截止。托管也只在截止前按策略答。
   const reactionWait = createWatchdog(
     {
@@ -214,7 +195,7 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
             );
             return;
           }
-          await watchdogOpenAutoPilot(
+          await host.openAutopilot(
             r,
             seat,
             `座位 ${seat}(${e.players[seat].guohao}) 决策停摆超 ${Math.round(host.decisionTimeoutMs / 1000)} 秒,自动托管`,
@@ -293,7 +274,7 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
           const e = r.engine;
           if (!host.isCurrentRoom(r) || !e || e.isOver) return;
           if (r.seats[seat].kind !== "human" || seatControlled(r, seat)) return;
-          await watchdogOpenAutoPilot(
+          await host.openAutopilot(
             r,
             seat,
             `座位 ${seat}(${e.players[seat].guohao}) 断线保留窗(${Math.round(host.retentionWindowMs / 1000)} 秒)到期,自动托管`,

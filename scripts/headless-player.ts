@@ -14,11 +14,12 @@ import {
   hydrateSeatReplica,
   readSeatReplica,
 } from "@dafung/core/protocol/seat-replica";
-import type {
-  ReactionTiming,
-  SeatDecision,
-  ServerMsg,
-  SnapshotMsg,
+import {
+  requiresPlayerSubmission,
+  type ReactionTiming,
+  type SeatDecision,
+  type ServerMsg,
+  type SnapshotMsg,
 } from "@dafung/core/protocol/wire";
 import { createEngine } from "@dafung/core/room/room-record";
 import type { SeatSnapshot } from "@dafung/core/room/seat-projection";
@@ -44,7 +45,7 @@ export class HeadlessPlayer {
     const socket = this.socket!;
     const requestId = ++this.requestId;
     const frame = this.outbox.encode(command, this.roomId, this.seat, point, requestId);
-    if (this.outbox.unacknowledged === null) this.pendingRequest = requestId;
+    if (!requiresPlayerSubmission(command)) this.pendingRequest = requestId;
     socket.sendRaw(frame);
     this.publish();
   });
@@ -61,10 +62,6 @@ export class HeadlessPlayer {
 
   get view() {
     this.applyReceived();
-    if (this.ready && !this.socket!.isOpen) {
-      this.ready = false;
-      this.publish();
-    }
     return this.interaction.view;
   }
 
@@ -84,8 +81,8 @@ export class HeadlessPlayer {
   }
 
   act(intent: SeatIntent, observedPoint?: string | null) {
-    const currentPoint = this.view.decisionPoint;
-    return this.interaction.act(intent, observedPoint === undefined ? currentPoint : observedPoint);
+    this.applyReceived();
+    return this.interaction.act(intent, observedPoint);
   }
 
   close(): void {
@@ -146,6 +143,10 @@ export class HeadlessPlayer {
       const frame = socket.frames[this.nextFrame++];
       this.receive(frame, socket.receivedAt(frame));
     }
+    if (this.ready && !socket.isOpen) {
+      this.ready = false;
+      this.publish();
+    }
   }
 
   private receive(message: ServerMsg, receivedAt: number): void {
@@ -172,8 +173,8 @@ export class HeadlessPlayer {
       this.ready = true;
       this.autoPilotOn = message.seats[this.seat].autoPilot;
       this.updateReplica(message, receivedAt, reconnect);
-      const retry = this.outbox.unacknowledged;
-      if (reconnect && retry !== null && this.socket!.isOpen) this.socket!.sendRaw(retry);
+      if (reconnect && this.socket!.isOpen)
+        for (const retry of this.outbox.unacknowledged) this.socket!.sendRaw(retry);
     } else if (message.type === "events" && this.ready) {
       foldEventBatch(this.engine!, message.events);
       this.updateReplica(message, receivedAt, false);
@@ -205,6 +206,7 @@ export class HeadlessPlayer {
     {
       decisionPoint,
       decisionOptions,
+      autopilot,
       reactionTiming,
     }: SeatDecision & Pick<SnapshotMsg, "reactionTiming">,
     receivedAt: number,
@@ -212,7 +214,7 @@ export class HeadlessPlayer {
   ): void {
     this.snapshot = readSeatReplica(this.engine!, this.seat);
     if (decisionPoint === undefined) throw new Error("座位下行缺少决策点");
-    this.decision = { decisionPoint, decisionOptions };
+    this.decision = { decisionPoint, decisionOptions, autopilot };
     this.updateDeadline(reactionTiming, receivedAt);
     this.publish(reconnect);
   }
@@ -232,7 +234,8 @@ export class HeadlessPlayer {
   private publish(reconnect = false): void {
     const snapshot = this.snapshot;
     if (snapshot === null) return;
-    const { decisionPoint } = this.decision;
+    const { decisionPoint, autopilot } = this.decision;
+    const autopilotOn = autopilot === undefined ? this.autoPilotOn : autopilot.on;
     this.interaction.publish(
       {
         snapshot,
@@ -241,10 +244,14 @@ export class HeadlessPlayer {
           this.ready &&
           decisionPoint !== null &&
           !snapshot.players[this.seat].isBot &&
-          !this.autoPilotOn &&
+          !autopilotOn &&
           this.pendingRequest === null &&
           !this.outbox.waitingFor(decisionPoint),
-        autopilotOn: this.autoPilotOn,
+        autopilotOn,
+        autopilotInteractive:
+          this.ready &&
+          autopilot !== undefined &&
+          !this.outbox.waitingFor(autopilot.decisionPoint, "autopilot"),
         ...this.decision,
         reactionDeadlineAt: this.deadline?.at ?? null,
       },

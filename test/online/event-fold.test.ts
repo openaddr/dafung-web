@@ -115,9 +115,6 @@ describe("反应窗选份与出牌宣布的联机契约", () => {
   function dispatch(authority: GameEngine, raw: string) {
     return dispatchInbound(raw, {
       cmd: (cmd) => authority.submitCommand(cmd),
-      setAutoPilot: () => {
-        throw new Error("预期收到对局命令");
-      },
     });
   }
 

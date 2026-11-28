@@ -19,6 +19,7 @@ import type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 import { EventBatchChannel } from "./event-batch";
 import {
   assembleDownlinkShot,
+  autopilotDecisionOf,
   assembleGameLogDelta,
   CALIBRATION_BACKED_KINDS,
   CALIBRATION_EVENT_KINDS,
@@ -30,6 +31,7 @@ import {
   publicLogWarningReason,
   seatControlled,
   type GameLogCursor,
+  type SeatDecisionCursor,
 } from "./seat-projection";
 // wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
 // assembleDownlinkShot 单口(#431,内用 wire 构造函数);元数据指纹仅复用 wire 序列化。
@@ -147,15 +149,18 @@ export interface RoomSession {
   seats: SeatState[];
   hostSeat: number; // 当前 host 座位(开局=0;host 掉线则移交,ADR-0002)
   /** 托管座位集(ADR-0028 单一开关):人类座位交 bot 代打的唯一状态域。触发源两道
-   *  ——玩家自助(setAutoPilot,可开可关)与看门狗代开(#118 停摆/#380 保留窗到期,
+   *  ——本席提交(可开可关)与看门狗代开(#118 停摆/#380 保留窗到期,
    *  只开不关);重连不清,只有本人收回。出处只进观测行/对局日志(by 字段),行为无分叉。 */
   autoPilot: Set<number>;
+  autopilotRevisions: number[];
   hostConfig: HostConfig;
   /** 本房间所选地图 id(建房时 null;host setMap 后填;startGame 前 must 非 null)。 */
   mapId: string | null;
   engine: GameEngine | null; // null = Lobby
   submissions: RoomSubmissions;
 }
+
+type AutopilotChange = { seat: number; on: boolean; by: "self" | "watchdog" };
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ"; // 去掉易混 I/L/O
 const CODE_LEN = 4;
@@ -258,7 +263,7 @@ export class RoomRegistry {
 
   // ── 传输面状态(#397):roomId → 座位 → 端点,及下行合并的批通道 ──
   private readonly seatEndpoints = new Map<string, Map<number, SeatEndpoint>>();
-  private readonly seatDecisions = new WeakMap<SeatEndpoint, string | null>();
+  private readonly seatDecisions = new WeakMap<SeatEndpoint, SeatDecisionCursor>();
   private readonly transportLogCursors = new WeakMap<SeatEndpoint, GameLogCursor>();
   /** 事件批累积/去重/排空/合并拍归共享通道(#411,event-batch.ts)——
    *  与 server.ts 联机通路同一份批语义,双端行为零变化。 */
@@ -303,10 +308,11 @@ export class RoomRegistry {
     return {
       isCurrentRoom: (r) => this.rooms.get(r.roomId) === r,
       observe: (r, ev) => this.observe(r, ev),
-      logRoom: (r, brief, detail) => this.logRoom(r, brief, detail),
-      persist: (r) => this.persist(r),
+      openAutopilot: async (r, seat, brief, onUpdate) => {
+        if (this.commitAutopilot(r, { seat, on: true, by: "watchdog" }, brief, onUpdate))
+          await this.driveBots(r, onUpdate);
+      },
       applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
-      driveBots: (r, onUpdate) => this.driveBots(r, onUpdate),
       abortGame: (r, reason, onUpdate) => this.abortGame(r.roomId, reason, onUpdate),
       decisionTimeoutMs: this.decisionTimeoutMs,
       stallAbortMs: this.stallAbortMs,
@@ -366,14 +372,19 @@ export class RoomRegistry {
       }
       this.rooms.set(rec.roomId, room);
       onRestored?.(room);
-      if (room.engine?.phase === "Playing" && room.engine.turnPhase === "Roll") {
-        // 已提交的出牌阶段可以在自动起摇前保存，恢复时重挂同一房间节拍。
-        this.clock.setTimeout(() => {
-          if (this.rooms.get(id) === room && room.engine?.turnPhase === "Roll")
-            void this.driveBots(room, onUpdate);
-        }, 0);
-      } else {
+      const engine = room.engine;
+      if (engine?.turnPhase === "AwaitingReaction") {
         this.resumeReaction(room, onUpdate);
+      } else if (
+        engine !== null &&
+        !engine.isOver &&
+        ((engine.phase === "Playing" && engine.turnPhase === "Roll") ||
+          room.autoPilot.has(decisionSeatOf(engine)))
+      ) {
+        // 开关或上一拍已保存时，恢复继续自动起摇或托管步进。
+        this.clock.setTimeout(() => {
+          if (this.rooms.get(id) === room) void this.driveBots(room, onUpdate);
+        }, 0);
       }
       count++;
     }
@@ -388,12 +399,21 @@ export class RoomRegistry {
       !Array.isArray(rec.submissions.entries)
     )
       throw new Error(`房间 ${rec.roomId} 的玩家提交记录损坏`);
+    if (
+      !Array.isArray(rec.autopilotRevisions) ||
+      rec.autopilotRevisions.length !== rec.seatCount ||
+      !Array.from(rec.autopilotRevisions).every(
+        (revision) => Number.isSafeInteger(revision) && revision >= 0,
+      )
+    )
+      throw new Error(`房间 ${rec.roomId} 的托管修订记录损坏`);
     const room: RoomSession = {
       roomId: rec.roomId,
       seatCount: rec.seatCount,
       seats: rec.seats.map((s) => ({ kind: s.kind, token: s.token, guohao: s.guohao ?? null })),
       hostSeat: rec.hostSeat,
       autoPilot: new Set(rec.autoPilot),
+      autopilotRevisions: rec.autopilotRevisions,
       hostConfig: rec.hostConfig,
       mapId: rec.mapId ?? null,
       engine: engineFromRecord(rec, mapProvider, this.reactionWindowMsOverride),
@@ -473,6 +493,7 @@ export class RoomRegistry {
       seats,
       hostSeat: 0,
       autoPilot: new Set(),
+      autopilotRevisions: seats.map(() => 0),
       hostConfig,
       mapId: null,
       engine: null,
@@ -583,43 +604,66 @@ export class RoomRegistry {
     return room;
   }
 
-  /** 玩家自助托管(spec: autopilot,ADR-0028 单一开关):把自己的座位交给 bot 代打
-   *  (on)或收回(off)。代打行为=bot 同款(#580 行为单源,无速度分档)。
-   *  重连(attachSeat)不清除——托管持久到本人经此方法收回(一键收回,ADR-0028)。
-   *  收回后在途连锁做完到下一个决策点自然停(driveBots 每步重查 seatControlled,
-   *  步间让出宏任务 → 切回即停)。
-   *  对局中才可托管(未开局 409);切换后 onUpdate 广播,若轮到该座位立即驱动。
-   *  fire-and-forget(#529 死锁教训):只调度驱动链第一拍即返回,不 await 整条链——
-   *  托管链 2s/步自续,await 它 = 本命令挂满整条链(生产)/ 与 ManualClock 泵法互等
-   *  死锁(测试);后续步经注入时钟自续,重入守卫保证不双开。 */
+  /** 房间内部直接切换。玩家通过携带控制权限和提交编号的座位通路切换。 */
   async setAutoPilot(
     roomId: string,
     seat: number,
     on: boolean,
     onUpdate?: (room: RoomSession) => void,
-    report?: ReportCommandProcessing,
   ): Promise<RoomSession> {
     const room = this.rooms.get(roomId);
-    if (!room || !room.engine) throw new RoomError(409, "对局未开始,不可托管");
+    if (!room || !room.engine || room.engine.isOver)
+      throw new RoomError(409, "对局未进行，不可托管");
     if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
       throw new RoomError(400, "seat 非法");
-    if (room.seats[seat].kind === "bot") throw new RoomError(400, "bot 座位无需托管");
-    if (on) room.autoPilot.add(seat);
-    else room.autoPilot.delete(seat);
-    this.observe(room, { ev: "autopilot", seat, on, by: "self" });
-    // 托管开关房间行(ADR-0014):机读 detail 供重放调整 bot 驱动座位集(by 分辨触发源)
-    const seatGuohao = room.engine.players[seat].guohao;
-    const logOffset = room.engine.log.length;
-    this.logRoom(
-      room,
-      on ? `${seatGuohao} 开启托管,交由电脑代打` : `${seatGuohao} 关闭托管,收回操作`,
-      JSON.stringify({ type: "autopilot", seat, on, by: "self" }),
-    );
-    this.persist(room);
-    onUpdate?.(room); // 先广播托管状态
-    report?.({ outcome: "accepted", logOffset: this.publicLogOffset(room, logOffset) });
-    void this.driveBots(room, onUpdate); // 只调度第一拍,链经注入时钟自续(#529,见方法注)
+    if (room.engine.players[seat].isBot) throw new RoomError(400, "bot 座位无需托管");
+    const change = { seat, on, by: "self" } as const;
+    if (this.commitAutopilot(room, change, this.autopilotLogBrief(room.engine, change), onUpdate))
+      void this.driveBots(room, onUpdate);
     return room;
+  }
+
+  private autopilotLogBrief(engine: GameEngine, { seat, on }: AutopilotChange): string {
+    const guohao = engine.players[seat].guohao;
+    return on ? `${guohao} 开启托管,交由电脑代打` : `${guohao} 关闭托管,收回操作`;
+  }
+
+  private stageAutopilot(
+    room: RoomSession,
+    change: AutopilotChange,
+    brief: string,
+  ): StagedEngineChange {
+    const engine = room.engine!;
+    const detail = JSON.stringify({ type: "autopilot", ...change });
+    const loggedAt = Date.now();
+    const { snapshot } = stageEngineChange(engine, (draft) =>
+      draft.logRoomEvent(brief, detail, loggedAt),
+    );
+    // 采用已保存的战报行时沿用当前引擎事件批的引用，避免广播把上一手重发。
+    return { snapshot, commit: () => engine.logRoomEvent(brief, detail, loggedAt) };
+  }
+
+  private commitAutopilot(
+    room: RoomSession,
+    autopilot: AutopilotChange,
+    brief: string,
+    onUpdate?: (room: RoomSession) => void,
+  ): boolean {
+    if (room.autoPilot.has(autopilot.seat) === autopilot.on) return false;
+    this.commit(room, room.submissions, this.stageAutopilot(room, autopilot, brief), autopilot);
+    this.publishRoomChange(room, onUpdate, autopilot);
+    return true;
+  }
+
+  private publishRoomChange(
+    room: RoomSession,
+    onUpdate?: (room: RoomSession) => void,
+    autopilot?: AutopilotChange,
+  ): void {
+    if (autopilot !== undefined) this.observe(room, { ev: "autopilot", ...autopilot });
+    this.writeGameLog(room);
+    this.watchdogs.syncReaction(room, onUpdate);
+    onUpdate?.(room);
   }
 
   /** host 解散房间:从内存和 persistence 删除。返回被删的 roomId。
@@ -735,30 +779,72 @@ export class RoomRegistry {
             reason: "这个提交编号已用于其他内容",
           };
 
-    const staged = stagePlayerSubmission(room, submission);
-    const { change } = staged;
+    const { cmd } = submission;
+    const {
+      change,
+      result: stagedResult,
+      autopilot,
+    } = cmd.type === "setAutoPilot"
+      ? this.stageAutopilotSubmission(room, seat, submission.decisionPoint, cmd.on)
+      : { ...stagePlayerSubmission(room, { ...submission, cmd }), autopilot: undefined };
     const result =
       change === undefined
-        ? staged.result
+        ? stagedResult
         : {
-            ...staged.result,
+            ...stagedResult,
             ...this.publicLogAnchor(room, change.snapshot.log, room.engine!.log.length),
           };
     const submissions = {
-      decisionRevision: room.submissions.decisionRevision + (result.outcome === "accepted" ? 1 : 0),
+      decisionRevision:
+        room.submissions.decisionRevision +
+        (autopilot === undefined && result.outcome === "accepted" ? 1 : 0),
       entries: [
         ...room.submissions.entries,
         { seat, submissionId: submission.submissionId, payload, result },
       ],
     };
-    this.commit(room, submissions, change);
+    this.commit(room, submissions, change, autopilot);
     if (change !== undefined) {
-      this.writeGameLog(room);
-      this.watchdogs.syncReaction(room, onUpdate);
-      onUpdate?.(room);
+      this.publishRoomChange(room, onUpdate, autopilot);
       void this.driveBots(room, onUpdate);
     }
     return { ...result };
+  }
+
+  private stageAutopilotSubmission(
+    room: RoomSession,
+    seat: number,
+    point: string,
+    on: boolean,
+  ): { result: PlayerSubmissionResult; change?: StagedEngineChange; autopilot?: AutopilotChange } {
+    const decision = autopilotDecisionOf(room, seat);
+    if (decision === undefined)
+      return {
+        result: { outcome: "rejected", reasonCode: "wrongSeat", reason: "本席当前没有托管权限" },
+      };
+    if (decision.decisionPoint !== point)
+      return {
+        result: {
+          outcome: "rejected",
+          reasonCode: "staleDecisionPoint",
+          reason: "原托管授权已失效，请按当前状态操作",
+        },
+      };
+    if (decision.on === on)
+      return {
+        result: {
+          outcome: "rejected",
+          reasonCode: "invalidCandidate",
+          reason: on ? "本席已托管" : "本席已由本人控制",
+        },
+      };
+    const autopilot = { seat, on, by: "self" } as const;
+    const change = this.stageAutopilot(
+      room,
+      autopilot,
+      this.autopilotLogBrief(room.engine!, autopilot),
+    );
+    return { result: { outcome: "accepted" }, change, autopilot };
   }
 
   /** 尚未迁移的玩家命令只放行决策归属座位。已迁移的操作须走 submitFromSeat。 */
@@ -779,6 +865,7 @@ export class RoomRegistry {
     if (cmd.type === "rollAndMove") throw new RoomError(403, "行军由房间自动起摇");
     if (requiresPlayerSubmission(cmd))
       throw new RoomError(403, "请携带原决策点和提交编号提交此操作");
+    if (seatControlled(room, seat)) throw new RoomError(403, "本席当前由房间代打");
     const owner = decisionSeatOf(room.engine);
     if (seat !== owner) throw new RoomError(403, `未轮到该座位决策(归属:座位 ${owner})`);
     await this.applyCommand(roomId, cmd, onUpdate, report);
@@ -880,7 +967,7 @@ export class RoomRegistry {
     }
     eps.set(seat, ep);
     const shot = assembleDownlinkShot(room, this.transportOnlineSeats(roomId), seat, [], true);
-    this.seatDecisions.set(ep, shot.decisionPoint);
+    this.seatDecisions.set(ep, shot.decisionCursor);
     this.transportLogCursors.set(ep, shot.logCursor);
     ep.send(shot.snapshot);
     this.settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
@@ -954,7 +1041,7 @@ export class RoomRegistry {
         ? assembleDownlinkShot(room, online, seat, batch, true)
         : assembleDownlinkShot(room, online, seat, batch, false, this.seatDecisions.get(ep));
       if (shot.events !== null || shot.snapshot !== null)
-        this.seatDecisions.set(ep, shot.decisionPoint);
+        this.seatDecisions.set(ep, shot.decisionCursor);
       if (shot.events !== null) ep.send(shot.events);
       if (shot.snapshot !== null) {
         this.transportLogCursors.set(ep, shot.logCursor);
@@ -1027,9 +1114,22 @@ export class RoomRegistry {
       this.watchdogs.reactionWait.clear(room.roomId);
   }
 
-  private commit(r: RoomSession, submissions: RoomSubmissions, change?: StagedEngineChange): void {
+  private commit(
+    r: RoomSession,
+    submissions: RoomSubmissions,
+    change?: StagedEngineChange,
+    autopilot?: AutopilotChange,
+  ): void {
     const snapshot = change === undefined ? (r.engine?.snapshot() ?? null) : change.snapshot;
     const reactionDeadline = deriveReactionDeadline(r, snapshot, this.now);
+    const autoPilot = autopilot === undefined ? r.autoPilot : new Set(r.autoPilot);
+    const revisions = autopilot === undefined ? r.autopilotRevisions : [...r.autopilotRevisions];
+    if (autopilot !== undefined) {
+      const { seat, on } = autopilot;
+      if (on) autoPilot.add(seat);
+      else autoPilot.delete(seat);
+      revisions[seat]++;
+    }
     const rec: RoomRecord = {
       roomId: r.roomId,
       seatCount: r.seatCount,
@@ -1039,7 +1139,8 @@ export class RoomRegistry {
         guohao: s.guohao,
       })),
       hostSeat: r.hostSeat,
-      autoPilot: [...r.autoPilot],
+      autoPilot: [...autoPilot],
+      autopilotRevisions: revisions,
       hostConfig: r.hostConfig,
       mapId: r.mapId,
       submissions,
@@ -1047,10 +1148,9 @@ export class RoomRegistry {
       ...(reactionDeadline === null ? {} : { reactionDeadline }),
     };
     this.persistence.save(rec);
-    if (change !== undefined) {
-      r.engine!.restoreFromSnapshot(change.snapshot);
-      change.commitDicePins?.();
-    }
+    change?.commit();
+    r.autoPilot = autoPilot;
+    r.autopilotRevisions = revisions;
     r.submissions = submissions;
     this.adoptReactionDeadline(r, reactionDeadline);
   }

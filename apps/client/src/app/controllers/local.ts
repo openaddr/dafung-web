@@ -36,13 +36,11 @@ import type { RoomRecord } from "@dafung/core/room/room-record";
 // wire 协议编解码单源(#429):上行编码(cmdMsg 等)+ 解析分发(dispatchInbound)、
 // 下行消息类型(ServerMsg)全部从这里 import,与联机 server.ts/online.ts 同一份。
 import {
-  autoPilotMsg,
   dispatchInbound,
   errorMsg,
   type PlayerCommand,
   type ServerMsg,
 } from "@dafung/core/protocol/wire";
-import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
 import { GameController } from "./controller";
 
 /** 单机开局配置(房间通路):与联机 createRoom/hostConfig 同构。座位表只取
@@ -87,7 +85,6 @@ export class LocalController extends GameController {
   /** Worker 时钟(#399):看门狗/托管节拍挂 Worker,失焦照跑(后台节流免疫)。 */
   private readonly clock: WorkerClock;
   private readonly roomId: string;
-  private readonly outbox = new PlayerCommandOutbox();
   private readonly seatToken: string;
   /** 内存双工客户端端点(命令上行/消息下行的唯一通路;与联机 WS 传输同接口)。 */
   private readonly sock: SeatTransport;
@@ -103,8 +100,6 @@ export class LocalController extends GameController {
   protected override get mySeat(): number {
     return this.seat;
   }
-  override readonly autopilotSupported = true;
-
   constructor(map: LoadedMap, config: SoloRoomConfig, clockOverride?: WorkerClock) {
     super();
     const guohao = config.seats[0]?.guohao;
@@ -211,7 +206,7 @@ export class LocalController extends GameController {
   /** 我的座位托管中(下行快照房间字段回读,与联机 seats 广播回读同路,无本地乐观态)。
    *  构造返回前首帧已同步水合,缺少座位信息是协议装配错误。 */
   override get autoPilotOn(): boolean {
-    return this.requireRoomSeat().autoPilot;
+    return this.autopilot === undefined ? this.requireRoomSeat().autoPilot : this.autopilot.on;
   }
 
   private requireRoomSeat(): NetSeatMeta {
@@ -222,22 +217,18 @@ export class LocalController extends GameController {
   }
 
   // ─── 命令入口(上行经内存双工,与联机 WS 同一条 wire 编码)───
-  dispatchCommand(cmd: PlayerCommand, decisionPoint = this.decisionPoint): void {
+  dispatchCommand(cmd: PlayerCommand, decisionPoint?: string): void {
     const reason = this.commandBlockReason(cmd);
     if (reason !== null) {
       this.observeBlockedCommand(cmd.type, reason);
       return;
     }
-    this.pending = true;
+    const point = this.commandPoint(cmd, decisionPoint);
+    if (cmd.type !== "setAutoPilot") this.pending = true;
     this.sendObservedCommand(cmd.type, (id) => {
-      this.sock.send(this.outbox.encode(cmd, this.roomId, this.seat, decisionPoint, id));
+      this.sock.send(this.outbox.encode(cmd, this.roomId, this.seat, point, id));
     });
     this.sync(); // 刷新 interactive(pending 期间锁操作)
-  }
-
-  /** 自助托管:发 {type:"autoPilot"},生效态从下行快照房间字段回读(无乐观更新,联机同构)。 */
-  override setAutoPilot(on: boolean): void {
-    this.sendObservedCommand("autoPilot", (id) => this.sock.send(autoPilotMsg(on, id)));
   }
 
   /** 销毁 = 进程内房间解散(看门狗/传输面残表随 dismissRoom 一并清)+ 端点关闭
@@ -383,8 +374,6 @@ export class LocalController extends GameController {
           this.registry.applyCommandFromSeat(this.roomId, this.seat, cmd, broadcast, report),
         submit: (submission) =>
           this.registry.submitFromSeat(this.roomId, this.seat, submission, broadcast),
-        setAutoPilot: (on, report) =>
-          this.registry.setAutoPilot(this.roomId, this.seat, on, broadcast, report),
       },
       { sendCommandResult: send },
     ).then((result) => {

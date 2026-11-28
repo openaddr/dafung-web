@@ -7,6 +7,7 @@
 // 改一条交互规则只动一处,杜绝单机/联机行为分叉(此前 interactive 双写且带
 // 「需推理才能确认」的本地隐式假设,恰是本票要消灭的 bug 族)。
 import type { GameEngine } from "@dafung/core/engine/authority";
+import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
 import { SeatInteraction, type SeatIntent } from "@dafung/core/protocol/seat-interaction";
 import { readSeatReplica, seatReactionOf } from "@dafung/core/protocol/seat-replica";
 import type { GameDiagnosticCapture } from "@app/game-diagnostic-record";
@@ -27,7 +28,7 @@ import type {
 import { shallow } from "zustand/shallow";
 import { reactionQueriesSeat } from "./reaction";
 
-type DiagnosticCommand = PlayerCommand["type"] | "autoPilot";
+type DiagnosticCommand = PlayerCommand["type"];
 type DiagnosticRequest = { gameId: string; id: number; command: DiagnosticCommand };
 type AuthorityLogObservation = {
   kind: "authorityLog";
@@ -62,10 +63,20 @@ export abstract class GameController {
 
   protected decisionPoint: string | null = null;
   protected decisionOptions: DecisionOptions | undefined;
+  protected autopilot: SeatDecision["autopilot"];
+  protected outbox = new PlayerCommandOutbox();
 
-  protected observeSeatDecision({ decisionPoint, decisionOptions }: SeatDecision): void {
+  protected observeSeatDecision({ decisionPoint, decisionOptions, autopilot }: SeatDecision): void {
     this.decisionPoint = decisionPoint;
     this.decisionOptions = decisionOptions;
+    this.autopilot = autopilot;
+  }
+
+  protected commandPoint(command: PlayerCommand, observedPoint?: string): string | null {
+    if (observedPoint !== undefined) return observedPoint;
+    return command.type === "setAutoPilot"
+      ? (this.autopilot?.decisionPoint ?? null)
+      : this.decisionPoint;
   }
   private readonly interaction = new SeatInteraction<GameSnapshot>((command, point) =>
     this.dispatchCommand(command, point),
@@ -75,7 +86,7 @@ export abstract class GameController {
     return this.interaction.view;
   }
 
-  dispatchIntent(intent: SeatIntent, observedPoint = this.seatView.decisionPoint) {
+  dispatchIntent(intent: SeatIntent, observedPoint?: string | null) {
     const result = this.interaction.act(intent, observedPoint);
     if (result.status !== "submitted") useGameStore.setState({ seatView: this.seatView });
     return result;
@@ -89,14 +100,14 @@ export abstract class GameController {
     return seatReactionOf(this.engine, this.mySeat);
   }
 
-  /** 是否支持托管:由各模式的房间权威驱动 bot 代打。 */
-  autopilotSupported = false;
   /** 托管生效态:子类从房间座位下行状态回读,供 UI 显示「托管中」。 */
   get autoPilotOn(): boolean {
     return false;
   }
-  /** 切换托管(子类覆写:联机发 WS {type:"autoPilot"};单机本地驱动)。 */
-  setAutoPilot(_on: boolean): void {}
+  setAutoPilot(on: boolean, observedPoint?: string): void {
+    const result = this.dispatchIntent({ type: "setAutoPilot", on }, observedPoint);
+    if (result.status === "unavailable") useGameStore.getState().pushHint(result.reason);
+  }
 
   /** 子类须先调用基类，保留退出前的交互现场。 */
   destroy(): void {
@@ -169,10 +180,10 @@ export abstract class GameController {
     this.publishDiagnostic({ kind: "command", stage: "sent", at, ...request });
   }
 
-  /** 原座重发时保留那一笔的诊断配对，其余记录随连接结束。 */
-  protected forgetCommandRequests(keepId?: number): void {
+  /** 原座重发时保留待确认提交的诊断配对，其余记录随连接结束。 */
+  protected forgetCommandRequests(...keepIds: number[]): void {
     for (const id of this.commandRequests.keys())
-      if (id !== keepId) this.commandRequests.delete(id);
+      if (!keepIds.includes(id)) this.commandRequests.delete(id);
   }
 
   protected observeCommandResult(
@@ -282,6 +293,12 @@ export abstract class GameController {
   }
 
   protected commandBlockReason(command?: PlayerCommand): string | null {
+    if (command?.type === "setAutoPilot") {
+      if (this.autopilot === undefined) return "本席当前不能切换托管";
+      return this.outbox.waitingFor(this.autopilot.decisionPoint, "autopilot")
+        ? "已有托管提交等待回执或局面更新"
+        : null;
+    }
     const e = this.engine;
     if (command?.type === "pickCapital" || (command === undefined && e.phase === "Setup")) {
       if (this.decisionOptions?.kind !== "pickCapital" || this.decisionPoint === null)
@@ -369,7 +386,10 @@ export abstract class GameController {
         seat: this.mySeat,
         decisionPoint: this.decisionPoint,
         decisionOptions: this.decisionOptions,
+        autopilot: this.autopilot,
         autopilotOn: this.autoPilotOn,
+        autopilotInteractive:
+          this.commandBlockReason({ type: "setAutoPilot", on: !this.autoPilotOn }) === null,
         interactive: this.interactive,
         reactionDeadlineAt: this.reactionDeadline?.deadlineAt ?? null,
       },

@@ -7,7 +7,7 @@
 // 不属协议方职责);它只做三件事:
 //   ① 缓冲下行帧并提供「等某类下行到达(带显式超时,超时当场抛)」的确定性等待原语
 //      ——测试时序竞速零容忍,任何等待必须带明确超时与失败语义,禁裸等;
-//   ② 上行只经 wire.ts 的编码单源(cmdMsg/submissionMsg/autoPilotMsg),禁手拼
+//   ② 上行只经 wire.ts 的编码单源(cmdMsg/submissionMsg),禁手拼
 //      JSON 字面量绕过协议单源(wire.ts 头注契约);
 //   ③ 观测面:最近一份 snapshot(重连摘要校准锚)、按到达序收集的 events 批、
 //      error 下行文本、以及全量下行帧归档(frames;spec 迁移的逐帧审计用)——供测试
@@ -21,7 +21,7 @@ import type {
   ServerMsg,
   SnapshotMsg,
 } from "@dafung/core/protocol/wire";
-import { autoPilotMsg, cmdMsg, submissionMsg } from "@dafung/core/protocol/wire";
+import { cmdMsg, submissionMsg } from "@dafung/core/protocol/wire";
 
 /** 连接关闭信息(等待者与诊断用)。 */
 export interface CloseInfo {
@@ -201,11 +201,6 @@ export class OnlineClient {
 
   sendSubmission(submission: PlayerSubmission, requestId?: number): void {
     this.sendRaw(submissionMsg(submission, requestId));
-  }
-
-  /** 自助托管开关(ADR-0028;wire.autoPilotMsg)。 */
-  sendAutoPilot(on: boolean): void {
-    this.sendRaw(autoPilotMsg(on));
   }
 
   /** 客户端主动关连(优雅挥手;硬断走 fault-proxy 的 killNow)。 */

@@ -26,6 +26,7 @@ import {
   type TargetStep,
 } from "./target-selection";
 import type {
+  AutopilotCommand,
   CapitalOption,
   JinnangDecisionOptions,
   LandDecisionCommand,
@@ -42,6 +43,7 @@ export interface SeatInteractionState<S extends PlayerSeatSnapshot> extends Seat
   readonly seat: number;
   readonly interactive: boolean;
   readonly autopilotOn: boolean;
+  readonly autopilotInteractive?: boolean;
   /** 下行时限换算到本席单调时钟的截止时刻。 */
   readonly reactionDeadlineAt?: number | null;
 }
@@ -52,6 +54,7 @@ export type HeroDismissalIntent =
 
 export type SeatIntent =
   | { type: "selectCapital"; tileIndex: number }
+  | AutopilotCommand
   | { type: "chooseLand"; command: LandDecisionCommand["type"] }
   | { type: "chooseRecruitment"; optionId: string }
   | TreasureTradeIntent
@@ -462,6 +465,8 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       decisionOptions,
       interactive,
       autopilotOn,
+      autopilot: state.autopilot,
+      autopilotInteractive: state.autopilotInteractive,
       reactionDeadlineAt: state.reactionDeadlineAt,
       capital,
       treasure,
@@ -498,7 +503,7 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
     });
   }
 
-  act(intent: SeatIntent, observedPoint = this.view.decisionPoint): SeatIntentResult {
+  act(intent: SeatIntent, observedPoint?: string | null): SeatIntentResult {
     const state = this.view;
     const {
       capital,
@@ -511,7 +516,19 @@ export class SeatInteraction<S extends PlayerSeatSnapshot = PlayerSeatSnapshot> 
       decisionPoint,
     } = state;
     const unavailable = (reason: string): SeatIntentResult => ({ status: "unavailable", reason });
-    if (observedPoint !== decisionPoint) return unavailable("决策点已失效");
+    if (intent.type === "setAutoPilot") {
+      const { autopilot } = state;
+      if (autopilot === undefined || !state.autopilotInteractive)
+        return unavailable("本席当前不能切换托管");
+      if (observedPoint !== undefined && observedPoint !== autopilot.decisionPoint)
+        return unavailable("原托管授权已失效");
+      if (intent.on === autopilot.on)
+        return unavailable(intent.on ? "本席已托管" : "本席已由本人控制");
+      this.submit(intent, autopilot.decisionPoint);
+      return { status: "submitted" };
+    }
+    if (observedPoint !== undefined && observedPoint !== decisionPoint)
+      return unavailable("决策点已失效");
     if (capital !== null && intent.type === "cancel") {
       if (capital.selectedOption === null) return unavailable("请先选择都城");
       this.selectedCapital = null;

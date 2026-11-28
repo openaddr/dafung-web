@@ -7,7 +7,7 @@ import { basename, join } from "node:path";
 import { protocolTestPort } from "../../scripts/dev-ports";
 import { FaultProxy, type FaultProxyNotice, type FaultProxyStats } from "../../scripts/fault-proxy";
 import { OnlineClient } from "../../scripts/online-client";
-import type { SnapshotMsg } from "@dafung/core/protocol/wire";
+import type { SnapshotMsg, SubmissionResultMsg } from "@dafung/core/protocol/wire";
 
 // 慢例池开关:describe 级 skip 连钩子一起跳(默认池不白起服务器);DAFUNG_SLOW=1 才跑,判据见文件头注。
 const describeSlow = describe.skipIf(!process.env.DAFUNG_SLOW);
@@ -299,9 +299,28 @@ async function waitAutopilot(
 /** 托管开关发送+回读一步:记发命令前的帧位,回读只认其后到达的载体(理由见
  *  waitAutopilot 头注)。 */
 async function setAutoPilotEchoed(c: OnlineClient, seat: number, on: boolean): Promise<void> {
+  const autopilot = c.frames
+    .filter((m) => m.type === "snapshot" || m.type === "events")
+    .at(-1)?.autopilot;
+  if (c.snapshot === null || autopilot === undefined) throw new Error("缺少本席托管授权");
   const sentAt = c.frames.length;
-  c.sendAutoPilot(on);
-  await waitAutopilot(c, seat, on, sentAt);
+  const submissionId = crypto.randomUUID();
+  c.sendSubmission({
+    roomId: c.snapshot.roomId,
+    seat,
+    decisionPoint: autopilot.decisionPoint,
+    submissionId,
+    cmd: { type: "setAutoPilot", on },
+  });
+  const [receipt] = await Promise.all([
+    c.waitFor<SubmissionResultMsg>(
+      (m) => m.type === "submissionResult" && m.submissionId === submissionId,
+      "托管回执",
+      5000,
+    ),
+    waitAutopilot(c, seat, on, sentAt),
+  ]);
+  expect(receipt).toMatchObject({ outcome: "accepted" });
 }
 
 /** 驱动本座位选都:等「轮到我」的校准快照(Setup 期每拍带快照,状态稳定到本座位

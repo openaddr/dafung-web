@@ -199,8 +199,6 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
       {
         cmd: (command) => registry.applyCommandFromSeat(room.roomId, seat, command, broadcast),
         submit: (submission) => registry.submitFromSeat(room.roomId, seat, submission, broadcast),
-
-        setAutoPilot: (on) => registry.setAutoPilot(room.roomId, seat, on, broadcast),
       },
       {
         sendCommandResult: (raw) => {

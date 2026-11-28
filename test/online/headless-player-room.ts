@@ -103,8 +103,6 @@ export async function openHeadlessTestRoom(
           {
             submit: (submission) => registry.submitFromSeat(id, seat, submission, broadcast),
             cmd: (cmd, report) => registry.applyCommandFromSeat(id, seat, cmd, broadcast, report),
-
-            setAutoPilot: (on, report) => registry.setAutoPilot(id, seat, on, broadcast, report),
           },
           {
             sendCommandResult(frame) {

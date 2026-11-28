@@ -103,6 +103,9 @@ export function submissionPayload({ decisionPoint, cmd }: PlayerSubmission): str
 }
 
 type SubmissionError = Omit<PlayerSubmissionRejection, "outcome">;
+type EngineSubmission = PlayerSubmission & {
+  cmd: Exclude<PlayerSubmission["cmd"], { type: "setAutoPilot" }>;
+};
 
 const STALE_DECISION = {
   reasonCode: "staleDecisionPoint",
@@ -122,7 +125,7 @@ function singleOwnerSubmissionError(
   return null;
 }
 
-function submissionError(room: RoomSession, submission: PlayerSubmission): SubmissionError | null {
+function submissionError(room: RoomSession, submission: EngineSubmission): SubmissionError | null {
   const { seat, decisionPoint, cmd } = submission;
   if (cmd.type === "pickCapital") {
     const e = room.engine;
@@ -260,7 +263,7 @@ function submissionError(room: RoomSession, submission: PlayerSubmission): Submi
 
 export interface StagedEngineChange {
   snapshot: GameSnapshot;
-  commitDicePins?: () => void;
+  commit(): void;
 }
 
 /** 用独立局面裁决座位提交和房间代答，保存成功后才采用快照与钉骰队列。 */
@@ -281,10 +284,15 @@ export function stageEngineChange<T>(
     });
     draft.restoreFromSnapshot(structuredClone(before));
     const result = apply(draft);
+    const snapshot = draft.snapshot();
+    const commitDicePins = checkpointDicePins(draft.dice);
     return {
       result,
-      snapshot: draft.snapshot(),
-      commitDicePins: checkpointDicePins(draft.dice),
+      snapshot,
+      commit() {
+        authority.restoreFromSnapshot(snapshot);
+        commitDicePins?.();
+      },
     };
   } finally {
     // 保存前恢复权威骰源。提交的快照和剩余钉骰在房间保存成功后一起采用。
@@ -295,7 +303,7 @@ export function stageEngineChange<T>(
 
 export function stagePlayerSubmission(
   room: RoomSession,
-  submission: PlayerSubmission,
+  submission: EngineSubmission,
 ): { result: PlayerSubmissionResult; change?: StagedEngineChange } {
   const error = submissionError(room, submission);
   if (error !== null) return { result: { outcome: "rejected", ...error } };

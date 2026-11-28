@@ -434,7 +434,13 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
       reason: string,
     ): Promise<void> {
       const seat = game.decisionOwner;
-      const { decisionPoint } = assembleDownlinkShot(room, new Set(), seat, [], false);
+      const { decisionPoint } = assembleDownlinkShot(
+        room,
+        new Set(),
+        seat,
+        [],
+        false,
+      ).decisionCursor;
       if (decisionPoint === null) throw new Error("拒绝用例缺少决策点");
       const submissionId = `拒绝-${requestId}`;
       const rawOffset = game.log.length;
@@ -446,7 +452,6 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
         {
           cmd: unexpectedCommand,
           submit: (message) => reg.submitFromSeat(roomId, seat, message),
-          setAutoPilot: unexpectedCommand,
         },
         { sendCommandResult: (raw) => receipts.push(JSON.parse(raw) as unknown) },
       );

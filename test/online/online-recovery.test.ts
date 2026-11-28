@@ -141,7 +141,12 @@ function authority(seatCount = 2): GameEngine {
   return engine;
 }
 
-function hydrate(socket: FakeSocket, engine: GameEngine, autoPilot = false): void {
+function hydrate(
+  socket: FakeSocket,
+  engine: GameEngine,
+  autoPilot = false,
+  controlRevision = autoPilot ? 1 : 0,
+): void {
   const selectingCapital =
     engine.phase === "Setup" && engine.currentSetupPlayerIndex === controller.seat;
   const playingJinnang =
@@ -182,6 +187,10 @@ function hydrate(socket: FakeSocket, engine: GameEngine, autoPilot = false): voi
           ? `reaction-${reaction.seq}`
           : null,
     decisionOptions,
+    autopilot: {
+      on: autoPilot,
+      decisionPoint: `autopilot-${controlRevision}`,
+    },
   });
 }
 
@@ -415,12 +424,28 @@ describe("OnlineController 原座恢复", () => {
     expect(controller.autoPilotOn).toBe(true);
     expect(controller.interactive).toBe(false);
     controller.setAutoPilot(false);
-    expect(JSON.parse(third.sent[0]!)).toEqual({
-      type: "autoPilot",
-      on: false,
-      requestId: expect.any(Number),
+    const reclaim = JSON.parse(third.sent[0]!) as InboundMsg;
+    expect(reclaim).toMatchObject({
+      type: "submit",
+      submission: {
+        roomId: "SAME",
+        seat: 1,
+        decisionPoint: "autopilot-1",
+        cmd: { type: "setAutoPilot", on: false },
+      },
     });
-    hydrate(third, engine);
+    if (reclaim.type !== "submit") throw new Error("收回操作未提交");
+    expect(typeof reclaim.submission.submissionId).toBe("string");
+    expect(typeof reclaim.requestId).toBe("number");
+    third.receive({
+      type: "submissionResult",
+      outcome: "accepted",
+      requestId: reclaim.requestId,
+      submissionId: reclaim.submission.submissionId,
+    });
+    expect(controller.seatView.autopilotInteractive).toBe(false);
+    hydrate(third, engine, false, 2);
+    expect(controller.seatView.autopilotInteractive).toBe(true);
     expect(controller.dispatchIntent({ type: "pass" })).toEqual({ status: "submitted" });
     expect(JSON.parse(third.sent[1]!)).toMatchObject({
       type: "submit",
