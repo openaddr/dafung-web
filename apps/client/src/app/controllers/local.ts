@@ -19,10 +19,11 @@ import type { SeatConfig } from "@dafung/core/engine/authority";
 import { createDice } from "@dafung/core/engine/dice";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
-import { archiveEngineLog } from "@app/gameLogArchive";
+import type { GameArchiveIdentity } from "@app/game-diagnostic-record";
+import { archiveGameLog, archiveGameLogTail } from "@app/gameLogArchive";
 import { stashEventBatch } from "@app/net/event-feed";
 import { foldEventBatch } from "@dafung/core/protocol/event-fold";
-import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
+import { appendSeatReplicaLog, hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { e2eBotStepMs, e2eReactionWindowMs } from "@app/fx/timings";
 import { createMemorySocketPair, type MemoryHostEnd, type SeatTransport } from "@app/net/transport";
 import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
@@ -108,8 +109,6 @@ export class LocalController extends GameController {
     super();
     const guohao = config.seats[0]?.guohao;
     const botIdx = new Set(config.seats.flatMap((s, i) => (s.isBot ? [i] : [])));
-    // ADR-0014 单机对局日志:registry 每次 persist(每手快照)后增量归档 IndexedDB——
-    // 挂在编排 persist 通道上,与旧锁步 sync() 的归档节奏同源(每手一次)。
     // Worker 时钟(#399):编排节拍(看门狗/托管步进)不随页面可见性漂移。
     // clockOverride:测试注入缝(#642 出口③假 clock),生产缺省自建真实 Worker 时钟。
     this.clock = clockOverride ?? createWorkerClock();
@@ -120,21 +119,14 @@ export class LocalController extends GameController {
     // #730 bot 步进配速(单机形态):解析链 = 显式注入(config.botStepMs,bun 单测
     // 传 0)→ e2e localStorage 键 → core BOT_STEP_MS(ADR-0061 产出端配速)。
     const botStepMs = config.botStepMs ?? e2eBotStepMs() ?? BOT_STEP_MS;
-    this.registry = new RoomRegistry(
-      new MemoryRoomPersistence(),
-      undefined,
-      (room) => {
-        if (room.engine) archiveEngineLog(room.engine);
-      },
-      {
-        clock: this.clock,
-        // #642 出口②:驱动链停摆作废窗口(单机 30s,core/timings 单源)。不经
-        // decisionTimeoutMs——后者单机保持缺省关,#118 human-turn 既有 stall 零变化。
-        stallAbortMs: STALL_ABORT_MS,
-        botStepMs,
-        ...(reactionWindowMs > 0 ? { reactionWindowMs } : {}),
-      },
-    );
+    this.registry = new RoomRegistry(new MemoryRoomPersistence(), undefined, undefined, {
+      clock: this.clock,
+      // #642 出口②:驱动链停摆作废窗口(单机 30s,core/timings 单源)。不经
+      // decisionTimeoutMs——后者单机保持缺省关,#118 human-turn 既有 stall 零变化。
+      stallAbortMs: STALL_ABORT_MS,
+      botStepMs,
+      ...(reactionWindowMs > 0 ? { reactionWindowMs } : {}),
+    });
     // #642 出口③:时钟挂死(worker 崩溃/内部异常)= 编排节拍永久不可靠 → 对局作废
     // 响亮终局,错误摘要进 abort reason 与对局日志(经房间 abortGame 常规 persist/下行)。
     // 终局拍显式同步直下(flushTransportNow):作废是单条终局转移,无合并可等,副本
@@ -253,10 +245,23 @@ export class LocalController extends GameController {
    *  同语义);基类退订行军会话订阅(#611)。 */
   override destroy(): void {
     super.destroy();
-    this.sock.close();
-    this.registry.dismissRoom(this.roomId, this.seatToken);
-    this.clock.dispose();
-    useNetStore.getState().resetEventFace();
+    this.enteredGame = false;
+    try {
+      this.registry.dismissRoom(this.roomId, this.seatToken);
+    } finally {
+      this.sock.close();
+      this.clock.dispose();
+      useNetStore.getState().resetEventFace();
+    }
+  }
+
+  private logIdentity(): GameArchiveIdentity {
+    const { gameId, mapId } = this._engine;
+    return { gameId, mode: "solo", mapId: mapId === "" ? null : mapId };
+  }
+
+  private reportArchiveFailure(error: unknown): void {
+    console.error("[logArchive] 单机日志归档失败:", error);
   }
 
   // ─── 下行消费(events 先行、整房摘要随后;与联机 OnlineController 同形,#1241)───
@@ -277,6 +282,16 @@ export class LocalController extends GameController {
       this.applyRoomFields(msg.seats); // 托管态等房间字段单源下行(不再直查房间会话)
       // 水合无条件覆盖全部字段(校准锚,ADR-0020 决策 3):折叠漂移在此归零。
       hydrateSeatReplica(this._engine, snap);
+      this.observeAuthorityLog({
+        gameId: snap.gameId,
+        at: receivedAtMonotonic,
+        source: "snapshot",
+        offset: 0,
+        count: snap.logCount,
+      });
+      void archiveGameLog(this.logIdentity(), snap.log, Date.now()).catch(
+        this.reportArchiveFailure,
+      );
       this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
       this.pending = this.outbox.waitingFor(this.decisionPoint);
       // 演出(#385):netStore 暂存的事件批经 SnapshotEffects 直译播放;本帧无批
@@ -315,7 +330,23 @@ export class LocalController extends GameController {
       return;
     }
     if (msg.type === "dismissed") return; // 单机解散由 destroy 主动发起,无远端解散
-    if (msg.type === "gameLog") throw new Error("单机日志应由权威引擎直接归档");
+    if (msg.type === "gameLog") {
+      const added = appendSeatReplicaLog(this._engine, msg);
+      if (added === null) return;
+      const { offset, lines } = added;
+      this.observeAuthorityLog({
+        gameId: msg.gameId,
+        at: receivedAtMonotonic,
+        source: "tail",
+        offset,
+        count: lines.length,
+      });
+      void archiveGameLogTail(this.logIdentity(), offset, lines, Date.now()).catch(
+        this.reportArchiveFailure,
+      );
+      if (this.enteredGame) this.sync();
+      return;
+    }
     if (msg.type === "submissionResult") {
       if (!this.outbox.acknowledge(msg)) return;
       this.observeCommandResult(msg, receivedAtMonotonic);

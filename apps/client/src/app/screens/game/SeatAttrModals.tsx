@@ -1,6 +1,6 @@
 // 组件收口:已收口——诸侯详情内的名将与珍宝分项共用现有弹层。
 import { memo } from "react";
-import type { SnapshotPlayer } from "@app/store/gameStore";
+import type { WarlordDetails } from "@dafung/core/protocol/seat-queries";
 import { PileShell, treasureFace, treasurePrice } from "./PileModal";
 import { HeroInspectionModal } from "./HeroInspectionModal";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
@@ -10,12 +10,12 @@ import { TESTIDS } from "./testids";
 export type SeatDetailKind = "hero" | "gem";
 
 /** 名将钻入与自己的藏品入口共用人物卷;不传命令即只读。 */
-function SeatHeroModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }) {
+function SeatHeroModal({ p, onClose }: { p: WarlordDetails; onClose: () => void }) {
   return <HeroInspectionModal player={p} testid={TESTIDS.seatHeroModal} onClose={onClose} />;
 }
 
 /** 珍宝列表:现役珍宝弹层同构(装裱卡陈列+指导价名牌),数据按席。 */
-function SeatGemModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }) {
+function SeatGemModal({ p, onClose }: { p: WarlordDetails; onClose: () => void }) {
   return (
     <PileShell
       title="珍宝"
@@ -43,15 +43,6 @@ function SeatGemModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }
   );
 }
 
-/** 值等(#1140 渲染税):p 引用由 GameTopBar 的 useStablePlayers 保证「内容不变
- *  即引用不变」;onClose 不入比较(setState 驱动,行为恒定)。 */
-function seatDetailEqual(
-  a: { kind: SeatDetailKind; p: SnapshotPlayer },
-  b: { kind: SeatDetailKind; p: SnapshotPlayer },
-): boolean {
-  return a.kind === b.kind && a.p === b.p;
-}
-
 /** 诸侯详情内的明细弹层。
  *  重渲口径(#1140):开着随内容变化重渲,演出期不再每拍陪跑。 */
 export const SeatDetailModal = memo(function SeatDetailModal({
@@ -60,9 +51,9 @@ export const SeatDetailModal = memo(function SeatDetailModal({
   onClose,
 }: {
   kind: SeatDetailKind;
-  p: SnapshotPlayer;
+  p: WarlordDetails;
   onClose: () => void;
 }) {
   if (kind === "hero") return <SeatHeroModal p={p} onClose={onClose} />;
   return <SeatGemModal p={p} onClose={onClose} />;
-}, seatDetailEqual);
+});

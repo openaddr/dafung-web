@@ -40,6 +40,10 @@ import { useNetStore } from "../../apps/client/src/app/store/netStore";
 // 下行合并拍的宏任务屏障;只等已排定的 0ms flush,不等待演出或业务窗口。
 const downlinkTurn = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+/** 日志尾段与对局状态、房间元数据分别验证。 */
+const stateFrameTypes = (messages: readonly ServerMsg[]) =>
+  messages.filter(({ type }) => type !== "gameLog").map(({ type }) => type);
+
 it("单机选都水合后，错误选份收到提示并可在原窗重答", async () => {
   const initialSeats: number[] = [];
   const unsubscribe = useGameStore.subscribe((state, previous) => {
@@ -335,7 +339,7 @@ it("落到咸阳，真实下行将交易交给城主并可续行下一回合", a
     >;
     await registry.applyCommand(room.roomId, message.cmd, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["events"]);
+    expect(stateFrameTypes(messages)).toEqual(["events"]);
     expect(engine.turnPhase).toBe("AwaitingTreasureOwner");
     expect(engine.decisionOwner).toBe(0);
     expect({
@@ -387,7 +391,7 @@ it("落到无主城，副本同步购买选项和成交结果", async () => {
     >;
     await registry.applyCommand(room.roomId, message.cmd, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["events"]);
+    expect(stateFrameTypes(messages)).toEqual(["events"]);
     expect(replica.turnPhase).toBe("AwaitingDecision");
     expect(replica.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "prop-xianyang" });
     expect(replica.snapshot().lastLandOutcome).toEqual(engine.snapshot().lastLandOutcome);
@@ -439,7 +443,7 @@ it("招贤选择闭窗后,真实事件下行进入城池决策并继续回合", 
     >;
     await registry.applyCommand(room.roomId, next.cmd, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["events"]);
+    expect(stateFrameTypes(messages)).toEqual(["events"]);
     expect(engine.turnPhase).toBe("AwaitingDecision");
     expect(replica.turnPhase).toBe(engine.turnPhase);
     expect(replica.decisionOwner).toBe(engine.decisionOwner);
@@ -468,7 +472,7 @@ it("首连水合后以事件批续行,非校准节点不恒发快照", async () 
     pinDice(engine, "march", [1]);
     await registry.applyCommand(room.roomId, { type: "rollAndMove" }, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["events"]);
+    expect(stateFrameTypes(messages)).toEqual(["events"]);
     expect(replica.snapshot().players).toEqual(redactSnapshotForSeat(engine.snapshot(), 0).players);
     expect(replica.turnPhase).toBe(engine.turnPhase);
     messages.length = 0;
@@ -489,14 +493,14 @@ it("非校准拍房间托管元数据按变化下行,不依赖全量快照", asy
     const seat = 1 - engine.activeIndex;
     await registry.setAutoPilot(room.roomId, seat, true, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["lobby"]);
+    expect(stateFrameTypes(messages)).toEqual(["lobby"]);
     const message = messages[0]!;
     if (message.type !== "lobby") throw new Error("缺少托管元数据消息");
     expect(message.seats[seat]!.autoPilot).toBe(true);
     messages.length = 0;
     await registry.setAutoPilot(room.roomId, seat, false, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["lobby"]);
+    expect(stateFrameTypes(messages)).toEqual(["lobby"]);
     const returned = messages[0]!;
     if (returned.type !== "lobby") throw new Error("缺少收回托管元数据消息");
     expect(returned.seats[seat]!.autoPilot).toBe(false);

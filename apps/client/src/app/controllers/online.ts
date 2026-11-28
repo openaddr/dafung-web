@@ -35,7 +35,7 @@ import {
   type SnapshotMsg,
 } from "@dafung/core/protocol/wire";
 import { foldEventBatch } from "@dafung/core/protocol/event-fold";
-import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
+import { appendSeatReplicaLog, hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { abandonAllMarches } from "@app/fx/useMarch";
 import { setController } from "./registry";
 import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
@@ -45,7 +45,6 @@ export type { RoomJoinReply };
 
 interface GameLogPrefix {
   identity: GameArchiveIdentity;
-  length: number;
   missing: boolean;
 }
 
@@ -72,7 +71,7 @@ export class OnlineController extends GameController {
   private roomId: string | null = null;
   private seatToken: string | null = null;
   private outbox = new PlayerCommandOutbox();
-  /** 归档使用独立的权威日志前缀，水合副本的日志仍由既有状态通路维护。 */
+  /** 战报与归档共用座位副本中的公开日志前缀。 */
   private gameLog: GameLogPrefix | null = null;
   /** 当前占位引擎对应的地图 id(换图守卫:同图不重建)。 */
   private mapId: string | null;
@@ -492,7 +491,6 @@ export class OnlineController extends GameController {
     const identity: GameArchiveIdentity = { gameId: msg.gameId, mode: "online", mapId: msg.mapId };
     this.gameLog = {
       identity,
-      length: msg.log.length,
       missing: false,
     };
     this.observeAuthorityLog({
@@ -512,26 +510,27 @@ export class OnlineController extends GameController {
       return;
     }
     if (prefix.missing) return;
-    const expected = prefix.length;
-    if (!Number.isSafeInteger(msg.offset) || msg.offset < 0 || msg.offset > expected) {
+    let added: ReturnType<typeof appendSeatReplicaLog>;
+    try {
+      added = appendSeatReplicaLog(this._engine, msg);
+    } catch (error) {
       prefix.missing = true;
-      this.reportLogError(`联机日志断档，预期偏移 ${expected}，收到 ${msg.offset}`);
+      this.reportLogError((error as Error).message);
       return;
     }
-    const firstNew = expected - msg.offset;
-    if (firstNew >= msg.lines.length) return;
-    prefix.length = msg.offset + msg.lines.length;
-    const lines = firstNew === 0 ? msg.lines : msg.lines.slice(firstNew);
+    if (added === null) return;
+    const { offset, lines } = added;
     this.observeAuthorityLog({
       gameId: msg.gameId,
       at: receivedAtMonotonic,
       source: "tail",
-      offset: expected,
+      offset,
       count: lines.length,
     });
-    void archiveGameLogTail(prefix.identity, expected, lines, receivedAt).catch(
+    void archiveGameLogTail(prefix.identity, offset, lines, receivedAt).catch(
       this.reportArchiveFailure,
     );
+    this.sync();
   }
 
   private reportLogError(message: string): void {

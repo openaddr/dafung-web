@@ -15,6 +15,7 @@ import { OnlineController } from "@app/controllers/online";
 import type { Board } from "@dafung/core/engine/board";
 import type { GameCommand } from "@dafung/core/engine/authority";
 import type { SeatIntent, SeatInteractionView } from "@dafung/core/protocol/seat-interaction";
+import { readSeatDetails, readWarReport } from "@dafung/core/protocol/seat-queries";
 import { skillBookLearners } from "@dafung/core/engine/roster";
 import { skillById } from "@dafung/core/engine/skills";
 import { isSkillBook } from "@dafung/core/engine/treasures";
@@ -44,7 +45,7 @@ import { jinnangPlay } from "./jinnang-play";
 import { turnScope, useReactionPlay } from "./reaction-play";
 import { useReactionTargets } from "./target-selection";
 import { NoticeBanner } from "./NoticeBanner";
-import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
+import { WarReportDrawer } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
 import {
   DecisionScrollLayer,
@@ -190,6 +191,8 @@ function GameScreenLive({
   const players = useStablePlayers(snapshot.players);
   // 挂载时已入座;座位缺位表示快照与座位表不一致,直取使接线错误暴露。
   const selfPlayer = players[selfSeat];
+  const { warlords, hand } = useMemo(() => readSeatDetails(players, selfSeat), [players, selfSeat]);
+  const activeSeat = snapshot.phase === "Playing" ? snapshot.activeIndex : null;
   const gameOver = snapshot.phase === "GameOver";
   const dialogPeek = useGameDialogPeek(!gameOver);
   const { peeking } = dialogPeek;
@@ -211,16 +214,13 @@ function GameScreenLive({
   // 设置弹层与战报抽屉开合态;战报从设置内打开
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [warReportOpen, setWarReportOpen] = useState(false);
-  // 战报未读账:本地已读游标=打开抽屉那一刻的战报条数,不进快照——联机/
-  // 恢复场景由既有日志通路自然重建(对局屏重挂=游标归零,存量全量记未读,金点即亮)。
-  const [warReadCount, setWarReadCount] = useState(0);
-  // log 由引擎原地 push,引用恒定;memo 依赖值语义 logCount,不能依赖 log 引用。
-  // 日志只增,长度变化即内容变化;换局/恢复重灌也更新计数。过滤单源为 warEntriesOf,
-  // 若其增加其他快照字段依赖,此处须同步调整。
-  const warTotal = useMemo(() => warEntriesOf(snapshot).length, [snapshot.logCount]);
-  // 游标越过总数 = 日志账本已换(换图重开一类):旧游标作废,现有条目全量记未读。
-  // 这是游标语义本身(日志只增,变短即新账本),非容错分支。
-  const warUnread = warReadCount > warTotal ? warTotal : warTotal - warReadCount;
+  // 摘要换日志引用，普通尾段推进公开行数；两者都可能改变当前战报。
+  const warReport = useMemo(() => readWarReport(snapshot.log), [snapshot.log, snapshot.logCount]);
+  const [warReadOffset, setWarReadOffset] = useState(-1);
+  const warUnread = useMemo(() => {
+    const readIndex = warReport.findIndex(({ offset }) => offset === warReadOffset);
+    return warReport.length - readIndex - 1;
+  }, [warReport, warReadOffset]);
   // null=随内容自动显隐;手动开/收只保持至下一次回合或决策窗边界。
   const [rackManualHidden, setRackManualHidden] = useState<boolean | null>(null);
   const [rackInspection, setRackInspection] = useState<RackInspection | null>(null);
@@ -299,10 +299,9 @@ function GameScreenLive({
   }, []);
   const closeWarReport = useCallback(() => setWarReportOpen(false), []);
   const openWarReport = useCallback(() => {
-    // 打开抽屉即清账:条数取点击拍当下快照(getState 读,不闭包捕获渲染拍)。
-    setWarReadCount(warEntriesOf(useGameStore.getState().snapshot!).length);
+    setWarReadOffset(warReport.at(-1)?.offset ?? -1);
     setWarReportOpen(true);
-  }, []);
+  }, [warReport]);
 
   const bookPlayScope = jinnang?.targetStep === null ? turnScope(snapshot) : null;
   const bookPlayReady = interactive && !peeking && bookPlayScope !== null;
@@ -420,9 +419,7 @@ function GameScreenLive({
   const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
   const windowUp = noticeOccupied || skillBanner != null;
   const hasRackContent =
-    selfPlayer.jinnangHand.length > 0 ||
-    jinnang?.hasSkillCards === true ||
-    playableBooks.length > 0;
+    hand.length > 0 || jinnang?.hasSkillCards === true || playableBooks.length > 0;
   const autoRackHidden = cityTargeting || !((myTurnUp || windowUp) && hasRackContent);
   const rackHidden = rackManualHidden === null ? autoRackHidden : rackManualHidden;
   const toggleRackHidden = useCallback(
@@ -637,9 +634,9 @@ function GameScreenLive({
         )}
         {!gameOver && warlordsOpen && (
           <WarlordsOverview
-            players={players}
+            warlords={warlords}
             selfSeat={selfSeat}
-            activeSeat={snapshot.phase === "Playing" ? snapshot.activeIndex : null}
+            activeSeat={activeSeat}
             round={snapshot.round}
             onClose={closeWarlords}
           />
@@ -647,9 +644,9 @@ function GameScreenLive({
         {peeking && warlordsInspection && (
           <DialogPeekInspection.Provider value={closeWarlordsInspection}>
             <WarlordsOverview
-              players={players}
+              warlords={warlords}
               selfSeat={selfSeat}
-              activeSeat={snapshot.phase === "Playing" ? snapshot.activeIndex : null}
+              activeSeat={activeSeat}
               round={snapshot.round}
               onClose={closeWarlordsInspection}
             />
@@ -665,8 +662,10 @@ function GameScreenLive({
           online={online}
         />
         <SeatRail
-          snapshot={snapshot}
+          warlords={warlords}
           selfSeat={selfSeat}
+          activeSeat={activeSeat}
+          winner={snapshot.isOver ? snapshot.winner : null}
           onOpenOverview={openWarlords}
           targets={
             seatTargeting && !peeking
@@ -705,10 +704,10 @@ function GameScreenLive({
             autopilotOn={autopilotOn}
             showDiceFace={hasRackContent && !rackBannerOnly}
             children={
-              /* 手牌架使用稳定自局玩家,只承载牌面与窗态;banner-only 只渲横幅。 */
               <HandRack
                 key={`${selfSeat}:${selfPlayer.id}`}
-                player={selfPlayer}
+                hand={hand}
+                heroes={warlords[selfSeat].heroes}
                 nudgePulse={playNudge}
                 bannerOnly={rackBannerOnly}
                 detailKey={rackInspection?.kind === "jinnang" ? rackInspection.key : null}
@@ -777,7 +776,9 @@ function GameScreenLive({
             onClose={closeSettings}
             onOpenWarReport={openWarReport}
             warReport={
-              warReportOpen && <WarReportDrawer snapshot={snapshot} onClose={closeWarReport} />
+              warReportOpen && (
+                <WarReportDrawer report={warReport} warlords={warlords} onClose={closeWarReport} />
+              )
             }
             onGoHome={goHome}
             onCaptureDiagnostic={checkpointGameDiagnostics}

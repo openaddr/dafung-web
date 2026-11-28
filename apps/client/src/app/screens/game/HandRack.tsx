@@ -58,7 +58,6 @@ import { isSkillOption } from "@dafung/core/engine/choices";
 import type { HeroSlotRow } from "@dafung/core/engine/snapshot";
 import type { ChoiceOption } from "@dafung/core/engine/choices";
 import type { TreasureDef } from "@dafung/core/engine/treasures";
-import type { SnapshotPlayer } from "@app/store/gameStore";
 import type { SkillGlossaryTarget } from "./SkillGlossaryDialog";
 import type { ReactionCardSelection } from "./reaction-play";
 import { TESTIDS } from "./testids";
@@ -69,7 +68,7 @@ import "./hand-rack.css";
 /** 技选项→槽反查(#817 实例化:技选项携 skillHeroId,出牌技能卡的将定位走本地玩家
  *  槽位):heroId 唯一定位麾下槽(同将不可重招,招贤池占位保证),卡面/全览吃同一槽
  *  实授技。查无=接线 bug(choices 出了本地玩家麾下没有的将),炸出零兜底。 */
-function heroSlotByHeroId(heroes: HeroSlotRow[], heroId: string): HeroSlotRow {
+function heroSlotByHeroId(heroes: readonly HeroSlotRow[], heroId: string): HeroSlotRow {
   const slot = heroes.find((s) => s.heroId === heroId);
   if (slot == null)
     throw new Error(`出牌技能卡:本地玩家麾下无将 ${heroId}(choices 与麾下槽位不符,数据 bug)`);
@@ -175,7 +174,7 @@ function junshiBtnClass(s: RackCardJunshi): string {
 /** 同名第几张(0 起):React key 去重用(同名牌各有独立 key,进/出窗态不重挂;
  *  评审去重前三处各写一份 slice/filter,归此一处)。id 由调用方给(常态/目标段=手牌
  *  项本身,卡牌段=选项 id,数重复时以手牌前缀为准)。 */
-function nthSame(hand: string[], i: number, id: string): number {
+function nthSame(hand: readonly string[], i: number, id: string): number {
   return hand.slice(0, i).filter((x) => x === id).length;
 }
 
@@ -458,8 +457,8 @@ export type RackInspection =
   | { kind: "skill"; target: SkillGlossaryTarget };
 
 interface HandRackProps {
-  /** 本地视角玩家(对局屏挂载期恒在座)。 */
-  player: SnapshotPlayer;
+  hand: readonly string[];
+  heroes: readonly HeroSlotRow[];
   /** 出牌阶段态(#256);缺省 = 常态架(点牌开详情)。 */
   junshi?: JunshiWindow;
   skillBooks: readonly TreasureDef[];
@@ -505,7 +504,8 @@ interface StackVars {
  *  待决触发技挂在架上缘，收架时只呈现触发技横幅。
  *  em 基和降档断点见 hand-rack.css，叠加压缩按架体可用宽度测量。 */
 export const HandRack = memo(function HandRack({
-  player,
+  hand,
+  heroes,
   junshi,
   skillBooks,
   onReadBook,
@@ -533,7 +533,6 @@ export const HandRack = memo(function HandRack({
 
   // 窗态两段:pendingJinnang/pendingSkill 在场 = 目标段(架退出交互,选目标在席位格)。
   const targeting = junshi?.targeting === true;
-  const hand = player.jinnangHand;
   // 渲染项实例键区分同名牌，不替代引擎的语义 id。
   const cardOptions = junshi != null && !targeting ? junshi.options : [];
   const skillCount = cardOptions.filter(isSkillOption).length;
@@ -717,7 +716,7 @@ export const HandRack = memo(function HandRack({
       // 卡面/全览吃同一槽实授技。
       return cardItems.map(({ option: o, key }, i) => {
         if (isSkillOption(o)) {
-          const slot = heroSlotByHeroId(player.heroes, o.skillHeroId);
+          const slot = heroSlotByHeroId(heroes, o.skillHeroId);
           return (
             <SkillCard
               key={key}

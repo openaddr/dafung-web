@@ -2,7 +2,12 @@ import type { GameEngine } from "@dafung/core/engine/authority";
 import { foldEventBatch } from "@dafung/core/protocol/event-fold";
 import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
 import { SeatInteraction, type SeatIntent } from "@dafung/core/protocol/seat-interaction";
-import { hydrateSeatReplica, readSeatReplica } from "@dafung/core/protocol/seat-replica";
+import { readSeatDetails, readWarReport } from "@dafung/core/protocol/seat-queries";
+import {
+  appendSeatReplicaLog,
+  hydrateSeatReplica,
+  readSeatReplica,
+} from "@dafung/core/protocol/seat-replica";
 import type {
   ReactionTiming,
   SeatDecision,
@@ -54,6 +59,11 @@ export class HeadlessPlayer {
       this.publish();
     }
     return this.interaction.view;
+  }
+
+  get queries() {
+    const { snapshot, seat } = this.view;
+    return { ...readSeatDetails(snapshot.players, seat), warReport: readWarReport(snapshot.log) };
   }
 
   act(intent: SeatIntent, observedPoint?: string | null) {
@@ -149,6 +159,12 @@ export class HeadlessPlayer {
     } else if (message.type === "events" && this.ready) {
       foldEventBatch(this.engine!, message.events);
       this.updateReplica(message, receivedAt, false);
+    } else if (message.type === "gameLog") {
+      if (this.engine === null || !this.ready) throw new Error("收到未校准的日志增量");
+      if (appendSeatReplicaLog(this.engine, message) !== null) {
+        this.snapshot = readSeatReplica(this.engine, this.seat);
+        this.publish();
+      }
     } else if (message.type === "lobby") {
       this.autoPilotOn = message.seats[this.seat].autoPilot;
       this.publish();

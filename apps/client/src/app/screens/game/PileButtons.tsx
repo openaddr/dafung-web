@@ -12,7 +12,7 @@
 // GameScreen 只在架收起时把 playNudge 计数接到本件——变更一次=钮闪一拍(.nudge
 // 一次性脉冲,动画完即净);架在场时不接线,架牌脉冲(HandRack usablePulse)照旧。
 // 锦囊钮角标(#751 C3,#744 判词:三钮中唯一没有 .cnt 的;收起后新牌入手只剩地图
-// 浮字 transient,错过即不可知):非零常驻计数,单源=快照 jinnangHand.length。
+// 浮字 transient,错过即不可知):非零常驻计数,单源=公开 jinnangHandCount。
 // 珍宝/名将钮 = 藏品弹层入口(#361 牌架双入口的接替者:点谁开谁的层,PileModal
 // 壳与陈列原样)——计数单源快照,与牌架旧入口同一读数。
 import { memo, useState } from "react";
@@ -63,7 +63,7 @@ export const PileButtons = memo(function PileButtons({
   // 只在架收起时由 GameScreen 接线,首次接线拍只对账不闪(收起动作本身不触发)。
   const nudge = usePulseOnce(nudgePulse);
   // 锦囊计数角标非零显示(#751 C3):0 张不挂(空手是常态非事件;「有牌」才值得常驻)。
-  const handCount = player.jinnangHand.length;
+  const handCount = player.jinnangHandCount;
 
   return (
     <>

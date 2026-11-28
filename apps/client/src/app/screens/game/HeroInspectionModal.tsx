@@ -5,7 +5,7 @@ import { Button } from "@base-ui/react/button";
 import { Lihui } from "@app/components/card/HeroCardFace";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
-import type { SnapshotPlayer } from "@app/store/gameStore";
+import type { WarlordDetails } from "@dafung/core/protocol/seat-queries";
 import { heroById } from "@dafung/core/engine/heroes";
 import { isActiveSkill, skillById } from "@dafung/core/engine/skills";
 import { PileShell } from "./PileModal";
@@ -13,7 +13,7 @@ import { TESTIDS } from "./testids";
 import "./hero-inspection.css";
 
 interface HeroInspectionModalProps {
-  player: SnapshotPlayer;
+  player: Pick<WarlordDetails, "id" | "guohao" | "heroes">;
   testid: string;
   dismissReady?: boolean;
   onDismiss?: (heroId: string) => void;

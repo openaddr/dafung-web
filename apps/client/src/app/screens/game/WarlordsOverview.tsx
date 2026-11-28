@@ -6,7 +6,7 @@ import { STAMINA_MAX } from "@dafung/core/engine/constants";
 import { heroById } from "@dafung/core/engine/heroes";
 import { tileIndexOfProperty } from "@dafung/core/engine/board";
 import { playerColor, playerSealText, rgba } from "@dafung/core/engine/theme";
-import type { SnapshotPlayer } from "@app/store/gameStore";
+import type { WarlordDetails } from "@dafung/core/protocol/seat-queries";
 import { getControllerContext } from "@app/controllers/registry";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
@@ -37,7 +37,7 @@ function OverviewRow({
   active,
   onInspect,
 }: {
-  player: SnapshotPlayer;
+  player: WarlordDetails;
   seat: number;
   self: boolean;
   active: boolean;
@@ -122,13 +122,13 @@ function OverviewRow({
 }
 
 export const WarlordsOverview = memo(function WarlordsOverview({
-  players,
+  warlords,
   selfSeat,
   activeSeat,
   round,
   onClose,
 }: {
-  players: SnapshotPlayer[];
+  warlords: readonly WarlordDetails[];
   selfSeat: number;
   activeSeat: number | null;
   round: number;
@@ -136,7 +136,7 @@ export const WarlordsOverview = memo(function WarlordsOverview({
 }) {
   const [detail, setDetail] = useState<WarlordDetail | null>(null);
   const inspectingBoard = useContext(DialogPeekInspection) !== null;
-  const seatGroups = players.length > 6 ? [players.slice(0, 4), players.slice(4)] : [players];
+  const seatGroups = warlords.length > 6 ? [warlords.slice(0, 4), warlords.slice(4)] : [warlords];
   const closeDetail = useCallback(() => setDetail(null), []);
 
   return (
@@ -204,13 +204,12 @@ export const WarlordsOverview = memo(function WarlordsOverview({
         <DialogPeekInspection.Provider value={inspectingBoard ? closeDetail : null}>
           {detail.kind === "city" ? (
             <CityLedgerModal
-              players={players}
-              seat={detail.seat}
+              player={warlords[detail.seat]}
               self={detail.seat === selfSeat}
               onClose={closeDetail}
             />
           ) : (
-            <SeatDetailModal kind={detail.kind} p={players[detail.seat]} onClose={closeDetail} />
+            <SeatDetailModal kind={detail.kind} p={warlords[detail.seat]} onClose={closeDetail} />
           )}
         </DialogPeekInspection.Provider>
       )}

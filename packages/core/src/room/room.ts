@@ -19,6 +19,7 @@ import type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 import { EventBatchChannel } from "./event-batch";
 import {
   assembleDownlinkShot,
+  assembleGameLogDelta,
   CALIBRATION_BACKED_KINDS,
   CALIBRATION_EVENT_KINDS,
   CALIBRATION_WINDOWS,
@@ -258,6 +259,7 @@ export class RoomRegistry {
   // ── 传输面状态(#397):roomId → 座位 → 端点,及下行合并的批通道 ──
   private readonly seatEndpoints = new Map<string, Map<number, SeatEndpoint>>();
   private readonly seatDecisions = new WeakMap<SeatEndpoint, string | null>();
+  private readonly transportLogCursors = new WeakMap<SeatEndpoint, GameLogCursor>();
   /** 事件批累积/去重/排空/合并拍归共享通道(#411,event-batch.ts)——
    *  与 server.ts 联机通路同一份批语义,双端行为零变化。 */
   private readonly batches = new EventBatchChannel();
@@ -643,8 +645,15 @@ export class RoomRegistry {
     this.batches.dispose(id);
     this.settledTurnPhase.delete(id);
     this.lastRoomMeta.delete(id);
+    const endpoints = this.seatEndpoints.get(id);
     this.seatEndpoints.delete(id);
     this.rooms.delete(id);
+    if (room.engine !== null && endpoints !== undefined) {
+      const capturedAt = Date.now();
+      for (const ep of endpoints.values()) {
+        if (ep.open) this.sendTransportLog(ep, room.engine, capturedAt);
+      }
+    }
     return id;
   }
 
@@ -873,6 +882,7 @@ export class RoomRegistry {
     eps.set(seat, ep);
     const shot = assembleDownlinkShot(room, this.transportOnlineSeats(roomId), seat, [], true);
     this.seatDecisions.set(ep, shot.decisionPoint);
+    this.transportLogCursors.set(ep, shot.logCursor);
     ep.send(shot.snapshot);
     this.settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
     this.lastRoomMeta.set(
@@ -938,6 +948,7 @@ export class RoomRegistry {
     const online = this.transportOnlineSeats(roomId);
     const metaJson = encodeDownlink(lobbyView(room, online));
     const metaChanged = this.lastRoomMeta.get(roomId) !== metaJson;
+    const capturedAt = Date.now();
     for (const [seat, ep] of eps) {
       if (!ep.open) continue;
       const shot = withSnapshot
@@ -946,10 +957,23 @@ export class RoomRegistry {
       if (shot.events !== null || shot.snapshot !== null)
         this.seatDecisions.set(ep, shot.decisionPoint);
       if (shot.events !== null) ep.send(shot.events);
-      if (shot.snapshot !== null) ep.send(shot.snapshot);
-      else if (metaChanged) ep.send(metaJson);
+      if (shot.snapshot !== null) {
+        this.transportLogCursors.set(ep, shot.logCursor);
+        ep.send(shot.snapshot);
+      } else {
+        if (metaChanged) ep.send(metaJson);
+        if (e !== null) this.sendTransportLog(ep, e, capturedAt);
+      }
     }
     this.lastRoomMeta.set(roomId, metaJson);
+  }
+
+  private sendTransportLog(ep: SeatEndpoint, engine: GameEngine, capturedAt: number): void {
+    const cursor = this.transportLogCursors.get(ep);
+    if (cursor === undefined) throw new Error("座位端点缺少对局日志锚点");
+    const { message, next } = assembleGameLogDelta(engine, cursor, capturedAt);
+    this.transportLogCursors.set(ep, next);
+    if (message !== null) ep.send(encodeDownlink(message));
   }
 
   /** 时钟挂死的异常终局立即下行,不等待已失效的驱动节拍。 */

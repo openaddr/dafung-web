@@ -4,7 +4,7 @@ import { formatMoney } from "@dafung/core/engine/money";
 import { cityTradeTermsOf, sellValueOf } from "@dafung/core/engine/economy";
 import { tileIndexOfProperty } from "@dafung/core/engine/board";
 import { Theme } from "@dafung/core/engine/theme";
-import type { SnapshotPlayer } from "@app/store/gameStore";
+import type { WarlordDetails } from "@dafung/core/protocol/seat-queries";
 import { getControllerContext } from "@app/controllers/registry";
 import { PileShell } from "./PileModal";
 import { TESTIDS } from "./testids";
@@ -12,26 +12,12 @@ import { TESTIDS } from "./testids";
 const GRID_COLS =
   "grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_repeat(3,minmax(0,1fr))] items-center";
 
-/** 值等(#1140 渲染税):消费面=players[seat](引用稳定,GameTopBar 经
- *  useStablePlayers 下传)+ seat/self;onClose 不入比较(setState 驱动,行为恒定)。
- *  行渲染(rows)全由 players+registry 静态上下文派生。 */
-function cityLedgerEqual(
-  a: { players: SnapshotPlayer[]; seat: number; self: boolean },
-  b: { players: SnapshotPlayer[]; seat: number; self: boolean },
-): boolean {
-  return a.players === b.players && a.seat === b.seat && a.self === b.self;
-}
-
 export const CityLedgerModal = memo(function CityLedgerModal({
-  players,
-  seat,
+  player,
   self,
   onClose,
 }: {
-  /** 全体玩家(值等复用引用,#1140;目标行的数据源)。 */
-  players: SnapshotPlayer[];
-  /** 清单目标座位(开合态由 GameScreen 持座位号,不持玩家对象——随快照常新)。 */
-  seat: number;
+  player: WarlordDetails;
   /** 自看口径(目标=屏前真人):标题转「本方名下城池」。 */
   self: boolean;
   onClose: () => void;
@@ -40,7 +26,6 @@ export const CityLedgerModal = memo(function CityLedgerModal({
   // GameScreen 只在 controller/map 就位后挂载、本弹层只在其内开,缺上下文 = 接线
   // bug,断言炸出(零兜底)。
   const { board, catalog } = getControllerContext()!;
-  const player = players[seat];
   // 行序 = 棋盘 index 序:holding 反查格索引升序(MapTile.id 与 propertyId 非同源,
   // 反查走 tiles);catalog 缺城 / 棋盘缺格 = 数据 bug 当场炸——board.at 对越界
   // index 环绕归一,fallback 进去只会静默错行,不设此闸(零兜底)。
@@ -126,4 +111,4 @@ export const CityLedgerModal = memo(function CityLedgerModal({
       )}
     </PileShell>
   );
-}, cityLedgerEqual);
+});
