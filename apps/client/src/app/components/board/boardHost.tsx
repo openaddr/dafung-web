@@ -40,6 +40,7 @@ export const BoardHost = memo(function BoardHost({
   svgRef,
   className,
   children,
+  decorative = true,
 }: {
   /** 宿主 id(=原 SVG 层 g 的 id,如 bv-tokens/bv-fx/bv-flow——useMarch 等
    *  querySelector 消费者的 DOM 契约保号)。 */
@@ -48,6 +49,7 @@ export const BoardHost = memo(function BoardHost({
   svgRef: React.RefObject<SVGSVGElement | null>;
   className?: string;
   children?: React.ReactNode;
+  decorative?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   useBoardMatrixSync(svgRef, rootRef);
@@ -56,7 +58,7 @@ export const BoardHost = memo(function BoardHost({
       id={id}
       className={className ? `bv-bhost ${className}` : "bv-bhost"}
       ref={rootRef}
-      aria-hidden="true"
+      aria-hidden={decorative}
     >
       {children}
     </div>
@@ -94,4 +96,5 @@ function syncHostMatrix(svg: SVGSVGElement, el: HTMLElement): void {
   if (!viewport) return;
   pxPerUnitCache = viewport.scale;
   el.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`;
+  el.style.setProperty("--bv-world-scale", String(viewport.scale));
 }

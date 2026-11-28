@@ -8,12 +8,14 @@ import * as tauriCore from "@tauri-apps/api/core";
 // 模块求值读构建期注入的 __APP_VERSION__——按生产同一值源(package.json CalVer)先行
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
+import type { WebSocketLike } from "@app/net/reconnecting-socket";
+import { getServerBase, setServerBase } from "@app/net/server-base";
 import { TESTIDS } from "@app/screens/game/testids";
-import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
+import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { GameEngine, type GameCommand, type SeatConfig } from "@dafung/core/engine/authority";
 import { tileIndexOfProperty } from "@dafung/core/engine/board";
-import { loadMap } from "@dafung/core/engine/board-loader";
+import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { JINNANG_DECK_LIST, jinnangCardOf } from "@dafung/core/engine/jinnang";
 import {
@@ -23,16 +25,17 @@ import {
   giveJinnang,
   giveTreasure,
   grantProperty,
-  pinDice,
   placePlayer,
   setCash,
 } from "@dafung/core/engine/planter";
 import { skillOptionId } from "@dafung/core/engine/choices";
 import { makeSkillBook } from "@dafung/core/engine/treasures";
+import { redactEvents } from "@dafung/core/room/seat-projection";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
 import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { openHeadlessTestRoom } from "../online/headless-player-room";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 import { installControlledClock } from "./controlled-clock";
 (globalThis as Record<string, unknown>).__APP_VERSION__ = pkg.version;
@@ -49,6 +52,7 @@ type SinksModule = typeof import("@app/fx/sinks");
 let GameScreen: GameScreenModule["GameScreen"];
 let Tip: TipModule["Tip"];
 let setController: RegistryModule["setController"];
+let OnlineController: (typeof import("@app/controllers/online"))["OnlineController"];
 let extractBatchEvents: ExtractModule["extractBatchEvents"];
 let present: OrchestratorModule["present"];
 let createEngineSink: SinksModule["createEngineSink"];
@@ -59,6 +63,7 @@ let newWiringController: (e: GameEngine, deferCommands: boolean) => WiringContro
 
 const MAP = loadMap(guanzhongData);
 const SEED = 67;
+const NativeWebSocket = WebSocket; // happy-dom 注册前保留 Bun 的真实传输。
 
 /** 座位表:与模板同(solo 口径 seat 0 = 自机)。 */
 const SEATS: SeatConfig[] = [
@@ -384,51 +389,150 @@ it("安卓系统返回先关闭分项，再关闭诸侯详情", async () => {
   }
 });
 
-it("连环计上一步经在途锁保留首选，改选后第二步需重新选择", () => {
-  const { el, snap, completeCommand } = startGame((e) => {
-    for (let seat = 0; seat < e.players.length; seat++) {
-      giveJinnang(e, seat, seat === 0 ? ["连环计"] : []);
+async function waitForGameState(
+  label: string,
+  ready: (state: ReturnType<typeof useGameStore.getState>) => boolean,
+): Promise<void> {
+  await act(async () => {
+    if (ready(useGameStore.getState())) return;
+    const { promise, resolve, reject } = Promise.withResolvers<void>();
+    const unsubscribe = useGameStore.subscribe((state) => {
+      if (ready(state)) resolve();
+    });
+    const deadline = setTimeout(() => reject(new Error(`等待${label}超时`)), 4000);
+    try {
+      await promise;
+    } finally {
+      clearTimeout(deadline);
+      unsubscribe();
     }
-    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
-    pinDice(e, "duel", [6, 1]);
-  }, true);
-  const confirm = () => q(el, TESTIDS.actionbarTarget)!;
-  const seat = (index: number) => q(el, TESTIDS.seatTarget(index))!;
-  click(q(el, TESTIDS.jinnangCard("连环计"))!);
-  expect(q(el, TESTIDS.actionbarPlay)!.textContent).toBe("选目标");
-  click(q(el, TESTIDS.actionbarPlay)!);
-  completeCommand();
-  click(seat(0));
-  expect(q(el, TESTIDS.actionbar)?.textContent).toContain("不能指定自己");
-  click(seat(1));
-  expect(q(el, TESTIDS.actionbar)?.textContent).not.toContain("不能指定自己");
-  expect(seat(1).getAttribute("aria-pressed")).toBe("true");
-  click(confirm());
-  completeCommand();
-  expect(q(el, TESTIDS.actionbar)!.textContent).toContain(`已选 ${snap().players[1].guohao}`);
-  expect(seat(1).getAttribute("aria-pressed")).toBe("true");
-  expect(seat(1).getAttribute("aria-label")).toContain("已选为第一位");
-  click(seat(3));
-  click(q(el, TESTIDS.actionbarPrevious)!);
-  expect(useGameStore.getState().interactive).toBe(false);
-  expect(seat(3).getAttribute("aria-pressed")).toBe("true");
-  expect(confirm().hasAttribute("disabled")).toBe(true);
-  completeCommand();
-  expect(seat(1).getAttribute("aria-pressed")).toBe("true");
-  click(seat(2));
-  click(confirm());
-  completeCommand();
-  expect(seat(1).getAttribute("aria-pressed")).toBe("false");
-  expect(seat(2).getAttribute("aria-label")).toContain("已选为第一位");
-  expect(seat(3).getAttribute("aria-pressed")).toBe("false");
-  expect(confirm().hasAttribute("disabled")).toBe(true);
-  expect(snap().players[0].jinnangHand).toEqual(["连环计"]);
-  click(seat(1));
-  expect(confirm().textContent).toBe("出牌");
-  click(confirm());
-  completeCommand();
-  expect(snap().players[0].jinnangHand).toEqual([]);
-  expect(snap().events.filter((event) => event.kind === "duelResolved")).toHaveLength(1);
+  });
+}
+
+it("联机右侧连环计在命令在途和返回改选时逐张高亮，最终只扣指定的一张", async () => {
+  const previousServer = getServerBase();
+  const room = await openHeadlessTestRoom();
+  try {
+    setServerBase("http://android-room.test");
+    const join = async (input: Parameters<typeof fetch>[0]) => {
+      expect(new URL(String(input)).pathname).toBe("/room/join");
+      return Response.json(room.joinReply(0));
+    };
+    using _join = spyOn(globalThis, "fetch").mockImplementation(
+      Object.assign(join, { preconnect: fetch.preconnect }),
+    );
+    const controller = new OnlineController(MAP, "guanzhong", {
+      socketFactory(url) {
+        const { pathname, search } = new URL(url);
+        return new NativeWebSocket(
+          new URL(pathname + search, room.wsUrl(0)),
+        ) as unknown as WebSocketLike;
+      },
+    });
+    setController(controller, guanzhongData as MapData);
+    await controller.joinRoom(room.id);
+    await waitForGameState(
+      "入座后的出牌阶段",
+      (s) => s.interactive && s.seatView?.jinnang?.stage === "hand",
+    );
+
+    const el = mount();
+    const confirm = () => q(el, TESTIDS.actionbarTarget)!;
+    const seat = (index: number) => q(el, TESTIDS.seatTarget(index))!;
+    const pawn = (index: number) => q(el, TESTIDS.pawnTarget(snap().players[index].id));
+    const twins = () => [
+      ...el.querySelectorAll(`[data-testid="${TESTIDS.jinnangCard("连环计")}"]`),
+    ];
+    const played = () => twins().map((card) => card.classList.contains("played"));
+    const snap = () => useGameStore.getState().snapshot!;
+
+    click(twins()[1]);
+    expect(twins().map((card) => card.getAttribute("aria-pressed"))).toEqual(["false", "true"]);
+    expect(q(el, TESTIDS.actionbarPlay)!.textContent).toBe("选目标");
+    click(q(el, TESTIDS.actionbarPlay)!);
+    await waitForGameState(
+      "第一目标阶段",
+      (s) => s.interactive && s.seatView?.jinnang?.stage === "two-a",
+    );
+    expect(played()).toEqual([false, true]);
+    click(seat(0));
+    expect(q(el, TESTIDS.actionbar)?.textContent).toContain("不能指定自己");
+    expect(pawn(0)).toBeNull();
+    const ring = (index: number) => q(el, TESTIDS.pawnTargetRing(snap().players[index].id))!;
+    using _wuHit = spyOn(pawn(1)!, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(90, 90, 40, 40),
+    );
+    using _weiHit = spyOn(pawn(2)!, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(100, 90, 40, 40),
+    );
+    using _wuRing = spyOn(ring(1), "getBoundingClientRect").mockReturnValue(
+      new DOMRect(106, 106, 8, 8),
+    );
+    using _weiRing = spyOn(ring(2), "getBoundingClientRect").mockReturnValue(
+      new DOMRect(116, 106, 8, 8),
+    );
+    click(pawn(2)!);
+    expect(seat(2).getAttribute("aria-pressed")).toBe("true");
+    act(() => {
+      // 魏的触区盖住吴的光圈时，触点仍选择吴。
+      pawn(2)!.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, detail: 1, clientX: 110, clientY: 110 }),
+      );
+    });
+    expect(q(el, TESTIDS.actionbar)?.textContent).not.toContain("不能指定自己");
+    expect(seat(1).getAttribute("aria-pressed")).toBe("true");
+    click(confirm());
+    await waitForGameState(
+      "吴获确认为第一位",
+      (s) => s.interactive && s.seatView?.jinnang?.targets?.firstSeat?.id === 1,
+    );
+    expect(q(el, TESTIDS.actionbar)!.textContent).toContain("已选 吴");
+    expect(seat(1).getAttribute("aria-label")).toContain("已选为第一位");
+    expect(pawn(1)).toBeNull();
+    click(seat(2));
+    expect(pawn(2)!.getAttribute("aria-pressed")).toBe("true");
+    click(q(el, TESTIDS.actionbarPrevious)!);
+    expect(useGameStore.getState().interactive).toBe(false);
+    expect(seat(2).getAttribute("aria-pressed")).toBe("true");
+    expect(confirm().hasAttribute("disabled")).toBe(true);
+    expect(played()).toEqual([false, true]);
+    await waitForGameState(
+      "返回第一目标阶段",
+      (s) => s.interactive && s.seatView?.jinnang?.stage === "two-a",
+    );
+    expect(played()).toEqual([false, true]);
+    expect(seat(1).getAttribute("aria-pressed")).toBe("true");
+
+    click(seat(2));
+    click(confirm());
+    await waitForGameState(
+      "魏获确认为第一位",
+      (s) => s.interactive && s.seatView?.jinnang?.targets?.firstSeat?.id === 2,
+    );
+    expect(seat(1).getAttribute("aria-pressed")).toBe("false");
+    expect(seat(2).getAttribute("aria-label")).toContain("已选为第一位");
+    expect(confirm().hasAttribute("disabled")).toBe(true);
+    expect(snap().players[0].jinnangHand).toEqual(["连环计", "火烧连营", "连环计"]);
+    click(pawn(1)!);
+    expect(confirm().textContent).toBe("出牌");
+    click(confirm());
+    expect(confirm().hasAttribute("disabled")).toBe(true);
+    await waitForGameState(
+      "连环计结算事件",
+      (s) => s.snapshot?.jinnangDiscard.includes("连环计") === true,
+    );
+    expect(snap().players[0].jinnangHand).toEqual(["连环计", "火烧连营"]);
+    expect(
+      useNetStore.getState().lastEvents?.filter((event) => event.kind === "duelResolved"),
+    ).toHaveLength(1);
+  } finally {
+    setServerBase(previousServer);
+    await act(async () => {
+      setController(null);
+      setEngine(null);
+      await room.close();
+    });
+  }
 });
 
 it("地图选择收架，可重开并保留目标，取消后仍能以同一入口发动火攻", () => {
@@ -485,14 +589,15 @@ async function settle(): Promise<void> {
 /** 弹层查询口:详情/窥探弹层经 Portal 渲染在 body,一律 document 级。 */
 const modalQ = (id: string): Element | null => q(document, id);
 
-/** 表现消费腿(头注「表现消费腿」节):当前转移批 → 表现事件 → 真编排器 → 真 sink
- *  → fxStore。命令批已由 dispatchCommand 内 sync 落进快照(events=当前转移批)。 */
+/** 本座收到的转移批 → 表现事件 → 真编排器 → 真 sink → fxStore。
+ *  军情密探的牌面随事件批交付，座位摘要会裁去牌面。 */
 async function presentCommandFx(engine: GameEngine): Promise<void> {
+  const { viewSeat } = useGameStore.getState();
   const presentation = extractBatchEvents(
     engine,
-    useGameStore.getState().snapshot!.events,
+    redactEvents(engine.gameEvents, viewSeat),
     undefined,
-    0,
+    viewSeat,
   );
   await act(async () => {
     await present(presentation, createEngineSink());
@@ -524,15 +629,17 @@ beforeAll(async () => {
   const sinksMod = await import("@app/fx/sinks");
   GameScreen = screenMod.GameScreen;
   Tip = (await import("@app/screens/game/Tip")).Tip;
+  ({ OnlineController } = await import("@app/controllers/online"));
   setController = registryMod.setController;
   extractBatchEvents = extractMod.extractBatchEvents;
   present = orchMod.present;
   createEngineSink = sinksMod.createEngineSink;
-  // WiringController:生产基类最小子型——单机 hotSeat 参数 + submitCommand 命令腿
+  // WiringController:生产基类最小子型——submitCommand 命令腿
   // + 基类 sync 状态桥(模板同款;房间编排/传输/看门狗是层③领域不进来)。
   const Base = ctrlMod.GameController;
   class WiringControllerImpl extends Base {
     private pendingCommand: GameCommand | null = null;
+    private decisionNumber = 0;
     constructor(
       private readonly e: GameEngine,
       private readonly deferCommands: boolean,
@@ -542,14 +649,10 @@ beforeAll(async () => {
     override get engine(): GameEngine {
       return this.e;
     }
-    // 单机热座:视角跟随决策方(LocalController 同口径)。
-    override get viewSeat(): number {
-      return this.e.decisionOwner;
-    }
     protected override get mySeat(): number {
       return 0;
     }
-    protected override readonly hotSeat = true;
+
     override dispatchCommand(cmd: GameCommand): void {
       if (this.deferCommands) {
         // 传输边界分拍:与生产控制器同样先上 pending 锁,回包拍再执行真实命令。
@@ -570,6 +673,7 @@ beforeAll(async () => {
     }
     // 测试侧重灌口(protected sync 的公开面;直写引擎后调)。
     resync(): void {
+      this.decisionPoint = String(++this.decisionNumber);
       const current = this.e.pendingReaction;
       if (current != null) {
         this.observeReactionTiming(

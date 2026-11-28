@@ -5,24 +5,54 @@
 // 单机客户端和联机服务器共用。只导入包内的引擎和房间类型。
 //
 // 契约:
-// - 上行(InboundMsg)三族:cmd / pickCapital / autoPilot。dispatchInbound 一次完成
+// - 上行包括带决策点的玩家提交、普通游戏命令、选都和托管。dispatchInbound 一次完成
 //   解析 + 分发,**错误回报是返回值的一部分**(InboundResult),任何失败都不抛出到
 //   传输层之外——传输面(adapter)只负责把失败送到各自通道:WS = error 消息下行,
 //   内存 = pushHint(结构性失败在内存面属自身 bug,adapter 自行抛出,零兜底)。
 // - 下行(ServerMsg):lobby / snapshot / gameLog 由 seat-projection 装配,
-//   events / commandResult / dismissed / error 由本模块封装。redaction 归属在 seat-projection。
+//   events / commandResult / submissionResult / dismissed / error 由本模块封装。redaction 归属在 seat-projection。
 // - 穷尽纪律:dispatch 对 InboundMsg 穷尽 switch(新增消息类型漏分支 = 编译红,
 //   default 收 never),与 seat-projection redactEvents 同机器。
 import type { GameCommand } from "../engine/authority";
 import type { GameEvent } from "../engine/game-events";
 import type { LogEvent } from "../engine/model";
-import type { GameSnapshot } from "../engine/snapshot";
-import type { LobbyView } from "../room/seat-projection";
+import type { LobbyView, SeatSnapshot } from "../room/seat-projection";
+
+/** 一次玩家提交始终携带首次操作时的座位和决策点。requestId 仅用于单次传输诊断。 */
+export interface PlayerSubmission {
+  roomId: string;
+  seat: number;
+  submissionId: string;
+  decisionPoint: string;
+  cmd: Extract<GameCommand, { type: "useJinnang" | "respondReaction" }>;
+}
+
+/** 没有公开日志行的操作仍有受理回执。 */
+type AcceptedCommand = { outcome: "accepted" } | { outcome: "accepted"; logOffset: number };
+
+export type PlayerSubmissionResult = AcceptedCommand | { outcome: "rejected"; reason: string };
+
+export type SubmissionResultMsg = {
+  type: "submissionResult";
+  submissionId: string;
+  requestId?: number;
+} & PlayerSubmissionResult;
+
+export function requiresPlayerSubmission(
+  cmd: GameCommand,
+  pendingCardId: string | null,
+): cmd is PlayerSubmission["cmd"] {
+  return (
+    cmd.type === "respondReaction" ||
+    (cmd.type === "useJinnang" && (cmd.cardId === "连环计" || pendingCardId === "连环计"))
+  );
+}
 
 // ──────────────────────────── 上行:union + 编码 ────────────────────────────
 /** 上行消息(线上形状):autoPilot 只载开关(#580 速度分档已删,无归一)。 */
 export type InboundMsg = (
   | { type: "cmd"; cmd: GameCommand }
+  | { type: "submit"; submission: PlayerSubmission }
   | { type: "pickCapital"; tileIndex: number }
   | { type: "autoPilot"; on: boolean }
 ) & { requestId?: number };
@@ -30,6 +60,9 @@ export type InboundMsg = (
 /** 上行编码(客户端发送端单源;手写判别字面量 = 双写复辟)。 */
 export function cmdMsg(cmd: GameCommand, requestId?: number): string {
   return JSON.stringify({ type: "cmd" as const, cmd, requestId });
+}
+export function submissionMsg(submission: PlayerSubmission, requestId?: number): string {
+  return JSON.stringify({ type: "submit", submission, requestId });
 }
 export function pickCapitalMsg(tileIndex: number, requestId?: number): string {
   return JSON.stringify({ type: "pickCapital" as const, tileIndex, requestId });
@@ -39,11 +72,12 @@ export function autoPilotMsg(on: boolean, requestId?: number): string {
 }
 
 // ──────────────────────────── 下行:union + 构造 ────────────────────────────
-/** 事件批消息(#390 唯一对局状态通路;词汇表见 core/game-events.ts)。 */
+/** 事件批携带本席的操作权。只有授权变化时，events 可以为空。 */
 export interface EventBatchMsg {
   type: "events";
   events: GameEvent[];
   reactionTiming?: ReactionTiming;
+  decisionPoint: string | null;
 }
 
 /** 传输时刻的剩余时长，按权威窗号绑定。 */
@@ -52,7 +86,7 @@ export interface ReactionTiming {
   remainingMs: number;
 }
 
-/** 对局诊断的权威日志尾段。offset 是首行在同局完整日志中的零基下标。 */
+/** 对局诊断的公开日志尾段。offset 是首行在同局公开日志中的零基下标。 */
 export interface GameLogMsg {
   type: "gameLog";
   gameId: string;
@@ -63,7 +97,7 @@ export interface GameLogMsg {
 
 /** 权威处理编号命令的诊断回执。明确拒绝沿带编号的 error 下行。 */
 export type CommandProcessing =
-  | { outcome: "accepted"; logOffset: number }
+  | AcceptedCommand
   | { outcome: "warning"; logOffset: number; reason: string }
   | { outcome: "unprocessed"; reason: string };
 
@@ -81,12 +115,13 @@ export interface WireRoomFields {
   seats: LobbyView["seats"];
 }
 
-/** snapshot 消息 = 房间字段 + 引擎快照展开(快照无同名键,见 seat-projection clientView)。 */
+/** 开局摘要含房间字段和接收座位可见的局面。 */
 export type SnapshotMsg = {
   type: "snapshot";
   reactionTiming?: ReactionTiming;
+  decisionPoint: string | null;
 } & WireRoomFields &
-  GameSnapshot;
+  SeatSnapshot;
 
 /** 下行消息 union(线上形状单源;客户端 online.ts/local.ts 从此 import)。 */
 export type ServerMsg =
@@ -95,15 +130,20 @@ export type ServerMsg =
   | EventBatchMsg
   | GameLogMsg
   | CommandResultMsg
+  | SubmissionResultMsg
   | { type: "dismissed"; roomId: string }
   | { type: "error"; error: string; requestId?: number };
 
 /** 事件批消息构造(flush 下行;per-seat 脱敏在装配单口 assembleDownlinkShot 内部
  *  完成——#431 起 redaction 是装配必经步,本构造函数只管已装配批的封装)。 */
-export function eventsMsg(events: GameEvent[], reactionTiming?: ReactionTiming): string {
-  return encodeDownlink({ type: "events", events, reactionTiming });
+export function eventsMsg(
+  events: GameEvent[],
+  reactionTiming?: ReactionTiming,
+  decisionPoint: string | null = null,
+): string {
+  return encodeDownlink({ type: "events", events, reactionTiming, decisionPoint });
 }
-/** 错误回报回传请求号，客户端据此释放对应的在途操作。 */
+/** 错误回报可按请求号配对。玩家提交的权威结果由 submissionResult 确认。 */
 export function errorMsg(error: string, requestId?: number): string {
   return encodeDownlink({ type: "error", error, requestId });
 }
@@ -121,6 +161,7 @@ export function encodeDownlink(msg: ServerMsg): string {
  *  RoomRegistry 公共入口在两侧是同一份,差异只在绑定参数)。 */
 export interface InboundOps {
   cmd(cmd: GameCommand, report?: ReportCommandProcessing): Promise<unknown> | unknown;
+  submit?(submission: PlayerSubmission): Promise<PlayerSubmissionResult>;
   pickCapital(tileIndex: number, report?: ReportCommandProcessing): Promise<unknown> | unknown;
   setAutoPilot(on: boolean, report?: ReportCommandProcessing): Promise<unknown> | unknown;
 }
@@ -140,6 +181,43 @@ export type InboundResult =
 /** unknownShape 缺省文案(对局已开时的期望形状引导;原 server.ts else 分支同款)。 */
 const UNKNOWN_SHAPE_TEXT = "expected {type:'cmd',cmd:...}";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isPlayerSubmission(value: unknown): value is PlayerSubmission {
+  if (!isRecord(value) || !isRecord(value.cmd)) return false;
+  const { roomId, seat, submissionId, decisionPoint, cmd } = value;
+  if (
+    typeof roomId !== "string" ||
+    !roomId ||
+    !Number.isSafeInteger(seat) ||
+    typeof submissionId !== "string" ||
+    !submissionId ||
+    typeof decisionPoint !== "string" ||
+    !decisionPoint
+  )
+    return false;
+  if (cmd.type === "useJinnang")
+    return (
+      (cmd.cardId === null || typeof cmd.cardId === "string") &&
+      (cmd.targets === undefined ||
+        (Array.isArray(cmd.targets) && cmd.targets.every(Number.isSafeInteger))) &&
+      (cmd.cancel === undefined || typeof cmd.cancel === "boolean") &&
+      (cmd.back === undefined || typeof cmd.back === "boolean")
+    );
+  return (
+    cmd.type === "respondReaction" &&
+    Number.isSafeInteger(cmd.seat) &&
+    typeof cmd.use === "boolean" &&
+    (cmd.cardId === undefined || typeof cmd.cardId === "string") &&
+    (cmd.target === undefined ||
+      (isRecord(cmd.target) &&
+        (cmd.target.kind === "city" || cmd.target.kind === "seat") &&
+        Number.isSafeInteger(cmd.target.id)))
+  );
+}
+
 /** 线上形状 → InboundMsg(逐族校验与归一;不匹配返回 null)。 */
 function parseInboundMsg(m: unknown): InboundMsg | null {
   if (typeof m !== "object" || m === null) return null;
@@ -152,6 +230,9 @@ function parseInboundMsg(m: unknown): InboundMsg | null {
     return null;
   if (r.type === "cmd" && r.cmd) {
     return { type: "cmd", cmd: r.cmd as GameCommand, requestId };
+  }
+  if (r.type === "submit" && isPlayerSubmission(r.submission)) {
+    return { type: "submit", submission: r.submission, requestId };
   }
   if (r.type === "pickCapital" && typeof r.tileIndex === "number") {
     return { type: "pickCapital", tileIndex: r.tileIndex, requestId };
@@ -198,6 +279,19 @@ export async function dispatchInbound(
       : undefined;
   try {
     switch (msg.type) {
+      case "submit": {
+        if (!ops.submit || !sendCommandResult) throw new Error("此连接缺少玩家提交或回执通道");
+        const outcome = await ops.submit(msg.submission);
+        sendCommandResult(
+          encodeDownlink({
+            type: "submissionResult",
+            submissionId: msg.submission.submissionId,
+            requestId,
+            ...outcome,
+          }),
+        );
+        break;
+      }
       case "cmd":
         await ops.cmd(msg.cmd, report);
         break;

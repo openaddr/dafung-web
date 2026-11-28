@@ -23,7 +23,7 @@
 // 种植件——种植只负责被测环之前的布置。再缺能力=补种植件(op 联合加 kind),force
 // 不复活(#1303 收口退役)。
 import type { EnginePhase, GameEngine, TurnPhase, VictoryReason } from "./authority";
-import { DEFAULT_DIE_FACES } from "./dice";
+import { pinDiceValues, type DiceChannel } from "./dice";
 import { createPropertyHolding, resetToFull } from "./defense";
 import { heroById } from "./heroes";
 import { jinnangCardOf } from "./jinnang";
@@ -167,7 +167,7 @@ export interface ArmReactionOp {
 
 /** 钉骰子通道(#1302):行程骰(march=dice.roll,rollAndMove 消费)或拼点骰
  *  (duel=dice.rollDie,拼点结算消费)——两注入口互不串队(判词见 pinDice)。 */
-export type PinDiceChannel = "march" | "duel";
+export type PinDiceChannel = DiceChannel;
 
 /** 钉骰子指令(测试替身):channel 注入口接下来 values.length 次掷骰依序取
  *  values(判词见 pinDice 函数头注)。 */
@@ -546,38 +546,7 @@ export function armReaction(e: GameEngine, view: ReactionView, payload: Reaction
  *  响亮炸点名**(#1390):替身消费时按引擎传入的本次掷骰面数(单源 skills.heroDieFaces)
  *  复核,7 仅持英姿(第七面)可达——无英姿者消费 7 即炸,凭空 7 不静默落账。 */
 export function pinDice(e: GameEngine, channel: PinDiceChannel, values: number[]): void {
-  if (values.length === 0) throw new Error("pinDice:空值队列(至少钉一个骰值)");
-  for (const v of values)
-    if (!Number.isInteger(v) || v < 1 || v > DEFAULT_DIE_FACES + 1)
-      throw new Error(
-        `pinDice:骰值 ${v} 出 1..${DEFAULT_DIE_FACES + 1} 契约(单骰 1–面数,面数单源 skills.heroDieFaces;7 仅持英姿可达)`,
-      );
-  const pinFace = (v: number, faces: number | undefined) => {
-    const f = faces ?? DEFAULT_DIE_FACES;
-    if (v > f)
-      throw new Error(
-        `pinDice:钉值 ${v} 超本次掷骰面数 ${f}(${channel} 通道;面数单源 skills.heroDieFaces——7 仅持英姿者可达,掷骰者面数 ${f} 即未持英姿)`,
-      );
-  };
-  if (channel === "march") {
-    const orig = e.dice.roll.bind(e.dice);
-    const queue = [...values];
-    e.dice.roll = (faces?: number) => {
-      const v = queue.shift()!;
-      if (queue.length === 0) e.dice.roll = orig; // 耗尽自还原(局部确定性)
-      pinFace(v, faces); // 消费点复核(#1390):钉值 ≤ 引擎传入的本次掷骰面数
-      return { die: v }; // 替身命中不触摸种子 rng
-    };
-    return;
-  }
-  const orig = e.dice.rollDie.bind(e.dice);
-  const queue = [...values];
-  e.dice.rollDie = (faces?: number) => {
-    const v = queue.shift()!;
-    if (queue.length === 0) e.dice.rollDie = orig;
-    pinFace(v, faces); // 消费点复核(#1390):同 march 口径
-    return v;
-  };
+  pinDiceValues(e.dice, channel, values);
 }
 
 /** 【判词(injectWarLog 一处,确定性族 #1302)】战报注入=合成行直种:对局日志是

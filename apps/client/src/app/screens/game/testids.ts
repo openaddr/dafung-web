@@ -139,6 +139,9 @@ export const TESTIDS = {
   seatOverview: (seat: number) => `seat-overview-${seat}` as const,
   /** 目标段席位按钮(含自机);首点选中、再点取消,打出经动作条确认。 */
   seatTarget: (seat: number) => `seat-target-${seat}` as const,
+  /** 沙盘上对应已高亮棋子的目标按钮。 */
+  pawnTarget: (playerId: string) => `pawn-target-${playerId}` as const,
+  pawnTargetRing: (playerId: string) => `pawn-target-ring-${playerId}` as const,
   /** 目标城的 Tile 根挂 data-city-target;同格再点取消、点他格改选,确认/作罢走动作条。 */
   cityTarget: (tileIndex: number) => `[data-tile="${tileIndex}"][data-city-target]`,
   city: (tileIndex: number) => `[data-tile="${tileIndex}"]`,

@@ -6,19 +6,15 @@
 // gameStore.snapshot 驱动渲染,useCapitalPick 持有选都/详情流程,棋盘取景恒为地图总览。
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BoardView } from "@app/components/board/BoardView";
-import {
-  useGameStore,
-  useLocalPlayer,
-  useStablePlayers,
-  type GameSnapshot,
-} from "@app/store/gameStore";
-import { useNetStore, useAutopilotOn } from "@app/store/netStore";
+import { useGameStore, useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
+import { useNetStore } from "@app/store/netStore";
 import { getController, getControllerContext } from "@app/controllers/registry";
 import type { GameController } from "@app/controllers/controller";
 import { returnHome } from "@app/screens/shared/return-home";
 import { OnlineController } from "@app/controllers/online";
 import type { Board } from "@dafung/core/engine/board";
 import type { GameCommand } from "@dafung/core/engine/authority";
+import type { SeatIntent, SeatInteractionView } from "@dafung/core/protocol/seat-interaction";
 import { skillBookLearners } from "@dafung/core/engine/roster";
 import { skillById } from "@dafung/core/engine/skills";
 import { isSkillBook } from "@dafung/core/engine/treasures";
@@ -44,9 +40,9 @@ import { WarlordsOverview } from "./WarlordsOverview";
 import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
-import { useJinnangPlay } from "./jinnang-play";
+import { jinnangPlay } from "./jinnang-play";
 import { turnScope, useReactionPlay } from "./reaction-play";
-import { useTargetSelection } from "./target-selection";
+import { useReactionTargets } from "./target-selection";
 import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
@@ -76,11 +72,11 @@ type GameEntryProps = {
 };
 
 export function GameScreen({ preparing, onFirstPaint }: GameEntryProps = {}) {
-  const snapshot = useGameStore((s) => s.snapshot);
+  const seatView = useGameStore((s) => s.seatView);
   const controller = getController();
   // 静态上下文由 registry 提供,门卫确认快照与地图均已就位。
   const context = getControllerContext();
-  if (!snapshot || !context || !controller) {
+  if (!seatView || seatView.seat < 0 || !context || !controller) {
     // 数据缺失时显式展示返回入口;GameScreenLive 就位后才挂载,两分支不共享 hooks。
     const back = useGameStore.getState().setScreen;
     return (
@@ -102,8 +98,8 @@ export function GameScreen({ preparing, onFirstPaint }: GameEntryProps = {}) {
   }
   return (
     <GameScreenLive
-      key={snapshot.gameId}
-      snapshot={snapshot}
+      key={seatView.snapshot.gameId}
+      seatView={seatView}
       board={context.board}
       controller={controller}
       preparing={preparing}
@@ -162,22 +158,20 @@ function RotateHintOverlay() {
 
 /** 已开局主体;快照与静态地图由 GameScreen 门卫注入,所有对局 hooks 在此挂载。 */
 function GameScreenLive({
-  snapshot,
+  seatView,
   board,
   controller,
   preparing,
   onFirstPaint,
 }: GameEntryProps & {
-  snapshot: GameSnapshot;
+  seatView: SeatInteractionView<GameSnapshot>;
   board: Board;
   controller: GameController;
 }) {
-  const interactive = useGameStore((s) => s.interactive);
-  const reactionDeadlineAt = useGameStore((s) => s.reactionDeadlineAt);
+  const { snapshot, interactive, seat: viewSeat, autopilotOn, ownsJinnangPhase } = seatView;
   // 本座位动作在途(「行军中…」提示源):与 interactive 同拍由控制器写入,
   // WaitingBar 与按钮同源消费——亮一起亮、灰一起灰。
   const selfPresenting = useGameStore((s) => s.selfPresenting);
-  const viewSeat = useGameStore((s) => s.viewSeat);
   const hint = useGameStore((s) => s.hint);
   const hintLevel = useGameStore((s) => s.hintLevel);
   useEffect(() => {
@@ -185,16 +179,13 @@ function GameScreenLive({
     document.addEventListener("visibilitychange", discardPresentation);
     return () => document.removeEventListener("visibilitychange", discardPresentation);
   }, [controller]);
-  const localPlayer = useLocalPlayer();
   // 联机态最小订阅:对局屏消费面仅「是否联机」——selector 收窄成
   // 布尔(zustand 按 Object.is 比对),联机每条事件批(座位广播/重连进度/
   // eventBatchSeq 递增)不再触发整屏重渲。
   const online = useNetStore((s) => s.roomId !== "");
   // 断线横幅与知会槽/hint/选都提示共用顶中区域,--conn-h 统一下发让位偏移。
   const connDown = useConnDown();
-  // 自局身份须稳定:单机 viewSeat 随决策方轮转,真人固定座位 0;联机取本座。
-  // 席位格、手牌架与藏品钮均使用此身份,不跟随 bot 决策视角。
-  const selfSeat = online ? viewSeat : 0;
+  const selfSeat = viewSeat;
   // 内容不变时复用玩家引用,供棋盘宿主与手牌/藏品组件 memo;BoardView 只读其结构子集。
   const players = useStablePlayers(snapshot.players);
   // 挂载时已入座;座位缺位表示快照与座位表不一致,直取使接线错误暴露。
@@ -211,9 +202,6 @@ function GameScreenLive({
   }, [peeking]);
   const closeWarlords = useCallback(() => setWarlordsOpen(false), []);
   const closeWarlordsInspection = useCallback(() => setWarlordsInspection(false), []);
-  // 托管态单源取值收口 useAutopilotOn(netStore):联机已入座=座位广播,单机=控制器本地
-  // 标记(托管以在座为前提,未入座恒 false)。
-  const autopilotOn = useAutopilotOn(controller);
   const parkedDecision =
     decisionKey !== null && dialogPeek.decision === decisionKey && !autopilotOn;
   // 行军接管的棋子:fxStore.marching → BoardView.skipTokenIds,
@@ -251,13 +239,11 @@ function GameScreenLive({
     (cmd: GameCommand) => controller.dispatchCommand(cmd),
     [controller],
   );
-  const { ownsPhase: ownsJinnangPhase, window: jinnang } = useJinnangPlay({
-    snapshot,
-    seat: selfSeat,
-    autopilotOn,
-    interactive,
-    dispatchCommand,
-  });
+  const act = useCallback(
+    (intent: SeatIntent) => controller.dispatchIntent(intent, seatView.decisionPoint),
+    [controller, seatView.decisionPoint],
+  );
+  const jinnang = jinnangPlay(seatView, act);
   const {
     identity: reactionIdentity,
     scope: reactionScope,
@@ -268,21 +254,29 @@ function GameScreenLive({
     seat: selfSeat,
     board,
     autopilotOn,
-    interactive,
-    deadlineAt: reactionDeadlineAt,
-    dispatchCommand,
+    choices: seatView.reaction,
+    respond: act,
   });
-  const targetStep = reaction?.targetStep ?? jinnang?.targetStep ?? null;
-  const targets = useTargetSelection(targetStep, interactive);
+  const reactionTargets = useReactionTargets(
+    reaction?.targetStep ?? null,
+    seatView.reaction?.canRespond === true,
+  );
+  const jinnangTargets = jinnang?.targetStep ?? null;
+  const targetStep = jinnangTargets ?? reaction?.targetStep ?? null;
+  const targets = jinnangTargets ?? reactionTargets;
+  const pickTarget = (id: number) => {
+    if (jinnangTargets !== null) act({ type: "toggleTarget", id });
+    else reactionTargets.toggle(id);
+  };
   const cityTargeting = targetStep?.domain === "city";
   const seatTargeting = targetStep?.domain === "seat";
-  const showSeatReason = useCallback(
-    (seat: number, reason: string) => targets.reportUnavailable(players[seat].guohao, reason),
-    [targets.reportUnavailable, players],
-  );
+  const showSeatReason = (seat: number, reason: string) => {
+    if (jinnangTargets !== null) pickTarget(seat);
+    else reactionTargets.reportUnavailable(players[seat].guohao, reason);
+  };
   const handleTileClick = (tileIndex: number) => {
     if (cityTargeting && !peeking) {
-      targets.toggle(tileIndex);
+      pickTarget(tileIndex);
       return;
     }
     onTileClick(tileIndex);
@@ -466,9 +460,9 @@ function GameScreenLive({
     return `「${cur.guohao}」正在定都(尚余 ${pending} 人)…`;
   })();
 
-  const jinnangAction = !peeking && jinnang != null ? jinnang.actionFor(targets) : null;
+  const jinnangAction = !peeking && jinnang != null ? jinnang.action : null;
   const jinnangActionCollapsed = rackHidden && jinnang?.targetStep === null;
-  const reactionAction = !peeking && reaction != null ? reaction.actionFor(targets) : null;
+  const reactionAction = !peeking && reaction != null ? reaction.actionFor(reactionTargets) : null;
   const showReactionAction = reactionAction != null;
   const decisionScrollInteractive = interactive && !peeking;
   const diagnosticCapital = diagnosticControl(
@@ -553,7 +547,7 @@ function GameScreenLive({
             players={players}
             onFirstPaint={onFirstPaint}
             /* 视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
-            viewSeat={localPlayer.id}
+            viewSeat={selfPlayer.id}
             /* 点格相位路由(Playing 详情 / Setup 选都 / 灰城 hint)在 useCapitalPick;
                城目标段在窗时改选格路由
                (候选格=选格,handleTileClick) */
@@ -569,10 +563,14 @@ function GameScreenLive({
             cityPickedTileIndex={cityTargeting && !peeking ? (targets.selected[0] ?? null) : null}
             /* 候选集全座位透传——非决策席也见静态金圈与壹贰叁序号印 */
             candidateTiles={offeredCapitals ?? undefined}
-            /* 目标段:可用候选席位的棋子金虚线环呼吸(与席位格金圈同步) */
-            targetedPlayerIds={
+            pawnTargets={
               seatTargeting && !peeking
-                ? new Set(targets.available.map((option) => players[option.id].id))
+                ? {
+                    available: new Set(targets.available.map((option) => players[option.id].id)),
+                    selected: new Set(targets.selected.map((seat) => players[seat].id)),
+                    locked: !interactive,
+                    onPick: (id) => pickTarget(players.findIndex((player) => player.id === id)),
+                  }
                 : undefined
             }
             activeTileIndex={
@@ -678,12 +676,13 @@ function GameScreenLive({
               ? {
                   bySeat: new Map(
                     players.map((_, seat) => {
-                      const { candidate, firstPick, selected } = targets.candidateState(seat);
+                      const candidate = targetStep.candidates.find((choice) => choice.id === seat);
+                      const firstPick = targetStep.firstSeat?.id === seat;
                       return [
                         seat,
                         {
                           available: candidate?.available === true,
-                          selected,
+                          selected: firstPick || targets.selected.includes(seat),
                           reason: firstPick
                             ? "已选为第一位，点「上一步」可更改"
                             : candidate == null
@@ -694,7 +693,7 @@ function GameScreenLive({
                     }),
                   ),
                   locked: !interactive,
-                  onPick: targets.toggle,
+                  onPick: pickTarget,
                   onUnavailable: showSeatReason,
                 }
               : undefined
@@ -800,7 +799,7 @@ function GameScreenLive({
             key={reactionScope}
             {...reactionAction}
             rackHidden={rackHidden}
-            locked={!interactive}
+            locked={seatView.reaction?.canRespond !== true}
             onLockChange={preparing ? undefined : onReactionLockChange}
           />
         )}

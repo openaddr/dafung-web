@@ -16,12 +16,13 @@ import {
   LOG_WARNING_PREFIX,
   type LogEvent,
 } from "../engine/model";
-import type { ReactionView } from "../engine/reaction-window";
+import type { PendingReaction, ReactionView } from "../engine/reaction-window";
 import type { GameEvent } from "../engine/game-events";
 import { EVENT_TIERS, type EventKind } from "../engine/event-tiers";
 import { HEROES } from "../engine/heroes";
 import { SKILLS } from "../engine/skills";
 import { createTreasureDeck, SKILL_BOOK_ID_PREFIX } from "../engine/treasures";
+import { seatDecisionPointOf } from "./player-submissions";
 import { reactionTimingOf } from "./reaction-deadline";
 import type { RoomSession } from "./room";
 // 下行封装构造收口 wire.ts(#429):装配口只管形状与裁剪,序列化不另起炉灶。
@@ -84,6 +85,28 @@ function redactReactionView(v: ReactionView, seat: number): ReactionView {
   return { ...v, queriedBySeat: v.queriedBySeat.map((s) => (s === seat ? seat : ANON_SEAT)) };
 }
 
+/** 座位摘要保留反应窗公告与应答进度，骰流和闭窗续结算只存于权威快照。 */
+export type SeatSnapshot = Omit<GameSnapshot, "rngState" | "pendingReaction"> & {
+  pendingReaction: Omit<PendingReaction, "payload"> | null;
+};
+
+/** 应答者可回读自己的选份，其他座位只见公告与应答进度。 */
+export function projectSeatReaction(
+  pending: SeatSnapshot["pendingReaction"],
+  seat: number,
+): SeatSnapshot["pendingReaction"] {
+  if (pending === null) return null;
+  return {
+    seq: pending.seq,
+    view: redactReactionView(pending.view, seat),
+    answers: pending.answers.map((answer) => {
+      if (answer.seat === seat) return answer;
+      const { target: _target, ...announced } = answer;
+      return announced;
+    }),
+  };
+}
+
 type LoggedCommand = GameCommand | { type: "pickCapital"; seat: number; tileIndex: number };
 
 const TREASURE_IDS = new Set(createTreasureDeck().map(({ id }) => id));
@@ -109,7 +132,7 @@ function logTreasureId(value: unknown): string | undefined {
 }
 
 /** 权威记录含上行原文。下行只保留各命令声明的公开字段。 */
-function projectLogCommand(cmd: LoggedCommand): Record<string, unknown> {
+function projectLogCommand(cmd: LoggedCommand): Record<string, unknown> | null {
   const { type } = cmd;
   switch (cmd.type) {
     case "rollAndMove":
@@ -150,21 +173,10 @@ function projectLogCommand(cmd: LoggedCommand): Record<string, unknown> {
           : undefined,
       };
     case "useJinnang":
-      return {
-        type,
-        cardId: cmd.cardId === null ? null : undefined,
-        cancel: cmd.cancel === true ? true : undefined,
-      };
+      // 选牌、选目标与结算走同一命令。公开面只记出牌公告和玩法结果。
+      return null;
     case "useHeroSkill":
-      return {
-        type,
-        heroId: logCatalogId(cmd.heroId, HEROES),
-        skillId: logCatalogId(cmd.skillId, SKILLS),
-        targets: Array.isArray(cmd.targets)
-          ? cmd.targets.filter((target) => logNumber(target) !== undefined)
-          : undefined,
-        cancel: typeof cmd.cancel === "boolean" ? cmd.cancel : undefined,
-      };
+      return { type, cancel: cmd.cancel === true ? true : undefined };
     case "useBookSkill":
       return {
         type,
@@ -180,7 +192,6 @@ function projectLogCommand(cmd: LoggedCommand): Record<string, unknown> {
         type,
         seat: logNumber(cmd.seat),
         use: typeof cmd.use === "boolean" ? cmd.use : undefined,
-        targetSeat: logNumber(cmd.targetSeat),
       };
     default: {
       void (cmd satisfies never);
@@ -199,23 +210,36 @@ export function publicLogWarningReason({ warning }: LogEvent): string {
   return "对局产生警告";
 }
 
-/** 座位快照与日志尾段共用一行一行的投影，保持游标与权威日志行序一致。 */
-function projectGameLogLine(line: LogEvent): LogEvent {
+/** 座位摘要、日志尾段和回执共用公开日志行序。 */
+function projectGameLogLine(line: LogEvent): LogEvent | null {
+  if (line.category === "header") {
+    const { seed: _seed, ...publicHeader } = JSON.parse(line.detail) as Record<string, unknown>;
+    return { ...line, detail: JSON.stringify(publicHeader) };
+  }
   if (line.category === "cmd") {
     const cmd = JSON.parse(line.detail) as LoggedCommand;
-    const detail = JSON.stringify(projectLogCommand(cmd));
+    const projected = projectLogCommand(cmd);
+    if (projected === null) return null;
+    const detail = JSON.stringify(projected);
     return cmd.type === "respondReaction"
       ? { ...line, player: null, brief: "提交反应命令", detail }
       : { ...line, detail };
   }
+  if (line.category === "setup" && line.detail.startsWith("offerHeroes ")) {
+    return { ...line, detail: line.detail.split(" heroes=")[0] };
+  }
   if (line.category !== "system") return line;
-  if (line.detail.startsWith("jinnangCancel ")) {
-    return { ...line, brief: `${line.player} 作罢锦囊`, detail: line.detail.split(" card=")[0] };
+  if (line.detail.startsWith("jinnangCancel ")) return null;
+  if (line.detail.startsWith("heroSkillCancel ")) {
+    return { ...line, brief: `${line.player} 作罢主动技`, detail: line.detail.split(" skill=")[0] };
   }
   if (line.detail.startsWith("reactionWindow kind=jinnang ")) {
     const [announcement, queried] = line.detail.split(" queried=");
     const count = queried === "" ? 0 : queried.split("+").length;
     return { ...line, detail: `${announcement} queriedCount=${count}` };
+  }
+  if (line.detail.startsWith("reactionRespond ") && line.detail.includes(" use=1 ")) {
+    return { ...line, detail: line.detail.split(" share=")[0] };
   }
   if (isLogWarning(line)) {
     const reason = `${publicLogWarningReason(line)}，原文见服务器日志`;
@@ -225,67 +249,80 @@ function projectGameLogLine(line: LogEvent): LogEvent {
   return line;
 }
 
+export function projectGameLog(
+  log: readonly LogEvent[],
+  rawOffset = 0,
+  end = log.length,
+): LogEvent[] {
+  return log.slice(rawOffset, end).flatMap((line) => projectGameLogLine(line) ?? []);
+}
+
+/** 权威行游标只在宿主内使用。协议、客户端归档和回执按公开行计数。 */
+export interface GameLogCursor {
+  rawOffset: number;
+  publicOffset: number;
+}
+
+export const INITIAL_GAME_LOG_CURSOR: GameLogCursor = { rawOffset: 0, publicOffset: 0 };
+
 export function assembleGameLogDelta(
   engine: GameEngine,
-  offset: number,
+  cursor: GameLogCursor,
   capturedAt: number,
-): GameLogMsg | null {
-  const { log } = engine;
-  if (offset > log.length) throw new Error(`对局 ${engine.gameId} 的日志游标越过末行:${offset}`);
-  if (offset === log.length) return null;
+): { next: GameLogCursor; message: GameLogMsg | null } {
+  const { log, gameId } = engine;
+  const { rawOffset, publicOffset } = cursor;
+  if (rawOffset > log.length) throw new Error(`对局 ${gameId} 的日志游标越过末行:${rawOffset}`);
+  if (rawOffset === log.length) return { next: cursor, message: null };
+  const lines = projectGameLog(log, rawOffset);
   return {
-    type: "gameLog",
-    gameId: engine.gameId,
-    offset,
-    lines: log.slice(offset).map(projectGameLogLine),
-    capturedAt,
+    next: { rawOffset: log.length, publicOffset: publicOffset + lines.length },
+    message:
+      lines.length === 0
+        ? null
+        : { type: "gameLog", gameId, offset: publicOffset, lines, capturedAt },
   };
 }
 
-/** 锦囊暗牌投影(ADR-0016):god-view 快照按「接收座位」裁剪。白名单三档——
- *  public 原样 / count-only 只给数量 / private 只发本人:
- *  - 他人锦囊手牌 → count-only(清空内容 + jinnangHandCount 数量);窥探(#575 即时
- *    一次性)不再有快照放行——阅览权随 peekApplied 事件走(redactEvents 逐座位裁);
- *  - 锦囊牌库牌序 → count-only(牌序决定未来抽牌,泄了等于开了天眼;只留剩余数);
- *  - 对局日志 → 公开玩法记录原样可见,未宣布的出牌载荷和询问身份经日志投影裁剪;
- *  - 反应窗询问集(#281)→ per-seat private(挂起态 pendingReaction.view 与公开派生
- *    载荷 reaction 两处同裁;应答记录不裁——引擎侧本就逐条公开记入战报);
- *  - 其余(银两/城池/珍宝/弃牌堆…)全部 public 原样——明置信息不裁。
- *  纯函数:不改输入;单测直测(redact 缝,ADR-0016 的落点)。 */
-export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapshot {
+/** 座位可见性按 ADR-0016、ADR-0076 投影。公开面包括城池、在手珍宝、锦囊弃堆和手牌张数。
+ *  决策者可见本步选项、已定目标及招贤候选。窥探牌面仅经当次事件交付。
+ *  反应公告隐藏他人的询问身份，已应答座位与出牌公开，已选份供应答者本人回读。
+ *  副本再发布时传入已投影的战报，保留原文及游标。 */
+export function redactSnapshotForSeat(
+  s: GameSnapshot | (SeatSnapshot & { rngState?: never }),
+  seat: number,
+  logSource: "authority" | "seat" = "authority",
+): SeatSnapshot {
+  const { rngState: _rngState, ...snapshot } = s;
+  const ownsDecision = s.decisionOwner === seat;
+  const log = logSource === "authority" ? projectGameLog(s.log) : s.log;
   const players = s.players.map((p, i) => {
     // 数量走引擎态 jinnangHandCount(公开信息),此处只裁内容
     if (i === seat) return p;
     return { ...p, jinnangHand: [] };
   });
   return {
-    ...s,
+    ...snapshot,
     players,
+    choices: ownsDecision ? s.choices : [],
+    pendingJinnang: ownsDecision ? s.pendingJinnang : null,
+    pendingSkill: ownsDecision ? s.pendingSkill : null,
+    offeredHeroes: ownsDecision ? s.offeredHeroes : [],
+    treasureDeck: [],
     jinnangDeck: [], // 牌序只裁不给;剩余数走引擎态 jinnangDeckCount
-    // 反应窗询问集(#281;#461 起与 redactEvents 同口径=身份匿名、数量保留,见
-    // redactReactionView 头注):挂起态(god-view)与公开载荷两处都按座位投影——
-    // 客户端 restoreFromSnapshot 靠裁剪后的挂起态重建 AwaitingReaction,公开载荷
-    // 随之派生;查询集数量是折叠器闭窗算术的分母,水合覆盖不得使其缩水。
-    pendingReaction:
-      s.pendingReaction != null
-        ? { ...s.pendingReaction, view: redactReactionView(s.pendingReaction.view, seat) }
-        : s.pendingReaction,
+    pendingReaction: projectSeatReaction(s.pendingReaction, seat),
     reaction: s.reaction != null ? redactReactionView(s.reaction, seat) : s.reaction,
     pendingMoment: undefined, // 续作只由权威驱动，客户端消费公开的技能选择事件。
     pendingExtraTurn: undefined, // 客户端按回合事件推进。
     fireWallSeq: undefined, // 分配编号由权威端负责，客户端读城损和归账事件中的编号。
-    events: redactEvents(s.events, seat),
-    log: s.log.map(projectGameLogLine),
+    events: redactEvents(s.events, seat, "snapshot"),
+    log,
+    logCount: log.length,
   };
 }
 
-/** clientView:snapshot 态把 engine.snapshot() 展开;Lobby 态退化为 lobbyView。
- *  snapshot 分支携带与 lobby 相同的房间字段(roomId/seatCount/host/started/mapId/seats)
- *  + 引擎快照展开(快照无同名键,不冲突)。
- *  seat(ADR-0016):接收方座位——传入即返回该座位的投影(锦囊暗牌/牌序已裁);
- *  缺省/null = god-view 全量(重放/调试/单测语义;#431 起生产 ws 下行一律经
- *  assembleDownlinkShot 装配,redaction 在装配内必经,直呼本函数不再出现在传输面)。 */
-export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: number | null) {
+/** 大厅返回房间字段，开局后同时附上接收座位可见的局面。 */
+export function clientView(r: RoomSession, onlineSeats: Set<number>, seat: number) {
   if (!r.engine) return lobbyView(r, onlineSeats);
   const base = {
     type: "snapshot" as const,
@@ -296,8 +333,9 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
     mapId: r.mapId,
     seats: seatMeta(r, onlineSeats),
   };
-  const snap = r.engine.snapshot();
-  return { ...base, ...(seat == null ? snap : redactSnapshotForSeat(snap, seat)) };
+  // 摘要是当前局面的锚点。最新一批事件只经事件通路交付。
+  const snapshot = { ...r.engine.snapshot(), events: [] };
+  return { ...base, ...redactSnapshotForSeat(snapshot, seat) };
 }
 
 // ──────────────────────────── 事件批逐座位过滤(#381,发送总口单点)────────────────────────────
@@ -323,13 +361,16 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *      是公开信息);
  *    · 锦囊族 jinnangReshuffled(座位+洗回张数:弃堆本明置、洗回张数公开,洗后牌序不外传——
  *      比 ADR-0016 保密口径只少不多)/
- *      jinnangAnnounced(出牌本就公开宣布)/jinnangVoided/jinnangRestored/jinnangInflicted/
+ *      jinnangVoided/jinnangRestored/jinnangInflicted/
  *      reactionAnswered(应答逐条公开记入战报——ADR-0016「应答记录不裁」,use=false
  *      无手牌信息,use=true 的牌已面明打出)/reactionFailed/
  *      duelResolved(#636/ADR-0030:拼点本就公开信息,座位/点数/胜者全员同见);
  *    · 体力与回合状态 staminaChanged/turnSkipped。
  *  - 裁剪:
  *    · jinnangDrawn 仅摸牌座位可见 cardIds，座位、张数和来源（含城格）公开。
+ *    · jinnangTargetStepChanged 仅交付操作座位。
+ *    · jinnangAnnounced 的牌面和目标公开，离手前的手牌位置仅发给出牌座位。
+ *    · reactionAnswered 仅给应答者本人回读其按份应答选择的对象。
  *    · reactionOpened 的 jinnang 窗——view.queriedBySeat 是 per-seat private 档(god-view
  *      全集 = 谁持识破诡计,#281/ADR-0016 同案)。裁剪口径=**身份匿名、数量保留**:
  *      接收座位在列保留自己座位,其余一律置换 ANON_SEAT。数量必须保留:折叠器
@@ -342,17 +383,33 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *      (viewerSeat)座位保留(窥探弹层的阅览权随事件走,快照无窥探放行),其余座位
  *      一律裁空。viewerSeat/targetSeat 本身公开(窥探动作公开:浮字/战报照记),裁的
  *      只是牌面内容;目标座位本人信息自己本就持有,零额外泄漏。 */
-export function redactEvents(batch: readonly GameEvent[], seat: number): GameEvent[] {
-  return batch.map((ev) => {
+export function redactEvents(
+  batch: readonly GameEvent[],
+  seat: number,
+  delivery: "events" | "snapshot" = "events",
+): GameEvent[] {
+  return batch.flatMap<GameEvent>((ev) => {
     switch (ev.kind) {
       case "reactionOpened":
         return { ...ev, view: redactReactionView(ev.view, seat) };
       case "peekApplied":
-        return ev.viewerSeat === seat ? ev : { ...ev, hand: [] }; // 仅窥方保留手牌内容
+        return delivery === "events" && ev.viewerSeat === seat ? ev : { ...ev, hand: [] };
       case "jinnangDrawn": {
         if (ev.seat === seat) return ev;
         const { cardIds: _cardIds, ...publicDraw } = ev;
         return publicDraw;
+      }
+      case "jinnangTargetStepChanged":
+        return ev.seat === seat ? ev : [];
+      case "jinnangAnnounced": {
+        if (ev.seat === seat) return ev;
+        const { handIndex: _handIndex, ...announcement } = ev;
+        return announcement;
+      }
+      case "reactionAnswered": {
+        if (ev.seat === seat || ev.target === undefined) return ev;
+        const { target: _target, ...answer } = ev;
+        return answer;
       }
       // ── 透传族(全桌公开,原样)──
       case "gameStarted":
@@ -396,9 +453,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "staminaChanged":
       case "turnSkipped":
       case "exhaustionResolved":
-      case "jinnangAnnounced":
       case "jinnangPhaseResumed":
-      case "reactionAnswered":
       case "reactionFailed":
       case "duelResolved": // 参与座位、点数与胜者均公开
       case "jinnangVoided":
@@ -417,62 +472,66 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
 }
 
 // ──────────────────────────── 单拍下行装配(#431,发送总口单点执行体)────────────────────────────
-/** 单拍下行装配(ADR-0020 决策 2「发送总口单点」的执行体,#431):两个传输面
- *  (server.ts flushRoom/open 摘要 + room.ts flushTransport/connectSeat 摘要)的
- *  逐座位下行只此一个装配口——①事件批消息 + ②整房摘要消息在此一次配齐、封装成
- *  线上 JSON,redaction 是装配必经步而非调用纪律:
- *  - viewerSeat 传座位 → 事件批过 redactEvents、摘要过 redactSnapshotForSeat(联机
- *    必裁;将来观战/回放类消费面复用本口,传座位默认拿裁剪流);
- *  - viewerSeat 传 null → 显式 god-view 退化(单机内存直连唯一合法取值:本机单真人
- *    无跨设备泄密面;泄漏面想不走裁剪必须先在签名上写出这个 null,「忘了裁」不存在)。
- *  withSnapshot:②是否随拍构造——联机校准判定为真才发(快照含全量 log,非校准
- *  flush 不白付 O(log) 序列化),单机恒发;①恒装配(空批自然产出 null)。
- *  装配只读房间状态及反应窗剩余时间；redactEvents 对未登记 kind 当场炸(编译期穷尽 switch
- *  + 运行期双保险,防遗漏机器见 test/online/downlink-assembly.test.ts)。
- *  返回型按 withSnapshot 收窄:要摘要必得摘要(true 恒 string),并给出实际发送的日志行数。 */
+interface DownlinkShot {
+  events: string | null;
+  decisionPoint: string | null;
+}
+
+/** 单机和联机按接收座位装配同一种 JSON 下行。事件批携带当次授权，首连、重连和校准
+ *  附上座位摘要；常规事件拍可跳过整份日志的序列化。日志游标按实际发送的行数计算。 */
 export function assembleDownlinkShot(
   r: RoomSession,
   onlineSeats: Set<number>,
-  viewerSeat: number | null,
+  viewerSeat: number,
   batch: readonly GameEvent[],
   withSnapshot: true,
-): { events: string | null; snapshot: string; logOffset: number };
+): DownlinkShot & { snapshot: string; logCursor: GameLogCursor };
 export function assembleDownlinkShot(
   r: RoomSession,
   onlineSeats: Set<number>,
-  viewerSeat: number | null,
+  viewerSeat: number,
   batch: readonly GameEvent[],
   withSnapshot: false,
-): { events: string | null; snapshot: null; logOffset: null };
+  previousDecisionPoint?: string | null,
+): DownlinkShot & { snapshot: null; logCursor: null };
 export function assembleDownlinkShot(
   r: RoomSession,
   onlineSeats: Set<number>,
-  viewerSeat: number | null,
+  viewerSeat: number,
   batch: readonly GameEvent[],
   withSnapshot: boolean,
-): { events: string | null; snapshot: string | null; logOffset: number | null } {
+  previousDecisionPoint?: string | null,
+): DownlinkShot & { snapshot: string | null; logCursor: GameLogCursor | null } {
   const e = r.engine;
   const view = e?.turnPhase === "AwaitingReaction" ? e.pendingReaction?.view : null;
   const reactionTiming =
     view != null &&
-    (viewerSeat == null ||
-      (view.kind === "march"
-        ? view.ownerSeat === viewerSeat
-        : view.queriedBySeat.includes(viewerSeat)))
+    (view.kind === "march"
+      ? view.ownerSeat === viewerSeat
+      : view.queriedBySeat.includes(viewerSeat))
       ? reactionTimingOf(r)
       : undefined;
+  const decisionPoint = seatDecisionPointOf(r, viewerSeat);
+  const visibleEvents = redactEvents(batch, viewerSeat);
+  // 房间元数据可单独改变本席的操作权，例如在原反应窗内收回托管。
+  const decisionChanged =
+    previousDecisionPoint !== undefined && decisionPoint !== previousDecisionPoint;
   const events =
-    batch.length > 0
-      ? eventsMsg(viewerSeat == null ? [...batch] : redactEvents(batch, viewerSeat), reactionTiming)
+    visibleEvents.length > 0 || decisionChanged
+      ? eventsMsg(visibleEvents, reactionTiming, decisionPoint)
       : null;
-  if (!withSnapshot) return { events, snapshot: null, logOffset: null };
+  if (!withSnapshot) return { events, decisionPoint, snapshot: null, logCursor: null };
   const snapshot = clientView(r, onlineSeats, viewerSeat);
   return {
     events,
+    decisionPoint,
     snapshot: encodeDownlink(
-      snapshot.type === "snapshot" ? { ...snapshot, reactionTiming } : snapshot,
+      snapshot.type === "snapshot" ? { ...snapshot, reactionTiming, decisionPoint } : snapshot,
     ),
-    logOffset: snapshot.type === "snapshot" ? snapshot.log.length : 0,
+    logCursor:
+      snapshot.type === "snapshot"
+        ? { rawOffset: e!.log.length, publicOffset: snapshot.log.length }
+        : INITIAL_GAME_LOG_CURSOR,
   };
 }
 
@@ -491,9 +550,21 @@ export const CALIBRATION_WINDOWS: ReadonlySet<TurnPhase> = new Set([
   "AwaitingHeroPick",
   "AwaitingBankruptcySettle",
 ]);
-/** 节点事件校准(#388):批内出现即全量。牌库洗牌两处:开局 finishSetup(buildJinnangDeck)
- *  随 gameStarted 批覆盖;中途弃牌堆洗回(jinnangReshuffled)随批触发全量——洗后牌序
- *  不经事件与折叠面(暗信息,ADR-0016),god-view 副本牌序靠校准节点对齐。
+/** 同一出牌窗内只有私有目标段推进时，由事件交付完整变更。 */
+export function isPrivateJinnangStepBatch(
+  previous: TurnPhase | null,
+  current: TurnPhase | null,
+  events: readonly GameEvent[],
+): boolean {
+  return (
+    previous === "AwaitingJinnang" &&
+    current === "AwaitingJinnang" &&
+    events.length > 0 &&
+    events.every((event) => event.kind === "jinnangTargetStepChanged")
+  );
+}
+
+/** 节点事件校准(#388):开局发牌、破产和中途洗回弃牌时，座位摘要校准可见牌面及数量。
  *  ReadonlySet<EventKind>:kind 改名 = 编译红(同上)。 */
 export const CALIBRATION_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
   "gameStarted",

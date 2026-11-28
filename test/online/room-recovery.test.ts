@@ -9,10 +9,10 @@
 // 「把测试跑起来」),DAFUNG_SLOW=1 才跑(bun run test:slow),默认池 skip(skip 行可见);
 // 其余两例轻,常驻默认池。
 import { describe, it, expect, spyOn } from "bun:test";
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { RoomRegistry } from "@dafung/core/room/room";
-import type { RoomClock, RoomSession } from "@dafung/core/room/room";
+import type { RoomClock, RoomLogSink, RoomSession } from "@dafung/core/room/room";
 import { FileRoomPersistence } from "../../apps/server/src/room-persistence";
 import type { RoomPersistence } from "@dafung/core/room/room-persistence";
 import type { RoomRecord } from "@dafung/core/room/room-record";
@@ -199,6 +199,84 @@ describe("RoomRegistry · 崩溃恢复(#380 三形态 + #388 播种咬合)", () 
     },
     120_000,
   );
+
+  it("开局和房间状态先保存，托管保存失败后可在重启房间续写日志", async () => {
+    const dir = tmpDir("room-log");
+    const clock = new ManualClock();
+    const persistence = new FileRoomPersistence(dir);
+    let archived: GameSnapshot["log"] = [];
+    const snapshotsAtArchive: (GameSnapshot["log"] | undefined)[] = [];
+    const archive: RoomLogSink = ({ roomId, engine }) => {
+      if (engine === null) throw new Error("大厅不归档对局日志");
+      archived = [...engine.log];
+      snapshotsAtArchive.push(persistence.load(roomId)?.snapshot?.log);
+    };
+    try {
+      const registry = new RoomRegistry(persistence, undefined, archive, { clock });
+      const roomId = await playingRoom(registry);
+      await registry.markSeatOffline(roomId, 0, new Set([1]));
+      const savedLog = archived;
+      const fail = spyOn(persistence, "save").mockImplementationOnce(() => {
+        throw new Error("房间保存中断");
+      });
+      try {
+        await expect(registry.setAutoPilot(roomId, 1, true)).rejects.toThrow("房间保存中断");
+      } finally {
+        fail.mockRestore();
+      }
+      const rebooted = new RoomRegistry(persistence, undefined, archive, { clock });
+      expect(rebooted.restoreAll(testMapProvider)).toBe(1);
+      const restored = rebooted.get(roomId)!;
+      expect(restored.hostSeat).toBe(1);
+      expect(restored.autoPilot.has(1)).toBe(false);
+      expect(archived).toEqual(savedLog);
+      expect(archived).toEqual(restored.engine!.log);
+      expect(snapshotsAtArchive[0]?.some((line) => line.category === "room")).toBe(true);
+      await rebooted.setAutoPilot(roomId, 1, true);
+      expect(archived.slice(savedLog.length)).toContainEqual(
+        expect.objectContaining({
+          category: "room",
+          detail: JSON.stringify({ type: "autopilot", seat: 1, on: true, by: "self" }),
+        }),
+      );
+      expect(snapshotsAtArchive.at(-1)).toEqual(archived);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("解散删除失败时保留房间存档和日志，重试只归档一次解散行", async () => {
+    const dir = tmpDir("dismiss-log");
+    const persistence = new FileRoomPersistence(dir);
+    let archived: GameSnapshot["log"] = [];
+    const registry = new RoomRegistry(
+      persistence,
+      undefined,
+      ({ engine }) => {
+        archived = [...engine!.log];
+      },
+      { clock: new ManualClock() },
+    );
+    try {
+      const roomId = await playingRoom(registry);
+      const host = registry.get(roomId)!.seats[0].token!;
+      const before = archived;
+      const pending = join(dir, `${roomId}.json.pending`);
+      mkdirSync(pending);
+      expect(() => registry.dismissRoom(roomId, host)).toThrow();
+      expect(archived).toEqual(before);
+      expect(persistence.exists(roomId)).toBe(true);
+      expect(registry.get(roomId)?.engine?.log).toEqual(before);
+      rmSync(pending, { recursive: true });
+      registry.dismissRoom(roomId, host);
+      expect(persistence.exists(roomId)).toBe(false);
+      expect(archived.slice(before.length)).toEqual([
+        expect.objectContaining({ category: "room", detail: '{"type":"dismiss"}' }),
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 
   it("损坏文件跳过:坏 JSON 走 persistence 跳过通道;结构损坏跳过并移除;好房间照常恢复", async () => {
     const warn = spyOn(console, "warn").mockImplementation(() => {});

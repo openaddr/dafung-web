@@ -427,7 +427,7 @@ describe("锦囊使用回路(T2)", () => {
   });
 });
 
-import { giveJinnang, grantProperty, setDefense } from "@dafung/core/engine/planter";
+import { armPhase, giveJinnang, grantProperty, setDefense } from "@dafung/core/engine/planter";
 
 // ──────────────────────────── 目标段与指向他人(T3)────────────────────────────
 describe("锦囊目标段(T3)", () => {
@@ -736,6 +736,61 @@ describe("锦囊目标段(T3)", () => {
 
 // ──────────────────────────── 连环计与窥探(T4)────────────────────────────
 describe("连环计·二虎竞食(T4)", () => {
+  it("错牌位和跨步骤的目标不能代替选中的连环计，取消保留原牌序", () => {
+    const seats = ["魏", "蜀", "吴"].map((guohao) => ({ name: guohao, guohao, isBot: false }));
+    const e = makeEngine(7, seats);
+    const hand = ["连环计", "火烧连营", "连环计"];
+    armPhase(e, { phase: "Playing", activeIndex: 1, turnPhase: "AwaitingJinnang" });
+    giveJinnang(e, 1, hand);
+    const right = { type: "useJinnang", cardId: "连环计", handIndex: 2 } as const;
+    const left = { ...right, handIndex: 0 };
+    e.submitCommand({ ...right, handIndex: 1 });
+    expect(e.log.at(-1)?.warning).toEqual({ kind: "commandGuard", code: "jinnangUnavailable" });
+    expect(e.pendingJinnang).toBeNull();
+    e.submitCommand({ ...right, targets: [2] });
+    expect(e.log.at(-1)?.warning).toEqual({ kind: "commandGuard", code: "targetStepMismatch" });
+    expect(e.pendingJinnang).toBeNull();
+
+    e.submitCommand(right);
+    e.submitCommand({ ...right, targets: [2] });
+    for (const cmd of [
+      { ...left, cancel: true },
+      { ...left, back: true },
+      { ...left, targets: [0] },
+    ]) {
+      e.submitCommand(cmd);
+      expect(e.log.at(-1)?.warning).toEqual({ kind: "commandGuard", code: "targetStepMismatch" });
+      expect(e.pendingJinnang).toMatchObject({ handIndex: 2, stage: "two-b", picked: [2] });
+    }
+    e.submitCommand({ ...right, targets: [2] });
+    expect(e.log.at(-1)?.warning).toEqual({ kind: "commandGuard", code: "targetUnavailable" });
+    e.submitCommand({ ...right, cancel: true });
+    expect(e.pendingJinnang).toBeNull();
+    expect(e.players[1].jinnangHand).toEqual(hand);
+    expect(e.jinnangDiscard).toEqual([]);
+  });
+
+  it("只携牌名的调用续用存档中的牌位，恢复拒绝错误或缺失的牌位", () => {
+    const seats = ["魏", "蜀", "吴"].map((guohao) => ({ name: guohao, guohao, isBot: false }));
+    const e = makeEngine(7, seats);
+    armPhase(e, { phase: "Playing", activeIndex: 1, turnPhase: "AwaitingJinnang" });
+    giveJinnang(e, 1, ["火烧连营", "连环计", "求贤令", "连环计"]);
+    const right = { type: "useJinnang", cardId: "连环计", handIndex: 3 } as const;
+    e.submitCommand(right);
+    e.submitCommand({ ...right, targets: [2] });
+    const saved = JSON.parse(JSON.stringify(e.snapshot()));
+    const restored = makeEngine(7, seats);
+    restored.restoreFromSnapshot(saved);
+    restored.resolveJinnang("连环计", [0]);
+    expect(restored.players[1].jinnangHand).toEqual(["火烧连营", "连环计", "求贤令"]);
+
+    const invalid = makeEngine(7, seats);
+    saved.pendingJinnang.handIndex = 0;
+    expect(() => invalid.restoreFromSnapshot(saved)).toThrow("缺有效牌位");
+    delete saved.pendingJinnang.handIndex;
+    expect(() => invalid.restoreFromSnapshot(saved)).toThrow("缺有效牌位");
+  });
+
   it("两步选人:two-a 定首挑 → two-b 排除首挑 → 执行;骰点与银两走规则", () => {
     const e = makeEngine(42, [
       { name: "A", isBot: false, guohao: "魏" },

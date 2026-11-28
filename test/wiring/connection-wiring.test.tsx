@@ -353,6 +353,7 @@ it("原座重连的同窗按新的权威截止时刻提醒一次", async () => {
     sounds.filter((sound) => sound === "reactionOpen" || sound === "reactionTick");
   const snapshot = (): Extract<ServerMsg, { type: "snapshot" }> => ({
     type: "snapshot",
+    decisionPoint: authority.pendingReaction ? `window/${authority.pendingReaction.seq}/1` : null,
     ...ROOM,
     ...redactSnapshotForSeat(authority.snapshot(), 1),
     started: true,
@@ -370,6 +371,7 @@ it("原座重连的同窗按新的权威截止时刻提醒一次", async () => {
   act(() => {
     sockets[0].receive({
       type: "events",
+      decisionPoint: null,
       events: redactEvents(authority.gameEvents, 1),
       reactionTiming: timing(5000),
     });
@@ -449,6 +451,7 @@ it("联机大厅使用地图默认值，开局接受后等待权威首份棋局�
   await act(async () => {
     sockets[1]!.receive({
       type: "snapshot",
+      decisionPoint: null,
       ...ROOM,
       ...redactSnapshotForSeat(authority.snapshot(), 0),
       started: true,

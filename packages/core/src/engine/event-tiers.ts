@@ -241,6 +241,11 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "牌库与弃堆双空落空宣告(#588):零状态转移(无牌可抽即无转移,#384 口径);表现=「锦囊已空」文案浮字(自引擎浮字死通道迁 fx 面,单机/联机同见)",
   },
+  jinnangTargetStepChanged: {
+    fold: "must-fold",
+    fx: "silent",
+    why: "仅操作席折叠两步用牌的已确认目标段及当前选项。",
+  },
   jinnangAnnounced: {
     fold: "fold+calibration",
     fx: "presented",

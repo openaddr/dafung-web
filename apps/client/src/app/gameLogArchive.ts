@@ -1,4 +1,9 @@
 import type { GameEngine } from "@dafung/core/engine/authority";
+import {
+  assembleGameLogDelta,
+  INITIAL_GAME_LOG_CURSOR,
+  type GameLogCursor,
+} from "@dafung/core/room/seat-projection";
 import type { LogEvent } from "@dafung/core/engine/model";
 import type {
   ArchivedGame,
@@ -367,20 +372,31 @@ export async function loadArchivedGame(gameId: string): Promise<ArchivedGame | n
   };
 }
 
-const queuedEngineLogs = new WeakMap<GameEngine, { gameId: string; length: number }>();
+const queuedEngineLogs = new WeakMap<GameEngine, { gameId: string; cursor: GameLogCursor }>();
 
-/** 单机权威引擎的 logSink 适配。终局行随末次持久化归档。 */
+/** 单机归档沿用房间的公开日志投影。 */
 export function archiveEngineLog(engine: GameEngine): void {
-  const { gameId, mapId, log } = engine;
+  const { gameId, mapId } = engine;
   const queued = queuedEngineLogs.get(engine);
-  if (queued?.gameId === gameId && queued.length >= log.length) return;
-  const watermark = { gameId, length: log.length };
-  queuedEngineLogs.set(engine, watermark);
-  void archiveGameLog(
-    { gameId, mode: "solo", mapId: mapId === "" ? null : mapId },
-    log,
+  const current = queued?.gameId === gameId ? queued : undefined;
+  const { message, next } = assembleGameLogDelta(
+    engine,
+    current === undefined ? INITIAL_GAME_LOG_CURSOR : current.cursor,
     Date.now(),
-  ).catch((error: unknown) => {
+  );
+  if (message === null) {
+    if (current !== undefined) current.cursor = next;
+    return;
+  }
+  const watermark = { gameId, cursor: next };
+  queuedEngineLogs.set(engine, watermark);
+  const { offset, lines, capturedAt } = message;
+  const identity = { gameId, mode: "solo", mapId: mapId === "" ? null : mapId } as const;
+  const write =
+    offset === 0
+      ? archiveGameLog(identity, lines, capturedAt)
+      : archiveGameLogTail(identity, offset, lines, capturedAt);
+  void write.catch((error: unknown) => {
     if (queuedEngineLogs.get(engine) === watermark) queuedEngineLogs.delete(engine);
     console.error("[logArchive] 单机日志归档失败:", error);
   });

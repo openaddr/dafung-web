@@ -8,6 +8,7 @@ import { GameEngine } from "../engine/authority";
 import type { EngineConfig, SeatConfig } from "../engine/authority";
 import type { LoadedMap } from "../engine/board-loader";
 import { createDice } from "../engine/dice";
+import type { RoomSubmissions } from "./player-submissions";
 
 export interface HostConfig {
   seed?: number;
@@ -33,6 +34,7 @@ export interface RoomRecord {
   hostConfig: HostConfig;
   /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
   mapId: string | null;
+  submissions: RoomSubmissions;
   snapshot: ReturnType<GameEngine["snapshot"]> | null;
 }
 

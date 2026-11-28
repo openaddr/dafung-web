@@ -224,7 +224,7 @@ export function openReactionWindow(
 /** 反应窗被询问座位集(view 单源:jinnang=queriedBySeat 持识破者全集;march=[城主])。
  *  同式镜像:packages/core/src/room/bot-driver.ts reactionQueriedSeats(传输层,#331 自 room.ts 挪入)、
  *  src/app/controllers/reaction.ts(app 层单源,react-local/online/Banner 消费)——三层注释互指。 */
-function reactionQueriedOf(view: ReactionView): number[] {
+export function reactionQueriedOf(view: ReactionView): number[] {
   return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
 }
 
@@ -274,6 +274,7 @@ function appendReactionAnswer(g: GameEngine, pr: PendingReaction, a: ReactionAns
     kind: "reactionAnswered",
     use: a.use,
     cardId: a.cardId,
+    ...(target === undefined ? {} : { target }),
     ...(plays != null ? { spentCards: plays.map(({ seat, cardId }) => ({ seat, cardId })) } : {}),
   });
   g.logEvent(
@@ -310,9 +311,10 @@ export function respondReaction(
   appendReactionAnswer(g, pr, answer);
 }
 
-function reactionAnswerError(
-  g: GameEngine,
-  pr: PendingReaction,
+/** 应答的全部合法性只依赖本席手牌、公告和已应答座位。权威与座位接口同用。 */
+export function reactionAnswerError(
+  g: { players: readonly { jinnangHand: readonly string[] }[] },
+  pr: Pick<PendingReaction, "view" | "answers">,
   { seat, use, cardId, target }: ReactionAnswer,
 ): string | null {
   if (!reactionQueriedOf(pr.view).includes(seat))

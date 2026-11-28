@@ -54,7 +54,8 @@ export interface ChoiceOption {
   available: boolean;
   reason?: string; // 不可用原因
   /** 出牌阶段专属(#122/T2):牌名/标签/牌面文案随选项派生透出;
-   *  id 即 cardId(pass=今不用)。 */
+   *  id 即 cardId，handIndex 为这张牌在本席手牌中的零基位置。 */
+  handIndex?: number;
   cardText?: string;
   cardTags?: string[];
   levy?: { affectedSeats: number[]; maxPerSeat: number };
@@ -424,7 +425,7 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     });
     return [...targets, { id: "cancel", label: "作罢", available: true }];
   }
-  const cards = p.jinnangHand.map((cardId): ChoiceOption => {
+  const cards = p.jinnangHand.map((cardId, handIndex): ChoiceOption => {
     const def = jinnangCardOf(cardId);
     const implemented = JINNANG_LIVE_EFFECTS.has(def.effect.kind);
     // 纯反应牌(#281):不经出牌阶段,恒灰置「唯反应」——持唯反应牌不进「出牌阶段」
@@ -458,6 +459,7 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
               : "对手不足";
     return {
       id: cardId,
+      handIndex,
       label: def.id,
       available: !reactionOnly && implemented && !targetsShort,
       reason: reactionOnly ? "唯反应(反应窗打出)" : !implemented ? "此计暂未启用" : targetsReason,

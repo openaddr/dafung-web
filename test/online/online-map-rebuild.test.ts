@@ -84,6 +84,7 @@ function zhongyuanRoom(): GameEngine {
 function zhongyuanRoomSnapshot(engine: GameEngine): SnapshotMsg {
   return {
     type: "snapshot",
+    decisionPoint: null,
     roomId: "TEST",
     host: 0,
     started: true,
@@ -114,7 +115,10 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
     const nextSeat = authority.currentSetupPlayerIndex;
     const nextCapital = authority.offeredCapitals[0]!;
     expect(authority.pickCapital(nextSeat, nextCapital).ok).toBe(true);
-    x.onMessage({ type: "events", events: [...authority.gameEvents] }, Date.now());
+    x.onMessage(
+      { type: "events", decisionPoint: null, events: [...authority.gameEvents] },
+      Date.now(),
+    );
     expect(c.sessionReady).toBe(false);
     expect(x.enteredGame).toBe(false);
     expect(c.engine.board).toBe(GUANZHONG.map.board);

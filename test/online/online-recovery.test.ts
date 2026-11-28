@@ -11,8 +11,8 @@ import type { WebSocketLike } from "@app/net/reconnecting-socket";
 import { getEngine, useGameStore } from "@app/store/gameStore";
 import { getController, setController } from "@app/controllers/registry";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
-import { errorMsg, eventsMsg, type InboundMsg, type ServerMsg } from "@dafung/core/protocol/wire";
-import { redactEvents } from "@dafung/core/room/seat-projection";
+import { eventsMsg, type InboundMsg, type ServerMsg } from "@dafung/core/protocol/wire";
+import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
 import zhongyuanData from "../../packages/core/maps/zhongyuan.json" with { type: "json" };
 import mapCatalog from "../../packages/core/maps/index.json" with { type: "json" };
@@ -95,13 +95,13 @@ afterEach(() => {
   else Reflect.deleteProperty(globalThis, "localStorage");
 });
 
-function roomFields(started: boolean, autoPilot = false): NetRoomFields {
+function roomFields(started: boolean, autoPilot = false, seatCount = 2): NetRoomFields {
   return {
     roomId: "SAME",
     host: 0,
     mapId: "guanzhong",
     started,
-    seats: [0, 1].map((seat) => ({
+    seats: Array.from({ length: seatCount }, (_, seat) => ({
       seat,
       kind: "human",
       taken: true,
@@ -119,13 +119,10 @@ function serveRoom(fields: NetRoomFields, seat = 1): void {
   }) as typeof fetch;
 }
 
-function authority(): GameEngine {
+function authority(seatCount = 2): GameEngine {
   const seed = 2;
   const engine = new GameEngine(MAP.board, MAP.catalog, createDice(seed), {
-    seats: [
-      { name: "甲", isBot: false },
-      { name: "乙", isBot: false },
-    ],
+    seats: ["甲", "乙", "丙"].slice(0, seatCount).map((name) => ({ name, isBot: false })),
     seed,
     startingCash: MAP.startingCash,
     startingTreasures: 0,
@@ -136,7 +133,12 @@ function authority(): GameEngine {
 }
 
 function hydrate(socket: FakeSocket, engine: GameEngine, autoPilot = false): void {
-  socket.receive({ type: "snapshot", ...roomFields(true, autoPilot), ...engine.snapshot() });
+  socket.receive({
+    type: "snapshot",
+    ...roomFields(true, autoPilot),
+    ...redactSnapshotForSeat(engine.snapshot(), controller.seat),
+    decisionPoint: "calibrated",
+  });
 }
 
 function deferred<T>() {
@@ -312,6 +314,7 @@ describe("OnlineController 原座恢复", () => {
     current.receive({ type: "lobby", seatCount: 2, ...roomFields(true) });
     current.receive({
       type: "events",
+      decisionPoint: null,
       events: [{ kind: "cashChanged", seat: 1, round: 0, turn: 0, delta: 999, reason: "income" }],
     });
     expect(useNetStore.getState().connection).toBe("calibrating");
@@ -366,6 +369,45 @@ describe("OnlineController 原座恢复", () => {
     });
   });
 
+  it("托管受问席凭授权更新恢复手答，已答后等另一席时关闭交互", async () => {
+    const engine = authority(3);
+    armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+    giveJinnang(engine, 0, ["横征暴敛"]);
+    for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
+    engine.submitCommand({ type: "useJinnang", cardId: "横征暴敛" });
+    const managed = roomFields(true, true, 3);
+    serveRoom(managed);
+    await controller.joinRoom("SAME");
+    const socket = sockets[0]!;
+    socket.open();
+    socket.receive({
+      type: "snapshot",
+      ...managed,
+      ...redactSnapshotForSeat(engine.snapshot(), 1),
+      decisionPoint: null,
+    });
+    expect(useGameStore.getState().interactive).toBe(false);
+    const point = "原反应窗";
+    const seq = engine.pendingReaction!.seq;
+    socket.receive(JSON.parse(eventsMsg([], { seq, remainingMs: 8000 }, point)));
+    expect(useGameStore.getState().interactive).toBe(false);
+    socket.receive({ type: "lobby", seatCount: 3, ...roomFields(true, false, 3) });
+    expect(controller.seatView).toMatchObject({ decisionPoint: point, interactive: true });
+    expect(controller.dispatchIntent({ type: "respondReaction", use: false })).toEqual({
+      status: "submitted",
+    });
+    const sent = JSON.parse(socket.sent.at(-1)!) as Extract<InboundMsg, { type: "submit" }>;
+    expect(sent.submission.decisionPoint).toBe(point);
+    engine.submitCommand(sent.submission.cmd);
+    socket.receive(JSON.parse(eventsMsg(redactEvents(engine.gameEvents, 1), undefined, null)));
+    expect(controller.seatView).toMatchObject({
+      decisionPoint: null,
+      interactive: false,
+      reaction: { answered: true, canRespond: false },
+    });
+    expect(useGameStore.getState().interactive).toBe(false);
+  });
+
   it("错误选份仅释放对应应答，原窗可立即重答", async () => {
     const engine = authority();
     armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
@@ -378,12 +420,12 @@ describe("OnlineController 原座恢复", () => {
     const socket = sockets[0]!;
     socket.open();
     hydrate(socket, engine);
-    const reaction = controller.engine.snapshot().reaction;
+    const reaction = controller.seatView.snapshot.reaction;
     expect(reaction).toMatchObject({
       targets: { kind: "seat", ids: [1], requiresSelection: true },
     });
     const respond = { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" } as const;
-    const latest = () => JSON.parse(socket.sent.at(-1)!) as Extract<InboundMsg, { type: "cmd" }>;
+    const latest = () => JSON.parse(socket.sent.at(-1)!) as Extract<InboundMsg, { type: "submit" }>;
     const observations: GameControllerDiagnosticEvent[] = [];
     controller.subscribeDiagnostics((event) => observations.push(event));
     const outcomes = () =>
@@ -396,11 +438,17 @@ describe("OnlineController 原座恢复", () => {
 
     const { requestId } = latest();
     expect(requestId).toBeDefined();
-    const rejectedFrame = JSON.parse(errorMsg("错份", requestId)) as ServerMsg;
+    const rejectedFrame = {
+      type: "submissionResult",
+      submissionId: latest().submission.submissionId,
+      outcome: "rejected",
+      reason: "错份",
+      requestId,
+    } as const;
     socket.receive(rejectedFrame);
     expect(useNetStore.getState().pending).toBe(false);
     expect(useGameStore.getState().interactive).toBe(true);
-    expect(controller.engine.snapshot().reaction).toEqual(reaction);
+    expect(controller.seatView.snapshot.reaction).toEqual(reaction);
     expect(outcomes()).toMatchObject([{ id: requestId, outcome: "rejected", reason: "错份" }]);
 
     controller.dispatchCommand({ ...respond, target: { kind: "seat", id: 1 } });
@@ -408,13 +456,14 @@ describe("OnlineController 原座恢复", () => {
     expect(useNetStore.getState().pending).toBe(true);
     const accepted = latest();
     const logOffset = engine.log.length;
-    engine.submitCommand(accepted.cmd);
+    engine.submitCommand(accepted.submission.cmd);
     socket.receive(JSON.parse(eventsMsg(redactEvents(engine.gameEvents, 1))));
-    expect(controller.engine.snapshot().reaction).toBeNull();
+    expect(controller.seatView.snapshot.reaction).toBeNull();
     expect(controller.engine.players[1].jinnangHand).toEqual([]);
     expect(outcomes()).toHaveLength(1);
     socket.receive({
-      type: "commandResult",
+      type: "submissionResult",
+      submissionId: accepted.submission.submissionId,
       requestId: accepted.requestId!,
       outcome: "accepted",
       logOffset,
@@ -423,6 +472,75 @@ describe("OnlineController 原座恢复", () => {
       { id: requestId, outcome: "rejected" },
       { id: accepted.requestId, outcome: "accepted", logOffset },
     ]);
+  });
+
+  it.each(["断线", "传输失败"])("%s后从原座摘要重发", async (mode) => {
+    const engine = authority();
+    armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 1 });
+    giveJinnang(engine, 1, ["连环计", "火烧连营", "连环计"]);
+    serveRoom(roomFields(true));
+    await controller.joinRoom("SAME");
+    const first = sockets[0]!;
+    first.open();
+    const snapshot = {
+      type: "snapshot" as const,
+      ...roomFields(true),
+      ...redactSnapshotForSeat(engine.snapshot(), 1),
+    };
+    first.receive({ ...snapshot, decisionPoint: "first" });
+    controller.dispatchCommand({ type: "useJinnang", cardId: "连环计", handIndex: 2 });
+    const sent = JSON.parse(first.sent[0]!) as Extract<InboundMsg, { type: "submit" }>;
+    const results: GameControllerDiagnosticEvent[] = [];
+    controller.subscribeDiagnostics((event) => {
+      if (event.kind === "command" && event.stage === "result") results.push(event);
+    });
+    expect(sent).toMatchObject({
+      type: "submit",
+      submission: {
+        roomId: "SAME",
+        seat: 1,
+        decisionPoint: "first",
+      },
+    });
+    expect(typeof sent.submission.submissionId).toBe("string");
+
+    if (mode === "断线") {
+      first.disconnect();
+    } else {
+      first.receive({ type: "error", requestId: sent.requestId! + 1, error: "另一条消息失败" });
+      expect(controller.sessionReady).toBe(true);
+      expect(useNetStore.getState().pending).toBe(true);
+      first.receive({ type: "error", requestId: sent.requestId, error: "磁盘已满" });
+      expect(useNetStore.getState()).toMatchObject({
+        connection: "failed",
+        connectionFailure: "磁盘已满",
+        pending: true,
+      });
+      expect(first.closes).toBe(1);
+    }
+    controller.reconnect();
+    const current = sockets[1]!;
+    current.open();
+    expect(current.sent).toHaveLength(0);
+    const next = { ...snapshot, decisionPoint: "next" };
+    current.receive(next);
+    current.receive(next);
+    expect(current.sent).toEqual(first.sent);
+    expect(controller.seatView.decisionPoint).toBe("next");
+    current.receive({
+      type: "submissionResult",
+      submissionId: sent.submission.submissionId,
+      requestId: sent.requestId,
+      outcome: "accepted",
+      logOffset: 8,
+    });
+    expect(useNetStore.getState().pending).toBe(false);
+    expect(results).toMatchObject([{ outcome: "accepted", logOffset: 8 }]);
+    current.disconnect();
+    controller.reconnect();
+    sockets[2]!.open();
+    sockets[2]!.receive(next);
+    expect(sockets[2]!.sent).toHaveLength(0);
   });
 
   it("未开局大厅以当前lobby完成校准,再次耗尽仍可恢复且销毁后不复活", async () => {

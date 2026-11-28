@@ -95,8 +95,8 @@ export interface SnapshotPlayer {
   jinnangHandCount: number;
 }
 
-/** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
- *  联机 snapshot 消息与单机 store 灌装同构(store 的 GameSnapshot 即本结构)。
+/** 权威快照由 serializeGame 产出、GameEngine.restoreFromSnapshot 恢复。
+ *  单机和联机都使用由它投影出的 SeatSnapshot 交付玩家可见局面。
  *  对 UI 的既有字段口径不变(lastLandOutcomeKind 等扁平字段原样保留);
  *  加引擎字段 = 此处加一行 + SNAPSHOT_FIELDS 加一条,其余一概不动。 */
 export interface GameSnapshot {
@@ -267,11 +267,16 @@ function clonePendingReaction(
 
 /** 单点清单条目:read(引擎 → 快照值)与 write(快照 → 引擎)成对同置。
  *  write 面向整份快照取参(而非单值),换取消单循环内完全的类型安全(无 any、无跨字段 cast);
- *  纯派生键(choices/currentSetupPlayerIndex/lastLandOutcomeKind 等)write 为 no-op,恢复后重算。 */
+ *  仅权威字段的写口可读取骰流和反应续结算，普通字段的写口同供座位水合使用。 */
 interface SnapshotField<K extends keyof GameSnapshot> {
   key: K;
   read: (e: GameEngine) => GameSnapshot[K];
-  write: (e: GameEngine, s: GameSnapshot) => void;
+  write: (
+    e: GameEngine,
+    s: K extends "rngState" | "pendingReaction"
+      ? GameSnapshot
+      : Omit<GameSnapshot, "rngState" | "pendingReaction">,
+  ) => void;
 }
 
 /** 全部条目的联合(键类型恰好覆盖 GameSnapshot 的键,多键/错键在编译期炸出)。
@@ -456,9 +461,19 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) =>
       e.pendingJinnang ? { ...e.pendingJinnang, picked: [...e.pendingJinnang.picked] } : null,
     write: (e, s) => {
-      e.pendingJinnang = s.pendingJinnang
-        ? { ...s.pendingJinnang, picked: [...s.pendingJinnang.picked] }
-        : null;
+      const pending = s.pendingJinnang;
+      if (pending == null) {
+        e.pendingJinnang = null;
+        return;
+      }
+      const { cardId, handIndex } = pending;
+      if (
+        !Number.isInteger(handIndex) ||
+        handIndex < 0 ||
+        s.players[s.activeIndex]?.jinnangHand[handIndex] !== cardId
+      )
+        throw new Error(`恢复锦囊目标段缺有效牌位：${cardId} @ ${handIndex}`);
+      e.pendingJinnang = { ...pending, picked: [...pending.picked] };
     },
   },
   {

@@ -99,8 +99,6 @@ export function App() {
         // registry 的 MapData 取同图原始数据(#1273 单源缓存:命中进程内 memo,
         // 同图不再第二次 fetch+parse)
         setController(controller, await source.loadMapData(config.mapId));
-        // 开局首帧直灌(此后由房间下行拍驱动 sync;#398 起选都/行军全走房间编排)
-        useGameStore.getState().syncFromEngine(controller.engine);
         setScreen("game");
         return true;
       } catch (err) {

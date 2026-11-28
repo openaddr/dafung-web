@@ -108,7 +108,6 @@ export function installDebugHooks(): void {
     setController(controller, await source.loadMapData(mapId));
     performance.measure("df.seed.setController", { start: tSet, end: performance.now() });
     const tSync = performance.now();
-    useGameStore.getState().syncFromEngine(controller.engine);
     useGameStore.getState().setScreen("game");
     performance.measure("df.seed.sync", { start: tSync, end: performance.now() });
     const e = controller.engine;
@@ -224,10 +223,7 @@ export function installDebugHooks(): void {
     /** 当前 store 里的全量快照。 */
     snapshot: () => useGameStore.getState().snapshot,
     /** 手动从引擎重灌快照(怀疑 UI 与引擎脱节时排查用)。 */
-    sync: () => {
-      const e = getEngine();
-      if (e) useGameStore.getState().syncFromEngine(e);
-    },
+    sync: () => getController()?.sync(),
     /** 名将目录供招贤候选种植;候选行须含 def 与预掷 skillIds,引擎落定时原样入槽。 */
     heroDefs: () => [...HEROES],
     /** 转发 core/planter 的 applyPlant,与无浏览器测试共用场景构造(ADR-0065)。

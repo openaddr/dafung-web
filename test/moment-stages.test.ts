@@ -16,7 +16,8 @@ import {
   setStamina,
 } from "@dafung/core/engine/planter";
 import { SKILLS, type TriggerSkill } from "@dafung/core/engine/skills";
-import { foldEventBatch } from "@app/net/event-fold";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { redactEvents, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 import { cmdMsg, type InboundMsg } from "@dafung/core/protocol/wire";
 import guanzhong from "../packages/core/maps/guanzhong.json";
@@ -153,7 +154,7 @@ function playStaminaAttack(engine: GameEngine): void {
 it("尚未达到发动条件的放逐标记随袭扰事件更新", () => {
   const authority = prepareStaminaAttack(100);
   const replica = makeEngine(0);
-  replica.restoreFromSnapshot(authority.snapshot());
+  hydrateSeatReplica(replica, redactSnapshotForSeat(authority.snapshot(), 1));
 
   playStaminaAttack(authority);
   foldEventBatch(replica, JSON.parse(JSON.stringify(redactEvents(authority.snapshot().events, 1))));
@@ -227,7 +228,8 @@ it("行殇先于休整时机的后阶段应答，派生结算完成才收尾回�
   armHero(engine, 0, "simayi", ["taoguangyanghui", restAfter.id]);
   armHero(engine, 1, "caopi", ["xingshang"]);
   const replica = makeEngine(0);
-  replica.restoreFromSnapshot(
+  hydrateSeatReplica(
+    replica,
     JSON.parse(JSON.stringify(redactSnapshotForSeat(engine.snapshot(), 1))),
   );
   const receive = (authority: GameEngine) =>
@@ -285,7 +287,8 @@ it("反识破恢复火烧连营后，城损选择经重连结清才烧下一座�
   armHero(authority, 0, "simayi", ["taoguangyanghui"]);
 
   const replica = makeEngine(0);
-  replica.restoreFromSnapshot(
+  hydrateSeatReplica(
+    replica,
     JSON.parse(JSON.stringify(redactSnapshotForSeat(authority.snapshot(), 1))),
   );
   const apply = (engine: GameEngine, command: GameCommand) => {

@@ -56,10 +56,13 @@ export class EventBatchChannel {
     );
   }
 
-  /** 撤已排定的拍(不 clearTimeout):强制同步排空前的覆盖——迟到的回调照常点火,
-   *  对已排空的通道幂等空转(dirty 标记与累积袋均已被同步 flush 清走)。 */
-  cancelScheduled(roomId: string): void {
+  /** 撤已排定的拍，返回是否有一拍待交付。同步排空者接手这拍。 */
+  cancelScheduled(roomId: string): boolean {
+    const timer = this.timers.get(roomId);
+    if (timer === undefined) return false;
+    clearTimeout(timer);
     this.timers.delete(roomId);
+    return true;
   }
 
   /** 登记「已下行」批基线(#388 恢复播种):只记引用,不累积不排空——恢复快照自带的
@@ -78,9 +81,7 @@ export class EventBatchChannel {
   /** 全撤(含 clearTimeout;房间散场路径,单机侧):在途定时器一并撤销,
    *  端点残表由调用方自理。 */
   dispose(roomId: string): void {
-    const timer = this.timers.get(roomId);
-    if (timer != null) clearTimeout(timer);
-    this.timers.delete(roomId);
+    this.cancelScheduled(roomId);
     this.pending.delete(roomId);
     this.seen.delete(roomId);
   }

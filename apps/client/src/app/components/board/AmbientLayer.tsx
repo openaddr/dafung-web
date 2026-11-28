@@ -18,7 +18,7 @@ import { Theme, playerColor, rgba } from "@dafung/core/engine/theme";
 import { TILE_SCALE } from "./city-scene";
 import { FlagShapes } from "./flagArt";
 import { useBoardMatrixSync } from "./boardHost";
-import { TOKEN_CROWD_SCALE, TOKEN_SCALE, computeTokenSlots, type TokenSlot } from "./TokenLayer";
+import { TOKEN_CROWD_SCALE, TOKEN_SCALE, computeTokenSlots, type TokenSlot } from "./tokenSlots";
 import type { BoardPlayer } from "./BoardView";
 import "./ambient.css";
 

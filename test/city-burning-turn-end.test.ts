@@ -2,7 +2,8 @@ import { afterEach, expect, it } from "bun:test";
 import { extractBatchEvents } from "@app/fx/event-extract";
 import { present, type PendingFireWallRewards } from "@app/fx/orchestrator";
 import { createMemorySink } from "@app/fx/sinks";
-import { foldEventBatch } from "@app/net/event-fold";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
 import { loadMap } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
@@ -66,7 +67,7 @@ function json<T>(data: T): T {
 
 function replicaOf(g: GameEngine, seat: number): GameEngine {
   const replica = makeEngine();
-  replica.restoreFromSnapshot(json(redactSnapshotForSeat(g.snapshot(), seat)));
+  hydrateSeatReplica(replica, json(redactSnapshotForSeat(g.snapshot(), seat)));
   return replica;
 }
 

@@ -1,7 +1,5 @@
 // 下行装配单口单测(#431,ADR-0020 决策 2「发送总口单点」执行体 assembleDownlinkShot):
-//   ① 双模式(缺一即红):viewerSeat=座位 → 联机必裁(事件批 queriedSeats 身份匿名
-//      保数量 + 摘要过 redactSnapshotForSeat);viewerSeat=null → 单机显式 god-view
-//      (事件批原样 + 摘要全量)。两模式的保密面必须恰好相反。
+//   ① 两种传输按入座者装配首连、校准和事件批，公开反应公告与本席的私有抉择分别交付。
 //   ② redaction 必经步:裁剪发生在装配内部而非调用纪律——未知 kind 带座位装配当场炸
 //      (零兜底),绕过 redactEvents 的装配实现在此红。
 //   ③ 全 kind 普查(底册=#430 档位表):逐 kind 过装配(viewer 模式)不炸;
@@ -15,10 +13,14 @@ import { assembleDownlinkShot } from "@dafung/core/room/seat-projection";
 import { RoomRegistry } from "@dafung/core/room/room";
 import { MAP } from "../../scripts/engine-helpers";
 import type { RoomPersistence } from "@dafung/core/room/room-persistence";
-import type { RoomRecord } from "@dafung/core/room/room-record";
+import { createEngine, type RoomRecord } from "@dafung/core/room/room-record";
+import { foldEventBatch } from "@dafung/core/protocol/event-fold";
+import { hydrateSeatReplica, readSeatReplica } from "@dafung/core/protocol/seat-replica";
 import type { LoadedMap } from "@dafung/core/engine/board-loader";
 import type { GameEvent, GameEventBody } from "@dafung/core/engine/game-events";
 import { EVENT_TIERS, type EventKind } from "@dafung/core/engine/event-tiers";
+import { armHero, armPhase, giveJinnang } from "@dafung/core/engine/planter";
+import type { EventBatchMsg, PlayerSubmission, SnapshotMsg } from "@dafung/core/protocol/wire";
 
 /** 事件首部三件套(同 seat-projection.test 口径)。 */
 function ev<B extends GameEventBody>(seat: number | null, body: B): GameEvent {
@@ -47,16 +49,16 @@ class InMemoryPersistence implements RoomPersistence {
 const VALID_MAP_IDS = new Set(["guanzhong"]);
 const testMapProvider = (_id: string): LoadedMap => MAP;
 
-/** 开一局已进 Playing 的双人类房(seat0=host / seat1=guest;发牌在 finishSetup)。 */
-async function roomAtPlaying() {
+/** 开全真人房并完成选都。 */
+async function roomAtPlaying(seatCount = 2) {
   const reg = new RoomRegistry(new InMemoryPersistence());
   const created = reg.createRoom({
-    seatCount: 2,
+    seatCount,
     botIdx: new Set(),
     hostConfig: { seed: 42 },
   });
   const roomId = created.room.roomId;
-  reg.joinSeat(roomId);
+  for (let seat = 1; seat < seatCount; seat++) reg.joinSeat(roomId);
   reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = reg.get(roomId)!.engine!;
@@ -64,7 +66,22 @@ async function roomAtPlaying() {
     await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
   // 保证 host 手牌有内容可断言(起手 1 张之外再补)
   e.drawJinnang(0, 2);
-  return { reg, roomId };
+  const online = new Set(created.room.seats.map((_, seat) => seat));
+  const summary = (seat: number): SnapshotMsg =>
+    JSON.parse(assembleDownlinkShot(created.room, online, seat, [], true).snapshot);
+  async function submit(seat: number, submissionId: string, cmd: PlayerSubmission["cmd"]) {
+    const { decisionPoint } = summary(seat);
+    expect(typeof decisionPoint).toBe("string");
+    const result = await reg.submitFromSeat(roomId, seat, {
+      roomId,
+      seat,
+      submissionId,
+      decisionPoint: decisionPoint!,
+      cmd,
+    });
+    expect(result.outcome).toBe("accepted");
+  }
+  return { reg, roomId, engine: e, token: created.token, summary, submit };
 }
 
 /** 隐私样本批:jinnang 窗询问 [0,1](身份=per-seat private 档,数量=折叠算术依赖)。 */
@@ -85,8 +102,8 @@ function privacyBatch(): GameEvent[] {
   ];
 }
 
-describe("assembleDownlinkShot · 双模式(#431:单机显式 god-view、联机必裁)", () => {
-  it("联机必裁:viewerSeat=1 → 事件批身份匿名保数量,摘要无 host 手牌/无牌库序", async () => {
+describe("assembleDownlinkShot · 座位下行", () => {
+  it("座位看见自己的手牌、牌库余量及匿名询问人数", async () => {
     const { reg, roomId } = await roomAtPlaying();
     const room = reg.get(roomId)!;
     const online = new Set([0, 1]);
@@ -98,28 +115,83 @@ describe("assembleDownlinkShot · 双模式(#431:单机显式 god-view、联机�
     expect(msg.events[0]).toMatchObject({ view: { queriedBySeat: [-1, 1] } });
     // 摘要消息:他人(host)手牌内容不出网、数量照发;牌库只给数量;自己手牌恒全量;
     // 反应窗询问集同口径(只留「我是否被询问」)
-    const snap = JSON.parse(shot.snapshot!) as Record<string, any>;
+    const snap: SnapshotMsg = JSON.parse(shot.snapshot);
     expect(snap.type).toBe("snapshot");
     expect(snap.players[0].jinnangHand).toEqual([]);
     expect(snap.players[0].jinnangHandCount).toBeGreaterThan(0);
     expect(snap.players[1].jinnangHand.length).toBeGreaterThan(0);
     expect(snap.jinnangDeck).toEqual([]);
     expect(snap.jinnangDeckCount).toBeGreaterThan(0);
+    expect(snap).not.toHaveProperty("rngState");
+    expect(
+      JSON.parse(snap.log.find((line) => line.category === "header")!.detail),
+    ).not.toHaveProperty("seed");
+    expect(snap.treasureDeck).toEqual([]);
+    expect(snap.players[0].treasures).toEqual(room.engine!.snapshot().players[0].treasures);
     expect(snap.pendingReaction).toBeNull(); // 本批未折进引擎,挂起态为空属正常
   });
 
-  it("单机显式 god-view:viewerSeat=null → 事件批原样逐字,摘要全量(手牌/牌序在场)", async () => {
-    const { reg, roomId } = await roomAtPlaying();
-    const room = reg.get(roomId)!;
-    const online = new Set([0, 1]);
-    const batch = privacyBatch();
-    const shot = assembleDownlinkShot(room, online, null, batch, true);
-    // 事件批原样(与输入逐字相等——god-view 不裁,单机内存直连唯一合法取值)
-    expect(JSON.parse(shot.events!)).toEqual({ type: "events", events: batch });
-    // 摘要全量:他人手牌内容与牌库牌序在场(god-view 语义,重放/调试同门)
-    const snap = JSON.parse(shot.snapshot!) as Record<string, any>;
-    expect(snap.players[0].jinnangHand.length).toBeGreaterThan(0);
-    expect(snap.jinnangDeck.length).toBeGreaterThan(0);
+  it("连环计的选牌和首目标只给决策席，出牌后全桌看见目标、本席还可核对手牌位置", async () => {
+    const { reg, roomId, token, engine, summary, submit } = await roomAtPlaying(3);
+    try {
+      armPhase(engine, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
+      giveJinnang(engine, 0, ["连环计", "火烧连营", "连环计"]);
+      expect(summary(0).players[0].jinnangHand).toEqual(["连环计", "火烧连营", "连环计"]);
+      expect(summary(0).choices).toContainEqual(
+        expect.objectContaining({ id: "连环计", available: true }),
+      );
+      expect(summary(1).choices).toEqual([]);
+      expect(summary(1).decisionPoint).toBeNull();
+      const publicLog = summary(1).log;
+
+      const play = { type: "useJinnang", cardId: "连环计", handIndex: 2 } as const;
+      await submit(0, "选牌", play);
+      await submit(0, "首个目标", { ...play, targets: [1] });
+      const room = reg.get(roomId)!;
+      const online = new Set([0, 1, 2]);
+      const privateStep = assembleDownlinkShot(room, online, 0, engine.gameEvents, false);
+      expect(privateStep.events).not.toBeNull();
+      const actorBatch: EventBatchMsg = JSON.parse(privateStep.events!);
+      const actor = summary(0);
+      expect(actorBatch.events).toEqual([
+        expect.objectContaining({
+          kind: "jinnangTargetStepChanged",
+          seat: 0,
+          pendingJinnang: actor.pendingJinnang,
+          choices: actor.choices,
+        }),
+      ]);
+      expect(actorBatch.decisionPoint).toBe(actor.decisionPoint);
+      for (const otherSeat of [1, 2]) {
+        expect(
+          assembleDownlinkShot(room, online, otherSeat, engine.gameEvents, false).events,
+        ).toBeNull();
+        expect(summary(otherSeat).events).toEqual([]);
+      }
+      expect(actor.pendingJinnang).toMatchObject({ cardId: "连环计", stage: "two-b", picked: [1] });
+      expect(actor.choices).toContainEqual(
+        expect.objectContaining({ targetSeat: 2, available: true }),
+      );
+      const other = summary(1);
+      expect(other.players[0]).toMatchObject({ jinnangHand: [], jinnangHandCount: 3 });
+      expect(other.choices).toEqual([]);
+      expect(other.pendingJinnang).toBeNull();
+      expect(other.log).toEqual(publicLog);
+
+      await submit(0, "第二个目标", { ...play, targets: [2] });
+      for (const seat of [0, 1]) {
+        const shot = assembleDownlinkShot(room, online, seat, engine.gameEvents, true);
+        const batch: EventBatchMsg = JSON.parse(shot.events!);
+        const snapshot: SnapshotMsg = JSON.parse(shot.snapshot);
+        expect(snapshot.events).toEqual([]);
+        const announced = batch.events.find((event) => event.kind === "jinnangAnnounced");
+        expect(announced).toMatchObject({ seat: 0, cardId: "连环计", targetSeats: [1, 2] });
+        if (seat === 0) expect(announced).toHaveProperty("handIndex", 2);
+        else expect(announced).not.toHaveProperty("handIndex");
+      }
+    } finally {
+      reg.dismissRoom(roomId, token);
+    }
   });
 
   it("空批 events=null(withSnapshot=true 摘要照发);withSnapshot=false snapshot=null", async () => {
@@ -133,6 +205,176 @@ describe("assembleDownlinkShot · 双模式(#431:单机显式 god-view、联机�
     const eventsOnly = assembleDownlinkShot(room, online, 1, privacyBatch(), false);
     expect(eventsOnly.events).not.toBeNull();
     expect(eventsOnly.snapshot).toBeNull();
+  });
+
+  it("军情密探仅在生效事件交付牌面，校准与重连保留公开的窥探动作", async () => {
+    const { reg, roomId, token, engine } = await roomAtPlaying(3);
+    const room = reg.get(roomId)!;
+    const online = new Set([0, 1, 2]);
+    try {
+      armPhase(engine, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
+      giveJinnang(engine, 0, ["军情密探"]);
+      giveJinnang(engine, 1, ["连环计", "火烧连营"]);
+      giveJinnang(engine, 2, []);
+      await reg.applyCommandFromSeat(roomId, 0, { type: "useJinnang", cardId: "军情密探" });
+      await reg.applyCommandFromSeat(roomId, 0, {
+        type: "useJinnang",
+        cardId: "军情密探",
+        targets: [1],
+      });
+      for (const seat of [0, 2]) {
+        const shot = assembleDownlinkShot(room, online, seat, engine.gameEvents, true);
+        const batch: EventBatchMsg = JSON.parse(shot.events!);
+        const peek = { kind: "peekApplied", viewerSeat: 0, targetSeat: 1 };
+        expect(batch.events.find((event) => event.kind === "peekApplied")).toMatchObject({
+          ...peek,
+          hand: seat === 0 ? ["连环计", "火烧连营"] : [],
+        });
+        const snapshot: SnapshotMsg = JSON.parse(shot.snapshot);
+        expect(snapshot.players[1]).toMatchObject({ jinnangHand: [], jinnangHandCount: 2 });
+        expect(snapshot.log).toContainEqual(
+          expect.objectContaining({
+            detail: "jinnangUse player=p0 card=军情密探 peek viewer=0 target=1",
+          }),
+        );
+      }
+    } finally {
+      reg.dismissRoom(roomId, token);
+    }
+  });
+
+  it("反应公告和已应答座位公开，本席选份回读与权威续结算分开", async () => {
+    const { reg, roomId, token, engine, summary, submit } = await roomAtPlaying(3);
+    try {
+      armPhase(engine, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
+      giveJinnang(engine, 0, ["横征暴敛"]);
+      giveJinnang(engine, 1, ["识破诡计"]);
+      giveJinnang(engine, 2, ["识破诡计"]);
+      await reg.applyCommandFromSeat(roomId, 0, { type: "useJinnang", cardId: "横征暴敛" });
+      const beforeAnswer = [summary(1), summary(2)];
+      const target = { kind: "seat", id: 2 } as const;
+      await submit(1, "应答", {
+        type: "respondReaction",
+        seat: 1,
+        use: true,
+        cardId: "识破诡计",
+        target,
+      });
+      for (const seat of [1, 2]) {
+        const shot = assembleDownlinkShot(
+          reg.get(roomId)!,
+          new Set([0, 1, 2]),
+          seat,
+          engine.gameEvents,
+          true,
+        );
+        const snapshot: SnapshotMsg = JSON.parse(shot.snapshot);
+        const batch: EventBatchMsg = JSON.parse(shot.events!);
+        if (seat === 1) expect(snapshot.decisionPoint).toBeNull();
+        else expect(typeof snapshot.decisionPoint).toBe("string");
+        expect(batch.decisionPoint).toBe(snapshot.decisionPoint);
+        const answer = { seat: 1, use: true, cardId: "识破诡计" };
+        expect(snapshot.pendingReaction).not.toHaveProperty("payload");
+        const visibleAnswer = seat === 1 ? { ...answer, target } : answer;
+        expect(snapshot.pendingReaction?.answers).toEqual([visibleAnswer]);
+        const event = batch.events.find((entry) => entry.kind === "reactionAnswered");
+        expect(event).toMatchObject(visibleAnswer);
+        if (seat === 2) expect(event).not.toHaveProperty("target");
+
+        const before = beforeAnswer[seat - 1];
+        const replica = createEngine(
+          {
+            seats: before.players,
+            mapId: "guanzhong",
+            startingCash: before.startingCash,
+            startingTreasures: MAP.startingTreasures,
+            targetNetWorth: before.targetNetWorth,
+          },
+          false,
+          MAP,
+        );
+        hydrateSeatReplica(replica, before);
+        foldEventBatch(replica, batch.events);
+        expect(readSeatReplica(replica, seat).pendingReaction?.answers).toEqual([visibleAnswer]);
+        expect(snapshot.reaction).toMatchObject({
+          cardId: "横征暴敛",
+          targets: { kind: "seat", ids: [1, 2] },
+        });
+        expect(snapshot.log.some(({ detail }) => detail.includes("share=2"))).toBe(false);
+      }
+    } finally {
+      reg.dismissRoom(roomId, token);
+    }
+  });
+
+  it("选择和作罢主动技只给决策席目标选项，日志保留已发动的技能和目标", async () => {
+    const { reg, roomId, token, engine, summary } = await roomAtPlaying();
+    try {
+      armPhase(engine, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
+      armHero(engine, 0, "huatuo", ["zhenji"]);
+      const skill = { type: "useHeroSkill", heroId: "huatuo", skillId: "zhenji" } as const;
+      await reg.applyCommandFromSeat(roomId, 0, skill);
+      expect(summary(0).pendingSkill).toEqual({ heroId: "huatuo", skillId: "zhenji" });
+      const waiting = summary(1);
+      expect(waiting.pendingSkill).toBeNull();
+      expect(waiting.choices).toEqual([]);
+      expect(JSON.parse(waiting.log.at(-1)!.detail)).toEqual({ type: "useHeroSkill" });
+      await reg.applyCommandFromSeat(roomId, 0, { ...skill, targets: [12] });
+      await reg.applyCommandFromSeat(roomId, 0, { ...skill, cancel: true });
+      const cancelled = summary(1).log;
+      expect(
+        cancelled
+          .filter((line) => line.category === "cmd")
+          .slice(-2)
+          .map((line) => JSON.parse(line.detail)),
+      ).toEqual([{ type: "useHeroSkill" }, { type: "useHeroSkill", cancel: true }]);
+      expect(cancelled.find((line) => line.detail.includes("heroSkillCancel"))).toMatchObject({
+        detail: "heroSkillCancel player=p0",
+      });
+      await reg.applyCommandFromSeat(roomId, 0, skill);
+      await reg.applyCommandFromSeat(roomId, 0, { ...skill, targets: [1] });
+      const shot = assembleDownlinkShot(
+        reg.get(roomId)!,
+        new Set([0, 1]),
+        1,
+        engine.gameEvents,
+        false,
+      );
+      const batch: EventBatchMsg = JSON.parse(shot.events!);
+      expect(batch.events).toContainEqual(
+        expect.objectContaining({
+          kind: "heroSkillActivated",
+          skillId: "zhenji",
+          targetSeat: 1,
+        }),
+      );
+    } finally {
+      reg.dismissRoom(roomId, token);
+    }
+  });
+
+  it("招贤候选仅入招贤者的摘要，录用名将全桌可见", async () => {
+    const { reg, roomId, token, engine, summary } = await roomAtPlaying();
+    try {
+      armPhase(engine, { activeIndex: 0 });
+      engine.tryRecruitHero(engine.activePlayer);
+      const offers = summary(0).offeredHeroes;
+      expect(offers).toHaveLength(3);
+      const other = summary(1);
+      expect(other.offeredHeroes).toEqual([]);
+      expect(other.log.find((line) => line.detail.startsWith("offerHeroes "))).toMatchObject({
+        detail: "offerHeroes player=p0 count=3",
+      });
+      await reg.applyCommandFromSeat(roomId, 0, { type: "resolveHeroPick", index: 0 });
+      expect(summary(1).players[0].heroes).toContainEqual(
+        expect.objectContaining({
+          heroId: offers[0].id,
+          skillIds: offers[0].skillIds,
+        }),
+      );
+    } finally {
+      reg.dismissRoom(roomId, token);
+    }
   });
 });
 
@@ -271,6 +513,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
     strongestImpact: "demolished",
     restTurns: 2,
   },
+  { kind: "jinnangTargetStepChanged", pendingJinnang: null, choices: [] },
   { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1, 2] },
   { kind: "jinnangPhaseResumed", turnPhase: "Roll" },
   { kind: "reactionAnswered", use: false },
@@ -327,7 +570,8 @@ describe("assembleDownlinkShot · 全 kind 普查(#431 防遗漏机器,底册 EV
     const tierKinds = new Set(Object.keys(EVENT_TIERS) as EventKind[]);
     expect(new Set(ALL_KIND_BODIES.map((b) => b.kind))).toEqual(tierKinds);
     for (const body of ALL_KIND_BODIES) {
-      const shot = assembleDownlinkShot(room, online, 1, [ev(0, body)], true);
+      const viewer = body.kind === "jinnangTargetStepChanged" ? 0 : 1;
+      const shot = assembleDownlinkShot(room, online, viewer, [ev(0, body)], true);
       const msg = JSON.parse(shot.events!) as { type: string; events: GameEvent[] };
       expect(msg.events).toHaveLength(1);
     }

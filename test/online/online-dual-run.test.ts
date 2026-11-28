@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { MovePath } from "@dafung/core/engine/board";
 import type { GameSnapshot } from "@dafung/core/engine/snapshot";
+import type { SeatSnapshot } from "@dafung/core/room/seat-projection";
 import type { NetSeatMeta } from "@app/store/netStore";
 import { DualClientProcess } from "./dual-client-process";
 import type { DualClientObservation, DualClientRetryMode } from "./dual-client-observation";
@@ -110,7 +111,7 @@ function publicPlayerOf(p: PlayerRowLike): PublicPlayerRow {
   };
 }
 
-function snapshotProjection(s: GameSnapshot): PublicProjection {
+function snapshotProjection(s: SeatSnapshot): PublicProjection {
   return {
     phase: s.phase,
     turnPhase: s.turnPhase,
@@ -276,8 +277,9 @@ async function firstPlayingDecision(pair: IsolatedPair): Promise<ClientPair> {
         (view) =>
           view.engine!.lastRoll !== null &&
           view.engine!.lastMove !== null &&
-          view.engine!.choices.length > 0,
+          view.engine!.choices.length > 0 === (view.engine!.decisionOwner === view.seat),
       ) &&
+      views.some((view) => view.engine!.choices.length > 0) &&
       projections.every((view) => sameProjection(projections[0], view))
     )
       return views;
@@ -727,8 +729,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
         "同窗重复应答收到生产 error",
         (current) => current[0].wire.errors.length === 1,
       );
-      expect(views[0].wire.errors).toEqual(["非本窗被询问座位,不能应答(更不能替他人应答)"]);
-      expect(views[0].game.hint).toBe("非本窗被询问座位,不能应答(更不能替他人应答)");
+      expect(views[0].wire.errors).toEqual(["原反应窗已结束或本席已应答"]);
       expect(views[1].game.hint).toBe(guestHintBefore);
       expect(views[1].wire.errors).toEqual([]);
       assertLocalSeats(views);
@@ -791,9 +792,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
           ...drawnAfterWindow,
         ]);
       }
-      expect(views[0].wire.errors).toEqual(
-        Array(2).fill("非本窗被询问座位,不能应答(更不能替他人应答)"),
-      );
+      expect(views[0].wire.errors).toEqual(Array(2).fill("原反应窗已结束或本席已应答"));
       expect(views[1].wire.errors).toEqual([]);
       // 权威持久化是本例独立的最终账,真实手答已经由上面的事件屏障证明。
       const recordLog = (): string[] => {

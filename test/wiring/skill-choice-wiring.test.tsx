@@ -146,14 +146,10 @@ beforeAll(async () => {
     override get engine(): GameEngine {
       return this.e;
     }
-    // 单机热座:视角跟随决策方(LocalController 同口径)。
-    override get viewSeat(): number {
-      return this.e.decisionOwner;
-    }
     protected override get mySeat(): number {
       return 0;
     }
-    protected override readonly hotSeat = true;
+
     override dispatchCommand(cmd: GameCommand): void {
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
       this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)

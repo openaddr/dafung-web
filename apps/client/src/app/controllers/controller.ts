@@ -1,15 +1,17 @@
 // React 层控制器抽象(替代旧 src/render/client-controller.ts 的骨架,零 DOM):
 // 旧基类管 scaffold + fullRender + 卷轴弹层;新基类保留"状态桥"职责——
-// 引擎变化后 syncFromEngine 灌 store,由 React 组件声明式渲染。
+// 引擎变化后 一次发布座位视图,由 React 组件声明式渲染。
 // 弹层/动画/音效是纯表现,归组件与阶段 6 的动画编排器,不进控制器。
 // #433 交互策略上收:「此刻本地玩家能不能点」与起签转入沿检测
-// (checkRollSeal)公式单源在本基类——两个控制器只供参数(mySeat/hotSeat/引擎),
+// (checkRollSeal)公式单源在本基类——两个控制器只供参数(座位/引擎),
 // 改一条交互规则只动一处,杜绝单机/联机行为分叉(此前 interactive 双写且带
 // 「需推理才能确认」的本地隐式假设,恰是本票要消灭的 bug 族)。
 import type { GameCommand, GameEngine } from "@dafung/core/engine/authority";
+import { SeatInteraction, type SeatIntent } from "@dafung/core/protocol/seat-interaction";
+import { readSeatReplica, seatReactionOf } from "@dafung/core/protocol/seat-replica";
 import type { GameDiagnosticCapture } from "@app/game-diagnostic-record";
 import { finishGameDiagnostics, observeGameDiagnosticState } from "@app/game-diagnostics";
-import { useGameStore } from "@app/store/gameStore";
+import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { isMarching } from "@app/fx/useMarch";
@@ -42,32 +44,43 @@ export type GameControllerDiagnosticEvent = CommandObservation | AuthorityLogObs
 
 const MAX_COMMAND_REQUESTS = 128;
 
-/**
- * 游戏控制器:桥接「引擎(或网络)」与「gameStore」。
- * - 单机(LocalController):进程内房间编排 + MemorySocket(#398 单机统一 B),
- *   引擎=房间权威引擎直读(内存直连,无 hydrate 副本)。
- * - 联机(OnlineController):持只读引擎,命令发 WS,靠快照广播重 hydrate。
- */
+/** 单机和联机均从座位水合副本发布局面。 */
 export abstract class GameController {
-  // ─── 抽象成员(子类提供;语义与旧 ClientController 对齐)──
-  /** 渲染源:单机=权威引擎;联机=快照重 hydrate 的只读引擎。 */
   abstract get engine(): GameEngine;
-  /** 视角座位:单机=决策方(跟随决策方);联机=自己分到的 seat。 */
-  abstract get viewSeat(): number;
-  /** 本地玩家座位(交互策略输入):单机恒 0(房主真人);联机=入座分到的 seat
-   *  (未入座=-1,联机入座前瞬态)。未入座不可操作由 canAct 显式守卫保证——被询问集经脱敏批逐字拷贝
-   *  含 -1 匿名占位(见 canAct 反应窗分支),不能靠「集合只含真实座位」的推理。 */
+  /** 房间分配的真人座位。联机尚未入座时为 -1。 */
   protected abstract get mySeat(): number;
-  /** 单机跟随语义(#433 显式参数化;单机=true、联机=false):主分支是否豁免
-   *  「决策方===本地座位」判定。单机屏前唯一真人座即 mySeat,决策方是 bot 则
-   *  本屏无人可操作,isBot 判定即座位匹配;联机各端座位固定,他座决策时不得
-   *  解锁本端操作,必须显式判定决策方===自己。 */
-  protected abstract readonly hotSeat: boolean;
+
+  get viewSeat(): number {
+    return this.mySeat;
+  }
 
   /** 统一命令入口(所有玩家操作都走 GameCommand,联机=网络协议消息)。
    *  Wave3(候选2)收窄后的唯一抽象交互通道:roll 之类一行转发不再单设方法,
    *  UI 直接 dispatchCommand({type:"rollAndMove"});Setup 落子走 setupPickCapital。 */
-  abstract dispatchCommand(cmd: GameCommand): void;
+  abstract dispatchCommand(cmd: GameCommand, decisionPoint?: string): void;
+
+  protected decisionPoint: string | null = null;
+  private readonly interaction = new SeatInteraction<GameSnapshot>((command, point) =>
+    this.dispatchCommand(command, point),
+  );
+
+  get seatView() {
+    return this.interaction.view;
+  }
+
+  dispatchIntent(intent: SeatIntent, observedPoint = this.seatView.decisionPoint) {
+    const result = this.interaction.act(intent, observedPoint);
+    if (result.status !== "submitted") useGameStore.setState({ seatView: this.seatView });
+    return result;
+  }
+
+  protected snapshotForSeat(): GameSnapshot {
+    return readSeatReplica(this.engine, this.mySeat);
+  }
+
+  protected get seatReaction() {
+    return seatReactionOf(this.engine, this.mySeat);
+  }
 
   /** Setup(PickCapital)期点城=为当前选都玩家定都(候选2 收口:相位路由归 GameScreen,
    *  本方法只承载"落子"这一动作)。仅单机有此交互,故默认 no-op、子类覆写
@@ -156,13 +169,14 @@ export abstract class GameController {
     this.publishDiagnostic({ kind: "command", stage: "sent", at, ...request });
   }
 
-  /** 断线没有权威回执，丢弃待配对记录，保留已采集的发送事实。 */
-  protected forgetCommandRequests(): void {
-    this.commandRequests.clear();
+  /** 原座重发时保留那一笔的诊断配对，其余记录随连接结束。 */
+  protected forgetCommandRequests(keepId?: number): void {
+    for (const id of this.commandRequests.keys())
+      if (id !== keepId) this.commandRequests.delete(id);
   }
 
   protected observeCommandResult(
-    msg: CommandResultMsg | Extract<ServerMsg, { type: "error" }>,
+    msg: CommandResultMsg | Extract<ServerMsg, { type: "error" | "submissionResult" }>,
     at: number,
   ): void {
     const { requestId } = msg;
@@ -181,7 +195,11 @@ export abstract class GameController {
     }
     const { outcome } = msg;
     if (outcome === "accepted") {
-      this.publishDiagnostic({ ...event, outcome, logOffset: msg.logOffset });
+      this.publishDiagnostic({
+        ...event,
+        outcome,
+        ...("logOffset" in msg ? { logOffset: msg.logOffset } : {}),
+      });
       return;
     }
     const reason = this.redactDiagnosticCredentials(msg.reason);
@@ -239,13 +257,13 @@ export abstract class GameController {
    *  会话语义;播完/追帧放完/吸附作废删会话即落定,#611 改绑,ADR-0029 §4)。
    *  全局队列积压不再进门(他座棋子照飞、决策卷轴照弹);独立 getter 供公式单测
    *  注入,生产读 useMarch 的会话查询口。座位 -1 = 未入座(联机入座前瞬态,
-   *  非缺数据):无本座位演出可言,恒未在途;座位 ≥0 而座位表查无 = 控制器/引擎
-   *  错位 bug,当场炸出。 */
+   *  非缺数据)。首帧前占位引擎可以比实际房间小，水合后本座必须在座位表内。 */
   protected get fxPlaying(): boolean {
     const seat = this.mySeat;
     if (seat < 0) return false;
     const player = this.engine.players[seat];
     if (player == null) {
+      if (!this.enteredGame) return false;
       throw new Error(`fxPlaying:本座位 ${seat} 不在引擎座位表(控制器/引擎错位 bug)`);
     }
     return isMarching(player.id);
@@ -258,17 +276,7 @@ export abstract class GameController {
     return this.pending || this.fxPlaying;
   }
 
-  /** 此刻本地玩家能否操作(写进 store.interactive,UI 据此启用控件)。
-   *  公式单源(#433;表驱动单测 test/controller-policy.test.ts 钉死全输入空间):
-   *  - 反应窗例外(ADR-0017 多属主):Playing×AwaitingReaction 时被询问座位可应答
-   *    ——决策方仍是出牌者,decisionOwner/hotSeat/托管/演出锁都不适用(倒计时不等
-   *    演出,超时兜底在权威侧);命令在途锁仍适用。未入座显式排除:被询问集经
-   *    脱敏批逐字拷贝,锦囊窗 queriedBySeat 含 -1 匿名占位(他座身份置换、数量
-   *    保留),includes(-1) 可为真——不设守卫未入座也能应答。
-   *  - 主分支:Playing × 决策方轮到本地(单机豁免见 hotSeat 字段)× 决策方非 bot
-   *    × 无在途命令 × 未托管 × 本座位演出落定(#611 改绑:只等自己的行军会话,
-   *    他座棋子照飞、队列积压不进门,ADR-0029 §4;热座分支无需同款守卫:
-   *    decisionOwner 恒为真实座位索引,等值判定对 -1 天然不成立)。 */
+  /** 普通抉择属于决策座位。反应窗另按本席是否受询判定，可在他人回合应答。 */
   get interactive(): boolean {
     return this.commandBlockReason() === null;
   }
@@ -277,14 +285,17 @@ export abstract class GameController {
     const e = this.engine;
     if (e.phase !== "Playing") return "对局未处于进行阶段";
     if (e.turnPhase === "AwaitingReaction") {
-      const pr = e.pendingReaction;
+      const pr = this.seatReaction;
       if (pr == null) return "当前反应窗缺失";
       // 联机脱敏批可能包含 -1 匿名占位，先排除未入座，再查被询问集。
       if (this.mySeat < 0) return "尚未入座";
       if (this.pending) return "已有命令在途";
-      return reactionQueriesSeat(pr.view, this.mySeat) ? null : "本座未受询";
+      if (this.autoPilotOn) return "本座托管中";
+      if (!reactionQueriesSeat(pr.view, this.mySeat)) return "本座未受询";
+      if (pr.answers.some((answer) => answer.seat === this.mySeat)) return "本座已应答";
+      return this.decisionPoint === null ? "当前反应窗无可用应答" : null;
     }
-    if (!this.hotSeat && e.decisionOwner !== this.mySeat) return "未轮到本座决策";
+    if (e.decisionOwner !== this.mySeat) return "未轮到本座决策";
     if (e.players[e.decisionOwner]?.isBot) return "当前由 bot 决策";
     if (this.pending) return "已有命令在途";
     if (this.autoPilotOn) return "本座托管中";
@@ -326,7 +337,7 @@ export abstract class GameController {
 
   /** 到达时投影为本机单调时刻。后续同窗消息只会收紧时限。 */
   protected observeReactionTiming(timing: ReactionTiming | undefined, receivedAt: number): void {
-    if (timing == null || timing.seq !== this.engine.pendingReaction?.seq) return;
+    if (timing == null || timing.seq !== this.seatReaction?.seq) return;
     const { gameId } = this.engine;
     const current = this.reactionDeadline;
     const deadlineAt = receivedAt + timing.remainingMs;
@@ -344,21 +355,34 @@ export abstract class GameController {
   /** 引擎变化后的统一出口:快照灌 store(旧 fullRender 的新等价物)。
    *  同时刷新 interactive 与 selfPresenting(#611「行军中…」提示源,与按钮同源
    *  canAct 的自我侧输入)两个派生量,保证 UI 一次重渲拿到一致的状态。 */
-  protected sync(): void {
-    const store = useGameStore.getState();
+  sync({ reconnect = false } = {}): void {
     const e = this.engine;
     const deadline = this.reactionDeadline;
     if (
       e.turnPhase !== "AwaitingReaction" ||
       deadline?.gameId !== e.gameId ||
-      deadline.seq !== e.pendingReaction?.seq
+      deadline.seq !== this.seatReaction?.seq
     )
       this.reactionDeadline = null;
-    store.syncFromEngine(e, this.reactionDeadline?.deadlineAt ?? null);
-    // viewSeat 一并刷:单机热座跟随活跃座位,联机恒为本座——均在控制器侧收口,UI 不自行推导。
-    store.setViewSeat(this.viewSeat);
-    store.setInteractive(this.interactive);
-    store.setSelfPresenting(this.selfPresenting);
+    const seatView = this.interaction.publish(
+      {
+        snapshot: this.snapshotForSeat(),
+        seat: this.mySeat,
+        decisionPoint: this.decisionPoint,
+        autopilotOn: this.autoPilotOn,
+        interactive: this.interactive,
+        reactionDeadlineAt: this.reactionDeadline?.deadlineAt ?? null,
+      },
+      { reconnect },
+    );
+    useGameStore.setState({
+      snapshot: seatView.snapshot,
+      seatView,
+      reactionDeadlineAt: this.reactionDeadline?.deadlineAt ?? null,
+      viewSeat: this.mySeat,
+      interactive: seatView.interactive,
+      selfPresenting: this.selfPresenting,
+    });
     observeGameDiagnosticState(this);
   }
 }

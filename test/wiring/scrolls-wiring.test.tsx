@@ -135,6 +135,17 @@ function q(scope: ParentNode, id: string): Element | null {
   return scope.querySelector(`[data-testid="${id}"]`);
 }
 
+function patchSeatView(patch: { snapshot?: GameSnapshot; interactive?: boolean }): void {
+  act(() => {
+    const seatView = { ...useGameStore.getState().seatView!, ...patch };
+    useGameStore.setState({
+      seatView,
+      snapshot: seatView.snapshot,
+      interactive: seatView.interactive,
+    });
+  });
+}
+
 /** 真点击(React 合成事件走冒泡;act 内派发,模板同款)。 */
 function click(el: Element): void {
   act(() => {
@@ -219,7 +230,7 @@ beforeAll(async () => {
   setController = registryMod.setController;
   // 注册带地图(生产 setController(controller, map) 同款):DecisionScrollLayer/
   // BoardView 的挂载门卫要 registry 静态上下文(getControllerMap),缺图整层不渲染。
-  // WiringController:生产基类最小子型——单机 hotSeat 参数 + submitCommand 命令腿
+  // WiringController:生产基类最小子型——submitCommand 命令腿
   // + 基类 sync 状态桥(模板同款;房间编排/传输/看门狗是层③领域不进来)。
   const Base = ctrlMod.GameController;
   class WiringControllerImpl extends Base {
@@ -229,14 +240,10 @@ beforeAll(async () => {
     override get engine(): GameEngine {
       return this.e;
     }
-    // 单机热座:视角跟随决策方(LocalController 同口径)。
-    override get viewSeat(): number {
-      return this.e.decisionOwner;
-    }
     protected override get mySeat(): number {
       return 0;
     }
-    protected override readonly hotSeat = true;
+
     override dispatchCommand(cmd: GameCommand): void {
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
       this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
@@ -347,10 +354,8 @@ describe("城池待决策卷轴", () => {
     plant({ kind: "armLanding", landing: { kind, propertyId } });
     plant({ kind: "armPhase", turnPhase: "AwaitingDecision", activeIndex: 0 });
     // 组件公共输入缝:金额表现允许独立更新,待决策载荷仍是引擎种出的真实上下文。
-    act(() => {
-      useGameStore.setState({
-        snapshot: { ...snap(), lastLandOutcomeKind: "Noop", lastLandOutcomeProperty: null },
-      });
+    patchSeatView({
+      snapshot: { ...snap(), lastLandOutcomeKind: "Noop", lastLandOutcomeProperty: null },
     });
     await clock.advance(0);
     expect(q(el, scroll) !== null).toBe(true);
@@ -383,19 +388,17 @@ describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     const seekBookButton = () => docQ(TESTIDS.actionButton("seek-book"));
     expect(seekBookButton()?.textContent).toBe("求书");
     const snapshot = snap();
-    act(() => {
-      useGameStore.setState({
-        snapshot: {
-          ...snapshot,
-          choices: snapshot.choices.map((option) =>
-            option.id === "seekBook" ? { ...option, label: "暂歇求书", available: false } : option,
-          ),
-        },
-      });
+    patchSeatView({
+      snapshot: {
+        ...snapshot,
+        choices: snapshot.choices.map((option) =>
+          option.id === "seekBook" ? { ...option, label: "暂歇求书", available: false } : option,
+        ),
+      },
     });
     expect(seekBookButton()?.hasAttribute("disabled")).toBe(true);
     expect(seekBookButton()?.textContent).toBe("暂歇求书");
-    act(() => useGameStore.setState({ snapshot }));
+    patchSeatView({ snapshot });
     const rows = snap().offeredHeroes;
     expect(rows).toHaveLength(3);
     for (let i = 0; i < rows.length; i++) {
@@ -503,10 +506,10 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(actionArea().contains(confirm())).toBe(true);
     expect(actionArea().textContent).toContain(cityOutcome);
     expect(snap().turnPhase).toBe("AwaitingTreasureOwner");
-    const logLenBefore = snap().log.length;
+    const logLenBefore = engine.log.length;
     click(confirm());
-    const cmdLine = snap()
-      .log.slice(logLenBefore)
+    const cmdLine = engine.log
+      .slice(logLenBefore)
       .find((l) => l.category === "cmd" && l.detail.includes("resolveTreasureOwner"));
     if (cmdLine == null) throw new Error("接线测试:resolveTreasureOwner 命令留痕缺席");
     expect(JSON.parse(cmdLine.detail)).toEqual({
@@ -535,11 +538,9 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(pick.textContent).not.toContain("+1 级");
     expect(pick.textContent).not.toContain("满级");
 
-    const logLenBefore = snap().log.length;
+    const logLenBefore = engine.log.length;
     click(docQ(T.treasureConfirm)!);
-    const cmdLine = snap()
-      .log.slice(logLenBefore)
-      .find((line) => line.category === "cmd");
+    const cmdLine = engine.log.slice(logLenBefore).find((line) => line.category === "cmd");
     expect(JSON.parse(cmdLine!.detail)).toEqual({
       type: "resolveTreasureOwner",
       action: { type: "fair", treasureId: "seal" },
@@ -849,7 +850,7 @@ it("研读选将在临时锁定后可恢复，出牌阶段结束时撤下恢复�
   minimize();
   await settle();
 
-  act(() => useGameStore.getState().setInteractive(false));
+  patchSeatView({ interactive: false });
   click(docQ(TESTIDS.modalRestore)!);
   await settle();
   expect(learn() === sheet).toBe(true);

@@ -1,15 +1,3 @@
-// 控制器交互策略公式表驱动单测(#433):「此刻本地玩家能不能点」上收基类
-// GameController.canAct 后,策略公式只剩一份。本文件穷举公式输入空间钉死语义:
-//   相位判定(EnginePhase × TurnPhase 全集)× 三把锁(pending/托管/本座位演出,8 组合)
-//   × 决策方判定(决策方座位 × 人/bot)× 热座语义开关(单机/联机唯一语义差,
-//   显式参数化,#433)+ AwaitingReaction 多属主例外(被询问集判定;决策方/托管/
-//   演出锁在该分支全部不适用——倒计时不等演出,超时兜底在权威侧)。
-//   #611 交互锁解绑(ADR-0029 §4):演出锁改绑「本座位演出落定」——生产读数 =
-//   players[mySeat].id → useMarch 行军会话查询口,新增会话驱动维度表钉死接线:
-//   本座在途关、他座在途/队列积压(公式无全局队列输入,结构性)开。
-// 两个真实控制器只剩「参数怎么取」:LocalController(热座=true、mySeat=0)由
-// test/online/local-room.test.ts 既有行为断言守住;OnlineController(热座=false、
-// mySeat=入座分配)参数面在本文件尾部薄测。
 import { describe, it, expect } from "bun:test";
 import type { EnginePhase, GameEngine, TurnPhase } from "@dafung/core/engine/authority";
 import type { ReactionView } from "@dafung/core/engine/reaction-window";
@@ -25,19 +13,18 @@ const GUANZHONG: { map: LoadedMap; data: MapData } = {
   data: guanzhongData as unknown as MapData,
 };
 
-/** 策略探针:基类公式的一切子类输入(座位/热座/锁)显式注入,直读 interactive 断言。
+/** 策略探针:基类公式的一切子类输入(座位/锁)显式注入,直读 interactive 断言。
  *  fxPlaying 缺省不注入(= 走基类生产实现:本座位 id → useMarch 行军会话查询口,
  *  #611),显式传布尔才覆写——演出锁的「读数怎么来」与「公式怎么消费」分开钉。 */
 class PolicyProbe extends GameController {
   private readonly p: {
     mySeat: number;
-    hotSeat: boolean;
     autoPilot: boolean;
     fxPlaying?: boolean;
   };
   constructor(
     private readonly fakeEngine: GameEngine,
-    p: { mySeat: number; hotSeat: boolean; autoPilot?: boolean; fxPlaying?: boolean },
+    p: { mySeat: number; autoPilot?: boolean; fxPlaying?: boolean },
   ) {
     super();
     this.p = { autoPilot: false, ...p };
@@ -51,9 +38,6 @@ class PolicyProbe extends GameController {
   protected override get mySeat(): number {
     return this.p.mySeat;
   }
-  protected override get hotSeat(): boolean {
-    return this.p.hotSeat;
-  }
   protected override get fxPlaying(): boolean {
     return this.p.fxPlaying ?? super.fxPlaying;
   }
@@ -62,6 +46,15 @@ class PolicyProbe extends GameController {
   /** 锁注入:pending 是基类 protected 字段(子类协议面写),探针借同族访问写。 */
   setPending(v: boolean): void {
     this.pending = v;
+  }
+  setDecisionPoint(point: string | null): void {
+    this.decisionPoint = point;
+  }
+  markEntered(): void {
+    this.enteredGame = true;
+  }
+  get presenting(): boolean {
+    return this.selfPresenting;
   }
   /** 托管锁注入(基类公开读口「UI 托管中」回读,探针覆写为注入面)。 */
   override get autoPilotOn(): boolean {
@@ -98,7 +91,8 @@ function fakeEngine(o: {
     phase: o.phase ?? "Playing",
     turnPhase: o.turnPhase ?? "Roll",
     decisionOwner: o.decisionOwner ?? 0,
-    pendingReaction: o.pendingReaction ?? null,
+    pendingReaction:
+      o.pendingReaction == null ? null : { ...o.pendingReaction, seq: 1, answers: [] },
     players: o.players ?? [
       { isBot: false, id: "p1" },
       { isBot: true, id: "p2" },
@@ -130,24 +124,19 @@ function marchView(ownerSeat: number): ReactionView {
 
 describe("控制器交互策略公式(#433 canAct 单源)", () => {
   it("相位判定:Playing × turnPhase 全集 × 锁全关 × 我的(人类)决策——除 AwaitingReaction 例外分支外恒可操作", () => {
-    for (const hotSeat of [false, true]) {
-      for (const turnPhase of TURN_PHASES) {
-        const probe = new PolicyProbe(fakeEngine({ turnPhase }), { mySeat: 0, hotSeat });
-        expect(probe.interactive).toBe(turnPhase !== "AwaitingReaction");
-      }
+    for (const turnPhase of TURN_PHASES) {
+      const probe = new PolicyProbe(fakeEngine({ turnPhase }), { mySeat: 0 });
+      expect(probe.interactive).toBe(turnPhase !== "AwaitingReaction");
     }
   });
 
   it("相位判定:非 Playing(Setup/GameOver)恒不可操作——决策方轮到本端也不放行", () => {
     for (const phase of ["Setup", "GameOver"] as const) {
-      for (const hotSeat of [false, true]) {
-        const probe = new PolicyProbe(fakeEngine({ phase, decisionOwner: 0 }), {
-          mySeat: 0,
-          hotSeat,
-          fxPlaying: true,
-        });
-        expect(probe.interactive).toBe(false);
-      }
+      const probe = new PolicyProbe(fakeEngine({ phase, decisionOwner: 0 }), {
+        mySeat: 0,
+        fxPlaying: true,
+      });
+      expect(probe.interactive).toBe(false);
     }
   });
 
@@ -158,7 +147,6 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
           for (const fxPlaying of [false, true]) {
             const probe = new PolicyProbe(fakeEngine({ turnPhase, decisionOwner: 0 }), {
               mySeat: 0,
-              hotSeat: false,
               autoPilot,
               fxPlaying,
             });
@@ -198,7 +186,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
           { isBot: true, id: "p2" },
         ],
       }),
-      { mySeat: 0, hotSeat: false },
+      { mySeat: 0 },
     );
 
   it("演出锁改绑本座位(#611):他座位行军在途不关门——决策卷轴照弹,别人的棋子照飞", () => {
@@ -221,61 +209,32 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
     }
   });
 
-  it("演出锁读数零兜底(#611):本座位不在引擎座位表当场炸出(控制器/引擎错位是 bug,不静默当无演出)", () => {
+  it("第四座收到首帧前没有本席演出，完整座位表就位后仍检查错位", () => {
     const probe = new PolicyProbe(
-      fakeEngine({ decisionOwner: 0, players: [{ isBot: false, id: "p1" }] }),
-      { mySeat: 3, hotSeat: true }, // 热座豁免决策方判定 → 公式走到演出锁读数
+      fakeEngine({ decisionOwner: 3, players: [{ isBot: false, id: "p1" }] }),
+      { mySeat: 3 },
     );
-    expect(() => probe.interactive).toThrow();
+    expect(probe.presenting).toBe(false);
+    probe.markEntered();
+    expect(() => probe.presenting).toThrow("不在引擎座位表");
   });
 
-  const decisionRows = [
-    {
-      name: "决策方=我的座位(人类):两语义都放行",
-      owner: 0,
-      players: [{ isBot: false }, { isBot: false }, { isBot: true }],
-      online: true,
-      hotSeat: true,
-    },
-    {
-      name: "决策方=他人座位(人类):联机关、热座开(唯一真人座=isBot 判定即座位匹配)",
-      owner: 1,
-      players: [{ isBot: false }, { isBot: false }, { isBot: true }],
-      online: false,
-      hotSeat: true,
-    },
-    {
-      name: "决策方=他人座位(bot):两语义都关",
-      owner: 2,
-      players: [{ isBot: false }, { isBot: false }, { isBot: true }],
-      online: false,
-      hotSeat: false,
-    },
-    {
-      name: "决策方=我的座位但标 bot:两语义都关(isBot 判定独立生效)",
-      owner: 0,
-      players: [{ isBot: true }, { isBot: false }],
-      online: false,
-      hotSeat: false,
-    },
-  ];
-  for (const row of decisionRows) {
-    it(`决策方判定 × 热座语义(显式参数化):${row.name}`, () => {
-      const make = (hotSeat: boolean): PolicyProbe =>
-        new PolicyProbe(
-          fakeEngine({
-            turnPhase: "AwaitingDecision",
-            decisionOwner: row.owner,
-            players: row.players,
-          }),
-          { mySeat: 0, hotSeat },
-        );
-      expect(make(false).interactive).toBe(row.online);
-      expect(make(true).interactive).toBe(row.hotSeat);
-    });
-  }
+  it("只有当前决策方的真人座位可操作", () => {
+    const players = [{ isBot: false }, { isBot: false }, { isBot: true }];
+    for (const [owner, mySeat, expected] of [
+      [0, 0, true],
+      [1, 0, false],
+      [2, 2, false],
+    ] as const) {
+      const probe = new PolicyProbe(
+        fakeEngine({ turnPhase: "AwaitingDecision", decisionOwner: owner, players }),
+        { mySeat },
+      );
+      expect(probe.interactive).toBe(expected);
+    }
+  });
 
-  it("反应窗例外:AwaitingReaction 只看「挂起窗存在 × 我在被询问集 × 无在途命令」——决策方/托管/演出锁与热座语义全部不适用", () => {
+  it("反应窗按本席授权开启", () => {
     const reactionRows = [
       { name: "无挂起窗", view: null as ReactionView | null, queried: false },
       { name: "锦囊窗·我在被询问集", view: jinnangView([0, 2]), queried: true },
@@ -290,7 +249,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
     for (const row of reactionRows) {
       for (const mySeat of [-1, 0]) {
         for (const pending of [false, true]) {
-          // 决策方=bot、托管开、演出播、热座开:四项在反应窗分支全部不适用。
+          // 反应窗里仍可应答他人回合，行军演出由独立通路控制。
           const probe = new PolicyProbe(
             fakeEngine({
               turnPhase: "AwaitingReaction",
@@ -298,8 +257,9 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
               players: [{ isBot: false }, { isBot: true }],
               pendingReaction: row.view == null ? null : { view: row.view },
             }),
-            { mySeat, hotSeat: true, autoPilot: true, fxPlaying: true },
+            { mySeat, fxPlaying: true },
           );
+          probe.setDecisionPoint(row.queried ? "反应窗" : null);
           probe.setPending(pending);
           // 未入座(mySeat=-1)不可操作:基类显式守卫排除——被询问集可含 -1 匿名占位
           // (脱敏批逐字拷贝,见上行表),includes(-1) 可为真,非「天然不在集内」。
@@ -312,7 +272,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
 });
 
 describe("OnlineController 参数面(#433 薄测:参数怎么取)", () => {
-  it("未入座(mySeat=-1)+ 占位壳 Setup:不可操作;策略公式消费联机参数(热座=false、座位=入座分配)", () => {
+  it("未入座(mySeat=-1)+ 占位壳 Setup:不可操作;策略公式消费联机参数(座位=入座分配)", () => {
     const c = new OnlineController(GUANZHONG.map, "guanzhong");
     expect(c.viewSeat).toBe(-1);
     expect(c.interactive).toBe(false);

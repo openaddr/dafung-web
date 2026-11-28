@@ -51,7 +51,11 @@ function noCallOps(): InboundOps & { calls: string[] } {
 describe("wire 下行构造(#429 形状单源)", () => {
   it("events/error/dismissed 三构造:JSON 文本解出即线上形状", () => {
     const ev = sampleEvent();
-    expect(JSON.parse(eventsMsg([ev]))).toEqual({ type: "events", events: [ev] });
+    expect(JSON.parse(eventsMsg([ev]))).toEqual({
+      type: "events",
+      events: [ev],
+      decisionPoint: null,
+    });
     expect(JSON.parse(errorMsg("非法命令"))).toEqual({ type: "error", error: "非法命令" });
     expect(JSON.parse(dismissedMsg("ABCD"))).toEqual({ type: "dismissed", roomId: "ABCD" });
   });
@@ -59,7 +63,7 @@ describe("wire 下行构造(#429 形状单源)", () => {
   it("encodeDownlink:任意 ServerMsg 成员原样序列化(lobby/snapshot 由 seat-projection 产出,编解码只管封装)", () => {
     const msg: ServerMsg = { type: "dismissed", roomId: "XYZ" };
     expect(JSON.parse(encodeDownlink(msg))).toEqual({ type: "dismissed", roomId: "XYZ" });
-    const batch: ServerMsg = { type: "events", events: [sampleEvent()] };
+    const batch: ServerMsg = { type: "events", events: [sampleEvent()], decisionPoint: null };
     expect(JSON.parse(encodeDownlink(batch))).toEqual(batch);
   });
 });

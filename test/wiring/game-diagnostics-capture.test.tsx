@@ -163,6 +163,7 @@ function snapshotOf(
     type: "snapshot",
     ...ROOM,
     ...redactSnapshotForSeat(engine.snapshot(), 1),
+    decisionPoint: engine.pendingReaction ? `test/reaction/${engine.pendingReaction.seq}/1` : null,
     reactionTiming,
   };
 }
@@ -198,7 +199,16 @@ it("联机日志截止使用收包时钟，尾段和校准锚持续推进可信�
       authority.offeredCapitals[0],
     );
     expect(pick).toMatchObject({ ok: true });
-    const tail = assembleGameLogDelta(authority, opening.log.length, receivedAt - 500)!;
+    const logMessage = (offset: number, at: number) => {
+      const { message } = assembleGameLogDelta(
+        authority,
+        { rawOffset: offset, publicOffset: offset },
+        at,
+      );
+      if (message === null) throw new Error("缺少测试日志尾段");
+      return message;
+    };
+    const tail = logMessage(opening.log.length, receivedAt - 500);
     clock.mockReturnValue(receivedAt + 10);
     socket.receive(tail);
     clock.mockReturnValue(receivedAt + 20);
@@ -207,8 +217,8 @@ it("联机日志截止使用收包时钟，尾段和校准锚持续推进可信�
     authority.logRoomEvent("离线记录", '{"type":"offline","seat":0}');
     authority.logRoomEvent("原座恢复记录", '{"type":"online","seat":0}');
     const end = tail.offset + tail.lines.length;
-    socket.receive(assembleGameLogDelta(authority, end + 1, Date.now())!);
-    socket.receive(assembleGameLogDelta(authority, end, Date.now())!);
+    socket.receive(logMessage(end + 1, Date.now()));
+    socket.receive(logMessage(end, Date.now()));
     const beforeRejoin = await loadArchivedGame(authority.gameId);
     expect(beforeRejoin?.log?.lines).toHaveLength(end);
     expect(beforeRejoin?.log?.capturedAt).toBe(receivedAt + 10);
@@ -220,7 +230,7 @@ it("联机日志截止使用收包时钟，尾段和校准锚持续推进可信�
     clock.mockReturnValue(receivedAt + 30);
     rejoined.receive(snapshotOf(authority));
     authority.logRoomEvent("托管记录", '{"type":"autopilot","seat":0,"on":true}');
-    const afterRejoin = assembleGameLogDelta(authority, authority.log.length - 1, receivedAt - 50)!;
+    const afterRejoin = logMessage(authority.log.length - 1, receivedAt - 50);
     clock.mockReturnValue(receivedAt + 40);
     rejoined.receive(afterRejoin);
     returnHome();

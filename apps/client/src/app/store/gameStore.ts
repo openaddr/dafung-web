@@ -1,17 +1,13 @@
-// React 全局游戏状态(zustand):控制器经 syncFromEngine 写入可序列化快照,组件订阅渲染。
+// 控制器一次发布座位可观察的局面和交互状态，组件订阅渲染。
 // 同时持有屏幕、交互门与提示等 UI 态;可变引擎实例另存模块引用。
 import { useMemo, useRef } from "react";
 import { create } from "zustand";
 import type { GameEngine } from "@dafung/core/engine/authority";
-import type {
-  GameSnapshot as CoreGameSnapshot,
-  SnapshotPlayer as CoreSnapshotPlayer,
-} from "@dafung/core/engine/snapshot";
+import type { SnapshotPlayer as CoreSnapshotPlayer } from "@dafung/core/engine/snapshot";
+import type { SeatInteractionView } from "@dafung/core/protocol/seat-interaction";
+import type { SeatSnapshot } from "@dafung/core/room/seat-projection";
 // 提示 TTL 与 netStore 共用 timings.UI.hintTtlMs。
 import { UI } from "@app/fx/timings";
-
-/** core 快照原形;展示字段由消费方按 id 查询,store 不持派生副本。 */
-export type GameSnapshotCore = CoreGameSnapshot;
 
 /** core 玩家快照行,heroes 保留槽位的已授技与冷却账。 */
 export type SnapshotPlayer = CoreSnapshotPlayer;
@@ -21,9 +17,8 @@ export type SnapshotPlayer = CoreSnapshotPlayer;
  *  断言成含价字段的完整 TreasureDef。 */
 export type SnapshotTreasure = SnapshotPlayer["treasures"][number];
 
-/** store 持有的快照 = core 快照本体(零派生):单机/联机控制器均从协议水合副本
- *  经 syncFromEngine 写入。 */
-export type GameSnapshot = CoreGameSnapshot;
+/** 单机和联机均由控制器发布观察座位的局面。 */
+export type GameSnapshot = SeatSnapshot;
 
 // ──────────────────────────── engine 引用管理 ────────────────────────────
 // engine 是带方法/循环引用的可变实例,不属于响应式数据:
@@ -54,9 +49,10 @@ type Screen = "setup" | "solo-setup" | "lobby" | "game";
 interface GameStoreState {
   // ── 引擎数据(快照;null = 尚未开局)──
   snapshot: GameSnapshot | null;
+  seatView: SeatInteractionView<GameSnapshot> | null;
   /** 当前快照的反应窗在本机单调时钟上的截止时刻。 */
   reactionDeadlineAt: number | null;
-  /** 本地视角座位(单机=当前活跃人类座位;联机=自己分到的 seat;-1 = 未入座)。 */
+  /** 房间分配的真人座位。-1 表示尚未入座。 */
   viewSeat: number;
   /** 此刻本地玩家能否操作(由控制器判定写入:UI 不自行推导,保持单一来源)。 */
   interactive: boolean;
@@ -72,11 +68,6 @@ interface GameStoreState {
   hintLevel: "error" | "info";
 
   // ── actions ──
-  /** 控制器在引擎变化后调用,将 engine.snapshot() 整体写入 state。 */
-  syncFromEngine: (engine: GameEngine, reactionDeadlineAt?: number | null) => void;
-  setViewSeat: (seat: number) => void;
-  setInteractive: (interactive: boolean) => void;
-  setSelfPresenting: (selfPresenting: boolean) => void;
   /** 短暂提示,过期由 store 统一管理;重复 push 重新计时,level 决定样式。 */
   pushHint: (hint: string | null, level?: "error" | "info") => void;
   setScreen: (screen: Screen) => void;
@@ -87,6 +78,7 @@ interface GameStoreState {
 
 export const useGameStore = create<GameStoreState>((set) => ({
   snapshot: null,
+  seatView: null,
   reactionDeadlineAt: null,
   viewSeat: -1,
   interactive: false,
@@ -95,25 +87,6 @@ export const useGameStore = create<GameStoreState>((set) => ({
   hint: null,
   hintLevel: "error",
 
-  syncFromEngine: (engine, reactionDeadlineAt) => {
-    // core 快照直灌。全量替换快照:引擎每次动作都是新的序列化
-    // 对象,浅比较引用即触发订阅组件重渲。
-    const snapshot = engine.snapshot();
-    set((state) => {
-      if (reactionDeadlineAt !== undefined) return { snapshot, reactionDeadlineAt };
-      const sameWindow =
-        snapshot.turnPhase === "AwaitingReaction" &&
-        state.snapshot?.gameId === snapshot.gameId &&
-        state.snapshot.pendingReaction?.seq === snapshot.pendingReaction?.seq;
-      return {
-        snapshot,
-        reactionDeadlineAt: sameWindow ? state.reactionDeadlineAt : null,
-      };
-    });
-  },
-  setViewSeat: (seat) => set({ viewSeat: seat }),
-  setInteractive: (interactive) => set({ interactive }),
-  setSelfPresenting: (selfPresenting) => set({ selfPresenting }),
   // 同时只保留最新提示的过期计时;重复 push 先取消旧定时器。
   pushHint: (hint, level = "error") => {
     if (gameHintTimer != null) clearTimeout(gameHintTimer);
@@ -126,6 +99,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
     gameHintTimer = null;
     set({
       snapshot: null,
+      seatView: null,
       reactionDeadlineAt: null,
       viewSeat: -1,
       interactive: false,

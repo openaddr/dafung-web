@@ -26,14 +26,20 @@
 // 设计见 docs/explanation/联机架构.md + docs/adr/0001..0007。
 //
 // 运行时:Bun 原生(Bun.serve + 内置 WebSocket,2026-08 自 node:http+ws 迁移,行为语义不变)。
-import { appendFileSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { GameEngine, TurnPhase } from "@dafung/core/engine/authority";
 import { STANDARD_SEAT_COUNT } from "@dafung/core/engine/constants";
 import { BOT_STEP_MS } from "@dafung/core/engine/timings";
 import { EventBatchChannel } from "@dafung/core/room/event-batch";
-import { statusOf } from "@dafung/core/room/room-status";
 // wire 协议编解码单源(#429):上行 parse+dispatch、下行构造全部收口 wire.ts
 import {
   dismissedMsg,
@@ -51,8 +57,11 @@ import {
   CALIBRATION_BACKED_KINDS,
   CALIBRATION_EVENT_KINDS,
   CALIBRATION_WINDOWS,
+  INITIAL_GAME_LOG_CURSOR,
+  isPrivateJinnangStepBatch,
   lobbyView,
   seatMeta,
+  type GameLogCursor,
 } from "@dafung/core/room/seat-projection";
 import type { HostConfig } from "@dafung/core/room/room-record";
 import { loadExtensionPackages } from "./extension-loader";
@@ -132,16 +141,21 @@ const persistence = new FileRoomPersistence(ROOMS_DIR);
 // 追加写文件。终局行(final)由引擎在胜负判定时写入 engine.log,随最后一次 flush 自然落盘。
 const LOGS_DIR = resolve(process.env.LOGS_DIR ?? "./data/logs");
 const LOG_TTL_DAYS = parseInt(process.env.LOG_TTL_DAYS ?? "30", 10);
+const logCutoffAtStartup = Date.now() - LOG_TTL_DAYS * 86_400_000;
 mkdirSync(LOGS_DIR, { recursive: true });
 
-/** 增量写账本:gameId → 已写行数。恢复房间的基线在 restoreAll 回调里登记
- *  (文件在重启前已含那些行,恢复后只追加新增)。 */
-const logWritten = new Map<string, number>();
+/** 已写行数。发现归档与权威记录分歧时标记为 null，保留现有文件供排查。 */
+const logWritten = new Map<string, number | null>();
+
+function gameLogPath(gameId: string): string {
+  return join(LOGS_DIR, `${gameId}.jsonl`);
+}
 
 function flushGameLog(room: RoomSession): void {
   const e = room.engine;
   if (!e) return;
   let written = logWritten.get(e.gameId);
+  if (written === null) return;
   if (written === undefined) {
     written = 0;
     logWritten.set(e.gameId, 0);
@@ -152,18 +166,47 @@ function flushGameLog(room: RoomSession): void {
       .slice(written)
       .map((l) => JSON.stringify(l))
       .join("\n") + "\n";
-  appendFileSync(join(LOGS_DIR, `${e.gameId}.jsonl`), fresh, "utf-8");
+  appendFileSync(gameLogPath(e.gameId), fresh, "utf-8");
   logWritten.set(e.gameId, e.log.length);
+}
+
+/** 存档可能已提交但日志尚未追加。按归档实际完成的行数补写。 */
+function restoreGameLog(room: RoomSession): void {
+  const e = room.engine;
+  if (!e) return;
+  logWritten.set(e.gameId, null);
+  try {
+    let archive: string;
+    try {
+      archive = readFileSync(gameLogPath(e.gameId), "utf-8");
+    } catch (error) {
+      if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error;
+      const last = e.log.at(-1);
+      if (last === undefined) throw new Error("已保存的对局缺少日志");
+      // 清扫已移除旧归档，房间可在下一次活动时重新归档。
+      if (last.ts < logCutoffAtStartup) {
+        logWritten.delete(e.gameId);
+        return;
+      }
+      archive = "";
+    }
+    const lines = archive.split("\n");
+    if (lines.pop() !== "" || lines.some((line, index) => line !== JSON.stringify(e.log[index])))
+      throw new Error("归档内容与已提交的对局日志前缀分歧");
+    logWritten.set(e.gameId, lines.length);
+    flushGameLog(room);
+  } catch (error) {
+    console.error(`[server] 对局 ${e.gameId} 的日志归档恢复失败`, error);
+  }
 }
 
 /** 启动清扫(ADR-0014 30 天保底清理):删 mtime 超过 LOG_TTL_DAYS 天的日志文件。 */
 function cleanOldLogs(): number {
-  const cutoff = Date.now() - LOG_TTL_DAYS * 86400_000;
   let removed = 0;
   for (const f of readdirSync(LOGS_DIR)) {
     if (!f.endsWith(".jsonl")) continue;
     const p = join(LOGS_DIR, f);
-    if (statSync(p).mtimeMs < cutoff) {
+    if (statSync(p).mtimeMs < logCutoffAtStartup) {
       unlinkSync(p);
       removed++;
     }
@@ -179,13 +222,21 @@ const removedOldLogs = cleanOldLogs();
 // room.ts 的引擎侧事件经 RoomObserver 注入;传输层事件(cmd/ws-open/…)在此直接记录。
 const eventTail = new Map<string, unknown[]>();
 const TAIL_MAX = 100;
-function recordEvent(roomId: string, ev: Record<string, unknown>): void {
+function recordEvent(roomId: string, ev: Record<string, unknown>, includeInDebug = true): void {
   const line = { t: new Date().toISOString(), ...ev };
   try {
     appendFileSync(join(ROOMS_DIR, `${roomId}.events.jsonl`), JSON.stringify(line) + "\n", "utf-8");
   } catch (err) {
     console.warn(`[server] 事件落盘失败(${roomId}):`, (err as Error).message);
   }
+  // 调试端点按房间码公开。原始操作、尚未确认的选都和反应席位只记服务器流水。
+  if (
+    !includeInDebug ||
+    ev.ev === "cmd" ||
+    ev.ev === "pick-capital" ||
+    ev.ev === "reaction-decline"
+  )
+    return;
   const tail = eventTail.get(roomId) ?? [];
   tail.push(line);
   if (tail.length > TAIL_MAX) tail.shift();
@@ -220,20 +271,24 @@ const lastRoomMeta = new Map<string, string>();
 /** 上次 flush/open 时引擎结算 turnPhase:决策窗退出检测(退出批无相位事件,如「今不用」)。 */
 const settledTurnPhase = new Map<string, TurnPhase | null>();
 
-const registry = new RoomRegistry(
-  persistence,
-  (roomId, ev: RoomEvent) => recordEvent(roomId, ev as Record<string, unknown>),
-  flushGameLog,
-  {
-    decisionTimeoutMs: DECISION_TIMEOUT_MS,
-    reactionWindowMs: REACTION_WINDOW_MS_OVERRIDE,
-    retentionWindowMs: RETENTION_WINDOW_MS,
-    botStepMs: BOT_STEP_MS_EFFECTIVE,
-  },
-);
+function recordObservedRoomEvent(roomId: string, event: RoomEvent): void {
+  const engine = registry.get(roomId)?.engine;
+  const privateStep =
+    event.ev === "bot-stop" &&
+    event.reason === "human-turn" &&
+    engine != null &&
+    isPrivateJinnangStepBatch(engine.turnPhase, engine.turnPhase, engine.gameEvents);
+  recordEvent(roomId, event, !privateStep);
+}
+
+const registry = new RoomRegistry(persistence, recordObservedRoomEvent, flushGameLog, {
+  decisionTimeoutMs: DECISION_TIMEOUT_MS,
+  reactionWindowMs: REACTION_WINDOW_MS_OVERRIDE,
+  retentionWindowMs: RETENTION_WINDOW_MS,
+  botStepMs: BOT_STEP_MS_EFFECTIVE,
+});
 const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
-  // 恢复房间:对局日志基线 = 恢复快照的 log 长度(重启前这些行已在文件里)
-  if (room.engine) logWritten.set(room.engine.gameId, room.engine.log.length);
+  restoreGameLog(room);
   // #388 恢复登记(#390 移交注记归口):恢复快照自带的当前批视为已下行(重启前已广播
   // 过)——不登记的话,恢复后首次广播会把旧批当新批重发,客户端折叠二次落账。结算相位
   // 基线同步登记(决策窗退出检测的起点)。
@@ -250,7 +305,8 @@ const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
 export interface WsSeat {
   roomId: string;
   seat: number;
-  logOffset: number;
+  logCursor: GameLogCursor;
+  decisionPoint: string | null;
 }
 type SeatSocket = import("bun").ServerWebSocket<WsSeat>;
 
@@ -277,14 +333,15 @@ function onlineSeatsOf(roomId: string): Set<number> {
 function sendSeatSummary(room: RoomSession, online: Set<number>, ws: SeatSocket): void {
   const shot = assembleDownlinkShot(room, online, ws.data.seat, [], true);
   // Bun.send 的 0 表示丢弃，-1 表示已排队。游标随已接受的下行推进。
-  if (ws.send(shot.snapshot) !== 0) ws.data.logOffset = shot.logOffset;
+  if (ws.send(shot.snapshot) !== 0) {
+    ws.data.logCursor = shot.logCursor;
+    ws.data.decisionPoint = shot.decisionPoint;
+  }
 }
 
 function sendGameLog(ws: SeatSocket, engine: GameEngine, capturedAt: number): void {
-  const msg = assembleGameLogDelta(engine, ws.data.logOffset, capturedAt);
-  if (msg != null && ws.send(encodeDownlink(msg)) !== 0) {
-    ws.data.logOffset = msg.offset + msg.lines.length;
-  }
+  const { message, next } = assembleGameLogDelta(engine, ws.data.logCursor, capturedAt);
+  if (message === null || ws.send(encodeDownlink(message)) !== 0) ws.data.logCursor = next;
 }
 
 // ──────────────────────────── 事件批下行通道(#390,#388 起为唯一对局状态通路)────────────────────────────
@@ -297,7 +354,7 @@ function sendGameLog(ws: SeatSocket, engine: GameEngine, capturedAt: number): vo
 // 断线即丢(无排队无补发,ADR-0020 决策 4;重连=整房摘要,见 open 处理器)。
 // 批语义本体(累积/去重/拼接/幂等排空/合并拍)在共享通道 scripts/event-batch.ts(#411)。
 /** 广播(#388 折叠切换⑥):读 Room 当前状态 + 算 onlineSeats,flush 时按序发——
- *  1. 事件批消息(#390,唯一对局状态通路):本 tick 累积批每座位各一份过滤批(空批不发);
+ *  1. 事件批消息(#390):本 tick 每座位各一份过滤批，本席决策权变化时也可单独下发；
  *  2. 关键节点校准快照(②):判定口径见顶部「全量下行三类」——每座位各发各的 per-seat
  *     投影,自带房间字段(元数据随车,指纹同步更新);
  *  3. 房间元数据消息(③):非校准 flush 且元数据指纹变化时补发 lobby 形状一条
@@ -326,7 +383,7 @@ function broadcast(roomId: string): void {
 function flushRoom(roomId: string): void {
   const pending = dirtySeats.get(roomId);
   dirtySeats.delete(roomId);
-  const events = eventBatches.drain(roomId); // #411:幂等排空归共享通道
+  const batch = eventBatches.drain(roomId) ?? []; // #411:幂等排空归共享通道
   const r = registry.get(roomId);
   if (!pending || !r) return;
   const online = onlineSeatsOf(roomId);
@@ -342,25 +399,28 @@ function flushRoom(roomId: string): void {
   const prev = settledTurnPhase.get(roomId) ?? null;
   settledTurnPhase.set(roomId, settled);
   const closeEdgeBatch =
-    (events ?? []).length === 0 ||
-    (events ?? []).some((ev) => CALIBRATION_BACKED_KINDS.has(ev.kind));
+    batch.length === 0 || batch.some((ev) => CALIBRATION_BACKED_KINDS.has(ev.kind));
   const calibrate =
     e != null &&
     (e.phase === "Setup" ||
-      (events ?? []).some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
-      (settled != null && CALIBRATION_WINDOWS.has(settled)) ||
+      batch.some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
+      (settled != null &&
+        CALIBRATION_WINDOWS.has(settled) &&
+        !isPrivateJinnangStepBatch(prev, settled, batch)) ||
       (prev != null && CALIBRATION_WINDOWS.has(prev) && closeEdgeBatch));
   // 逐座位单拍下行(#431 装配单口):事件批消息(#390)因果在前、状态在后;校准拍
   // 摘要随车(每座位各发各的 redactSnapshotForSeat 投影,#381:god-view 退役)。
   // redaction 在装配内必经(#381 保密后补,未知 kind 当场炸),本文件不再直呼
-  // redactEvents/clientView。事件半边恒装配(空批自然产出 null);摘要半边只在校准
+  // redactEvents/clientView。摘要半边只在校准
   // 拍构造(快照含全量 log,非校准拍不白付 O(log) 序列化)。序列化成本×座位数可接受
   // ——六人局事件批远小于全量快照。
-  if (events && events.length > 0) {
+  if (batch.length > 0 || !calibrate) {
     for (const ws of socketsOf(roomId).values()) {
-      if (ws.readyState === WebSocket.OPEN) {
-        const msg = assembleDownlinkShot(r, online, ws.data.seat, events, false).events;
-        if (msg != null) ws.send(msg);
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      const previousDecision = calibrate ? undefined : ws.data.decisionPoint;
+      const shot = assembleDownlinkShot(r, online, ws.data.seat, batch, false, previousDecision);
+      if (shot.events !== null && ws.send(shot.events) !== 0) {
+        ws.data.decisionPoint = shot.decisionPoint;
       }
     }
   }
@@ -456,7 +516,7 @@ const HELP = {
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/托管)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=":
-      "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/events/gameLog/dismissed",
+      "入座连接；连环计和反应应答发 {type:'submit',submission}，收 submissionResult；其余操作发 cmd/pickCapital/autoPilot",
   },
   retention:
     "掉线座位保留窗口(#380):对局中断线的座位保留 RETENTION_WINDOW_MS(env 可调,默认 600000=10 分钟,0=关);" +
@@ -583,13 +643,13 @@ async function handle(req: Request): Promise<Response> {
 
   if (path === "/room/start") {
     const roomId = String(obj.roomId ?? "");
-    const room = await registry.startGame(
+    await registry.startGame(
       roomId,
       String(obj.seatToken ?? ""),
       () => broadcast(roomId),
       loadBuiltinMapById,
     );
-    return sendJson(200, { ok: true, ...statusOf(room.engine!) });
+    return sendJson(200, { ok: true });
   }
 
   if (path === "/room/dismiss") {
@@ -644,7 +704,11 @@ export const engineServer = Bun.serve<WsSeat>({
     if (!roomId || !registry.validateSeat(roomId, seat, token)) {
       return new Response("Unauthorized", { status: 401 });
     }
-    if (!srv.upgrade(req, { data: { roomId, seat, logOffset: 0 } })) {
+    if (
+      !srv.upgrade(req, {
+        data: { roomId, seat, logCursor: INITIAL_GAME_LOG_CURSOR, decisionPoint: null },
+      })
+    ) {
       return new Response("WebSocket upgrade failed", { status: 500 });
     }
     return undefined; // upgrade 成功后由 handlers 接管
@@ -663,7 +727,7 @@ export const engineServer = Bun.serve<WsSeat>({
       // 到达,重连端会「摘要(已含该批状态)+ 事件批(同批)」各收一次——事件折叠非幂等
       // (现金/入册双计),必须先排空给旧连接、再发摘要。排空时新 socket 尚未注册,
       // 天然收不到这份事件;之后注册、发摘要(保证 ⊇ 累积器全部内容)。
-      eventBatches.cancelScheduled(roomId); // 已排定的定时 flush 由本同步 flush 覆盖(迟到回调空转幂等)
+      eventBatches.cancelScheduled(roomId); // 已排定的定时 flush 由本次同步 flush 接手
       flushRoom(roomId);
       socketsOf(roomId).set(seat, ws);
       recordEvent(roomId, { ev: "ws-open", seat });
@@ -684,6 +748,15 @@ export const engineServer = Bun.serve<WsSeat>({
       void dispatchInbound(
         typeof raw === "string" ? raw : Buffer.from(raw).toString(),
         {
+          submit: (submission) => {
+            recordEvent(roomId, {
+              ev: "cmd",
+              seat,
+              cmd: submission.cmd.type,
+              submissionId: submission.submissionId,
+            });
+            return registry.submitFromSeat(roomId, seat, submission, () => broadcast(roomId));
+          },
           cmd: (cmd, report) => {
             recordEvent(roomId, { ev: "cmd", seat, cmd: cmd.type });
             // #454:cmd 面座位鉴权——连接只能以本连接座位(seat)提交命令,非决策
