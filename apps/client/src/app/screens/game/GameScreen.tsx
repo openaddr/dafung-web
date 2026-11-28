@@ -351,74 +351,28 @@ function GameScreenLive({
   }, [noticeOccupied]);
   const [playNudge, setPlayNudge] = useState(0);
 
-  // ── 「你可」选择闸窗态:快照 pendingSkillChoices 首问驱动 ──
-  // 相位单属主(decisionOwner=挂问属主,引擎 getter;interactive 经 canAct 主分支
-  // 已门控:决策方=本座×非 bot×未托管×演出落定)。真人经触发卡应答:发动(放逐
-  // 先点候选笺选目标;行殇目标既定直发)/暂不发,命令=respondSkillChoice(seat
-  // 显式携带,反应窗同款 selfSeat 通路)。非属主座位零渲染(公开信息=战报行);
-  // bot/托管座位由驱动链代答,不进窗态。快照 canonicalization:相位在窗而队列键
-  // 缺席 = 状态机 bug,`!` 直取当场炸出(零兜底,同 pendingReaction 口径)。
-  const skillWindowUp =
-    snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingSkillChoice";
-  const skillUp = interactive && skillWindowUp;
-  const skillPending = skillWindowUp ? snapshot.pendingSkillChoices![0] : null;
-  // 技定义按 id 查询 core/skills;choices 挂问时已保证触发技,非法 id 在 skillById 暴露。
-  const skillDef = skillPending != null ? skillById(skillPending.skillId) : null;
-  // 问身份(队列续问时区分前后两问:选中目标随问清空,组件 key 同源此串)。
-  const skillQuestionId =
-    skillPending != null
-      ? `${skillPending.skillId}:${skillPending.heroId}:${skillPending.subjectSeat}:${skillPending.targetSeat ?? "-"}`
-      : null;
-  // 目标段选中(候选笺首点选中/再点同笺取消;进新问即清空重选)。
-  const [skillTarget, setSkillTarget] = useState<number | null>(null);
-  useEffect(() => {
-    setSkillTarget(null);
-  }, [skillQuestionId]);
-  // 目标候选笺(ADR-0013 唯一口径=快照 choices:available 候选才入列;行殇目标
-  // 既定=免选,笺行不挂,文案带目标括注)。
-  const skillSeatOptions =
-    skillPending != null && skillPending.targetSeat == null
-      ? snapshot.choices.filter(
-          (o): o is (typeof snapshot.choices)[number] & { targetSeat: number } =>
-            o.targetSeat != null && o.available,
-        )
-      : [];
-  const skillText =
-    skillPending != null && skillDef != null
-      ? `${snapshot.players[skillPending.ownerSeat].guohao}「${skillDef.name}」可达发动条件${
-          skillPending.targetSeat != null
-            ? `,目标 ${snapshot.players[skillPending.targetSeat].guohao}`
-            : ""
-        }`
-      : "";
-  const skillBanner =
-    skillUp && skillPending != null && skillDef != null ? (
+  const { skillChoice } = seatView;
+  const rackSkillQuestionId = skillChoice === null ? null : seatView.decisionPoint;
+  const skillBanner = (() => {
+    if (skillChoice === null || !interactive) return null;
+    const { decision, targets, canConfirm, canPass } = skillChoice;
+    const { skillId, ownerSeat, fixedTargetSeat } = decision;
+    const targetText = fixedTargetSeat === null ? "" : `,目标 ${players[fixedTargetSeat].guohao}`;
+    const text = `${players[ownerSeat].guohao}「${skillById(skillId).name}」可达发动条件${targetText}`;
+    return (
       <SkillChoiceBanner
-        // key 挂问身份:队列续问(前后两问)即重挂,选中态随组件重置。
-        key={`skill-choice-${skillQuestionId}`}
-        text={skillText}
-        seats={skillSeatOptions.map((o) => ({
-          seat: o.targetSeat,
-          label: snapshot.players[o.targetSeat].guohao,
-        }))}
-        pickedSeat={skillTarget}
-        onPickSeat={(seat) => setSkillTarget((cur) => (cur === seat ? null : seat))} // 首点选中/再点取消
-        confirmEnabled={skillPending.targetSeat != null || skillTarget != null}
-        onConfirm={() => {
-          const target = skillPending.targetSeat ?? skillTarget;
-          if (target == null) return; // 放逐未选目标:确认钮禁用态,到不了这(自门控)
-          dispatchCommand({
-            type: "respondSkillChoice",
-            seat: selfSeat,
-            use: true,
-            targetSeat: target,
-          });
-        }}
-        onDecline={() =>
-          dispatchCommand({ type: "respondSkillChoice", seat: selfSeat, use: false })
-        }
+        key={rackSkillQuestionId}
+        text={text}
+        seats={targets?.available.map(({ id, label }) => ({ seat: id, label })) ?? []}
+        pickedSeat={targets?.selected[0] ?? null}
+        onPickSeat={(id) => act({ type: "toggleTarget", id })}
+        confirmEnabled={canConfirm}
+        onConfirm={() => act({ type: "confirm" })}
+        declineEnabled={canPass}
+        onDecline={() => act({ type: "pass" })}
       />
-    ) : null;
+    );
+  })();
 
   // 自动状态实时随内容变化;灰置锦囊仍算有内容,主动技只计实际在架的卡牌段选项。
   // 触发技继续由手牌架边缘承载；锦囊反应条独立置顶。
@@ -432,8 +386,6 @@ function GameScreenLive({
     () => setRackManualHidden((manual) => !(manual === null ? autoRackHidden : manual)),
     [autoRackHidden],
   );
-  const rackSkillQuestionId =
-    skillWindowUp && snapshot.decisionOwner === selfSeat ? skillQuestionId : null;
   // 只在回合/本座实际窗态边界撤销手动控制;命令在途的交互锁不算关窗。
   useEffect(() => {
     setRackManualHidden(null);
