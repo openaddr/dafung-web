@@ -8,6 +8,7 @@
 // 实测 8.0s(2026-10-30)——按「单例实测 ≥3s」判据入慢例池(口径见 docs/how-to/开发与测试.md
 // 「把测试跑起来」),DAFUNG_SLOW=1 才跑(bun run test:slow),默认池 skip(skip 行可见);
 // 其余两例轻,常驻默认池。
+import { submitCapitalForSetup } from "./room-capitals";
 import { describe, it, expect, spyOn } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -87,7 +88,7 @@ async function playingRoom(reg: RoomRegistry): Promise<string> {
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = () => reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e().phase === "Setup"; i++) {
-    await reg.pickCapital(roomId, e().currentSetupPlayerIndex, e().offeredCapitals[0]!);
+    await submitCapitalForSetup(reg, roomId, e().currentSetupPlayerIndex, e().offeredCapitals[0]!);
   }
   expect(e().phase).toBe("Playing");
   return roomId;
@@ -333,7 +334,12 @@ describe("RoomRegistry · 崩溃恢复(#380 三形态 + #388 播种咬合)", () 
     const e1 = () => reg1.get(roomId)!.engine!;
     // host 选都 → 服务器驱动余下 bot 座位接棒,直到停下(必有非空事件批)
     for (let i = 0; i < 20 && e1().phase === "Setup"; i++) {
-      await reg1.pickCapital(roomId, e1().currentSetupPlayerIndex, e1().offeredCapitals[0]!);
+      await submitCapitalForSetup(
+        reg1,
+        roomId,
+        e1().currentSetupPlayerIndex,
+        e1().offeredCapitals[0]!,
+      );
     }
     const batchAtCrash = e1().gameEvents;
     expect(batchAtCrash.length).toBeGreaterThan(0);

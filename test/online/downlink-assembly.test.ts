@@ -8,6 +8,7 @@
 //   ④ 节拍形状:空批 events=null;withSnapshot=false snapshot=null(联机非校准
 //      flush 免 O(log) 白序列化);withSnapshot=true 恒有摘要。
 // 发送面接线(消息真实到达客户端)归 test/online/protocol-online.test.ts(ADR-0055)。
+import { submitCapitalForSetup } from "./room-capitals";
 import { describe, it, expect } from "bun:test";
 import { assembleDownlinkShot } from "@dafung/core/room/seat-projection";
 import { RoomRegistry } from "@dafung/core/room/room";
@@ -63,7 +64,7 @@ async function roomAtPlaying(seatCount = 2) {
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e.phase === "Setup"; i++)
-    await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
+    await submitCapitalForSetup(reg, roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
   // 保证 host 手牌有内容可断言(起手 1 张之外再补)
   e.drawJinnang(0, 2);
   const online = new Set(created.room.seats.map((_, seat) => seat));
@@ -208,7 +209,7 @@ describe("assembleDownlinkShot · 座位下行", () => {
   });
 
   it("军情密探仅在生效事件交付牌面，校准与重连保留公开的窥探动作", async () => {
-    const { reg, roomId, token, engine } = await roomAtPlaying(3);
+    const { reg, roomId, token, engine, submit } = await roomAtPlaying(3);
     const room = reg.get(roomId)!;
     const online = new Set([0, 1, 2]);
     try {
@@ -216,12 +217,9 @@ describe("assembleDownlinkShot · 座位下行", () => {
       giveJinnang(engine, 0, ["军情密探"]);
       giveJinnang(engine, 1, ["连环计", "火烧连营"]);
       giveJinnang(engine, 2, []);
-      await reg.applyCommandFromSeat(roomId, 0, { type: "useJinnang", cardId: "军情密探" });
-      await reg.applyCommandFromSeat(roomId, 0, {
-        type: "useJinnang",
-        cardId: "军情密探",
-        targets: [1],
-      });
+      const card = { type: "useJinnang", cardId: "军情密探", handIndex: 0 } as const;
+      await submit(0, "选军情密探", card);
+      await submit(0, "确认密探目标", { ...card, targets: [1] });
       for (const seat of [0, 2]) {
         const shot = assembleDownlinkShot(room, online, seat, engine.gameEvents, true);
         const batch: EventBatchMsg = JSON.parse(shot.events!);
@@ -250,7 +248,7 @@ describe("assembleDownlinkShot · 座位下行", () => {
       giveJinnang(engine, 0, ["横征暴敛"]);
       giveJinnang(engine, 1, ["识破诡计"]);
       giveJinnang(engine, 2, ["识破诡计"]);
-      await reg.applyCommandFromSeat(roomId, 0, { type: "useJinnang", cardId: "横征暴敛" });
+      await submit(0, "横征暴敛", { type: "useJinnang", cardId: "横征暴敛", handIndex: 0 });
       const beforeAnswer = [summary(1), summary(2)];
       const target = { kind: "seat", id: 2 } as const;
       await submit(1, "应答", {
@@ -258,6 +256,7 @@ describe("assembleDownlinkShot · 座位下行", () => {
         seat: 1,
         use: true,
         cardId: "识破诡计",
+        handIndex: 0,
         target,
       });
       for (const seat of [1, 2]) {
@@ -275,11 +274,14 @@ describe("assembleDownlinkShot · 座位下行", () => {
         expect(batch.decisionPoint).toBe(snapshot.decisionPoint);
         const answer = { seat: 1, use: true, cardId: "识破诡计" };
         expect(snapshot.pendingReaction).not.toHaveProperty("payload");
-        const visibleAnswer = seat === 1 ? { ...answer, target } : answer;
+        const visibleAnswer = seat === 1 ? { ...answer, handIndex: 0, target } : answer;
         expect(snapshot.pendingReaction?.answers).toEqual([visibleAnswer]);
         const event = batch.events.find((entry) => entry.kind === "reactionAnswered");
         expect(event).toMatchObject(visibleAnswer);
-        if (seat === 2) expect(event).not.toHaveProperty("target");
+        if (seat === 2) {
+          expect(event).not.toHaveProperty("target");
+          expect(event).not.toHaveProperty("handIndex");
+        }
 
         const before = beforeAnswer[seat - 1];
         const replica = createEngine(
@@ -308,31 +310,22 @@ describe("assembleDownlinkShot · 座位下行", () => {
   });
 
   it("选择和作罢主动技只给决策席目标选项，日志保留已发动的技能和目标", async () => {
-    const { reg, roomId, token, engine, summary } = await roomAtPlaying();
+    const { reg, roomId, token, engine, summary, submit } = await roomAtPlaying();
     try {
       armPhase(engine, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
       armHero(engine, 0, "huatuo", ["zhenji"]);
       const skill = { type: "useHeroSkill", heroId: "huatuo", skillId: "zhenji" } as const;
-      await reg.applyCommandFromSeat(roomId, 0, skill);
+      const publicLog = summary(1).log;
+      await submit(0, "选择赈济", skill);
       expect(summary(0).pendingSkill).toEqual({ heroId: "huatuo", skillId: "zhenji" });
       const waiting = summary(1);
       expect(waiting.pendingSkill).toBeNull();
       expect(waiting.choices).toEqual([]);
-      expect(JSON.parse(waiting.log.at(-1)!.detail)).toEqual({ type: "useHeroSkill" });
-      await reg.applyCommandFromSeat(roomId, 0, { ...skill, targets: [12] });
-      await reg.applyCommandFromSeat(roomId, 0, { ...skill, cancel: true });
-      const cancelled = summary(1).log;
-      expect(
-        cancelled
-          .filter((line) => line.category === "cmd")
-          .slice(-2)
-          .map((line) => JSON.parse(line.detail)),
-      ).toEqual([{ type: "useHeroSkill" }, { type: "useHeroSkill", cancel: true }]);
-      expect(cancelled.find((line) => line.detail.includes("heroSkillCancel"))).toMatchObject({
-        detail: "heroSkillCancel player=p0",
-      });
-      await reg.applyCommandFromSeat(roomId, 0, skill);
-      await reg.applyCommandFromSeat(roomId, 0, { ...skill, targets: [1] });
+      expect(waiting.log).toEqual(publicLog);
+      await submit(0, "作罢赈济", { ...skill, cancel: true });
+      expect(summary(1).log).toEqual(publicLog);
+      await submit(0, "重选赈济", skill);
+      await submit(0, "发动赈济", { ...skill, targets: [1] });
       const shot = assembleDownlinkShot(
         reg.get(roomId)!,
         new Set([0, 1]),
@@ -348,13 +341,19 @@ describe("assembleDownlinkShot · 座位下行", () => {
           targetSeat: 1,
         }),
       );
+      expect(summary(1).log.slice(publicLog.length)).toContainEqual(
+        expect.objectContaining({
+          category: "skill",
+          detail: "heroSkill owner=p0 skill=zhenji kind=relief target=p1",
+        }),
+      );
     } finally {
       reg.dismissRoom(roomId, token);
     }
   });
 
   it("招贤候选仅入招贤者的摘要，录用名将全桌可见", async () => {
-    const { reg, roomId, token, engine, summary } = await roomAtPlaying();
+    const { reg, roomId, token, engine, summary, submit } = await roomAtPlaying();
     try {
       armPhase(engine, { activeIndex: 0 });
       engine.tryRecruitHero(engine.activePlayer);
@@ -365,7 +364,7 @@ describe("assembleDownlinkShot · 座位下行", () => {
       expect(other.log.find((line) => line.detail.startsWith("offerHeroes "))).toMatchObject({
         detail: "offerHeroes player=p0 count=3",
       });
-      await reg.applyCommandFromSeat(roomId, 0, { type: "resolveHeroPick", index: 0 });
+      await submit(0, "招将", { type: "resolveHeroPick", index: 0 });
       expect(summary(1).players[0].heroes).toContainEqual(
         expect.objectContaining({
           heroId: offers[0].id,
@@ -445,7 +444,21 @@ const ALL_KIND_BODIES: GameEventBody[] = [
       waypoints: [],
     },
   },
-  { kind: "capitalSelected", tileIndex: 2, propertyId: "chengdu", cost: 1000 },
+  {
+    kind: "capitalSelected",
+    tileIndex: 2,
+    propertyId: "chengdu",
+    cost: 1000,
+    holding: {
+      propertyId: "chengdu",
+      group: "a",
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
+      burning: null,
+      damageRanking: [],
+    },
+  },
   { kind: "propertyBought", propertyId: "changangan", price: 4000 },
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "insufficient-cash" },

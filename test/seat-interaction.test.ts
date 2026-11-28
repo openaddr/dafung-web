@@ -1,7 +1,9 @@
 import { expect, it } from "bun:test";
 import type { GameCommand } from "@dafung/core/engine/authority";
 import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
+import { reactionChoicesForSeat } from "@dafung/core/protocol/reaction-choices";
 import { SeatInteraction } from "@dafung/core/protocol/seat-interaction";
+import type { SeatDecision } from "@dafung/core/protocol/wire";
 import { redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
 import { autoSetup, createEngine, MAP } from "../scripts/engine-helpers";
 
@@ -23,6 +25,7 @@ it("无界面座位的草选只在发起的决策点有效，重连恢复已提�
   armPhase(engine, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
   const delivered: { command: GameCommand; point: string }[] = [];
   const seat = new SeatInteraction((command, point) => {
+    if (command.type !== "useJinnang") throw new Error("本例预期出牌命令");
     delivered.push({ command, point });
     engine.submitCommand(command);
   });
@@ -32,6 +35,12 @@ it("无界面座位的草选只在发起的决策点有效，重连恢复已提�
     interactive: true,
     autopilotOn: false,
     decisionPoint,
+    decisionOptions: {
+      kind: "playJinnang",
+      choices: engine.choicesFor(),
+      pendingJinnang: engine.pendingJinnang,
+      pendingSkill: engine.pendingSkill,
+    } satisfies SeatDecision["decisionOptions"],
   });
   seat.publish(frame("选牌"));
   seat.act({ type: "selectCard", handIndex: 2 });
@@ -91,6 +100,7 @@ it("无界面被询问座位只能用公告份额识破，其他座位不能代�
   engine.submitCommand({ type: "useJinnang", cardId: "横征暴敛", handIndex: 0 });
   const submitted: GameCommand[] = [];
   const seat = new SeatInteraction((command) => {
+    if (command.type !== "respondReaction") throw new Error("本例预期反应应答");
     submitted.push(command);
     engine.submitCommand(command);
   });
@@ -101,23 +111,34 @@ it("无界面被询问座位只能用公告份额识破，其他座位不能代�
       interactive: true,
       autopilotOn: false,
       decisionPoint: point,
+      decisionOptions: point === null ? undefined : reactionChoicesForSeat(engine, index),
       reactionDeadlineAt: 4150,
     });
   observe(2, null);
   expect(seat.view.reaction).toMatchObject({ asked: false, playable: [], canRespond: false });
-  expect(seat.act({ type: "respondReaction", use: false }).status).toBe("unavailable");
+  expect(seat.act({ type: "pass" }).status).toBe("unavailable");
   observe(1, "开窗");
   expect(seat.view.reaction).toMatchObject({
     asked: true,
     answered: false,
     canRespond: true,
     deadlineAt: 4150,
-    playable: ["识破诡计"],
-    targets: { kind: "seat", ids: [1, 2], requiresSelection: true },
+    playable: [{ cardId: "识破诡计", handIndex: 0 }],
+    shares: { domain: "seat", candidates: [{ id: 1 }, { id: 2 }] },
   });
-  const reply = { type: "respondReaction", use: true, cardId: "识破诡计" } as const;
-  expect(seat.act(reply).status).toBe("unavailable");
+  expect(seat.act({ type: "selectCard", handIndex: 0 }).status).toBe("draft");
+  expect(seat.act({ type: "confirm" }).status).toBe("unavailable");
   expect(submitted).toHaveLength(0);
-  expect(seat.act({ ...reply, target: { kind: "seat", id: 2 } }).status).toBe("submitted");
-  expect(submitted).toEqual([{ ...reply, seat: 1, target: { kind: "seat", id: 2 } }]);
+  expect(seat.act({ type: "toggleTarget", id: 2 }).status).toBe("draft");
+  expect(seat.act({ type: "confirm" }).status).toBe("submitted");
+  expect(submitted).toEqual([
+    {
+      type: "respondReaction",
+      seat: 1,
+      use: true,
+      cardId: "识破诡计",
+      handIndex: 0,
+      target: { kind: "seat", id: 2 },
+    },
+  ]);
 });

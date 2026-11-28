@@ -42,6 +42,7 @@ export function getControllerContext(): { board: Board; catalog: MapCatalog } | 
 // 控制台与单次辅助可读引擎/快照、重同步、种植场景及控制演出与房间时钟。
 // 类型声明见 src/app/debug.d.ts;使用边界见 ADR-0065。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
+import { useNetStore } from "@app/store/netStore";
 import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
 import { catchupCounters, setSnapPin } from "@app/fx/catchup";
 import { latestWorkerClock } from "@app/net/worker-clock";
@@ -110,34 +111,25 @@ export function installDebugHooks(): void {
     const tSync = performance.now();
     useGameStore.getState().setScreen("game");
     performance.measure("df.seed.sync", { start: tSync, end: performance.now() });
-    const e = controller.engine;
-    if (
-      e.phase !== "Setup" ||
-      e.setupPhase !== "PickCapital" ||
-      e.currentSetupPlayerIndex !== 0 ||
-      e.offeredCapitals.length === 0
-    ) {
-      throw new Error(
-        `seedSolo:开局后未停在选择都相位(phase=${e.phase}/${e.setupPhase} ` +
-          `轮次=${e.currentSetupPlayerIndex} 候选=${e.offeredCapitals.length})`,
-      );
-    }
-    // 选棋盘序首个候选,与 UI 首格点击一致;offeredCapitals 是抽出序,不能取 [0]。
+    const { capital, decisionPoint } = controller.seatView;
+    const candidates = capital?.options.filter((option) => option.available);
+    if (candidates === undefined || candidates.length === 0)
+      throw new Error("seedSolo:开局后本席缺少可用的选都选项");
+    // 取棋盘序首个可用候选。
     const tPick = performance.now();
-    controller.setupPickCapital(Math.min(...e.offeredCapitals));
+    const tileIndex = Math.min(...candidates.map((option) => option.tileIndex));
+    const selected = controller.dispatchIntent({ type: "selectCapital", tileIndex }, decisionPoint);
+    if (selected.status === "unavailable") throw new Error(selected.reason);
+    const confirmed = controller.dispatchIntent({ type: "confirm" }, decisionPoint);
+    if (confirmed.status === "unavailable") throw new Error(confirmed.reason);
     performance.measure("df.seed.pickCapital", { start: tPick, end: performance.now() });
   };
 
-  // 中盘构造:冻结房间时钟后,经房间命令面逐拍应答真人决策,推进到目标回合的稳定停靠态。
-  // 引擎只读查询与读数可直取,写入均走 dispatchCommand,保持事件批归属与 RNG 消耗序。
-  /** 取首个可用决策;反应窗答不用、锦囊今不用、珍宝不交易。
+  // 中盘构造:经房间的玩家入口逐拍应答真人决策，由房间时钟自动起摇。
+  /** 取首个可用决策;反应窗答不用、珍宝不交易。
    *  破产清算不代答,遇到即抛错,由调用方调整 seed/目标回合。 */
   const answerAtHumanStop = (e: GameEngine): GameCommand => {
     switch (e.turnPhase) {
-      case "Roll":
-        return { type: "rollAndMove" }; // 停靠 Roll=开手无可用锦囊已自决,起摇即走
-      case "AwaitingJinnang":
-        return { type: "useJinnang", cardId: null }; // 今不用
       case "AwaitingDecision": {
         const idx = e.choicesFor().findIndex((o) => o.available);
         const opt = e.choicesFor()[idx];
@@ -163,23 +155,33 @@ export function installDebugHooks(): void {
     }
   };
   /** 停靠须由座位 0 行动且决策,处于非反应窗 Awaiting* 相位,turnNumber 达标。
-   *  afterFirstRoll 另要求本次快进已应答 rollAndMove,避免开手锦囊窗被认作首掷后。
+   *  afterFirstRoll 另要求已观察到本席的掷骰事件，避免停在开手锦囊窗。
    *  仅在 interactive 时派命令,随后让出宏任务,等真实事件回流与本座演出落定;
-   *  bot 仍由房间驱动链推进。反应窗解冻会超时代答,不能作为稳定停靠态。 */
+   *  bot 仍由房间驱动链推进。反应窗会超时代答，不能作为稳定停靠态。 */
   const driveToRound = async (targetRound: number, opts?: { afterFirstRoll?: boolean }) => {
     const deadline = Date.now() + 120_000;
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
     let lastFp = "";
     let stallSince = 0; // 当前 fp 首见的 interactive 拍时刻,作为无进展守卫的墙钟锚
-    let rolled = false; // 已应答过起摇(首掷在引擎侧随命令同步段落账)
+    let rolled = false;
     for (;;) {
       if (Date.now() > deadline)
         throw new Error(`seedSoloToRound:120s 内未推进到第 ${targetRound} 回合(推进停滞)`);
       const e = getEngine();
       if (e == null) throw new Error("seedSoloToRound:引擎丢失(对局被销毁)");
+      if (e.phase === "Setup") {
+        await sleep(0);
+        continue;
+      }
       if (e.phase === "GameOver")
         throw new Error(`seedSoloToRound:快进途中终局(round=${e.round},目标=${targetRound})`);
       if (e.phase !== "Playing") throw new Error(`seedSoloToRound:非 Playing 相位(${e.phase})`);
+      if (
+        useNetStore
+          .getState()
+          .lastEvents?.some((event) => event.kind === "diceRolled" && event.seat === 0)
+      )
+        rolled = true;
       const parked =
         e.activeIndex === 0 &&
         e.decisionOwner === 0 &&
@@ -190,8 +192,8 @@ export function installDebugHooks(): void {
         return { turnNumber: e.turnNumber, round: e.round, turnPhase: e.turnPhase };
       const c = getController();
       if (c == null) throw new Error("seedSoloToRound:控制器丢失");
-      if (!c.interactive) {
-        await sleep(0); // 命令在途(等该命令事件拍回流)/本座行军演出未落定/等相位转移:宏任务短让出
+      if (e.turnPhase === "Roll" || !c.interactive) {
+        await sleep(0); // 等房间起摇、命令回流、相位转移或演出结束。
         continue;
       }
       const fp = `${e.turnNumber}/${e.round}/${e.turnPhase}/${e.gameEvents.length}`;
@@ -204,9 +206,12 @@ export function installDebugHooks(): void {
           `seedSoloToRound:应答无进展 3s+(phase=${e.turnPhase} round=${e.round})——命令被吞或驱动断链`,
         );
       }
-      const cmd = answerAtHumanStop(e);
-      if (cmd.type === "rollAndMove") rolled = true;
-      c.dispatchCommand(cmd);
+      if (e.turnPhase === "AwaitingJinnang") {
+        const result = c.dispatchIntent({ type: "pass" });
+        if (result.status === "unavailable") throw new Error(result.reason);
+      } else {
+        c.dispatchCommand(answerAtHumanStop(e));
+      }
       await sleep(0); // 精确让出:等该命令事件拍回流(pending 解锁),回流后首拍 interactive 转真即续
     }
   };
@@ -236,7 +241,7 @@ export function installDebugHooks(): void {
     /** 当前控制器(交互入口)。 */
     controller: () => getController(),
     seedSolo,
-    /** seedSolo 开局后冻结房间时钟,由 driveToRound 推进到目标回合的稳定停靠态后解冻。
+    /** seedSolo 开局后由 driveToRound 推进到目标回合的稳定停靠态。
      *  afterFirstRoll 要求首掷已发生;演出排空由调用方等待。 */
     seedSoloToRound: async (opts: {
       seed?: number;
@@ -250,14 +255,9 @@ export function installDebugHooks(): void {
           `seedSoloToRound:targetRound 须为 ≥1 整数(收到 ${String(opts.targetRound)})`,
         );
       await seedSolo(opts);
-      const clock = latestWorkerClock();
-      if (clock == null) throw new Error("seedSoloToRound:无活动 Worker 时钟(仅单机对局可冻结)");
-      clock.pause();
-      const arrival = await driveToRound(opts.targetRound, {
+      return driveToRound(opts.targetRound, {
         afterFirstRoll: opts.afterFirstRoll,
       });
-      clock.resume();
-      return arrival;
     },
     /** 瞬空钉:转发 catchup.setSnapPin,使 SnapshotEffects.dequeueChunk 常开吸附档。
      *  只弃未播演出、棋子直切终态,不改引擎;产品默认关闭,解除后恢复正常判档(ADR-0065)。 */

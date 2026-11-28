@@ -19,6 +19,8 @@ import type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 import { EventBatchChannel } from "./event-batch";
 import {
   assembleDownlinkShot,
+  autopilotDecisionOf,
+  assembleGameLogDelta,
   CALIBRATION_BACKED_KINDS,
   CALIBRATION_EVENT_KINDS,
   CALIBRATION_WINDOWS,
@@ -27,7 +29,9 @@ import {
   lobbyView,
   projectGameLog,
   publicLogWarningReason,
+  seatControlled,
   type GameLogCursor,
+  type SeatDecisionCursor,
 } from "./seat-projection";
 // wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
 // assembleDownlinkShot 单口(#431,内用 wire 构造函数);元数据指纹仅复用 wire 序列化。
@@ -40,11 +44,25 @@ import {
   type ReportCommandProcessing,
 } from "../protocol/wire";
 import {
+  stageEngineChange,
   stagePlayerSubmission,
   submissionPayload,
   type RoomSubmissions,
+  type StagedEngineChange,
 } from "./player-submissions";
-import { decisionSeatOf, driveBots as driveBotsSession, type DriveBotsHost } from "./bot-driver";
+import {
+  decisionSeatOf,
+  driveBots as driveBotsSession,
+  reactionQueriedSeats,
+  type DriveBotsHost,
+} from "./bot-driver";
+import {
+  deriveReactionDeadline,
+  installReactionDeadline,
+  reactionDeadlineFromRecord,
+  reactionTimingOf,
+  type ReactionDeadline,
+} from "./reaction-deadline";
 import { createWatchdogs, type WatchdogHost, type Watchdogs } from "./watchdogs";
 
 // ──────────────────────────── 运行时同构原语(#398 单机统一 B)────────────────────────────
@@ -131,15 +149,18 @@ export interface RoomSession {
   seats: SeatState[];
   hostSeat: number; // 当前 host 座位(开局=0;host 掉线则移交,ADR-0002)
   /** 托管座位集(ADR-0028 单一开关):人类座位交 bot 代打的唯一状态域。触发源两道
-   *  ——玩家自助(setAutoPilot,可开可关)与看门狗代开(#118 停摆/#380 保留窗到期,
+   *  ——本席提交(可开可关)与看门狗代开(#118 停摆/#380 保留窗到期,
    *  只开不关);重连不清,只有本人收回。出处只进观测行/对局日志(by 字段),行为无分叉。 */
   autoPilot: Set<number>;
+  autopilotRevisions: number[];
   hostConfig: HostConfig;
   /** 本房间所选地图 id(建房时 null;host setMap 后填;startGame 前 must 非 null)。 */
   mapId: string | null;
   engine: GameEngine | null; // null = Lobby
   submissions: RoomSubmissions;
 }
+
+type AutopilotChange = { seat: number; on: boolean; by: "self" | "watchdog" };
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ"; // 去掉易混 I/L/O
 const CODE_LEN = 4;
@@ -202,7 +223,7 @@ export interface RoomRegistryOptions {
  *  #399:注入点——编排内一切「等待」都经它,运行时差异(服务器全局定时器 /
  *  浏览器 Worker 时钟)归注入方。 */
 export interface RoomClock {
-  /** 与定时器共用的单调毫秒时钟，手动驱动时注入。 */
+  /** 权威绝对时间（毫秒）。恢复同一份存档时沿用同一时基，缺省用 Date.now。 */
   now?(): number;
   setTimeout(cb: () => void, ms: number): unknown;
   clearTimeout(handle: unknown): void;
@@ -232,6 +253,7 @@ export class RoomRegistry {
   private readonly botStepMs: number;
   /** #399 编排定时原语(看门狗/托管步进;缺省全局,浏览器注入 Worker 时钟)。 */
   private readonly clock: RoomClock;
+  private readonly now: () => number;
   /** 四组看门狗(#118 停摆/#188 自动起摇/#281 反应窗/#380 掉线保留窗):通用工厂实例,
    *  见 ./watchdogs。driveBots 每次进出重评估(链首 clear,链尾按停点重武装)。 */
   private readonly watchdogs: Watchdogs;
@@ -241,7 +263,8 @@ export class RoomRegistry {
 
   // ── 传输面状态(#397):roomId → 座位 → 端点,及下行合并的批通道 ──
   private readonly seatEndpoints = new Map<string, Map<number, SeatEndpoint>>();
-  private readonly seatDecisions = new WeakMap<SeatEndpoint, string | null>();
+  private readonly seatDecisions = new WeakMap<SeatEndpoint, SeatDecisionCursor>();
+  private readonly transportLogCursors = new WeakMap<SeatEndpoint, GameLogCursor>();
   /** 事件批累积/去重/排空/合并拍归共享通道(#411,event-batch.ts)——
    *  与 server.ts 联机通路同一份批语义,双端行为零变化。 */
   private readonly batches = new EventBatchChannel();
@@ -265,6 +288,7 @@ export class RoomRegistry {
     this.reactionWindowMsOverride = options?.reactionWindowMs ?? 0;
     this.botStepMs = options?.botStepMs ?? 0;
     this.clock = options?.clock ?? globalClock;
+    this.now = this.clock.now?.bind(this.clock) ?? (() => Date.now());
     this.watchdogs = createWatchdogs(this.watchdogHost());
     this.ops = {
       observe: (r, ev) => this.observe(r, ev),
@@ -284,16 +308,16 @@ export class RoomRegistry {
     return {
       isCurrentRoom: (r) => this.rooms.get(r.roomId) === r,
       observe: (r, ev) => this.observe(r, ev),
-      logRoom: (r, brief, detail) => this.logRoom(r, brief, detail),
-      persist: (r) => this.persist(r),
+      openAutopilot: async (r, seat, brief, onUpdate) => {
+        if (this.commitAutopilot(r, { seat, on: true, by: "watchdog" }, brief, onUpdate))
+          await this.driveBots(r, onUpdate);
+      },
       applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
-      driveBots: (r, onUpdate) => this.driveBots(r, onUpdate),
       abortGame: (r, reason, onUpdate) => this.abortGame(r.roomId, reason, onUpdate),
       decisionTimeoutMs: this.decisionTimeoutMs,
       stallAbortMs: this.stallAbortMs,
       retentionWindowMs: this.retentionWindowMs,
       clock: this.clock,
-      now: this.clock.now?.bind(this.clock) ?? (() => performance.now()),
     };
   }
 
@@ -325,10 +349,12 @@ export class RoomRegistry {
   // ──────────────────────────── 启动恢复 ────────────────────────────
   /** 从 persistence 把所有房间载入内存(启动时调一次)。
    *  mapProvider:按 mapId 恢复对应地图的引擎(服务器注入;room.ts 不读 fs)。
-   *  onRestored:每恢复一房回调一次(server.ts 据此给对局日志落盘记基线,ADR-0014)。 */
+   *  onRestored:每恢复一房先登记对局日志和已交付事件的基线，再恢复反应窗。
+   *  onUpdate:恢复的看门狗或托管代打推进时通知传输层。 */
   restoreAll(
     mapProvider?: (mapId: string) => LoadedMap,
     onRestored?: (room: RoomSession) => void,
+    onUpdate?: (room: RoomSession) => void,
   ): number {
     let count = 0;
     for (const id of this.persistence.listIds()) {
@@ -346,6 +372,20 @@ export class RoomRegistry {
       }
       this.rooms.set(rec.roomId, room);
       onRestored?.(room);
+      const engine = room.engine;
+      if (engine?.turnPhase === "AwaitingReaction") {
+        this.resumeReaction(room, onUpdate);
+      } else if (
+        engine !== null &&
+        !engine.isOver &&
+        ((engine.phase === "Playing" && engine.turnPhase === "Roll") ||
+          room.autoPilot.has(decisionSeatOf(engine)))
+      ) {
+        // 开关或上一拍已保存时，恢复继续自动起摇或托管步进。
+        this.clock.setTimeout(() => {
+          if (this.rooms.get(id) === room) void this.driveBots(room, onUpdate);
+        }, 0);
+      }
       count++;
     }
     return count;
@@ -353,22 +393,57 @@ export class RoomRegistry {
 
   /** 内部:RoomRecord → RoomSession(零 WS 句柄;引擎重建走共享纯模块 engineFromRecord,#427 单源)。 */
   private hydrate(rec: RoomRecord, mapProvider?: (mapId: string) => LoadedMap): RoomSession {
+    const deadline = reactionDeadlineFromRecord(rec);
     if (
       !Number.isSafeInteger(rec.submissions.decisionRevision) ||
       !Array.isArray(rec.submissions.entries)
     )
       throw new Error(`房间 ${rec.roomId} 的玩家提交记录损坏`);
-    return {
+    if (
+      !Array.isArray(rec.autopilotRevisions) ||
+      rec.autopilotRevisions.length !== rec.seatCount ||
+      !Array.from(rec.autopilotRevisions).every(
+        (revision) => Number.isSafeInteger(revision) && revision >= 0,
+      )
+    )
+      throw new Error(`房间 ${rec.roomId} 的托管修订记录损坏`);
+    const room: RoomSession = {
       roomId: rec.roomId,
       seatCount: rec.seatCount,
       seats: rec.seats.map((s) => ({ kind: s.kind, token: s.token, guohao: s.guohao ?? null })),
       hostSeat: rec.hostSeat,
       autoPilot: new Set(rec.autoPilot),
+      autopilotRevisions: rec.autopilotRevisions,
       hostConfig: rec.hostConfig,
       mapId: rec.mapId ?? null,
       engine: engineFromRecord(rec, mapProvider, this.reactionWindowMsOverride),
       submissions: rec.submissions,
     };
+    this.adoptReactionDeadline(room, deadline);
+    return room;
+  }
+
+  private resumeReaction(room: RoomSession, onUpdate?: (room: RoomSession) => void): void {
+    const e = room.engine;
+    if (e?.turnPhase !== "AwaitingReaction") return;
+    const pending = e.pendingReaction!;
+    this.watchdogs.syncReaction(room, onUpdate);
+    if (
+      reactionTimingOf(room).remainingMs > 0 &&
+      reactionQueriedSeats(pending.view).some(
+        (seat) => seatControlled(room, seat) && !pending.answers.some((a) => a.seat === seat),
+      )
+    ) {
+      // 托管切换可能已保存、尚未代答。恢复后沿用原策略，驱动链再次核对期限。
+      this.clock.setTimeout(() => {
+        if (
+          this.rooms.get(room.roomId) === room &&
+          e.turnPhase === "AwaitingReaction" &&
+          e.pendingReaction?.seq === pending.seq
+        )
+          void this.driveBots(room, onUpdate);
+      }, 0);
+    }
   }
 
   get(roomId: string): RoomSession | undefined {
@@ -418,6 +493,7 @@ export class RoomRegistry {
       seats,
       hostSeat: 0,
       autoPilot: new Set(),
+      autopilotRevisions: seats.map(() => 0),
       hostConfig,
       mapId: null,
       engine: null,
@@ -466,7 +542,7 @@ export class RoomRegistry {
   }
 
   /** host 开局:构造引擎，补齐国号并排定选都顺序后进入 Setup·PickCapital。真人经 WS
-   *  pickCapital 落子，bot/托管座位由 driveBots 代选。首帧 onUpdate 含首位选都者的候选。
+   *  真人通过玩家提交落子，bot/托管座位由 driveBots 代选。首帧 onUpdate 含首位的候选。
    *  onUpdate:开局首帧 + 每个 bot 步后调(逐步直播,保留原 server.ts 行为)。
    *  mapProvider:按 mapId 返回 LoadedMap(服务器加载内置地图后注入;ADR-0007:
    *  room.ts 不读 fs)。startGame 前必须 setMap,否则 400"请先选择地图"。
@@ -528,73 +604,66 @@ export class RoomRegistry {
     return room;
   }
 
-  /** 真人选都落子(L41):校验「轮到该座位 + tileIndex 属于当前候选」后引擎落子;
-   *  选完由引擎滚换下一位候选,余下 bot/托管座位 driveBots 接力。
-   *  轮次/候选校验与 engine.pickCapital 同源(消息透传),这里补 HTTP 语义状态码。 */
-  async pickCapital(
-    roomId: string,
-    seat: number,
-    tileIndex: number,
-    onUpdate?: (room: RoomSession) => void,
-    report?: ReportCommandProcessing,
-  ): Promise<RoomSession> {
-    const room = this.rooms.get(roomId);
-    if (!room) throw new RoomError(404, "房间不存在");
-    if (!room.engine) throw new RoomError(409, "对局未开始");
-    const e = room.engine;
-    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital")
-      throw new RoomError(409, "非选都阶段");
-    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
-      throw new RoomError(400, "seat 非法");
-    if (e.currentSetupPlayerIndex !== seat) throw new RoomError(403, "未轮到该座位选都");
-    if (!e.offeredCapitals.includes(tileIndex)) throw new RoomError(400, "非本轮候选城");
-    const logOffset = e.log.length;
-    const r = e.pickCapital(seat, tileIndex);
-    if (!r.ok) throw new RoomError(400, r.reason ?? "选都失败");
-    this.persist(room);
-    onUpdate?.(room); // 落子结果先推(候选滚换/推进)
-    report?.({ outcome: "accepted", logOffset: this.publicLogOffset(room, logOffset) });
-    await this.driveBots(room, onUpdate); // 余下服务器驱动座位接棒(全 bot 驱动房直接跑完进 Playing)
-    return room;
-  }
-
-  /** 玩家自助托管(spec: autopilot,ADR-0028 单一开关):把自己的座位交给 bot 代打
-   *  (on)或收回(off)。代打行为=bot 同款(#580 行为单源,无速度分档)。
-   *  重连(attachSeat)不清除——托管持久到本人经此方法收回(一键收回,ADR-0028)。
-   *  收回后在途连锁做完到下一个决策点自然停(driveBots 每步重查 seatControlled,
-   *  步间让出宏任务 → 切回即停)。
-   *  对局中才可托管(未开局 409);切换后 onUpdate 广播,若轮到该座位立即驱动。
-   *  fire-and-forget(#529 死锁教训):只调度驱动链第一拍即返回,不 await 整条链——
-   *  托管链 2s/步自续,await 它 = 本命令挂满整条链(生产)/ 与 ManualClock 泵法互等
-   *  死锁(测试);后续步经注入时钟自续,重入守卫保证不双开。 */
+  /** 房间内部直接切换。玩家通过携带控制权限和提交编号的座位通路切换。 */
   async setAutoPilot(
     roomId: string,
     seat: number,
     on: boolean,
     onUpdate?: (room: RoomSession) => void,
-    report?: ReportCommandProcessing,
   ): Promise<RoomSession> {
     const room = this.rooms.get(roomId);
-    if (!room || !room.engine) throw new RoomError(409, "对局未开始,不可托管");
+    if (!room || !room.engine || room.engine.isOver)
+      throw new RoomError(409, "对局未进行，不可托管");
     if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
       throw new RoomError(400, "seat 非法");
-    if (room.seats[seat].kind === "bot") throw new RoomError(400, "bot 座位无需托管");
-    if (on) room.autoPilot.add(seat);
-    else room.autoPilot.delete(seat);
-    this.observe(room, { ev: "autopilot", seat, on, by: "self" });
-    // 托管开关房间行(ADR-0014):机读 detail 供重放调整 bot 驱动座位集(by 分辨触发源)
-    const seatGuohao = room.engine.players[seat].guohao;
-    const logOffset = room.engine.log.length;
-    this.logRoom(
-      room,
-      on ? `${seatGuohao} 开启托管,交由电脑代打` : `${seatGuohao} 关闭托管,收回操作`,
-      JSON.stringify({ type: "autopilot", seat, on, by: "self" }),
-    );
-    this.persist(room);
-    onUpdate?.(room); // 先广播托管状态
-    report?.({ outcome: "accepted", logOffset: this.publicLogOffset(room, logOffset) });
-    void this.driveBots(room, onUpdate); // 只调度第一拍,链经注入时钟自续(#529,见方法注)
+    if (room.engine.players[seat].isBot) throw new RoomError(400, "bot 座位无需托管");
+    const change = { seat, on, by: "self" } as const;
+    if (this.commitAutopilot(room, change, this.autopilotLogBrief(room.engine, change), onUpdate))
+      void this.driveBots(room, onUpdate);
     return room;
+  }
+
+  private autopilotLogBrief(engine: GameEngine, { seat, on }: AutopilotChange): string {
+    const guohao = engine.players[seat].guohao;
+    return on ? `${guohao} 开启托管,交由电脑代打` : `${guohao} 关闭托管,收回操作`;
+  }
+
+  private stageAutopilot(
+    room: RoomSession,
+    change: AutopilotChange,
+    brief: string,
+  ): StagedEngineChange {
+    const engine = room.engine!;
+    const detail = JSON.stringify({ type: "autopilot", ...change });
+    const loggedAt = Date.now();
+    const { snapshot } = stageEngineChange(engine, (draft) =>
+      draft.logRoomEvent(brief, detail, loggedAt),
+    );
+    // 采用已保存的战报行时沿用当前引擎事件批的引用，避免广播把上一手重发。
+    return { snapshot, commit: () => engine.logRoomEvent(brief, detail, loggedAt) };
+  }
+
+  private commitAutopilot(
+    room: RoomSession,
+    autopilot: AutopilotChange,
+    brief: string,
+    onUpdate?: (room: RoomSession) => void,
+  ): boolean {
+    if (room.autoPilot.has(autopilot.seat) === autopilot.on) return false;
+    this.commit(room, room.submissions, this.stageAutopilot(room, autopilot, brief), autopilot);
+    this.publishRoomChange(room, onUpdate, autopilot);
+    return true;
+  }
+
+  private publishRoomChange(
+    room: RoomSession,
+    onUpdate?: (room: RoomSession) => void,
+    autopilot?: AutopilotChange,
+  ): void {
+    if (autopilot !== undefined) this.observe(room, { ev: "autopilot", ...autopilot });
+    this.writeGameLog(room);
+    this.watchdogs.syncReaction(room, onUpdate);
+    onUpdate?.(room);
   }
 
   /** host 解散房间:从内存和 persistence 删除。返回被删的 roomId。
@@ -620,8 +689,15 @@ export class RoomRegistry {
     this.batches.dispose(id);
     this.settledTurnPhase.delete(id);
     this.lastRoomMeta.delete(id);
+    const endpoints = this.seatEndpoints.get(id);
     this.seatEndpoints.delete(id);
     this.rooms.delete(id);
+    if (room.engine !== null && endpoints !== undefined) {
+      const capturedAt = Date.now();
+      for (const ep of endpoints.values()) {
+        if (ep.open) this.sendTransportLog(ep, room.engine, capturedAt);
+      }
+    }
     return id;
   }
 
@@ -642,17 +718,20 @@ export class RoomRegistry {
       report?.({ outcome: "unprocessed", reason: room ? "对局未开始" : "房间不存在" });
       return;
     }
-    const { log } = room.engine;
-    const logOffset = log.length;
-    const rejection = room.engine.submitCommand(cmd);
-    if (rejection !== undefined) {
-      this.persist(room); // 拒绝的命令与警告也须归档。
-      throw new RoomError(400, rejection);
-    }
+    const { engine } = room;
+    const logOffset = engine.log.length;
+    // 应答可关闭原窗并打开下一窗，必须在保存成功后才替换原局面与截止时刻。
+    const change =
+      cmd.type === "respondReaction"
+        ? stageEngineChange(engine, (draft) => draft.submitCommand(cmd))
+        : undefined;
+    const rejection = change === undefined ? engine.submitCommand(cmd) : change.result;
+    const log = change === undefined ? engine.log : change.snapshot.log;
     // 只定位本次同步权威处理写出的警告。日志原文可能含牌面。
     const warning = log.slice(logOffset).findIndex(isLogWarning);
+    this.persist(room, rejection === undefined && warning === -1, change);
+    if (rejection !== undefined) throw new RoomError(400, rejection);
     this.watchdogs.syncReaction(room, onUpdate);
-    this.persist(room, warning === -1);
     onUpdate?.(room); // 人类命令结果先推
     if (report) {
       if (warning === -1) {
@@ -686,7 +765,7 @@ export class RoomRegistry {
       seat !== submission.seat ||
       !room.seats[seat]?.token
     )
-      return { outcome: "rejected", reason: "提交与入座房间或座位不符" };
+      return { outcome: "rejected", reasonCode: "wrongSeat", reason: "提交与入座房间或座位不符" };
     const payload = submissionPayload(submission);
     const old = room.submissions.entries.find(
       (entry) => entry.seat === seat && entry.submissionId === submission.submissionId,
@@ -694,39 +773,78 @@ export class RoomRegistry {
     if (old)
       return old.payload === payload
         ? { ...old.result }
-        : { outcome: "rejected", reason: "这个提交编号已用于其他内容" };
-
-    const staged = stagePlayerSubmission(room, submission);
-    const { snapshot } = staged;
-    const result =
-      snapshot === undefined
-        ? staged.result
         : {
-            ...staged.result,
-            ...this.publicLogAnchor(room, snapshot.log, room.engine!.log.length),
+            outcome: "rejected",
+            reasonCode: "submissionIdConflict",
+            reason: "这个提交编号已用于其他内容",
+          };
+
+    const { cmd } = submission;
+    const {
+      change,
+      result: stagedResult,
+      autopilot,
+    } = cmd.type === "setAutoPilot"
+      ? this.stageAutopilotSubmission(room, seat, submission.decisionPoint, cmd.on)
+      : { ...stagePlayerSubmission(room, { ...submission, cmd }), autopilot: undefined };
+    const result =
+      change === undefined
+        ? stagedResult
+        : {
+            ...stagedResult,
+            ...this.publicLogAnchor(room, change.snapshot.log, room.engine!.log.length),
           };
     const submissions = {
-      decisionRevision: room.submissions.decisionRevision + (result.outcome === "accepted" ? 1 : 0),
+      decisionRevision:
+        room.submissions.decisionRevision +
+        (autopilot === undefined && result.outcome === "accepted" ? 1 : 0),
       entries: [
         ...room.submissions.entries,
         { seat, submissionId: submission.submissionId, payload, result },
       ],
     };
-    this.save(
-      room,
-      submissions,
-      snapshot === undefined ? (room.engine?.snapshot() ?? null) : snapshot,
-    );
-    room.submissions = submissions;
-    if (snapshot !== undefined) {
-      room.engine!.restoreFromSnapshot(snapshot);
-      staged.commitDicePins?.();
-      this.writeGameLog(room);
-      this.watchdogs.syncReaction(room, onUpdate);
-      onUpdate?.(room);
+    this.commit(room, submissions, change, autopilot);
+    if (change !== undefined) {
+      this.publishRoomChange(room, onUpdate, autopilot);
       void this.driveBots(room, onUpdate);
     }
     return { ...result };
+  }
+
+  private stageAutopilotSubmission(
+    room: RoomSession,
+    seat: number,
+    point: string,
+    on: boolean,
+  ): { result: PlayerSubmissionResult; change?: StagedEngineChange; autopilot?: AutopilotChange } {
+    const decision = autopilotDecisionOf(room, seat);
+    if (decision === undefined)
+      return {
+        result: { outcome: "rejected", reasonCode: "wrongSeat", reason: "本席当前没有托管权限" },
+      };
+    if (decision.decisionPoint !== point)
+      return {
+        result: {
+          outcome: "rejected",
+          reasonCode: "staleDecisionPoint",
+          reason: "原托管授权已失效，请按当前状态操作",
+        },
+      };
+    if (decision.on === on)
+      return {
+        result: {
+          outcome: "rejected",
+          reasonCode: "invalidCandidate",
+          reason: on ? "本席已托管" : "本席已由本人控制",
+        },
+      };
+    const autopilot = { seat, on, by: "self" } as const;
+    const change = this.stageAutopilot(
+      room,
+      autopilot,
+      this.autopilotLogBrief(room.engine!, autopilot),
+    );
+    return { result: { outcome: "accepted" }, change, autopilot };
   }
 
   /** 尚未迁移的玩家命令只放行决策归属座位。已迁移的操作须走 submitFromSeat。 */
@@ -744,10 +862,11 @@ export class RoomRegistry {
     }
     if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
       throw new RoomError(400, "seat 非法"); // 旁观/越界座位不可提交任何游戏命令
-    const e = room.engine;
-    if (requiresPlayerSubmission(cmd, e.pendingJinnang?.cardId ?? null))
+    if (cmd.type === "rollAndMove") throw new RoomError(403, "行军由房间自动起摇");
+    if (requiresPlayerSubmission(cmd))
       throw new RoomError(403, "请携带原决策点和提交编号提交此操作");
-    const owner = decisionSeatOf(e);
+    if (seatControlled(room, seat)) throw new RoomError(403, "本席当前由房间代打");
+    const owner = decisionSeatOf(room.engine);
     if (seat !== owner) throw new RoomError(403, `未轮到该座位决策(归属:座位 ${owner})`);
     await this.applyCommand(roomId, cmd, onUpdate, report);
   }
@@ -761,9 +880,12 @@ export class RoomRegistry {
   abortGame(roomId: string, reason: string, onUpdate?: (room: RoomSession) => void): void {
     const room = this.rooms.get(roomId);
     if (!room || !room.engine) throw new RoomError(409, "房间不存在或对局未开始,不可作废");
-    room.engine.abortGame(reason);
-    this.watchdogs.syncReaction(room, onUpdate);
-    this.persist(room);
+    const change =
+      room.engine.turnPhase === "AwaitingReaction"
+        ? stageEngineChange(room.engine, (draft) => draft.abortGame(reason))
+        : undefined;
+    if (change === undefined) room.engine.abortGame(reason);
+    this.persist(room, false, change);
     onUpdate?.(room);
   }
 
@@ -845,7 +967,8 @@ export class RoomRegistry {
     }
     eps.set(seat, ep);
     const shot = assembleDownlinkShot(room, this.transportOnlineSeats(roomId), seat, [], true);
-    this.seatDecisions.set(ep, shot.decisionPoint);
+    this.seatDecisions.set(ep, shot.decisionCursor);
+    this.transportLogCursors.set(ep, shot.logCursor);
     ep.send(shot.snapshot);
     this.settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
     this.lastRoomMeta.set(
@@ -911,18 +1034,32 @@ export class RoomRegistry {
     const online = this.transportOnlineSeats(roomId);
     const metaJson = encodeDownlink(lobbyView(room, online));
     const metaChanged = this.lastRoomMeta.get(roomId) !== metaJson;
+    const capturedAt = Date.now();
     for (const [seat, ep] of eps) {
       if (!ep.open) continue;
       const shot = withSnapshot
         ? assembleDownlinkShot(room, online, seat, batch, true)
         : assembleDownlinkShot(room, online, seat, batch, false, this.seatDecisions.get(ep));
       if (shot.events !== null || shot.snapshot !== null)
-        this.seatDecisions.set(ep, shot.decisionPoint);
+        this.seatDecisions.set(ep, shot.decisionCursor);
       if (shot.events !== null) ep.send(shot.events);
-      if (shot.snapshot !== null) ep.send(shot.snapshot);
-      else if (metaChanged) ep.send(metaJson);
+      if (shot.snapshot !== null) {
+        this.transportLogCursors.set(ep, shot.logCursor);
+        ep.send(shot.snapshot);
+      } else {
+        if (metaChanged) ep.send(metaJson);
+        if (e !== null) this.sendTransportLog(ep, e, capturedAt);
+      }
     }
     this.lastRoomMeta.set(roomId, metaJson);
+  }
+
+  private sendTransportLog(ep: SeatEndpoint, engine: GameEngine, capturedAt: number): void {
+    const cursor = this.transportLogCursors.get(ep);
+    if (cursor === undefined) throw new Error("座位端点缺少对局日志锚点");
+    const { message, next } = assembleGameLogDelta(engine, cursor, capturedAt);
+    this.transportLogCursors.set(ep, next);
+    if (message !== null) ep.send(encodeDownlink(message));
   }
 
   /** 时钟挂死的异常终局立即下行,不等待已失效的驱动节拍。 */
@@ -972,11 +1109,27 @@ export class RoomRegistry {
   }
 
   // ──────────────────────────── 持久化投影 ────────────────────────────
-  private save(
+  private adoptReactionDeadline(room: RoomSession, deadline: ReactionDeadline | null): void {
+    if (installReactionDeadline(room, deadline, this.now))
+      this.watchdogs.reactionWait.clear(room.roomId);
+  }
+
+  private commit(
     r: RoomSession,
     submissions: RoomSubmissions,
-    snapshot: RoomRecord["snapshot"],
+    change?: StagedEngineChange,
+    autopilot?: AutopilotChange,
   ): void {
+    const snapshot = change === undefined ? (r.engine?.snapshot() ?? null) : change.snapshot;
+    const reactionDeadline = deriveReactionDeadline(r, snapshot, this.now);
+    const autoPilot = autopilot === undefined ? r.autoPilot : new Set(r.autoPilot);
+    const revisions = autopilot === undefined ? r.autopilotRevisions : [...r.autopilotRevisions];
+    if (autopilot !== undefined) {
+      const { seat, on } = autopilot;
+      if (on) autoPilot.add(seat);
+      else autoPilot.delete(seat);
+      revisions[seat]++;
+    }
     const rec: RoomRecord = {
       roomId: r.roomId,
       seatCount: r.seatCount,
@@ -986,21 +1139,27 @@ export class RoomRegistry {
         guohao: s.guohao,
       })),
       hostSeat: r.hostSeat,
-      autoPilot: [...r.autoPilot],
+      autoPilot: [...autoPilot],
+      autopilotRevisions: revisions,
       hostConfig: r.hostConfig,
       mapId: r.mapId,
       submissions,
       snapshot,
+      ...(reactionDeadline === null ? {} : { reactionDeadline }),
     };
     this.persistence.save(rec);
+    change?.commit();
+    r.autoPilot = autoPilot;
+    r.autopilotRevisions = revisions;
+    r.submissions = submissions;
+    this.adoptReactionDeadline(r, reactionDeadline);
   }
 
-  private persist(r: RoomSession, decisionAdvanced = false): void {
+  private persist(r: RoomSession, decisionAdvanced = false, change?: StagedEngineChange): void {
     const submissions = decisionAdvanced
       ? { ...r.submissions, decisionRevision: r.submissions.decisionRevision + 1 }
       : r.submissions;
-    this.save(r, submissions, r.engine ? r.engine.snapshot() : null);
-    r.submissions = submissions;
+    this.commit(r, submissions, change);
     // ADR-0014 对局日志:每手快照后把引擎新增日志行经钩子交传输层落盘(data/logs/<gameId>.jsonl)
     if (r.engine) this.writeGameLog(r);
   }

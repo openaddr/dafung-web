@@ -9,6 +9,7 @@ import type { EngineConfig, SeatConfig } from "../engine/authority";
 import type { LoadedMap } from "../engine/board-loader";
 import { createDice } from "../engine/dice";
 import type { RoomSubmissions } from "./player-submissions";
+import type { ReactionDeadline } from "./reaction-deadline";
 
 export interface HostConfig {
   seed?: number;
@@ -31,11 +32,15 @@ export interface RoomRecord {
   hostSeat: number;
   /** 托管座位集(ADR-0028 单一开关);重连不清除,只有本人收回/看门狗代开。 */
   autoPilot: number[];
+  /** 各席托管权限的修订号，与开关和提交回执同一笔保存。 */
+  autopilotRevisions: number[];
   hostConfig: HostConfig;
   /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
   mapId: string | null;
   submissions: RoomSubmissions;
   snapshot: ReturnType<GameEngine["snapshot"]> | null;
+  /** 活窗的权威绝对截止时刻，与局面和提交回执同一笔落盘。 */
+  reactionDeadline?: ReactionDeadline;
 }
 
 /** 全新引擎(引擎构造三行;调用点恒显式传图,无默认图分支)。 */

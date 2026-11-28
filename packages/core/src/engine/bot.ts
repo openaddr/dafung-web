@@ -3,6 +3,7 @@
 import type { GameEngine, TurnPhase } from "./authority";
 import type { Player } from "./model";
 import {
+  REACTION_EXPECT,
   reactionTargetSeat,
   type JinnangReactionView,
   type ReactionAnswer,
@@ -266,12 +267,15 @@ export function botReactionDecision(engine: GameEngine, seat: number): ReactionD
   const pr = engine.pendingReaction;
   if (pr == null) throw new Error(`botReactionDecision:座位 ${seat} 无挂起反应窗(驱动器 bug)`); // 零兜底
   const me = engine.players[seat];
+  const handIndex = me.jinnangHand.findIndex(
+    (id) => jinnangCardOf(id).effect.kind === REACTION_EXPECT[pr.view.kind],
+  );
+  if (handIndex < 0) return { use: false };
+  const play = { use: true, cardId: me.jinnangHand[handIndex], handIndex };
   if (pr.view.kind === "march") {
     const mover = engine.players[pr.view.userSeat];
     const richest = engine.players.every((p) => p === mover || p.isBankrupt || mover.cash > p.cash);
-    const cardId = me.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "ambush");
-    if (richest && cardId != null) return { use: true, cardId };
-    return { use: false };
+    return richest ? play : { use: false };
   }
   // 识破诡计:只护己利(#571)
   const harm = counterHarmOf(engine, pr.view, seat);
@@ -286,9 +290,7 @@ export function botReactionDecision(engine: GameEngine, seat: number): ReactionD
     ) <= EST_COUNTER_CARD_VALUE
   )
     return { use: false };
-  const cardId = me.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "counter");
-  if (cardId == null) return { use: false };
-  return pr.view.targets.requiresSelection ? { use: true, cardId, target } : { use: true, cardId };
+  return pr.view.targets.requiresSelection ? { ...play, target } : play;
 }
 
 /** 「你可」待决决策(#1377,与 botReactionDecision 同形制:纯函数、不掷骰、确定性,

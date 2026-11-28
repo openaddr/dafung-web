@@ -126,12 +126,6 @@ it.each([
 
   const ops: InboundOps = {
     cmd: (cmd) => engine.submitCommand(cmd),
-    pickCapital: () => {
-      throw new Error("场景未提交选都命令");
-    },
-    setAutoPilot: () => {
-      throw new Error("场景未提交托管命令");
-    },
   };
   const invalid = await dispatchInbound(cmdMsg({ type: "resolveHeroPick", index: 0 }), ops);
   expect(invalid).toMatchObject({ ok: false, reason: "rejected" });

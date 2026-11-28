@@ -7,6 +7,7 @@
 // 断线座位同文件(同族):markSeatOffline 是 WS close 的房间编排入口,看门狗武装
 // 判定不区分在线/离线(离线冻结座位同样武装,断线者超时即「不用」,ADR-0017 后果节)
 // ——真 WS 关闭的传输面接线归 protocol-online(ADR-0055 场景),不在本文件重复。
+import { submitCapitalForSetup } from "./online/room-capitals";
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry } from "@dafung/core/room/room";
 import type { RoomClock } from "@dafung/core/room/room";
@@ -55,9 +56,12 @@ class ManualClock implements RoomClock {
     this.pending.delete(handle);
   }
   fireAll(): void {
-    const cbs = [...this.pending.values()];
+    const cbs = [...this.pending.values()].sort((a, b) => a.at - b.at);
     this.pending.clear();
-    for (const { cb } of cbs) cb();
+    for (const { cb, at } of cbs) {
+      this.time = Math.max(this.time, at);
+      cb();
+    }
   }
   advanceBy(ms: number): void {
     this.time += ms;
@@ -97,7 +101,7 @@ async function playingRoom(clock: ManualClock, seed = 42) {
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e.phase === "Setup"; i++)
-    await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]!);
+    await submitCapitalForSetup(reg, roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]!);
   expect(e.phase).toBe("Playing");
   // 排干开局链残留挂表(autoRoll 等;看门狗到点重校验不过即静默退场):
   for (let i = 0; i < 50 && clock.size > 0; i++) {

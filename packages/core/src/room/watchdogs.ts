@@ -6,7 +6,7 @@
 //   #281/#284 反应窗 reactionWait:开窗超时 → 代发「不用」(ADR-0017)
 //   #380 掉线保留窗 retention:对局中断线座位保留窗口到期 → 看门狗代开托管(ADR-0028)
 //   #642 驱动链停摆作废 stallAbort:no-progress 断链超时 → abortGame 响亮终局(零无声软锁)
-// 代开托管 = 拨唯一「托管」开关(autoPilot.add,by:"watchdog",只开不关;重连不清,
+// 代开托管 = 拨唯一「托管」开关(by:"watchdog",只开不关;重连不清,
 // 本人点「收回」拿回控制)。原三份手写 clear/arm/fire 同构三件套收敛为 createWatchdog
 // 工厂:返回 {clear, arm, disarm} 实例,三组各自配置「武装窗口(tag+delayMs)」与
 // 「到点动作」;行为(超时时长/触发动作/清理时机)与拆分前逐一对齐,由 room.test.ts
@@ -16,7 +16,7 @@ import type { GameCommand } from "../engine/authority";
 import { AUTO_ROLL_DELAY_MS } from "../engine/timings";
 import type { RoomClock, RoomEvent, RoomSession } from "./room";
 import { decisionSeatOf, reactionQueriedSeats } from "./bot-driver";
-import { reactionTimingOf, syncReactionDeadline } from "./reaction-deadline";
+import { reactionTimingOf } from "./reaction-deadline";
 import { seatControlled } from "./seat-projection";
 
 type UpdateFn = (room: RoomSession) => void;
@@ -28,11 +28,8 @@ export interface WatchdogHost {
   isCurrentRoom(r: RoomSession): boolean;
   /** 观测事件(可观测性基建,ADR-0007)。 */
   observe(r: RoomSession, event: RoomEvent): void;
-  /** 房间生命周期行写进对局日志(ADR-0014),写完触发日志落盘钩子。 */
-  logRoom(r: RoomSession, brief: string, detail: string): void;
-  persist(r: RoomSession): void;
+  openAutopilot(r: RoomSession, seat: number, brief: string, onUpdate?: UpdateFn): Promise<void>;
   applyCommand(roomId: string, cmd: GameCommand, onUpdate?: UpdateFn): Promise<void>;
-  driveBots(r: RoomSession, onUpdate?: UpdateFn): Promise<void>;
   /** #642 响亮终局房间入口:引擎 abortGame + persist + 常规下行广播(stallAbort 点火用)。 */
   abortGame(r: RoomSession, reason: string, onUpdate?: UpdateFn): void;
   /** #118 决策停摆超时(ms);0 = 关闭(缺省关,测试友好)。 */
@@ -44,7 +41,6 @@ export interface WatchdogHost {
   readonly retentionWindowMs: number;
   /** 定时原语(#399 Worker 时钟注入点):武装/撤表全经它,服务器=全局、单机=Worker。 */
   readonly clock: RoomClock;
-  readonly now: () => number;
 }
 
 /** 单组看门狗实例:clear=整房撤表(链重开/解散时);arm=按座位武装;disarm=按座位
@@ -130,23 +126,7 @@ let armSeq = 0;
 
 /** 五组看门狗(registry 构造时创建一次,随注册表生命周期)。 */
 export function createWatchdogs(host: WatchdogHost): Watchdogs {
-  // 看门狗代开托管(stall/retention 两道 fire 共用,ADR-0028):拨唯一「托管」开关 +
-  // autopilot(by:"watchdog")观测行 + 对局日志行(brief 同形状机读 detail)+ persist,
-  // 再由调用方续推 driveBots 解冻。开关只开不关;出处只进日志,行为与自助托管无分叉。
-  const watchdogOpenAutoPilot = async (
-    r: RoomSession,
-    seat: number,
-    brief: string,
-    onUpdate?: UpdateFn,
-  ): Promise<void> => {
-    r.autoPilot.add(seat);
-    host.observe(r, { ev: "autopilot", seat, on: true, by: "watchdog" });
-    host.logRoom(r, brief, JSON.stringify({ type: "autopilot", seat, on: true, by: "watchdog" }));
-    host.persist(r);
-    onUpdate?.(r); // 先广播托管(客户端「托管中」徽章置位;托管座位 isBot 不变,等待条走真人措辞)
-    await host.driveBots(r, onUpdate); // 若该座位正轮到,解冻续推
-  };
-  // 每位待答真人各有一表，共用当前窗的截止时刻。
+  // 所有待答席共用当前窗的截止。托管也只在截止前按策略答。
   const reactionWait = createWatchdog(
     {
       window: (r) => {
@@ -160,7 +140,10 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
         const pr = e.pendingReaction;
         if (!reactionQueriedSeats(pr.view).includes(seat)) return;
         if (pr.answers.some((a) => a.seat === seat)) return;
-        if (seatControlled(r, seat)) return;
+        if (reactionTimingOf(r).remainingMs > 0) {
+          reactionWait.arm(r, seat, onUpdate);
+          return;
+        }
         host.observe(r, { ev: "reaction-decline", seat });
         await host.applyCommand(r.roomId, { type: "respondReaction", seat, use: false }, onUpdate);
       },
@@ -170,13 +153,12 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
   return {
     reactionWait,
     syncReaction(r, onUpdate) {
-      if (syncReactionDeadline(r, host.now)) reactionWait.clear(r.roomId);
       const e = r.engine;
       if (e?.turnPhase !== "AwaitingReaction") return;
       const pending = e.pendingReaction;
       if (pending == null) throw new Error(`房间 ${r.roomId} 缺少挂起的反应窗`);
       for (const seat of reactionQueriedSeats(pending.view)) {
-        if (pending.answers.some((a) => a.seat === seat) || seatControlled(r, seat)) {
+        if (pending.answers.some((a) => a.seat === seat)) {
           reactionWait.disarm(r.roomId, seat);
         } else {
           reactionWait.arm(r, seat, onUpdate);
@@ -213,7 +195,7 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
             );
             return;
           }
-          await watchdogOpenAutoPilot(
+          await host.openAutopilot(
             r,
             seat,
             `座位 ${seat}(${e.players[seat].guohao}) 决策停摆超 ${Math.round(host.decisionTimeoutMs / 1000)} 秒,自动托管`,
@@ -292,7 +274,7 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
           const e = r.engine;
           if (!host.isCurrentRoom(r) || !e || e.isOver) return;
           if (r.seats[seat].kind !== "human" || seatControlled(r, seat)) return;
-          await watchdogOpenAutoPilot(
+          await host.openAutopilot(
             r,
             seat,
             `座位 ${seat}(${e.players[seat].guohao}) 断线保留窗(${Math.round(host.retentionWindowMs / 1000)} 秒)到期,自动托管`,

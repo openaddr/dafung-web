@@ -10,6 +10,7 @@ import * as tauriCore from "@tauri-apps/api/core";
 import { useFxStore } from "@app/fx/fxStore";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
 import { getServerBase, setServerBase } from "@app/net/server-base";
+import { SCROLL_TESTIDS } from "@app/screens/game/scroll/testids";
 import { TESTIDS } from "@app/screens/game/testids";
 import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
@@ -25,16 +26,27 @@ import {
   giveJinnang,
   giveTreasure,
   grantProperty,
+  pinDice,
   placePlayer,
   setCash,
+  setJinnangPiles,
 } from "@dafung/core/engine/planter";
 import { skillOptionId } from "@dafung/core/engine/choices";
 import { makeSkillBook } from "@dafung/core/engine/treasures";
+import { AUTO_ROLL_DELAY_MS } from "@dafung/core/engine/timings";
+import {
+  reactionChoicesForSeat,
+  reactionQueriesSeat,
+} from "@dafung/core/protocol/reaction-choices";
+import type { DecisionOptions } from "@dafung/core/protocol/wire";
+import { heroDismissalOptionsOf, skillBookOptionsOf } from "@dafung/core/room/roster-decisions";
 import { redactEvents } from "@dafung/core/room/seat-projection";
+import { skillChoiceDecisionOf } from "@dafung/core/room/skill-choice-decisions";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
 import guanzhongData from "../../packages/core/maps/guanzhong.json";
+import { HeadlessPlayer } from "../../scripts/headless-player";
 import { openHeadlessTestRoom } from "../online/headless-player-room";
 import { ensureHappyDom, releaseHappyDom } from "./happy-dom-register";
 import { installControlledClock } from "./controlled-clock";
@@ -409,34 +421,158 @@ async function waitForGameState(
   });
 }
 
+async function mountOnlineJinnang(room: Awaited<ReturnType<typeof openHeadlessTestRoom>>) {
+  setServerBase("http://android-room.test");
+  const join = async (input: Parameters<typeof fetch>[0]) => {
+    expect(new URL(String(input)).pathname).toBe("/room/join");
+    return Response.json(room.joinReply(0));
+  };
+  using _join = spyOn(globalThis, "fetch").mockImplementation(
+    Object.assign(join, { preconnect: fetch.preconnect }),
+  );
+  const controller = new OnlineController(MAP, "guanzhong", {
+    socketFactory(url) {
+      const { pathname, search } = new URL(url);
+      return new NativeWebSocket(
+        new URL(pathname + search, room.wsUrl(0)),
+      ) as unknown as WebSocketLike;
+    },
+  });
+  setController(controller, guanzhongData as MapData);
+  await controller.joinRoom(room.id);
+  await waitForGameState(
+    "入座后的出牌阶段",
+    (s) => s.interactive && s.seatView?.jinnang?.stage === "hand",
+  );
+  return mount();
+}
+
+it("安卓结束出牌后与同房无界面座位观察同一次行军落格、购城及原座恢复", async () => {
+  const previousServer = getServerBase();
+  const room = await openHeadlessTestRoom([], (engine) => {
+    giveJinnang(engine, 0, ["横征暴敛", "识破诡计", "横征暴敛"]);
+    placePlayer(engine, 0, 12);
+    pinDice(engine, "march", [2]);
+    // 下一席得到反应牌，直接进入起摇，不打开需要校准的出牌窗。
+    setJinnangPiles(engine, ["识破诡计", "识破诡计"], []);
+  });
+  const observer = new HeadlessPlayer(room.id, 1);
+  try {
+    const el = await mountOnlineJinnang(room);
+    const wire = await room.socket(1);
+    await observer.connect(wire);
+    const board = () => observer.queries.board;
+    const cityTarget = () => el.querySelector('#bv-tiles [data-tile="14"]')!;
+    expect(board().seats.map(({ position }) => position)).toEqual([12, 10, 2]);
+    expect(board().cities).toHaveLength(28);
+    expect(cityTarget().getAttribute("aria-label")).toBe(board().cities[14].tile.name);
+    expect(board().cities[14]).toMatchObject({
+      tile: { name: "街亭" },
+      property: { id: "prop-jieting", purchasePrice: 3000 },
+      owner: null,
+      income: 90,
+    });
+
+    const state = () => useGameStore.getState();
+    const levy = el.querySelectorAll(`[data-testid="${TESTIDS.jinnangCard("横征暴敛")}"]`);
+    const initialStep = state().seatView!.decisionPoint;
+    click(levy[1]);
+    expect(state().seatView?.jinnang?.selectedHandIndex).toBe(2);
+    expect(state().seatView?.decisionPoint).toBe(initialStep);
+    click(q(el, TESTIDS.actionbarPlay)!);
+    await waitForGameState(
+      "符合同一牌位置的结算与新授权",
+      (s) => s.seatView?.jinnang?.canPass === true && s.seatView.decisionPoint !== initialStep,
+    );
+    expect(state().snapshot?.players[0].jinnangHand).toEqual(["横征暴敛", "识破诡计"]);
+
+    click(q(el, TESTIDS.actionbarPass)!);
+    await waitForGameState("结束出牌事件", (s) => s.snapshot?.turnPhase === "Roll");
+    expect(state().seatView?.decisionPoint).toBeNull();
+    expect(state().snapshot?.players[0].position).toBe(12);
+    await room.advance(AUTO_ROLL_DELAY_MS);
+    await observer.readUntil(
+      (m) => m.type === "events" && m.events.some((event) => event.kind === "marchArrived"),
+      "公开行军到达",
+    );
+    await waitForGameState("房间自动行军到达", (s) => s.snapshot?.players[0].position === 14);
+    expect(observer.marches).toMatchObject([
+      { kind: "marchArrived", seat: 0, path: { from: 12, traversed: [13, 14], landIndex: 14 } },
+    ]);
+    expect(board().seats.map(({ position }) => position)).toEqual(
+      state().seatView!.snapshot.players.map(({ position }) => position),
+    );
+    const cashBefore = board().seats[0].cash;
+    const snapshotCount = wire.frames.filter(({ type }) => type === "snapshot").length;
+
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await waitForGameState(
+      "行军后购城抉择",
+      (s) => s.interactive && s.seatView?.decisionOptions?.kind === "landDecision",
+    );
+    click(q(document, TESTIDS.actionButton("buy"))!);
+    await observer.readUntil(
+      (m) => m.type === "events" && m.events.some((event) => event.kind === "propertyBought"),
+      "公开购城结果",
+    );
+    await waitForGameState(
+      "安卓收到购城",
+      (s) =>
+        s.snapshot?.players[0].properties.some(
+          ({ propertyId }) => propertyId === "prop-jieting",
+        ) === true,
+    );
+    expect(wire.frames.filter(({ type }) => type === "snapshot")).toHaveLength(snapshotCount);
+    const purchased = board();
+    const city = purchased.cities[14];
+    expect(city.owner).toMatchObject({
+      seat: 0,
+      guohao: "蜀",
+      level: 1,
+      defense: 40,
+      fullDefense: 40,
+      sellValue: 1500,
+      trade: { multiplier: 2, addition: 0 },
+    });
+    // 同批进入下一轮，街亭随即入账 90 两持城收益。
+    expect(purchased.seats[0].cash).toBe(cashBefore - 3000 + 90);
+    expect(el.querySelector(TESTIDS.cityShield(14))?.getAttribute("data-defense")).toBe(
+      String(city.owner!.defense),
+    );
+
+    click(cityTarget());
+    const detail = q(document, SCROLL_TESTIDS.tileDetailScroll)!;
+    expect(detail.textContent).toContain(`${city.owner!.guohao}持有`);
+    expect(q(detail, SCROLL_TESTIDS.tileDetailDefense)?.textContent).toBe(
+      `${city.owner!.defense}/${city.owner!.fullDefense}`,
+    );
+    expect(detail.textContent).toContain(`购入价 ${city.property.purchasePrice} 两`);
+    click(q(detail, SCROLL_TESTIDS.scrollClose)!);
+    click(q(el, TESTIDS.topbarOverview)!);
+    click(q(document, TESTIDS.warlordsCities(0))!);
+    const ledger = q(document, TESTIDS.cityLedgerRow(city.property.id))!;
+    expect(ledger.textContent).toContain(`${city.owner!.level} 级`);
+    expect(ledger.textContent).toContain(`${city.owner!.sellValue} 两`);
+
+    await observer.connect(await room.socket(1));
+    expect(board()).toEqual(purchased);
+    expect(observer.marches).toEqual([]);
+  } finally {
+    observer.close();
+    setServerBase(previousServer);
+    await act(async () => {
+      setController(null);
+      setEngine(null);
+      await room.close();
+    });
+  }
+});
+
 it("联机右侧连环计在命令在途和返回改选时逐张高亮，最终只扣指定的一张", async () => {
   const previousServer = getServerBase();
   const room = await openHeadlessTestRoom();
   try {
-    setServerBase("http://android-room.test");
-    const join = async (input: Parameters<typeof fetch>[0]) => {
-      expect(new URL(String(input)).pathname).toBe("/room/join");
-      return Response.json(room.joinReply(0));
-    };
-    using _join = spyOn(globalThis, "fetch").mockImplementation(
-      Object.assign(join, { preconnect: fetch.preconnect }),
-    );
-    const controller = new OnlineController(MAP, "guanzhong", {
-      socketFactory(url) {
-        const { pathname, search } = new URL(url);
-        return new NativeWebSocket(
-          new URL(pathname + search, room.wsUrl(0)),
-        ) as unknown as WebSocketLike;
-      },
-    });
-    setController(controller, guanzhongData as MapData);
-    await controller.joinRoom(room.id);
-    await waitForGameState(
-      "入座后的出牌阶段",
-      (s) => s.interactive && s.seatView?.jinnang?.stage === "hand",
-    );
-
-    const el = mount();
+    const el = await mountOnlineJinnang(room);
     const confirm = () => q(el, TESTIDS.actionbarTarget)!;
     const seat = (index: number) => q(el, TESTIDS.seatTarget(index))!;
     const pawn = (index: number) => q(el, TESTIDS.pawnTarget(snap().players[index].id));
@@ -525,6 +661,53 @@ it("联机右侧连环计在命令在途和返回改选时逐张高亮，最终�
     expect(
       useNetStore.getState().lastEvents?.filter((event) => event.kind === "duelResolved"),
     ).toHaveLength(1);
+  } finally {
+    setServerBase(previousServer);
+    await act(async () => {
+      setController(null);
+      setEngine(null);
+      await room.close();
+    });
+  }
+});
+
+it("安卓点城选择火源，进入和取消都按当前决策点提交", async () => {
+  const previousServer = getServerBase();
+  const room = await openHeadlessTestRoom([], (engine) => giveJinnang(engine, 0, ["火烧连营"]));
+  using sends = spyOn(NativeWebSocket.prototype, "send");
+  try {
+    const el = await mountOnlineJinnang(room);
+    const state = () => useGameStore.getState();
+    const lastFrame = () => JSON.parse(String(sends.mock.calls.at(-1)![0]));
+    const card = { type: "useJinnang", cardId: "火烧连营", handIndex: 0 };
+    const handPoint = state().seatView!.decisionPoint;
+    click(q(el, TESTIDS.jinnangCard("火烧连营"))!);
+    click(q(el, TESTIDS.actionbarPlay)!);
+    expect(lastFrame()).toMatchObject({
+      type: "submit",
+      submission: { decisionPoint: handPoint, cmd: card },
+    });
+    await waitForGameState(
+      "房间火源选项",
+      (s) => s.interactive && s.seatView?.jinnang?.stage === "one",
+    );
+    const targetPoint = state().seatView!.decisionPoint;
+    expect(targetPoint).not.toBe(handPoint);
+    const hanzhong = 13;
+    click(el.querySelector(TESTIDS.cityTarget(hanzhong))!);
+    expect(state().seatView?.jinnang?.targets?.selected).toEqual([hanzhong]);
+    expect(q(el, TESTIDS.actionbarTarget)?.hasAttribute("disabled")).toBe(false);
+    click(q(el, TESTIDS.actionbarCancel)!);
+    expect(lastFrame()).toMatchObject({
+      type: "submit",
+      submission: { decisionPoint: targetPoint, cmd: { ...card, cancel: true } },
+    });
+    await waitForGameState(
+      "房间取消火源选择",
+      (s) => s.interactive && s.seatView?.jinnang?.stage === "hand",
+    );
+    expect(state().seatView!.decisionPoint).not.toBe(targetPoint);
+    expect(state().snapshot?.players[0].jinnangHand).toEqual(["火烧连营"]);
   } finally {
     setServerBase(previousServer);
     await act(async () => {
@@ -653,7 +836,12 @@ beforeAll(async () => {
       return 0;
     }
 
-    override dispatchCommand(cmd: GameCommand): void {
+    override dispatchCommand(cmd: GameCommand, decisionPoint?: string): void {
+      if (
+        (cmd.type === "useBookSkill" || cmd.type === "dismissHero") &&
+        decisionPoint !== this.seatView.decisionPoint
+      )
+        throw new Error("名册操作未提交原决策点");
       if (this.deferCommands) {
         // 传输边界分拍:与生产控制器同样先上 pending 锁,回包拍再执行真实命令。
         this.pendingCommand = cmd;
@@ -673,8 +861,33 @@ beforeAll(async () => {
     }
     // 测试侧重灌口(protected sync 的公开面;直写引擎后调)。
     resync(): void {
-      this.decisionPoint = String(++this.decisionNumber);
+      const ownsDecision = this.e.phase === "Playing" && this.e.decisionOwner === this.mySeat;
+      const ownsJinnang = ownsDecision && this.e.turnPhase === "AwaitingJinnang";
+      const ownsSkillChoice = ownsDecision && this.e.turnPhase === "AwaitingSkillChoice";
       const current = this.e.pendingReaction;
+      const ownsReaction = current !== null && reactionQueriesSeat(current.view, this.mySeat);
+      const primary: DecisionOptions | undefined = ownsJinnang
+        ? {
+            kind: "playJinnang",
+            choices: this.e.choicesFor(),
+            pendingJinnang: this.e.pendingJinnang,
+            pendingSkill: this.e.pendingSkill,
+            skillBooks: skillBookOptionsOf(this.e),
+          }
+        : ownsSkillChoice
+          ? skillChoiceDecisionOf(this.e)
+          : ownsReaction
+            ? reactionChoicesForSeat(this.e, this.mySeat)
+            : undefined;
+      const heroDismissals =
+        ownsDecision && this.e.activeIndex === this.mySeat ? heroDismissalOptionsOf(this.e) : [];
+      this.observeSeatDecision({
+        decisionPoint: String(++this.decisionNumber),
+        decisionOptions:
+          heroDismissals.length === 0
+            ? primary
+            : { ...(primary ?? { kind: "heroDismissal" }), heroDismissals },
+      });
       if (current != null) {
         this.observeReactionTiming(
           { seq: current.seq, remainingMs: current.view.windowMs },

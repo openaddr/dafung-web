@@ -115,12 +115,6 @@ describe("反应窗选份与出牌宣布的联机契约", () => {
   function dispatch(authority: GameEngine, raw: string) {
     return dispatchInbound(raw, {
       cmd: (cmd) => authority.submitCommand(cmd),
-      pickCapital: () => {
-        throw new Error("预期收到对局命令");
-      },
-      setAutoPilot: () => {
-        throw new Error("预期收到对局命令");
-      },
     });
   }
 
@@ -1052,7 +1046,7 @@ describe("折叠投影器 · 城池族", () => {
     ]);
   });
 
-  it("capitalSelected 入册都城(现金不入折叠,#386 口径)", () => {
+  it("capitalSelected 应用权威扣款、都城落位与初始城防", () => {
     const e = makeEngine();
     const cash0 = e.players[0].cash;
     foldEventBatch(e, [
@@ -1061,6 +1055,15 @@ describe("折叠投影器 · 城池族", () => {
         tileIndex: CHANGAN,
         propertyId: "prop-changan",
         cost: 2000,
+        holding: {
+          propertyId: "prop-changan",
+          group: "a",
+          level: 1,
+          maxLevel: 4,
+          defense: 40,
+          burning: null,
+          damageRanking: [],
+        },
       }),
     ]);
 
@@ -1078,7 +1081,7 @@ describe("折叠投影器 · 城池族", () => {
         damageRanking: [],
       },
     ]);
-    expect(e.players[0].cash).toBe(cash0); // Setup 期现金由开局校准覆盖
+    expect(e.players[0].cash).toBe(cash0 - 2000);
   });
 
   it("购城扣价入册，升城同步等级与防御", () => {
@@ -1556,7 +1559,8 @@ describe("折叠投影器 · 锦囊族", () => {
         kind: "reactionAnswered",
         use: true,
         cardId: "半路杀出",
-        spentCards: [{ seat: 1, cardId: "半路杀出" }],
+        handIndex: 0,
+        spentCards: [{ seat: 1, cardId: "半路杀出", handIndex: 0 }],
       }),
       ev(1, {
         kind: "reactionFailed",

@@ -1,37 +1,21 @@
 // 棋盘装配：底板 Canvas，触达和等级徽记走轻量 SVG，棋子与特效走独立宿主。
 import { useMemo, useRef } from "react";
-import type { PropertyHolding } from "@dafung/core/engine/model";
-import { getControllerContext } from "@app/controllers/registry";
+import type { Board } from "@dafung/core/engine/board";
+import type { BoardSeat, SeatBoard } from "@dafung/core/protocol/seat-queries";
 import { AmbientLayer } from "./AmbientLayer";
 import { computeFitView } from "./board-viewport";
 import { CanvasBoard } from "./CanvasBoard";
 import { BoardHost } from "./boardHost";
 import type { CityScene, TileVisualState } from "./city-scene";
-import { capitalHolderOf, holdingsOf, type TileHolding } from "./tileOwnership";
 import { TokenLayer, type PawnTargets } from "./TokenLayer";
 import { BoardFxLayer } from "@app/fx/FxLayer";
 import "./board.css";
 
-/** BoardView/TokenLayer 真正消费的玩家最小结构(棋盘渲染只需这些字段):
- *  快照玩家 SnapshotPlayer 是本接口的结构子集,可直接透传——原先 GameScreen 用双重断言
- *  把快照玩家冒充完整 Player(heroes/treasures 等字段棋盘并不消费),按真实消费面
- *  声明后断言即可消灭。 */
-export interface BoardPlayer {
-  id: string;
-  guohao: string;
-  colorIndex: number;
-  position: number;
-  /** 都城主路索引(-1=未选都)。 */
-  capitalIndex: number;
-  isBankrupt: boolean;
-  /** 持有城(棋盘只用 propertyId/level/defense 推导归属色、等级徽记与防御盾)。
-   */
-  properties: Pick<PropertyHolding, "propertyId" | "level" | "defense" | "burning">[];
-}
+export type BoardPlayer = BoardSeat;
 
 interface BoardViewProps {
-  /** 全体玩家(归属/都城/棋子位置皆由此派生)。 */
-  players: BoardPlayer[];
+  board: Board;
+  seatBoard: SeatBoard;
   /** 当前视角玩家 id(L47:自己棋子加玩家色微光圈;未开局不传)。 */
   viewSeat?: string;
   /** 点击城池回调(索引)。 */
@@ -75,28 +59,9 @@ function tileStateEqual(a: TileVisualState, b: TileVisualState): boolean {
   return true;
 }
 
-/** holdings 逐城浅等(#1023 链 A):内容键不含 position(行军只改 position,归属/
- *  等级才是 holdings 的输入),players 换引用而归属没变时复用上一份 Map。 */
-function holdingsEqual(a: Map<string, TileHolding>, b: Map<string, TileHolding>): boolean {
-  if (a.size !== b.size) return false;
-  for (const [key, hb] of b) {
-    const ha = a.get(key);
-    if (
-      ha === undefined ||
-      ha.colorIndex !== hb.colorIndex ||
-      ha.guohao !== hb.guohao ||
-      ha.level !== hb.level ||
-      ha.defense !== hb.defense ||
-      ha.burning?.marks !== hb.burning?.marks ||
-      ha.burning?.progress !== hb.burning?.progress
-    )
-      return false;
-  }
-  return true;
-}
-
 export function BoardView({
-  players,
+  board,
+  seatBoard,
   viewSeat,
   onTileClick,
   onFirstPaint,
@@ -124,27 +89,11 @@ export function BoardView({
     minus.delete(cityPickedTileIndex);
     return minus;
   }, [cityTargetTiles, cityPickedTileIndex, selectableTiles]);
-  // Board/catalog 直接吃 registry 现成对局上下文(#1273):两者是引擎构造入参、对局期
-  // 不可变(换局随 setController 整体换新),不再从原始 JSON 第二次全量 loadMap——
-  // 开局链上的同图双析就此消失。仅 GameScreenLive 挂载(已守卫 controller 就位),
-  // 与 CityLedgerModal/WarlordsOverview 同款 `!` 口径。
-  const { board, catalog } = getControllerContext()!;
   // ADR-0027:总览视口按当图城池包围盒动态推导(不再硬编码 FIT_VIEW),地图引用不变
   // 则视口不变;#946 取景恒定格于此——viewBox 由 React 声明式下发(底板 svg 同一
   // fitBox 落 DOM,宿主矩阵同源见 boardHost),拖动/滚轮/捏合全形态删,无第二写入者。
   // (驿道恒直线 #928/ADR-0044,绘制在 RoadsLayer 内做)
   const fit = useMemo(() => computeFitView(board.tiles), [board.tiles]);
-  // propertyId → 首见持有者(归属判定单源 tileOwnership.ts,players 变化才重算)。
-  // #1023 链 A:每次照算但与上一份逐城浅等,内容不变复用上一份 Map 引用——
-  // 归属没变(行军/换回合)时不给下游派生链制造新身份。
-  const prevHoldingsRef = useRef<Map<string, TileHolding> | null>(null);
-  const holdings = useMemo(() => {
-    const next = holdingsOf(players);
-    const prev = prevHoldingsRef.current;
-    if (prev !== null && holdingsEqual(prev, next)) return prev;
-    prevHoldingsRef.current = next;
-    return next;
-  }, [players]);
 
   // X4(#23) 候选序号表:滚出顺序 → 1 基序号(Tile 内读作 壹/贰/叁 印)。
   const candidateOrder = useMemo(() => {
@@ -153,55 +102,40 @@ export function BoardView({
     return m;
   }, [candidateTiles]);
 
-  // F1:TileVisualState 按 index 预生成并 memo——原先每次 render 内联新建对象,
-  // 击穿 Tile 的 React.memo 导致 40 城全量重渲;现在只有 players/回合/可选集变化
-  // 才重建(state 对象身份稳定)。
-  // #1023 链 A:players 每 sync 换新引用,memo 依赖拦不住——照算之后逐城与上一份
-  // 浅等,内容不变复用上一份对象引用;全部复用时整表返回上一份(下游 tiles/
-  // capitalTileIndexes 派生链连重建都不必)。上一份存本组件 ref,复杂度不出 BoardView。
-  const prevStatesRef = useRef<Map<number, TileVisualState> | null>(null);
-  const tileStates = useMemo(() => {
-    const prev = prevStatesRef.current;
-    const m = new Map<number, TileVisualState>();
-    let allReused = prev !== null && prev.size === board.tiles.length;
-    for (const tile of board.tiles) {
-      const holding = tile.propertyId ? holdings.get(tile.propertyId) : undefined;
-      const capitalP = capitalHolderOf(players, tile.index);
-      const next: TileVisualState = {
-        ownerColorIndex: holding ? holding.colorIndex : null,
-        ownerGuohao: holding ? holding.guohao : null,
-        level: holding ? holding.level : null,
-        capitalColorIndex: capitalP ? capitalP.colorIndex : null,
-        capitalGuohao: capitalP ? capitalP.guohao : null,
+  // 城池的绘制输入值等时复用原对象，银两等变化不会触发棋盘重新绘制。
+  const previousCities = useRef<CityScene[]>([]);
+  const cities = useMemo(() => {
+    const previous = previousCities.current;
+    const next = seatBoard.cities.map(({ tile, property, owner, capital }, index) => {
+      const state: TileVisualState = {
+        ownerColorIndex: owner?.colorIndex ?? null,
+        ownerGuohao: owner?.guohao ?? null,
+        level: owner?.level ?? null,
+        capitalColorIndex: capital?.colorIndex ?? null,
+        capitalGuohao: capital?.guohao ?? null,
         isActive: activeTileIndex === tile.index,
-        isTaken: !!(isSetupPhase && capitalP),
+        isTaken: isSetupPhase && capital !== null,
         isSelectable: selectableFull?.has(tile.index) ?? false,
         capitalCandidateOrder: candidateOrder.get(tile.index) ?? null,
         isCityTarget: cityTargetTiles?.has(tile.index) ?? false,
         isCityPicked: cityPickedTileIndex === tile.index,
-        // 防御盾直读持有账面当前值，无主城无防御值。
-        defense: holding ? holding.defense : null,
-        fireMarks: holding?.burning?.marks ?? 0,
-        fireProgress: holding?.burning?.progress ?? 0,
+        defense: owner?.defense ?? null,
+        fireMarks: owner?.burning?.marks ?? 0,
+        fireProgress: owner?.burning?.progress ?? 0,
       };
-      const stable = prev?.get(tile.index);
-      if (stable !== undefined && tileStateEqual(stable, next)) {
-        m.set(tile.index, stable);
-      } else {
-        m.set(tile.index, next);
-        allReused = false;
-      }
-    }
-    if (allReused && prev !== null) {
-      prevStatesRef.current = prev;
-      return prev;
-    }
-    prevStatesRef.current = m;
-    return m;
+      const stable = previous[index];
+      return stable?.tile === tile &&
+        stable.tier === property.tier &&
+        tileStateEqual(stable.state, state)
+        ? stable
+        : { tile, tier: property.tier, state };
+    });
+    if (previous.length === next.length && next.every((city, index) => city === previous[index]))
+      return previous;
+    previousCities.current = next;
+    return next;
   }, [
-    board.tiles,
-    holdings,
-    players,
+    seatBoard.cities,
     activeTileIndex,
     isSetupPhase,
     selectableFull,
@@ -210,22 +144,11 @@ export function BoardView({
     cityPickedTileIndex,
   ]);
 
-  const cities = useMemo<CityScene[]>(
-    () =>
-      board.tiles.map((tile) => {
-        const def = catalog.get(tile.propertyId)!;
-        return { tile, tier: def.tier, state: tileStates.get(tile.index)! };
-      }),
-    [board.tiles, catalog, tileStates],
-  );
-
-  // 有主都城格序(氛围层光晕落点;tileStates 单源派生,与 Tile 的 isCapital 同口径)
+  // 氛围层的光晕落点与城格都读同一个座位查询。
   const capitalTileIndexes = useMemo(
     () =>
-      board.tiles
-        .filter((t) => tileStates.get(t.index)?.capitalColorIndex != null)
-        .map((t) => t.index),
-    [board.tiles, tileStates],
+      cities.filter(({ state }) => state.capitalColorIndex !== null).map(({ tile }) => tile.index),
+    [cities],
   );
 
   return (
@@ -242,7 +165,7 @@ export function BoardView({
           过渡走合成器)+ mini-svg 旗面/环原绘;宿主矩阵与底板 viewBox 同拍跟随。 */}
       <TokenLayer
         board={board}
-        players={players}
+        players={seatBoard.seats}
         setupUnselected={isSetupPhase}
         skipTokenIds={skipTokenIds}
         /* L47:视角玩家 id → 自己棋子玩家色微光圈 */
@@ -262,7 +185,7 @@ export function BoardView({
           none);矩阵同步自持(RO/viewBox MutationObserver/字体就绪,见 AmbientLayer)。 */}
       <AmbientLayer
         board={board}
-        players={players}
+        players={seatBoard.seats}
         capitalTileIndexes={capitalTileIndexes}
         activePlayerId={activePlayerId}
         mineId={viewSeat}

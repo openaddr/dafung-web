@@ -10,6 +10,7 @@
 // spawn 端口按 workspace 名派生(#1181,单源 scripts/dev-ports.ts,基址 4280 与
 // protocol-online 的 4281 保持历史 1 间隔——同 workspace 两测试同跑各占一口):
 // 并行 workspace 同跑慢池不撞口;显式 env DAFUNG_CMD_ERROR_PORT 最高优先可覆盖。
+import { submitCapitalForSetup } from "./room-capitals";
 import { describe, it, expect, afterAll, beforeAll, spyOn } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -23,12 +24,11 @@ import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
 import { RoomRegistry } from "@dafung/core/room/room";
 import { seatDecisionPointOf } from "@dafung/core/room/player-submissions";
 import {
-  autoPilotMsg,
   cmdMsg,
-  pickCapitalMsg,
   submissionMsg,
   type GameLogMsg,
   type PlayerSubmission,
+  type SnapshotMsg,
   type SubmissionResultMsg,
 } from "@dafung/core/protocol/wire";
 
@@ -41,6 +41,48 @@ const PORT =
   process.env.DAFUNG_CMD_ERROR_PORT ||
   String(cmdErrorTestPort(basename(join(import.meta.dir, "..", ".."))));
 const BASE = `http://127.0.0.1:${PORT}`;
+const studyOutOfPhase = {
+  type: "useBookSkill",
+  treasureId: "skillbook-huogong",
+  heroId: "zhouyu",
+} as const;
+
+function capitalSubmission(snapshot: SnapshotMsg): PlayerSubmission {
+  const { decisionPoint, decisionOptions, roomId, currentSetupPlayerIndex: seat } = snapshot;
+  const candidate =
+    decisionOptions?.kind === "pickCapital"
+      ? decisionOptions.options.find((option) => option.available)
+      : undefined;
+  if (decisionPoint === null || candidate === undefined) throw new Error("缺少本席可用选都选项");
+  return {
+    roomId,
+    seat,
+    decisionPoint,
+    submissionId: `capital-${seat}`,
+    cmd: { type: "pickCapital", tileIndex: candidate.tileIndex },
+  };
+}
+
+async function confirmCapital(peers: OnlineClient[], publicProgress: SnapshotMsg): Promise<void> {
+  const peer = peers[publicProgress.currentSetupPlayerIndex];
+  const matches = (snapshot: SnapshotMsg) =>
+    snapshot.currentDraftIndex === publicProgress.currentDraftIndex &&
+    snapshot.decisionOptions?.kind === "pickCapital";
+  const privateView =
+    peer.snapshot !== null && matches(peer.snapshot)
+      ? peer.snapshot
+      : await peer.waitSnapshot(matches, "本席选都摘要", 2000);
+  const submission = capitalSubmission(privateView);
+  peer.sendSubmission(submission);
+  expect(
+    await peer.waitFor(
+      (message) =>
+        message.type === "submissionResult" && message.submissionId === submission.submissionId,
+      "选都回执",
+      2000,
+    ),
+  ).toMatchObject({ outcome: "accepted" });
+}
 
 let proc: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
 // 房间临时目录在 beforeAll 里创建(describe 级 skip 时钩子不跑,模块级 mkdtemp 会
@@ -50,10 +92,11 @@ let ROOMS_DIR: string;
 let live: Awaited<ReturnType<typeof recoveryFixture>>;
 let expired: Awaited<ReturnType<typeof recoveryFixture>>;
 
-async function recoveryFixture(roomsDir: string) {
+async function recoveryFixture(roomsDir: string, pendingAutoPilot = false) {
   const persistence = new FileRoomPersistence(roomsDir);
   const registry = new RoomRegistry(persistence, undefined, undefined, {
     clock: { setTimeout: () => 1, clearTimeout: () => {} },
+    reactionWindowMs: 60_000,
   });
   const { room, token } = registry.createRoom({
     seatCount: 3,
@@ -66,16 +109,22 @@ async function recoveryFixture(roomsDir: string) {
   await registry.startGame(roomId, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup")
-    await registry.pickCapital(roomId, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
-  armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
-  giveJinnang(engine, 0, ["横征暴敛"]);
-  for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
-  await registry.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
-  const point = seatDecisionPointOf(room, 1);
-  if (point === null) throw new Error("恢复场景缺少受问席的决策点");
-  // 模拟托管已保存、下一拍代答前进程中断，归档也可仍欠最后一行。
-  const record = persistence.load(roomId)!;
-  persistence.save({ ...record, autoPilot: [1] });
+    await submitCapitalForSetup(
+      registry,
+      roomId,
+      engine.currentSetupPlayerIndex,
+      engine.offeredCapitals[0],
+    );
+  if (pendingAutoPilot) {
+    armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+    giveJinnang(engine, 0, ["横征暴敛"]);
+    for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
+    await registry.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
+    // 模拟托管已保存、下一拍代答前进程中断，归档仍欠最后一行。
+    const record = persistence.load(roomId)!;
+    persistence.save({ ...record, autoPilot: [1] });
+  }
+  const point = seatDecisionPointOf(room, 2);
   const log = engine.log.map((line) => JSON.stringify(line));
   const archive = join(roomsDir, `${engine.gameId}.jsonl`);
   return { roomId, tokens, point, log, archive };
@@ -186,7 +235,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
           `处置:netstat -ano | grep :${PORT} 查 PID → tasklist 验名为 bun.exe → taskkill //PID <pid> //F`,
       );
     }
-    live = await recoveryFixture(ROOMS_DIR);
+    live = await recoveryFixture(ROOMS_DIR, true);
     writeFileSync(live.archive, live.log.slice(0, -1).join("\n") + "\n");
     const oldTime = Date.now() - 31 * 86_400_000;
     const age = spyOn(Date, "now").mockReturnValue(oldTime);
@@ -227,7 +276,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
     }
   });
 
-  it("编号回执区分未处理、权威告警、拒绝和成功", async () => {
+  it("编号回执区分未处理、协议错误、结构化拒绝和受理", async () => {
     const created = await post("/room/new", { seats: 2, bot: "1", seed: 42 });
     const roomId = created.roomId as string;
     const token = created.seatToken as string;
@@ -251,15 +300,18 @@ describeSlow("server WS 命令回报与对局日志", () => {
       const first = await firstSnapshot;
       expect(first.currentSetupPlayerIndex).toBe(0);
       const firstLogLength = (first.log as unknown[]).length;
+      const pick = capitalSubmission(first as unknown as SnapshotMsg);
 
-      // 非购买阶段，权威只记告警，回执带安全原因和告警序位。
-      ws.send(cmdMsg({ type: "buyProperty" }, 6));
-      expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
-        type: "commandResult",
+      // 选都授权不可用于研读，拒绝回执不产生公开战报行。
+      const study = { ...pick, submissionId: "选都期研读", cmd: studyOutOfPhase };
+      ws.send(submissionMsg(study, 6));
+      expect(await nextMessageOfType(ws, "submissionResult", 1000)).toEqual({
+        type: "submissionResult",
+        submissionId: study.submissionId,
         requestId: 6,
-        outcome: "warning",
-        reason: "阶段不符（需要 AwaitingDecision，当前 Roll）",
-        logOffset: firstLogLength + 1,
+        outcome: "rejected",
+        reasonCode: "staleDecisionPoint",
+        reason: "原决策点已结束，请按当前步骤重新选择",
       });
 
       // 旧应答不可绕开玩家提交协议。
@@ -301,12 +353,13 @@ describeSlow("server WS 命令回报与对局日志", () => {
         outcome: "rejected",
         reason: expect.stringContaining("原决策点已结束"),
       });
-      ws.send(pickCapitalMsg((first.offeredCapitals as number[])[0], 8));
-      expect(await nextMessageOfType(ws, "commandResult", 1000)).toEqual({
-        type: "commandResult",
+      ws.send(submissionMsg(pick, 8));
+      expect(await nextMessageOfType(ws, "submissionResult", 1000)).toEqual({
+        type: "submissionResult",
+        submissionId: pick.submissionId,
         requestId: 8,
         outcome: "accepted",
-        logOffset: firstLogLength + 2,
+        logOffset: firstLogLength,
       });
 
       await Bun.sleep(300); // 给潜在异步崩溃留出暴露时间
@@ -320,7 +373,8 @@ describeSlow("server WS 命令回报与对局日志", () => {
 
   it("启动清扫保持过期日志删除，活局的已保存缺行照常补写", async () => {
     expect(existsSync(expired.archive)).toBe(false);
-    expect(readFileSync(live.archive, "utf8").trimEnd().split("\n")).toEqual(live.log);
+    const restored = readFileSync(live.archive, "utf8").trimEnd().split("\n");
+    expect(restored.slice(0, live.log.length)).toEqual(live.log);
     const peer = await OnlineClient.connect(
       `ws://127.0.0.1:${PORT}/ws?room=${expired.roomId}&seat=1&token=${expired.tokens[1]}`,
     );
@@ -333,7 +387,13 @@ describeSlow("server WS 命令回报与对局日志", () => {
     }
   });
 
-  it("恢复反应窗后，原座收回托管可继续应答并追加归档", async () => {
+  it("恢复时在原窗内接续托管，未答原座沿用授权并追加归档", async () => {
+    const persistence = new FileRoomPersistence(ROOMS_DIR);
+    const pending = () => persistence.load(live.roomId)?.snapshot?.pendingReaction;
+    const end = performance.now() + 2000;
+    while (pending()?.answers.length === 0 && performance.now() < end) await Bun.sleep(10);
+    expect(pending()?.answers).toMatchObject([{ seat: 1, use: true, cardId: "识破诡计" }]);
+
     const connect = (seat: number) =>
       OnlineClient.connect(
         `ws://127.0.0.1:${PORT}/ws?room=${live.roomId}&seat=${seat}&token=${live.tokens[seat]}`,
@@ -341,48 +401,41 @@ describeSlow("server WS 命令回报与对局日志", () => {
     const peer = await connect(1);
     const other = await connect(2);
     try {
-      const pending = await peer.waitSnapshot(null, "托管时的反应窗摘要", 2000);
-      await other.waitSnapshot(null, "另一受问席的摘要", 2000);
-      expect(pending).toMatchObject({ decisionPoint: null, turnPhase: "AwaitingReaction" });
-      peer.sendRaw(autoPilotMsg(false));
-      const restored = await peer.waitFor(
-        (message) => message.type === "events" && message.decisionPoint === live.point,
-        "原反应窗授权",
-        2000,
-      );
+      const controlled = await peer.waitSnapshot(null, "已由托管答过的原座摘要", 2000);
+      expect(controlled.decisionPoint).toBeNull();
+      const restored = await other.waitSnapshot(null, "未答席的原座摘要", 2000);
       expect(restored).toMatchObject({
-        type: "events",
-        events: [],
+        turnPhase: "AwaitingReaction",
         decisionPoint: live.point,
-        reactionTiming: { seq: pending.pendingReaction!.seq, remainingMs: expect.any(Number) },
+        pendingReaction: { answers: [{ seat: 1, use: true, cardId: "识破诡计" }] },
       });
-      peer.sendRaw(
+      if (restored.decisionPoint === null) throw new Error("恢复原座缺少决策点");
+      other.sendRaw(
         submissionMsg({
           roomId: live.roomId,
-          seat: 1,
-          submissionId: "收回后不用",
-          decisionPoint: live.point,
-          cmd: { type: "respondReaction", seat: 1, use: false },
+          seat: 2,
+          submissionId: "恢复后不用",
+          decisionPoint: restored.decisionPoint,
+          cmd: { type: "respondReaction", seat: 2, use: false },
         }),
       );
       expect(
-        await peer.waitFor((m) => m.type === "submissionResult", "收回后的原座回执", 2000),
+        await other.waitFor((m) => m.type === "submissionResult", "恢复后的原座回执", 2000),
       ).toMatchObject({ outcome: "accepted" });
-      const answered = await other.waitFor(
+      const answered = await peer.waitFor(
         (msg) =>
           msg.type === "events" && msg.events.some((event) => event.kind === "reactionAnswered"),
-        "另一受问席收到已答进度",
+        "托管席收到本次应答",
         2000,
       );
       expect(answered).toMatchObject({
-        events: [expect.objectContaining({ kind: "reactionAnswered", seat: 1 })],
+        events: expect.arrayContaining([
+          expect.objectContaining({ kind: "reactionAnswered", seat: 2, use: false }),
+        ]),
       });
-      expect(other.frames.some((msg) => msg.type === "events" && msg.events.length === 0)).toBe(
-        false,
-      );
       const lines = readFileSync(live.archive, "utf8").trimEnd().split("\n");
       expect(lines.slice(0, live.log.length)).toEqual(live.log);
-      expect(lines.at(-1)).toContain("reactionRespond ");
+      expect(lines.filter((line) => line.includes("reactionRespond "))).toHaveLength(2);
     } finally {
       peer.close();
       other.close();
@@ -431,7 +484,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
           "当前选都席",
           2000,
         );
-        peers[setup.currentSetupPlayerIndex].sendPickCapital(setup.offeredCapitals[0]);
+        await confirmCapital(peers, setup);
       }
       const playing = (peer: OnlineClient) =>
         peer.waitSnapshot((s) => s.phase === "Playing", "开局后的座位摘要", 2000);
@@ -582,8 +635,8 @@ describeSlow("server WS 命令回报与对局日志", () => {
   });
 
   it("联机日志从校准锚连续下行，重连归座后继续交付至解散", async () => {
-    // 客席首动，直接掷骰落在无主城的购地决策。
-    const created = await post("/room/new", { seats: 2, seed: 13 });
+    // 客席首动，持横征暴敛并有后续可用选项，结束出牌后落在无主城。
+    const created = await post("/room/new", { seats: 2, seed: 22 });
     expect(created.ok).toBe(true);
     const roomId = created.roomId as string;
     const hostToken = created.seatToken as string;
@@ -614,8 +667,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
 
       let anchor = first;
       for (let pick = 0; pick < 2; pick++) {
-        const picker = peers[anchor.currentSetupPlayerIndex];
-        picker.sendPickCapital(anchor.offeredCapitals[0]);
+        await confirmCapital(peers, anchor);
         anchor = await host.waitSnapshot(
           (s) => s.currentDraftIndex === pick + 1,
           "选都后的校准",
@@ -623,14 +675,61 @@ describeSlow("server WS 命令回报与对局日志", () => {
         );
       }
       expect(anchor.phase).toBe("Playing");
-      expect(anchor.turnPhase).toBe("Roll");
+      expect(anchor.turnPhase).toBe("AwaitingJinnang");
       expect(anchor.activeIndex).toBe(1);
       const guestAnchor = await guest.waitSnapshot((s) => s.phase === "Playing", "开局校准", 2000);
       expect(guestAnchor.log).toEqual(anchor.log);
       expect(guest.frames.some((m) => m.type === "gameLog")).toBe(false);
+      expect(anchor.decisionOptions).toBeUndefined();
+      expect(guestAnchor.decisionOptions).toMatchObject({
+        kind: "playJinnang",
+        choices: expect.arrayContaining([
+          expect.objectContaining({ id: "横征暴敛", handIndex: 0, available: true }),
+        ]),
+      });
+      const submit = async (
+        submissionId: string,
+        decisionPoint: string | null,
+        cmd: PlayerSubmission["cmd"],
+      ) => {
+        if (decisionPoint === null) throw new Error("客席缺少出牌授权");
+        guest.sendSubmission({ roomId, seat: 1, submissionId, decisionPoint, cmd });
+        expect(
+          await guest.waitFor(
+            (m) => m.type === "submissionResult" && m.submissionId === submissionId,
+            submissionId,
+            2000,
+          ),
+        ).toMatchObject({ outcome: "accepted" });
+      };
+      await submit("横征暴敛", guestAnchor.decisionPoint, {
+        type: "useJinnang",
+        cardId: "横征暴敛",
+        handIndex: 0,
+      });
+      const played = (s: SnapshotMsg) => s.jinnangDiscard.includes("横征暴敛");
+      const guestAfter = await guest.waitSnapshot(played, "新出牌选项", 2000);
+      anchor = await host.waitSnapshot(played, "出牌校准", 2000);
+      expect(guestAfter.players[1].jinnangHand).toEqual(["窃玉偷香"]);
+      await submit("结束出牌", guestAfter.decisionPoint, { type: "useJinnang", cardId: null });
+      const passed = await guest.waitFor(
+        (m) =>
+          m.type === "events" &&
+          m.events.some((ev) => ev.kind === "jinnangPhaseResumed" && ev.turnPhase === "Roll"),
+        "结束出牌事件",
+        2000,
+      );
+      expect(passed).toMatchObject({ decisionPoint: null });
+      const passLog = await waitLog(guest, "结束出牌日志");
+      expect(await waitLog(host, "同局结束出牌日志")).toEqual(passLog);
+      expect(passLog.offset).toBe(anchor.log.length);
+      guest.sendRaw(cmdMsg({ type: "rollAndMove" }, 20));
+      expect(await guest.waitFor((m) => m.type === "error", "拒绝玩家掷骰", 2000)).toMatchObject({
+        requestId: 20,
+        error: "行军由房间自动起摇",
+      });
 
       const beforeRoll = guest.frames.length;
-      guest.sendCmd({ type: "rollAndMove" });
       await guest.waitFor(
         (m) => m.type === "events" && m.events.some((ev) => ev.kind === "landingResolved"),
         "普通行军事件",
@@ -640,7 +739,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
       expect(guest.frames.slice(beforeRoll).map((m) => m.type)).toEqual(["events", "gameLog"]);
       expect(await waitLog(host, "同局行军日志")).toEqual(roll);
       expect(roll.gameId).toBe(first.gameId);
-      expect(roll.offset).toBe(anchor.log.length);
+      expect(roll.offset).toBe(passLog.offset + passLog.lines.length);
       expect(roll.capturedAt).toBeGreaterThan(0);
       expect(roll.lines[0]).toMatchObject({ category: "cmd", detail: '{"type":"rollAndMove"}' });
       expect(roll.lines.some((line) => line.category === "roll")).toBe(true);
@@ -657,22 +756,40 @@ describeSlow("server WS 命令回报与对局日志", () => {
       const restored = await reconnected.next(2000, "重连整房摘要");
       if (restored.type !== "snapshot") throw new Error(`重连首帧不是摘要:${restored.type}`);
       expect(restored.gameId).toBe(first.gameId);
-      expect(restored.log).toEqual([...anchor.log, ...roll.lines, ...offline.lines]);
+      expect(restored.log).toEqual([
+        ...anchor.log,
+        ...passLog.lines,
+        ...roll.lines,
+        ...offline.lines,
+      ]);
       expect(restored.players[0].jinnangHand).toEqual([]);
       expect(restored.players[0].jinnangHandCount).toBeGreaterThan(0);
 
-      // 行军后的购地决策仍由座位 1 持有。重复抽签只会新增命令审计和警告。
+      // 行军后的购地授权仍属于座位 1。错用购地决策点研读，拒绝随提交编号交还原席。
       expect(restored.turnPhase).toBe("AwaitingDecision");
-      reconnected.sendCmd({ type: "rollAndMove" });
-      const audit = await waitLog(reconnected, "仅追加日志的命令");
-      expect(audit.offset).toBe(restored.log.length);
-      expect(audit.lines.map((line) => line.category)).toEqual(["cmd", "system"]);
-      expect(audit.lines[1]).toMatchObject({
-        brief: "[警告] 阶段不符（需要 Roll，当前 AwaitingDecision），原文见服务器日志",
-        detail: "warn: 阶段不符（需要 Roll，当前 AwaitingDecision），原文见服务器日志",
+      if (restored.decisionPoint === null) throw new Error("重连客席缺少购地授权");
+      const study = {
+        roomId,
+        seat: 1,
+        submissionId: "购城期研读",
+        decisionPoint: restored.decisionPoint,
+        cmd: studyOutOfPhase,
+      };
+      reconnected.sendSubmission(study, 21);
+      expect(
+        await reconnected.waitFor(
+          (m) => m.type === "submissionResult" && m.submissionId === study.submissionId,
+          "购城期研读拒绝",
+          2000,
+        ),
+      ).toEqual({
+        type: "submissionResult",
+        submissionId: study.submissionId,
+        requestId: 21,
+        outcome: "rejected",
+        reasonCode: "staleDecisionPoint",
+        reason: "原决策点已结束，请按当前步骤重新选择",
       });
-      expect(audit.lines[1]).not.toHaveProperty("warning");
-      expect(await waitLog(host, "同局命令审计")).toEqual(audit);
 
       expect((await post("/room/dismiss", hostAuth)).ok).toBe(true);
       for (const peer of [host, reconnected]) {
@@ -681,7 +798,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
           {
             type: "gameLog",
             gameId: first.gameId,
-            offset: audit.offset + audit.lines.length,
+            offset: restored.log.length,
             lines: [expect.objectContaining({ category: "room", detail: '{"type":"dismiss"}' })],
             capturedAt: expect.any(Number),
           },
@@ -690,7 +807,7 @@ describeSlow("server WS 命令回报与对局日志", () => {
       }
       expect(reconnected.frames.map((m) => m.type).filter((type) => type !== "lobby")).toEqual([
         "snapshot",
-        "gameLog",
+        "submissionResult",
         "gameLog",
         "dismissed",
       ]);

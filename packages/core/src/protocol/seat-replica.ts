@@ -5,6 +5,7 @@ import {
   redactSnapshotForSeat,
   type SeatSnapshot,
 } from "../room/seat-projection";
+import type { GameLogMsg } from "./wire";
 
 // 骰流与反应续结算归权威所有。座位的选项和反应公告按下行保存，其余字段与存档共用读写表。
 const replicaFields = SNAPSHOT_FIELDS.filter(
@@ -40,6 +41,25 @@ export function hydrateSeatReplica(engine: GameEngine, snapshot: SeatSnapshot): 
     choices: structuredClone(snapshot.choices),
     roomConfig: { targetNetWorth: snapshot.targetNetWorth, startingCash: snapshot.startingCash },
   });
+}
+
+/** 把已经裁剪的日志尾段接在首连、重连或校准摘要之后，并返回新收到的公开行。 */
+export function appendSeatReplicaLog(
+  engine: GameEngine,
+  { gameId, offset, lines }: GameLogMsg,
+): Pick<GameLogMsg, "offset" | "lines"> | null {
+  const state = presentations.get(engine);
+  if (state === undefined || state.roomConfig === null || gameId !== engine.gameId) {
+    throw new Error("收到未校准或非本局的日志增量");
+  }
+  const expected = engine.log.length;
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > expected) {
+    throw new Error(`对局日志断档，预期偏移 ${expected}，收到 ${offset}`);
+  }
+  const added = lines.slice(expected - offset);
+  if (added.length === 0) return null;
+  for (const line of added) engine.log.push(line);
+  return { offset: expected, lines: added };
 }
 
 /** 当前席位收到的公告与进度。权威引擎作输入时可指定观察座位，缺省只取公开面。 */

@@ -1,13 +1,16 @@
 // 组件收口:BannerShell 沿用焦点/拖动语义;预选用 Base UI Toggle,数量与翻页用 Button。
-// 预选只在本组件保存;最终将按加选顺序排列的逐件明细交权威一次出售并清偿。
+// 草选和最终提交由座位交互处理，卷轴负责分页与确认框。
 import { useState } from "react";
 import { Button } from "@base-ui/react/button";
 import { Toggle } from "@base-ui/react/toggle";
-import type { GameCommand } from "@dafung/core/engine/authority";
 import type { BankruptcyAsset } from "@dafung/core/engine/bankruptcy";
-import { guidePriceOf } from "@dafung/core/engine/treasures";
 import { formatMoney } from "@dafung/core/engine/money";
-import type { SnapshotTreasure } from "@app/store/gameStore";
+import type {
+  BankruptcyInteractionView,
+  SeatIntent,
+  SeatIntentResult,
+} from "@dafung/core/protocol/seat-interaction";
+import type { BankruptcySaleOption } from "@dafung/core/room/bankruptcy-decisions";
 import { TreasureArt } from "@app/components/card/TreasureArt";
 import { treasureArtId } from "@app/components/card/treasure-art";
 import { getAudio } from "@app/fx/audio";
@@ -20,90 +23,58 @@ import { SCROLL_TESTIDS as T } from "./testids";
 
 interface BankruptcyScrollProps {
   guohao: string;
-  cash: number;
-  debtAmount: number;
-  treasures: SnapshotTreasure[];
-  /** 调用方排除都城,变卖价与引擎共用 sellValueOf。 */
-  sellableProperties: { propId: string; name: string; sellPrice: number; level: number }[];
-  onCommand: (cmd: GameCommand) => void;
+  view: BankruptcyInteractionView;
+  onIntent: (intent: SeatIntent) => SeatIntentResult | undefined;
 }
 
-interface SaleGroupFields {
-  key: string;
-  ids: string[];
-  name: string;
-  price: number;
-  level: number;
-}
-
-type SaleGroup = SaleGroupFields &
-  ({ kind: "treasure"; treasure: SnapshotTreasure } | { kind: "property" });
-
-type SelectedAsset = BankruptcyAsset & { group: string; price: number };
+type SaleGroup = BankruptcySaleOption & { key: string; groupId: string; ids: string[] };
 const PAGE_SIZE = 6;
+
+function groupSales(assets: readonly BankruptcySaleOption[]): SaleGroup[] {
+  const groups = new Map<string, SaleGroup>();
+  for (const option of assets) {
+    // 同款珍宝共用一个数量器，草选仍逐件引用权威选项的 id。
+    const groupId = option.kind === "treasure" ? treasureArtId(option.id) : option.id;
+    const key = `${option.kind}:${groupId}`;
+    const ids = Array.from({ length: option.maxQuantity }, () => option.id);
+    const existing = groups.get(key);
+    if (existing === undefined) groups.set(key, { ...option, key, groupId, ids });
+    else existing.ids.push(...ids);
+  }
+  return [...groups.values()];
+}
 
 export function BankruptcyScroll({
   guohao,
-  cash,
-  debtAmount,
-  treasures,
-  sellableProperties,
-  onCommand,
+  view: {
+    decision: { cash, debt, assets },
+    selected,
+    selectedValue,
+    canConfirm,
+  },
+  onIntent,
 }: BankruptcyScrollProps) {
-  const [selected, setSelected] = useState<SelectedAsset[]>([]);
   const [page, setPage] = useState(0);
   const [confirmingBankruptcy, setConfirmingBankruptcy] = useState(false);
-  const treasureGroups = new Map<string, SaleGroup & { kind: "treasure" }>();
-  for (const t of treasures) {
-    // 普通珍宝=目录 id + 牌堆序号;同技多册技能书共用 id,不能用 Set 去重实物。
-    const id = treasureArtId(t.id);
-    const existing = treasureGroups.get(id);
-    if (existing) existing.ids.push(t.id);
-    else {
-      treasureGroups.set(id, {
-        key: `treasure:${id}`,
-        kind: "treasure",
-        ids: [t.id],
-        name: t.name,
-        price: guidePriceOf(t.level),
-        level: t.level,
-        treasure: t,
-      });
-    }
-  }
-  const groups: SaleGroup[] = [
-    ...treasureGroups.values(),
-    ...sellableProperties.map((p) => ({
-      key: `property:${p.propId}`,
-      kind: "property" as const,
-      ids: [p.propId],
-      name: p.name,
-      price: p.sellPrice,
-      level: p.level,
-    })),
-  ];
-  const owe = Math.max(0, debtAmount - cash);
-  const selectedValue = selected.reduce((sum, asset) => sum + asset.price, 0);
+  const groups = groupSales(assets);
+  const owe = Math.max(0, debt.amount - cash);
   const enough = selectedValue >= owe;
-  const totalValue = groups.reduce((sum, group) => sum + group.price * group.ids.length, 0);
+  const totalValue = assets.reduce((sum, option) => sum + option.price * option.maxQuantity, 0);
   const pageCount = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
-  const groupId = (group: SaleGroup) => group.key.slice(group.kind.length + 1);
+  const belongsToGroup = (asset: BankruptcyAsset, group: SaleGroup) =>
+    asset.kind === group.kind && group.ids.includes(asset.id);
   const add = (group: SaleGroup, quantity: number) => {
-    setSelected([
-      ...selected,
-      {
-        kind: group.kind,
-        id: group.ids[quantity],
-        group: group.key,
-        price: group.price,
-      },
-    ]);
-    getAudio().play("jinnangSelect");
+    const result = onIntent({
+      type: "addBankruptcyAsset",
+      asset: { kind: group.kind, id: group.ids[quantity] },
+    });
+    if (result?.status === "draft") getAudio().play("jinnangSelect");
   };
   const decrease = (group: SaleGroup) => {
-    // 只撤回本组最后加选的一件,保留其他组与剩余实物的顺序。
-    const index = selected.map((asset) => asset.group).lastIndexOf(group.key);
-    setSelected(selected.filter((_, i) => i !== index));
+    // 只撤回本组最后加选的一件，保留其他组与剩余实物的顺序。
+    const asset = [...selected].reverse().find((candidate) => belongsToGroup(candidate, group));
+    if (asset === undefined) throw new Error(`变卖草选缺少 ${group.key}`);
+    onIntent({ type: "removeBankruptcyAsset", asset });
   };
   return (
     <>
@@ -117,7 +88,7 @@ export function BankruptcyScroll({
           <div className="bankruptcy-catalog-head">
             <div data-testid={T.bankruptcyDebt} className="bankruptcy-account">
               <span>
-                现钱 {formatMoney(cash)} · 债务 {formatMoney(debtAmount)}
+                现钱 {formatMoney(cash)} · 债务 {formatMoney(debt.amount)}
               </span>
               {groups.length > 0 && totalValue < owe && (
                 <small>全部变卖仍差 {formatMoney(owe - totalValue)}</small>
@@ -171,14 +142,9 @@ export function BankruptcyScroll({
               </BannerButton>
               <BannerButton
                 primary
-                disabled={!enough}
+                disabled={!canConfirm}
                 testid={T.bankruptcyConfirm}
-                onClick={() =>
-                  onCommand({
-                    type: "confirmBankruptcySettle",
-                    assets: selected.map(({ kind, id }) => ({ kind, id })),
-                  })
-                }
+                onClick={() => onIntent({ type: "confirm" })}
               >
                 出售并清偿
               </BannerButton>
@@ -194,12 +160,15 @@ export function BankruptcyScroll({
         ) : (
           <div className="bankruptcy-grid">
             {groups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((group) => {
-              const quantity = selected.filter((asset) => asset.group === group.key).length;
-              const id = groupId(group);
+              const quantity = selected.filter((asset) => belongsToGroup(asset, group)).length;
+              const id = group.groupId;
               const duplicate = group.ids.length > 1;
               const art =
                 group.kind === "treasure" ? (
-                  <TreasureArt treasure={group.treasure} className="bankruptcy-art" />
+                  <TreasureArt
+                    treasure={{ id: group.id, ...group.treasure }}
+                    className="bankruptcy-art"
+                  />
                 ) : (
                   <svg
                     className="bankruptcy-art"
@@ -279,7 +248,7 @@ export function BankruptcyScroll({
           onCancel={() => setConfirmingBankruptcy(false)}
           onConfirm={() => {
             setConfirmingBankruptcy(false);
-            onCommand({ type: "declareBankruptcy" });
+            onIntent({ type: "declareBankruptcy" });
           }}
         >
           认破产后立即出局。现金、城池与珍宝按债主关系清算,名将回招贤池,不换银也不折书。

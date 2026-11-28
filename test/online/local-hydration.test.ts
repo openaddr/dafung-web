@@ -1,5 +1,8 @@
+import { submitCapitalForSetup } from "./room-capitals";
 import { RoomRegistry } from "@dafung/core/room/room";
 import { createEngine, type RoomRecord } from "@dafung/core/room/room-record";
+import { createClock } from "@sinonjs/fake-timers";
+import { AUTO_ROLL_DELAY_MS } from "@dafung/core/engine/timings";
 import {
   armHero,
   armPhase,
@@ -20,12 +23,19 @@ import {
   seatReactionOf,
 } from "@dafung/core/protocol/seat-replica";
 import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
+import { SeatInteraction } from "@dafung/core/protocol/seat-interaction";
 import { seatDecisionPointOf } from "@dafung/core/room/player-submissions";
-import { assembleDownlinkShot, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
+import {
+  assembleDownlinkShot,
+  redactSnapshotForSeat,
+  type SeatSnapshot,
+} from "@dafung/core/room/seat-projection";
 import {
   cmdMsg,
   dispatchInbound,
   type InboundMsg,
+  type PlayerCommand,
+  type SeatDecision,
   type ServerMsg,
 } from "@dafung/core/protocol/wire";
 import { expect, it } from "bun:test";
@@ -36,6 +46,10 @@ import { useNetStore } from "../../apps/client/src/app/store/netStore";
 
 // 下行合并拍的宏任务屏障;只等已排定的 0ms flush,不等待演出或业务窗口。
 const downlinkTurn = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+/** 日志尾段与对局状态、房间元数据分别验证。 */
+const stateFrameTypes = (messages: readonly ServerMsg[]) =>
+  messages.filter(({ type }) => type !== "gameLog").map(({ type }) => type);
 
 it("单机选都水合后，错误选份收到提示并可在原窗重答", async () => {
   const initialSeats: number[] = [];
@@ -58,7 +72,7 @@ it("单机选都水合后，错误选份收到提示并可在原窗重答", asyn
     expect(useGameStore.getState().snapshot).toEqual(readSeatReplica(controller.engine, 0));
     const before = controller.engine.phase;
     const capital = controller.engine.offeredCapitals[0]!;
-    controller.setupPickCapital(capital);
+    controller.dispatchCommand({ type: "pickCapital", tileIndex: capital });
     expect(controller.engine.phase).toBe(before);
     await downlinkTurn();
     expect(controller.engine.phase).toBe("Playing");
@@ -73,7 +87,13 @@ it("单机选都水合后，错误选份收到提示并可在原窗重答", asyn
       targets: { kind: "seat", ids: [0], requiresSelection: true },
     });
     expect(useGameStore.getState().interactive).toBe(true);
-    const respond = { type: "respondReaction", seat: 0, use: true, cardId: "识破诡计" } as const;
+    const respond = {
+      type: "respondReaction",
+      seat: 0,
+      use: true,
+      cardId: "识破诡计",
+      handIndex: 0,
+    } as const;
     controller.dispatchCommand({ ...respond, target: { kind: "city", id: 0 } });
     expect(useGameStore.getState().interactive).toBe(false);
     await downlinkTurn();
@@ -93,6 +113,7 @@ it("单机选都水合后，错误选份收到提示并可在原窗重答", asyn
 
 async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatCount = 2 } = {}) {
   const records = new Map<string, RoomRecord>();
+  const clock = createClock();
   const registry = new RoomRegistry(
     {
       save: (record) => {
@@ -108,7 +129,11 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
     undefined,
     undefined,
     {
-      clock: { setTimeout: () => ({}), clearTimeout: () => {} },
+      clock: {
+        now: () => clock.now,
+        setTimeout: clock.setTimeout,
+        clearTimeout: (id) => clock.clearTimeout(id as ReturnType<typeof clock.setTimeout>),
+      },
     },
   );
   const { room, token } = registry.createRoom({
@@ -121,7 +146,8 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
   await registry.startGame(room.roomId, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup") {
-    await registry.pickCapital(
+    await submitCapitalForSetup(
+      registry,
       room.roomId,
       engine.currentSetupPlayerIndex,
       engine.offeredCapitals.find(
@@ -159,24 +185,20 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
   broadcast();
   await downlinkTurn();
   messages.length = 0;
-  const sendCommand = async (cmd: GameCommand, seat = 0) => {
+  const sendCommand = async (
+    cmd: PlayerCommand,
+    seat = 0,
+    decisionPoint = seatDecisionPointOf(room, seat),
+  ) => {
     messages.length = 0;
     const outbox = new PlayerCommandOutbox();
-    const frame = outbox.encode(
-      cmd,
-      room.roomId,
-      seat,
-      engine.pendingJinnang?.cardId ?? null,
-      seatDecisionPointOf(room, seat),
-    );
+    const frame = outbox.encode(cmd, room.roomId, seat, decisionPoint);
     let rejectReason: string | null = null;
     const result = await dispatchInbound(
       frame,
       {
         cmd: (command) => registry.applyCommandFromSeat(room.roomId, seat, command, broadcast),
         submit: (submission) => registry.submitFromSeat(room.roomId, seat, submission, broadcast),
-        pickCapital: (tileIndex) => registry.pickCapital(room.roomId, seat, tileIndex, broadcast),
-        setAutoPilot: (on) => registry.setAutoPilot(room.roomId, seat, on, broadcast),
       },
       {
         sendCommandResult: (raw) => {
@@ -190,7 +212,18 @@ async function playingRoom(beforeConnect?: (engine: GameEngine) => void, { seatC
     if (rejectReason !== null) return { ok: false, reason: "rejected", message: rejectReason };
     return result;
   };
-  return { registry, room, token, engine, replica, messages, broadcast, sendCommand, records };
+  return {
+    registry,
+    room,
+    token,
+    engine,
+    replica,
+    messages,
+    broadcast,
+    sendCommand,
+    records,
+    clock,
+  };
 }
 
 it("连环计返回改选经真实下行保留首选，最终提交才消耗并结算", async () => {
@@ -260,9 +293,10 @@ it("目标锦囊进入反应窗，经房间拒绝错误应答后可重答", asyn
       armPhase(authority, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
     });
   try {
-    expect(await sendCommand({ type: "useJinnang", cardId: "缓兵之计" })).toEqual({ ok: true });
+    const card = { type: "useJinnang", cardId: "缓兵之计", handIndex: 0 } as const;
+    expect(await sendCommand(card)).toEqual({ ok: true });
     expect(replica.pendingJinnang?.stage).toBe("one");
-    expect(await sendCommand({ type: "useJinnang", cardId: "缓兵之计", targets: [1] })).toEqual({
+    expect(await sendCommand({ ...card, targets: [1] })).toEqual({
       ok: true,
     });
     expect(replica.pendingJinnang).toBeNull();
@@ -277,7 +311,13 @@ it("目标锦囊进入反应窗，经房间拒绝错误应答后可重答", asyn
     const events = messages.flatMap((msg) => (msg.type === "events" ? msg.events : []));
     expect(events.map((ev) => ev.kind)).toEqual(["jinnangAnnounced", "reactionOpened"]);
 
-    const respond = { type: "respondReaction", seat: 1, use: true, cardId: "识破诡计" } as const;
+    const respond = {
+      type: "respondReaction",
+      seat: 1,
+      use: true,
+      cardId: "识破诡计",
+      handIndex: 0,
+    } as const;
     const priorLog = records.get(room.roomId)!.snapshot!.log;
     const rejected = await sendCommand({ ...respond, target: { kind: "seat", id: 1 } }, 1);
     expect(rejected).toEqual({
@@ -289,7 +329,11 @@ it("目标锦囊进入反应窗，经房间拒绝错误应答后可重答", asyn
     expect(persisted.snapshot!.log).toEqual(priorLog);
     expect(persisted.submissions.entries.at(-1)).toMatchObject({
       seat: 1,
-      result: { outcome: "rejected", reason: "respondReaction:本次应答无需选择对象" },
+      result: {
+        outcome: "rejected",
+        reasonCode: "invalidCandidate",
+        reason: "respondReaction:本次应答无需选择对象",
+      },
     });
     expect(messages).toEqual([]);
     expect(seatReactionOf(replica)?.answers).toEqual([]);
@@ -321,7 +365,7 @@ it("落到咸阳，真实下行将交易交给城主并可续行下一回合", a
     >;
     await registry.applyCommand(room.roomId, message.cmd, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["events"]);
+    expect(stateFrameTypes(messages)).toEqual(["events"]);
     expect(engine.turnPhase).toBe("AwaitingTreasureOwner");
     expect(engine.decisionOwner).toBe(0);
     expect({
@@ -373,7 +417,7 @@ it("落到无主城，副本同步购买选项和成交结果", async () => {
     >;
     await registry.applyCommand(room.roomId, message.cmd, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["events"]);
+    expect(stateFrameTypes(messages)).toEqual(["events"]);
     expect(replica.turnPhase).toBe("AwaitingDecision");
     expect(replica.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "prop-xianyang" });
     expect(replica.snapshot().lastLandOutcome).toEqual(engine.snapshot().lastLandOutcome);
@@ -425,7 +469,7 @@ it("招贤选择闭窗后,真实事件下行进入城池决策并继续回合", 
     >;
     await registry.applyCommand(room.roomId, next.cmd, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["events"]);
+    expect(stateFrameTypes(messages)).toEqual(["events"]);
     expect(engine.turnPhase).toBe("AwaitingDecision");
     expect(replica.turnPhase).toBe(engine.turnPhase);
     expect(replica.decisionOwner).toBe(engine.decisionOwner);
@@ -454,7 +498,7 @@ it("首连水合后以事件批续行,非校准节点不恒发快照", async () 
     pinDice(engine, "march", [1]);
     await registry.applyCommand(room.roomId, { type: "rollAndMove" }, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["events"]);
+    expect(stateFrameTypes(messages)).toEqual(["events"]);
     expect(replica.snapshot().players).toEqual(redactSnapshotForSeat(engine.snapshot(), 0).players);
     expect(replica.turnPhase).toBe(engine.turnPhase);
     messages.length = 0;
@@ -475,14 +519,14 @@ it("非校准拍房间托管元数据按变化下行,不依赖全量快照", asy
     const seat = 1 - engine.activeIndex;
     await registry.setAutoPilot(room.roomId, seat, true, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["lobby"]);
+    expect(stateFrameTypes(messages)).toEqual(["lobby"]);
     const message = messages[0]!;
     if (message.type !== "lobby") throw new Error("缺少托管元数据消息");
     expect(message.seats[seat]!.autoPilot).toBe(true);
     messages.length = 0;
     await registry.setAutoPilot(room.roomId, seat, false, broadcast);
     await downlinkTurn();
-    expect(messages.map((message) => message.type)).toEqual(["lobby"]);
+    expect(stateFrameTypes(messages)).toEqual(["lobby"]);
     const returned = messages[0]!;
     if (returned.type !== "lobby") throw new Error("缺少收回托管元数据消息");
     expect(returned.seats[seat]!.autoPilot).toBe(false);
@@ -492,7 +536,7 @@ it("非校准拍房间托管元数据按变化下行,不依赖全量快照", asy
 });
 
 it("袭扰归零后放逐、行殇先后下行，副本继续原出牌者回合", async () => {
-  const { registry, room, token, engine, replica, messages, broadcast, sendCommand } =
+  const { registry, room, token, engine, replica, messages, sendCommand, clock } =
     await playingRoom((authority) => {
       armPhase(authority, { turnPhase: "AwaitingJinnang", activeIndex: 0 });
       placePlayer(authority, 0, 1);
@@ -506,27 +550,31 @@ it("袭扰归零后放逐、行殇先后下行，副本继续原出牌者回合"
       grantProperty(authority, 1, "prop-xianyang", 2);
       setDefense(authority, 1, "prop-xianyang", 2);
     });
+  const declineSkill = async (seat: number, snapshot: SeatSnapshot, decision: SeatDecision) => {
+    let sent: ReturnType<typeof sendCommand> | undefined;
+    const interaction = new SeatInteraction<SeatSnapshot>((cmd, point) => {
+      sent = sendCommand(cmd, seat, point);
+    });
+    interaction.publish({ snapshot, seat, interactive: true, autopilotOn: false, ...decision });
+    expect(interaction.act({ type: "pass" })).toEqual({ status: "submitted" });
+    expect(await sent).toEqual({ ok: true });
+  };
   try {
-    await sendCommand({ type: "useJinnang", cardId: "袭扰" });
-    await sendCommand({ type: "useJinnang", cardId: "袭扰", targets: [1] });
+    await sendCommand({ type: "useJinnang", cardId: "袭扰", handIndex: 0 });
+    await sendCommand({ type: "useJinnang", cardId: "袭扰", handIndex: 0, targets: [1] });
     expect(replica.turnPhase).toBe("AwaitingSkillChoice");
     expect(replica.pendingSkillChoices).toEqual(engine.pendingSkillChoices);
     expect(replica.pendingSkillChoices.map((choice) => choice.skillId)).toEqual(["fangzhu"]);
-    expect(messages[0]?.type).toBe("events");
+    expect(messages[0]).toMatchObject({ type: "events", decisionPoint: null });
+    expect(messages[0]).not.toHaveProperty("decisionOptions");
 
-    const firstOwner = replica.decisionOwner;
     const onlineSeats = new Set([0, 1]);
     const reconnect = assembleDownlinkShot(room, onlineSeats, 1, [], true);
     const rejoined = JSON.parse(reconnect.snapshot) as Extract<ServerMsg, { type: "snapshot" }>;
     expect(rejoined.turnPhase).toBe("AwaitingSkillChoice");
     expect(rejoined.decisionOwner).toBe(1);
     expect(rejoined.players[0]).toMatchObject({ jinnangHand: [], jinnangHandCount: 1 });
-    await registry.applyCommand(
-      room.roomId,
-      { type: "respondSkillChoice", seat: firstOwner, use: false },
-      broadcast,
-    );
-    await downlinkTurn();
+    await declineSkill(1, rejoined, rejoined);
     expect(replica.pendingSkillChoices).toEqual(engine.pendingSkillChoices);
     expect(replica.pendingSkillChoices.map((choice) => choice.skillId)).toEqual(["xingshang"]);
     expect(replica.decisionOwner).toBe(0);
@@ -535,12 +583,18 @@ it("袭扰归零后放逐、行殇先后下行，副本继续原出牌者回合"
       expect.objectContaining({ propertyId: "prop-xianyang", level: 1 }),
     );
 
-    await sendCommand({ type: "respondSkillChoice", seat: 0, use: false });
+    const next = messages.find(
+      (message) => message.type === "events" && message.decisionOptions?.kind === "skillChoice",
+    );
+    if (next?.type !== "events") throw new Error("缺少本席行殇决策点");
+    expect(next.decisionOptions).toMatchObject({ skillId: "xingshang", fixedTargetSeat: 1 });
+    await declineSkill(0, readSeatReplica(replica, 0), next);
     expect(replica.pendingSkillChoices).toEqual([]);
     expect([replica.activeIndex, replica.turnPhase]).toEqual([0, "Roll"]);
     const beforeMarch = replica.players[0]!.position;
     pinDice(engine, "march", [1]);
-    await sendCommand({ type: "rollAndMove" });
+    await clock.tickAsync(AUTO_ROLL_DELAY_MS);
+    await downlinkTurn();
     expect(replica.players[0]!.position).not.toBe(beforeMarch);
     expect(replica.turnPhase).toBe(engine.turnPhase);
   } finally {

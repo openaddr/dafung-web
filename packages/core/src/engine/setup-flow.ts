@@ -123,7 +123,35 @@ export function firstAvailableCapitalIndex(g: GameEngine): number {
   return g.offeredCapitals[0] ?? -1;
 }
 
-/** 公共选都入口:人类落子(单机 UI / 联机 WS)走这里——记 cmd 行(ADR-0014 命令流,
+export type CapitalOption = { tileIndex: number; propertyId: string; cost: number } & (
+  | { available: true }
+  | { available: false; reasonCode: "insufficientFunds"; reason: string }
+);
+
+/** 房间按席下发候选，提交与引擎执行共用同一份建都资格和费用。 */
+export function capitalChoiceOf(
+  g: GameEngine,
+  playerIndex: number,
+  tileIndex: number,
+): CapitalOption | { available: false; reasonCode: "invalidCandidate"; reason: string } {
+  const tile = g.board.tiles[tileIndex];
+  if (tile === undefined)
+    return { available: false, reasonCode: "invalidCandidate", reason: "非本轮候选城" };
+  if (!tile.isCapitalEligible)
+    return { available: false, reasonCode: "invalidCandidate", reason: "该城不可作都城" };
+  if (g.takenCapitalIndices.has(tileIndex))
+    return { available: false, reasonCode: "invalidCandidate", reason: "该城已被选" };
+  if (!g.offeredCapitals.includes(tileIndex))
+    return { available: false, reasonCode: "invalidCandidate", reason: "非本轮候选城" };
+  const def = g.catalog.get(tile.propertyId);
+  if (def === null) throw new Error(`选都候选 ${tile.name} 缺少地产定义`);
+  const option = { tileIndex, propertyId: def.id, cost: def.buildCost };
+  return g.players[playerIndex].cash >= option.cost
+    ? { ...option, available: true }
+    : { ...option, available: false, reasonCode: "insufficientFunds", reason: "建城费不足" };
+}
+
+/** 公共选都入口:房间提交与规则工具共用，记 cmd 行(ADR-0014 命令流,
  *  重放的机读层;选都不是 GameCommand,detail 用 {type:"pickCapital",seat,tileIndex})。
  *  bot/托管的代选走 pickCapitalInternal(logCmd=false):确定性,重放自动重算,不记 cmd 行。 */
 export function pickCapital(
@@ -144,14 +172,11 @@ function pickCapitalInternal(
   if (g.setupPhase !== "PickCapital") return { ok: false, reason: "非选都阶段" };
   if (g.draftOrder[g.currentDraftIndex] !== playerIndex)
     return { ok: false, reason: "未轮到该玩家" };
+  const choice = capitalChoiceOf(g, playerIndex, tileIndex);
+  if (!choice.available) return { ok: false, reason: choice.reason };
   const tile = g.board.at(tileIndex);
-  if (!tile.isCapitalEligible) return { ok: false, reason: "该城不可作都城" };
-  if (g.takenCapitalIndices.has(tileIndex)) return { ok: false, reason: "该城已被选" };
-  if (!g.offeredCapitals.includes(tileIndex)) return { ok: false, reason: "非本轮候选城" };
-  const def = g.catalog.get(tile.propertyId);
-  if (!def) return { ok: false, reason: "无地产定义" };
+  const def = g.catalog.get(choice.propertyId)!;
   const player = g.players[playerIndex];
-  if (player.cash < def.buildCost) return { ok: false, reason: "建城费不足" };
 
   if (logCmd) {
     g.logEvent(
@@ -161,8 +186,9 @@ function pickCapitalInternal(
       JSON.stringify({ type: "pickCapital", seat: playerIndex, tileIndex }),
     );
   }
-  player.cash -= def.buildCost;
-  player.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
+  player.cash -= choice.cost;
+  const holding = createPropertyHolding(def, INITIAL_CITY_LEVEL);
+  player.properties.push(holding);
   player.capitalIndex = tileIndex;
   player.position = tileIndex;
   g.takenCapitalIndices.add(tileIndex);
@@ -170,14 +196,15 @@ function pickCapitalInternal(
     kind: "capitalSelected",
     tileIndex,
     propertyId: def.id,
-    cost: def.buildCost,
+    cost: choice.cost,
+    holding: structuredClone(holding),
   }); // 事件流(#375):选都建城
   g.logEvent(
     "setup",
     player.guohao,
-    `${player.guohao} 以 ${formatMoney(def.buildCost)} 建「${tile.name}」为都城`,
-    `pickCapital player=${player.id} tile=${tileIndex}(${tile.name}) buildCost=${def.buildCost} cashLeft=${player.cash}`,
-    -def.buildCost,
+    `${player.guohao} 以 ${formatMoney(choice.cost)} 建「${tile.name}」为都城`,
+    `pickCapital player=${player.id} tile=${tileIndex}(${tile.name}) buildCost=${choice.cost} cashLeft=${player.cash}`,
+    -choice.cost,
   );
   g.currentDraftIndex++;
   if (g.currentDraftIndex >= g.players.length) {

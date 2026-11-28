@@ -1,3 +1,4 @@
+import { submitCapitalForSetup } from "./room-capitals";
 import { afterEach, expect, it, spyOn } from "bun:test";
 import { linkSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -54,7 +55,12 @@ async function playingRoom(options?: Parameters<typeof registryFor>[1]) {
   await registry.startGame(roomId, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup")
-    await registry.pickCapital(roomId, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
+    await submitCapitalForSetup(
+      registry,
+      roomId,
+      engine.currentSetupPlayerIndex,
+      engine.offeredCapitals[0],
+    );
   giveJinnang(engine, 0, ["连环计", "连环计"]);
   giveJinnang(engine, 1, []);
   giveJinnang(engine, 2, []);
@@ -112,8 +118,6 @@ it("上行把回执只发给连接座位，诊断请求号可换；旧命令不�
       {
         submit: (input) => registry.submitFromSeat(roomId, seat, input),
         cmd: (cmd) => registry.applyCommandFromSeat(roomId, seat, cmd),
-        pickCapital: (tile) => registry.pickCapital(roomId, seat, tile),
-        setAutoPilot: (on) => registry.setAutoPilot(roomId, seat, on),
       },
       { sendCommandResult: (frame) => replies.push(JSON.parse(frame)) },
     );
@@ -292,6 +296,7 @@ it("权威时钟到期但回调未执行时拒绝首次应答，原回执不变�
     seat: 2,
     use: true,
     cardId: "识破诡计",
+    handIndex: 0,
     target: { kind: "seat", id: 2 },
   });
   now = 999;
@@ -354,8 +359,34 @@ it("返回再选后的第二步拒收旧指令；重启能取回首次非法目�
   expect(rebooted.get(roomId)!.engine!.players[0].jinnangHand).toEqual(["连环计"]);
 });
 
-it("受问席收回托管时经内存端点取回原反应窗授权", async () => {
+it("代答保存失败保留原反应窗和截止，重试只结算一次", async () => {
   const { room, roomId, registry, persistence, engine } = await playingRoom();
+  giveJinnang(engine, 0, ["横征暴敛"]);
+  giveJinnang(engine, 1, ["识破诡计"]);
+  await registry.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
+  const timing = reactionTimingOf(room);
+  const logLength = engine.log.length;
+  const pass = { type: "respondReaction", seat: 1, use: false } as const;
+  const save = spyOn(persistence, "save").mockImplementationOnce(() => {
+    throw new Error("代答落盘失败");
+  });
+  try {
+    await expect(registry.applyCommand(roomId, pass)).rejects.toThrow("代答落盘失败");
+  } finally {
+    save.mockRestore();
+  }
+  expect(engine.pendingReaction?.answers).toEqual([]);
+  expect(reactionTimingOf(room)).toEqual(timing);
+  expect(engine.log).toHaveLength(logLength);
+  await registry.applyCommand(roomId, pass);
+  expect(engine.pendingReaction).toBeNull();
+  expect(engine.log.filter(({ detail }) => detail.startsWith("reactionRespond "))).toHaveLength(1);
+});
+
+it("受问席提交收回托管后取回原反应窗授权与剩余时间", async () => {
+  let now = 0;
+  const clock = { now: () => now, setTimeout: () => 1, clearTimeout: () => {} };
+  const { room, roomId, registry, persistence, engine } = await playingRoom({ clock });
   giveJinnang(engine, 0, ["横征暴敛"]);
   for (const seat of [1, 2]) giveJinnang(engine, seat, ["识破诡计"]);
   await registry.applyCommand(roomId, { type: "useJinnang", cardId: "横征暴敛" });
@@ -366,8 +397,8 @@ it("受问席收回托管时经内存端点取回原反应窗授权", async () =
   });
   const saved = persistence.load(roomId)!;
   // 模拟进程在托管保存后、授权交给驱动链前退出。
-  persistence.save({ ...saved, autoPilot: [1] });
-  const rebooted = registryFor(persistence);
+  persistence.save({ ...saved, autoPilot: [1], autopilotRevisions: [0, 1, 0] });
+  const rebooted = registryFor(persistence, { clock });
   expect(rebooted.restoreAll(() => MAP)).toBe(1);
   const messages: ServerMsg[][] = [[], [], []];
   let resolveLobby!: () => void;
@@ -386,19 +417,48 @@ it("受问席收回托管时经内存端点取回原反应窗授权", async () =
         },
       });
     }
-    expect(messages[1][0]).toMatchObject({ type: "snapshot", decisionPoint: null });
+    const summary = messages[1][0];
+    expect(summary).toMatchObject({
+      type: "snapshot",
+      decisionPoint: null,
+      autopilot: { on: true },
+    });
+    if (summary.type !== "snapshot" || summary.autopilot === undefined)
+      throw new Error("受问席缺少托管授权");
+    now = 250;
     const broadcast = () => rebooted.transportBroadcast(roomId);
-    await rebooted.setAutoPilot(roomId, 1, false, broadcast);
+    expect(
+      await rebooted.submitFromSeat(
+        roomId,
+        1,
+        {
+          roomId,
+          seat: 1,
+          submissionId: "反应窗中收回托管",
+          decisionPoint: summary.autopilot.decisionPoint,
+          cmd: { type: "setAutoPilot", on: false },
+        },
+        broadcast,
+      ),
+    ).toMatchObject({ outcome: "accepted" });
     await lobby;
     const update = messages[1].find((message) => message.type === "events");
     expect(update).toMatchObject({
       type: "events",
       events: [],
       decisionPoint: original.decisionPoint,
-      reactionTiming: { seq: engine.pendingReaction!.seq, remainingMs: 1000 },
+      reactionTiming: { seq: engine.pendingReaction!.seq, remainingMs: 750 },
+      autopilot: { on: false },
     });
-    for (const seat of [0, 2])
-      expect(messages[seat].slice(1).map(({ type }) => type)).toEqual(["lobby"]);
+    for (const seat of [0, 2]) {
+      const [metadata, log, ...extra] = messages[seat].slice(1);
+      expect(metadata).toMatchObject({ type: "lobby" });
+      expect(log).toMatchObject({
+        type: "gameLog",
+        lines: [expect.objectContaining({ brief: expect.stringContaining("收回操作") })],
+      });
+      expect(extra).toEqual([]);
+    }
     if (update?.decisionPoint == null) throw new Error("未收到原反应窗授权");
     expect(
       await rebooted.submitFromSeat(roomId, 1, {
@@ -432,6 +492,7 @@ it("各受问席独立作答；同席进入下一轮识破后首次迟到的原�
     seat: 1,
     use: true,
     cardId: "识破诡计",
+    handIndex: 0,
   });
   const decline = submission(room, 2, "第一轮不用", {
     type: "respondReaction",
@@ -443,6 +504,7 @@ it("各受问席独立作答；同席进入下一轮识破后首次迟到的原�
     seat: 2,
     use: true,
     cardId: "识破诡计",
+    handIndex: 0,
   });
   const malformed = submission(room, 2, "带牌面弃权", {
     type: "respondReaction",

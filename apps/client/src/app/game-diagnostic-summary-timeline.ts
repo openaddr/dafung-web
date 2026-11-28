@@ -35,7 +35,7 @@ const COMMAND_RESULT = {
   unprocessed: "未处理",
   rejected: "被拒绝",
 };
-const COMMAND = { ...CMD_BRIEF, pickCapital: "选都", autoPilot: "托管" };
+const COMMAND = { ...CMD_BRIEF, pickCapital: "选都", setAutoPilot: "托管" };
 const JANK_NEAR_MS = 1500;
 
 function sceneValue(value: string, limit: number): string {

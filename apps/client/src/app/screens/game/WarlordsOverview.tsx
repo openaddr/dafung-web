@@ -4,10 +4,13 @@ import { DialogPeekInspection } from "@app/hooks/dialog-stack";
 import { Button } from "@base-ui/react/button";
 import { STAMINA_MAX } from "@dafung/core/engine/constants";
 import { heroById } from "@dafung/core/engine/heroes";
-import { tileIndexOfProperty } from "@dafung/core/engine/board";
 import { playerColor, playerSealText, rgba } from "@dafung/core/engine/theme";
-import type { SnapshotPlayer } from "@app/store/gameStore";
-import { getControllerContext } from "@app/controllers/registry";
+import {
+  readOwnedCities,
+  type OwnedSeatCity,
+  type SeatBoard,
+  type WarlordDetails,
+} from "@dafung/core/protocol/seat-queries";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
@@ -32,23 +35,20 @@ const OVERVIEW_COLUMNS = [
 
 function OverviewRow({
   player,
+  cities,
   seat,
   self,
   active,
   onInspect,
 }: {
-  player: SnapshotPlayer;
+  player: WarlordDetails;
+  cities: readonly OwnedSeatCity[];
   seat: number;
   self: boolean;
   active: boolean;
   onInspect: (target: WarlordDetail) => void;
 }) {
-  const { board } = getControllerContext()!;
-  const cityNames = player.properties
-    .map(({ propertyId }) => tileIndexOfProperty(board, propertyId))
-    .sort((a, b) => a - b)
-    .slice(0, 3)
-    .map((tileIndex) => board.at(tileIndex).name);
+  const cityNames = cities.slice(0, 3).map(({ tile }) => tile.name);
   const heroNames = player.heroes.map(({ heroId }) => heroById(heroId).name);
   return (
     <tr
@@ -82,11 +82,11 @@ function OverviewRow({
         <Button
           className="zl-drill"
           data-testid={TESTIDS.warlordsCities(seat)}
-          aria-label={`${player.guohao}名下城池 ${player.properties.length} 座`}
+          aria-label={`${player.guohao}名下城池 ${cities.length} 座`}
           aria-haspopup="dialog"
           onClick={() => onInspect({ seat, kind: "city" })}
         >
-          <span>{player.properties.length}</span>
+          <span>{cities.length}</span>
           <span className="zl-preview">{cityNames.join("、")}</span>
         </Button>
       </td>
@@ -122,13 +122,15 @@ function OverviewRow({
 }
 
 export const WarlordsOverview = memo(function WarlordsOverview({
-  players,
+  warlords,
+  seatBoard,
   selfSeat,
   activeSeat,
   round,
   onClose,
 }: {
-  players: SnapshotPlayer[];
+  warlords: readonly WarlordDetails[];
+  seatBoard: SeatBoard;
   selfSeat: number;
   activeSeat: number | null;
   round: number;
@@ -136,7 +138,8 @@ export const WarlordsOverview = memo(function WarlordsOverview({
 }) {
   const [detail, setDetail] = useState<WarlordDetail | null>(null);
   const inspectingBoard = useContext(DialogPeekInspection) !== null;
-  const seatGroups = players.length > 6 ? [players.slice(0, 4), players.slice(4)] : [players];
+  const citiesBySeat = warlords.map((_, seat) => readOwnedCities(seatBoard, seat));
+  const seatGroups = warlords.length > 6 ? [warlords.slice(0, 4), warlords.slice(4)] : [warlords];
   const closeDetail = useCallback(() => setDetail(null), []);
 
   return (
@@ -187,6 +190,7 @@ export const WarlordsOverview = memo(function WarlordsOverview({
                       <OverviewRow
                         key={player.id}
                         player={player}
+                        cities={citiesBySeat[seat]}
                         seat={seat}
                         self={seat === selfSeat}
                         active={seat === activeSeat}
@@ -204,13 +208,13 @@ export const WarlordsOverview = memo(function WarlordsOverview({
         <DialogPeekInspection.Provider value={inspectingBoard ? closeDetail : null}>
           {detail.kind === "city" ? (
             <CityLedgerModal
-              players={players}
-              seat={detail.seat}
+              guohao={warlords[detail.seat].guohao}
+              rows={citiesBySeat[detail.seat]}
               self={detail.seat === selfSeat}
               onClose={closeDetail}
             />
           ) : (
-            <SeatDetailModal kind={detail.kind} p={players[detail.seat]} onClose={closeDetail} />
+            <SeatDetailModal kind={detail.kind} p={warlords[detail.seat]} onClose={closeDetail} />
           )}
         </DialogPeekInspection.Provider>
       )}

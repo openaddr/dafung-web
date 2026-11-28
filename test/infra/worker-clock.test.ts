@@ -6,6 +6,7 @@
 // 整体退役——负载敏感可致挂(master 全量三连挂/单文件连绿,2026-11-01 定性),计时
 // 即主题、无一两行确定性改造可根除;暂停闸语义由全线 e2e freezeClock 用例承担。
 // 节拍常量单源(core/timings)由 watchdogs/bot-driver 改引承担,此处不再重复数值断言。
+import { submitCapitalForSetup } from "../online/room-capitals";
 import { describe, it, expect } from "bun:test";
 import { createWorkerClock, latestWorkerClock } from "../../apps/client/src/app/net/worker-clock";
 import type { RoomClock } from "@dafung/core/room/room";
@@ -81,7 +82,7 @@ describe("RoomRegistry clock 注入(#399:编排节拍经注入时钟)", () => {
     const e = created.room.engine!;
     // 人类选都(三选一首项)→ 房间驱动余下 bot + 过渡进 Playing,停在人类 Roll 等待态:
     // 自动起摇看门狗已挂注入时钟(全局定时器零占用)
-    await reg.pickCapital(created.room.roomId, 0, e.offeredCapitals[0]!);
+    await submitCapitalForSetup(reg, created.room.roomId, 0, e.offeredCapitals[0]!);
     expect(e.phase).toBe("Playing");
     expect(e.turnPhase).toBe("Roll");
     const turn0 = e.turnNumber;

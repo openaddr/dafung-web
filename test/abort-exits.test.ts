@@ -7,6 +7,7 @@
 // 矩阵交叉钉(#643 终验):故障型×座位控制权两条交叉——失配注入落在托管座(人类+托管,
 // 非原生 bot)仍出口①响亮终局;断链指纹落在人类可决策座位(托管已收回)不武装任何
 // 看门狗、不 abort,维持现状等玩家。
+import { submitCapitalForSetup } from "./online/room-capitals";
 import { describe, it, expect, spyOn } from "bun:test";
 import { GameEngine } from "@dafung/core/engine/authority";
 import type { EngineConfig, SeatConfig, VictoryReason } from "@dafung/core/engine/authority";
@@ -177,7 +178,7 @@ async function autoPilotRoom(options?: { stallAbortMs?: number }) {
   await reg.startGame(roomId, created.token, undefined, () => MAP);
   const e = created.room.engine!;
   expect(e.phase).toBe("Setup");
-  await reg.pickCapital(roomId, 0, e.offeredCapitals[0]!); // 真人选都 → bot 接棒进 Playing,链停在真人座位
+  await submitCapitalForSetup(reg, roomId, 0, e.offeredCapitals[0]!); // 真人选都 → bot 接棒进 Playing,链停在真人座位
   expect(e.phase).toBe("Playing");
   await reg.setAutoPilot(roomId, 0, true); // 托管:链重开,第一步后停在时钟 await(2s 步进挂 ManualClock)
   return { reg, roomId, clock, e, token: created.token };

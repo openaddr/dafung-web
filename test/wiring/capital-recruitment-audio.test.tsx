@@ -12,6 +12,8 @@ import { GameEngine, type GameCommand } from "@dafung/core/engine/authority";
 import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { armPhase, pinDice, placePlayer } from "@dafung/core/engine/planter";
+import { readSeatBoard } from "@dafung/core/protocol/seat-queries";
+import { recruitmentDecisionOf } from "@dafung/core/room/recruitment-decisions";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import mapData from "../../packages/core/maps/guanzhong.json";
@@ -53,9 +55,16 @@ it.each(["继续招贤", "归账后断线", "归账后跳过"])(
       get engine() {
         return engine;
       }
-      dispatchCommand(command: GameCommand): void {
+      dispatchCommand(command: GameCommand, decisionPoint?: string): void {
+        if (command.type === "resolveHeroPick" && decisionPoint !== this.seatView.decisionPoint)
+          throw new Error("卷轴未提交原招贤决策点");
         const pre = engine.players.map((player) => player.position);
         engine.submitCommand(command);
+        this.observeSeatDecision(
+          engine.turnPhase === "AwaitingHeroPick"
+            ? { decisionPoint: "招贤", decisionOptions: recruitmentDecisionOf(engine) }
+            : { decisionPoint: null },
+        );
         stashEventBatch(engine.gameEvents);
         this.fx.play(pre);
         this.sync();
@@ -75,6 +84,7 @@ it.each(["继续招贤", "归账后断线", "归账后跳过"])(
           <FxLayer />
           <DecisionScrollLayer
             snapshot={snapshot}
+            seatBoard={readSeatBoard(snapshot.players, { board, catalog })}
             viewSeat={seat}
             interactive={interactive}
             decisionKey={decisionScrollIdentity(snapshot, seat)}

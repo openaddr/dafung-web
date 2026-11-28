@@ -14,7 +14,7 @@
 //                 lastMove/turnPhase=Land(补给金额相邻回填);marchArrived → position/
 //                 lastMove/turnPhase=Land;landingResolved → 最终相位/pendingLand/
 //                 lastLandOutcome/treasureVisitor 与固定事件续接载荷
-//   城池族        capitalSelected → takenCapitalIndices/capitalIndex/position/地产 Lv1 入册
+//   城池族        capitalSelected → 现金扣费/占都/落位/城池初始持有期
 //                 (Setup 期现金不入折叠,#386 注记保持);propertyBought → 现金-价/
 //                 地产入册;propertyUpgraded → 等级对齐 newLevel，防御重置；
 //                 propertyRejected → 无状态转移，自动按兵不动由同批 turnStarted 收场；
@@ -149,13 +149,16 @@ function seatNo(engine: GameEngine, p: Player): number {
   return seat;
 }
 
-/** 可见手牌按公告位置扣牌，反应牌按规则扣首张同名牌。 */
+/** 本席按权威公布的位置扣牌，其他席只减少牌数。 */
 function consumeCard(engine: GameEngine, p: Player, cardId: string, handIndex?: number): void {
   if (handIndex !== undefined || p.jinnangHand.length > 0) {
-    const index = handIndex === undefined ? p.jinnangHand.indexOf(cardId) : handIndex;
-    if (!Number.isInteger(index) || p.jinnangHand[index] !== cardId)
-      throw new Error(`折叠投影:手牌位置 ${index} 无锦囊【${cardId}】`);
-    p.jinnangHand.splice(index, 1);
+    if (
+      handIndex === undefined ||
+      !Number.isSafeInteger(handIndex) ||
+      p.jinnangHand[handIndex] !== cardId
+    )
+      throw new Error(`折叠投影:手牌位置 ${handIndex} 无锦囊【${cardId}】`);
+    p.jinnangHand.splice(handIndex, 1);
   }
   p.jinnangHandCount -= 1;
   engine.jinnangDiscard.push(cardId);
@@ -288,12 +291,11 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       // ── 城池族 ──
       case "capitalSelected": {
         const p = foldTarget(engine, ev);
-        const def = propertyDefOf(engine, ev.propertyId);
+        p.cash -= ev.cost;
         engine.takenCapitalIndices.add(ev.tileIndex);
         p.capitalIndex = ev.tileIndex;
         p.position = ev.tileIndex;
-        p.properties.push(createPropertyHolding(def, INITIAL_CITY_LEVEL));
-        // 建城扣费只有 cost 无 cashChanged:Setup 期现金不入折叠(#386 注记保持),开局校准覆盖
+        p.properties.push(structuredClone(ev.holding));
         break;
       }
       case "propertyBought": {
@@ -546,6 +548,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           seat: ev.seat,
           use: ev.use,
           ...(ev.cardId != null ? { cardId: ev.cardId } : {}),
+          ...(ev.handIndex === undefined ? {} : { handIndex: ev.handIndex }),
           ...(ev.target === undefined ? {} : { target: ev.target }),
         });
         const asked = pr.view.kind === "march" ? 1 : pr.view.queriedBySeat.length;
@@ -553,8 +556,8 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           if (ev.spentCards == null)
             throw new Error("折叠投影:最终反应应答缺扣账清单(事件产出契约违反)");
           presentation.pendingReaction = null;
-          for (const { seat, cardId } of ev.spentCards) {
-            consumeCard(engine, eventSeatPlayer(engine, seat, "反应牌扣账"), cardId);
+          for (const { seat, cardId, handIndex } of ev.spentCards) {
+            consumeCard(engine, eventSeatPlayer(engine, seat, "反应牌扣账"), cardId, handIndex);
           }
           // 下一反应环、出牌阶段恢复或行军落格均以随后的权威事件为准。
           if (pr.view.kind === "jinnang") engine.turnPhase = "Roll";

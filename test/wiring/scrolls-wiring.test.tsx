@@ -4,6 +4,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 // 模块求值读构建期注入的 __APP_VERSION__——按生产同一值源(package.json CalVer)先行
 // 注入,晚绑 import 前生效(模板同款,#1297 波评审备案:留置不还原,无害)。
 import { useFxStore } from "@app/fx/fxStore";
+import { setSnapPin } from "@app/fx/catchup";
+import type { WorkerClock } from "@app/net/worker-clock";
 import { setAudio } from "@app/fx/audio";
 import { UI } from "@app/fx/timings";
 import { SHORT_LANDSCAPE_QUERY } from "@app/hooks/use-media-query";
@@ -18,8 +20,18 @@ import { loadMap } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { heroById } from "@dafung/core/engine/heroes";
 import { formatMoney } from "@dafung/core/engine/money";
+import {
+  bankruptcyDecisionOf,
+  isBankruptcyDecisionCommand,
+} from "@dafung/core/room/bankruptcy-decisions";
 import { applyPlant, type PlantOp } from "@dafung/core/engine/planter";
+import { AUTO_ROLL_DELAY_MS, BOT_STEP_MS } from "@dafung/core/engine/timings";
 import { guidePriceOf, makeSkillBook } from "@dafung/core/engine/treasures";
+import type { DecisionOptions } from "@dafung/core/protocol/wire";
+import { recruitmentDecisionOf } from "@dafung/core/room/recruitment-decisions";
+import { skillBookOptionsOf } from "@dafung/core/room/roster-decisions";
+import { treasureDecisionOf } from "@dafung/core/room/treasure-decisions";
+import { IDBFactory } from "fake-indexeddb";
 import type { Window as HappyDomWindow } from "happy-dom";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -37,6 +49,8 @@ type RegistryModule = typeof import("@app/controllers/registry");
 type GameControllerClass = import("@app/controllers/controller").GameController;
 let GameScreen: GameScreenModule["GameScreen"];
 let setController: RegistryModule["setController"];
+let LocalController: typeof import("@app/controllers/local").LocalController;
+let originalIndexedDb: PropertyDescriptor | undefined;
 
 /** 接线控制器面(GameController 生产基类的最小子型 + resync 测试口;构造见 beforeAll)。 */
 type WiringController = GameControllerClass & { resync(): void };
@@ -54,8 +68,8 @@ const SEATS: SeatConfig[] = [
   { name: "座 4", isBot: true },
 ];
 
-/** 公共命令链开局;默认选完都停 Playing,费用接线例留在选都前。非法态当场抛错。 */
-function seedEngine(pickCapitals = true): GameEngine {
+/** 公共命令链开局，非法态当场抛错。 */
+function seedEngine(): GameEngine {
   const e = new GameEngine(MAP.board, MAP.catalog, createDice(SEED), {
     seats: SEATS,
     targetNetWorth: MAP.targetNetWorth,
@@ -65,20 +79,29 @@ function seedEngine(pickCapitals = true): GameEngine {
     mapId: "guanzhong",
   });
   e.beginCapitalSelection();
-  while (pickCapitals && e.phase === "Setup") {
+  while (e.phase === "Setup") {
     if (!e.aiSetupStep()) {
       const r = e.pickCapital(e.currentSetupPlayerIndex, Math.min(...e.offeredCapitals));
       if (!r.ok) throw new Error(`种局:选都被拒(${r.reason ?? "未知"})`);
     }
   }
-  if (pickCapitals && e.phase !== "Playing")
-    throw new Error(`种局:选都链后非 Playing(phase=${e.phase})`);
+  if (e.phase !== "Playing") throw new Error(`种局:选都链后非 Playing(phase=${e.phase})`);
   return e;
 }
 
 let container: HTMLElement | null = null;
 let root: Root | null = null;
 let clock: ReturnType<typeof installControlledClock>;
+const roomClock: WorkerClock = {
+  now: () => performance.now(),
+  setTimeout: (callback, ms) => setTimeout(callback, ms),
+  clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  dispose() {},
+  pause() {},
+  resume() {},
+  onFatal() {},
+  paused: false,
+};
 
 /** act() 内挂 GameScreen;卸载统一走 afterEach。 */
 function mount(): HTMLElement {
@@ -94,17 +117,14 @@ function mount(): HTMLElement {
 /** 种局→种植→注册控制器→基类 sync 灌 store→挂屏(每例开头同款一条龙)。
  *  ops = 初始布场指令(PlantOp 单源逐条落种,判词见头注「种植单源形」);
  *  writeEngine = 进程内引擎公共方法直呼缝 + 重灌 store(e2e callEngine #1302 同语义)。 */
-function startGame(
-  ops: PlantOp[] = [],
-  pickCapitals = true,
-): {
+function startGame(ops: PlantOp[] = []): {
   el: HTMLElement;
   engine: GameEngine;
   plant: (op: PlantOp) => void;
   writeEngine: (write: (e: GameEngine) => void) => void;
   snap: () => GameSnapshot;
 } {
-  const e = seedEngine(pickCapitals);
+  const e = seedEngine();
   for (const op of ops) applyPlant(e, op);
   const c = newWiringController(e);
   setController(c, guanzhongData); // 生产同款:连地图一起注册(卷轴层挂载门卫)
@@ -135,7 +155,11 @@ function q(scope: ParentNode, id: string): Element | null {
   return scope.querySelector(`[data-testid="${id}"]`);
 }
 
-function patchSeatView(patch: { snapshot?: GameSnapshot; interactive?: boolean }): void {
+function patchSeatView(patch: {
+  snapshot?: GameSnapshot;
+  interactive?: boolean;
+  decisionOptions?: DecisionOptions;
+}): void {
   act(() => {
     const seatView = { ...useGameStore.getState().seatView!, ...patch };
     useGameStore.setState({
@@ -206,6 +230,8 @@ function plantTrade(handles: ReturnType<typeof startGame>, level: number | "max"
 
 beforeAll(async () => {
   ensureHappyDom();
+  originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+  Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: new IDBFactory() });
   // 环境缝(matchMedia stub 同族,#1284 配方):happy-dom 无排版引擎,底板 svg
   // clientWidth/Height 恒 0——boardHost 的 commit 拍真值断言(ensureBoardPxPerUnit,
   // 零兜底设计)当场炸;document.fonts.ready 同缺席。给中性真值(844×390 标准档)
@@ -223,9 +249,7 @@ beforeAll(async () => {
   const screenMod = await import("@app/screens/game/GameScreen");
   const registryMod = await import("@app/controllers/registry");
   const ctrlMod = await import("@app/controllers/controller");
-  const { extractBatchEvents } = await import("@app/fx/event-extract");
-  const { createEngineSink } = await import("@app/fx/sinks");
-  const { present } = await import("@app/fx/orchestrator");
+  ({ LocalController } = await import("@app/controllers/local"));
   GameScreen = screenMod.GameScreen;
   setController = registryMod.setController;
   // 注册带地图(生产 setController(controller, map) 同款):DecisionScrollLayer/
@@ -244,18 +268,55 @@ beforeAll(async () => {
       return 0;
     }
 
-    override dispatchCommand(cmd: GameCommand): void {
+    override dispatchCommand(cmd: GameCommand, decisionPoint?: string): void {
+      if (
+        (cmd.type === "resolveHeroPick" ||
+          cmd.type === "resolveTreasureOwner" ||
+          isBankruptcyDecisionCommand(cmd)) &&
+        decisionPoint !== this.seatView.decisionPoint
+      )
+        throw new Error("卷轴未提交原决策点");
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
-      this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
-    }
-    override setupPickCapital(tileIndex: number): void {
-      const result = this.e.pickCapital(this.e.currentSetupPlayerIndex, tileIndex);
-      if (!result.ok) throw new Error(`接线测试:选都被拒(${result.reason})`);
-      this.sync();
-      void present(extractBatchEvents(this.e, this.e.snapshot().events), createEngineSink());
+      this.resync();
     }
     // 测试侧重灌口(protected sync 的公开面;种植后调)。
     resync(): void {
+      if (this.e.decisionOwner === this.mySeat && this.e.turnPhase === "AwaitingJinnang") {
+        this.observeSeatDecision({
+          decisionPoint: `出牌-${this.e.turnNumber}`,
+          decisionOptions: {
+            kind: "playJinnang",
+            choices: this.e.choicesFor(),
+            pendingJinnang: this.e.pendingJinnang,
+            pendingSkill: this.e.pendingSkill,
+            skillBooks: skillBookOptionsOf(this.e),
+          },
+        });
+      } else if (this.e.decisionOwner === this.mySeat && this.e.turnPhase === "AwaitingHeroPick") {
+        this.observeSeatDecision({
+          decisionPoint: `招贤-${this.e.turnNumber}`,
+          decisionOptions: recruitmentDecisionOf(this.e),
+        });
+      } else if (
+        this.e.decisionOwner === this.mySeat &&
+        this.e.turnPhase === "AwaitingTreasureOwner"
+      ) {
+        this.observeSeatDecision({
+          decisionPoint: `珍宝-${this.e.turnNumber}`,
+          decisionOptions: treasureDecisionOf(this.e),
+        });
+      } else if (
+        this.e.decisionOwner === this.mySeat &&
+        this.e.turnPhase === "AwaitingBankruptcySettle"
+      ) {
+        const decisionOptions = bankruptcyDecisionOf(this.e);
+        this.observeSeatDecision({
+          decisionPoint: `清算-${this.e.turnNumber}-${decisionOptions.debt.amount}`,
+          decisionOptions,
+        });
+      } else {
+        this.observeSeatDecision({ decisionPoint: null });
+      }
       this.sync();
     }
   }
@@ -289,6 +350,8 @@ afterAll(async () => {
   // 排干 React 调度器余拍(模板同款):release 后再触发会在无 window 环境抛
   // 「window is not defined」——window 还在时让完这一拍再拆 happy-dom。
   await new Promise((r) => setTimeout(r, 0));
+  if (originalIndexedDb) Object.defineProperty(globalThis, "indexedDB", originalIndexedDb);
+  else Reflect.deleteProperty(globalThis, "indexedDB");
   await releaseHappyDom();
 });
 
@@ -298,25 +361,38 @@ it.each(["no-preference", "reduce"] as const)(
     const device = (window as unknown as HappyDomWindow).happyDOM.settings.device;
     device.prefersReducedMotion = motion;
     try {
-      const { el, engine, snap, writeEngine } = startGame([], false);
-      writeEngine((authority) => {
-        while (authority.currentSetupPlayerIndex !== 0) {
-          if (!authority.aiSetupStep()) throw new Error("选都未推进到本座");
-        }
-      });
-      const candidate = engine.offeredCapitals[0]!;
-      const city = el.querySelector(TESTIDS.city(candidate))!;
+      const controller = new LocalController(
+        MAP,
+        { seats: SEATS.slice(0, 2), seed: SEED, mapId: "guanzhong", botStepMs: BOT_STEP_MS },
+        roomClock,
+      );
+      setController(controller, guanzhongData);
+      const el = mount();
+      const { capital, snapshot } = controller.seatView;
+      const option = capital!.options.find((candidate) => candidate.available)!;
+      const city = el.querySelector(TESTIDS.city(option.tileIndex))!;
       const sounds = recordAudio();
 
       click(city);
       expect(sounds).toEqual(["scrollOpen"]);
+      expect(docQ(T.tileDetailScroll)!.textContent).toContain(formatMoney(option.cost));
+      click(q(docQ(T.tileDetailScroll)!, TESTIDS.modalMinimize)!);
+      await settle();
+      expect(controller.seatView.capital?.selectedOption).toEqual(option);
+      expect(docQ(T.tileDetailScroll)?.closest("[hidden]") != null).toBe(true);
+      click(docQ(TESTIDS.modalRestore)!);
+      await settle();
       click(docQ(TESTIDS.confirmCapitalCancel)!);
+      expect(controller.seatView.capital?.selectedOption).toBeNull();
+      expect(controller.seatView.snapshot.players[0].capitalIndex).toBe(-1);
       click(city);
       expect(sounds).toEqual(["scrollOpen"]);
       click(docQ(TESTIDS.confirmCapitalOk)!);
-      expect(snap().players[0].capitalIndex).toBe(candidate);
 
       await settle();
+      const settled = controller.seatView.snapshot.players[0];
+      expect(settled.capitalIndex).toBe(option.tileIndex);
+      expect(settled.cash).toBe(snapshot.players[0].cash - option.cost);
       const seal = q(el, TESTIDS.fxSeal("筑"));
       if (!seal) throw new Error("定都后缺少筑章");
       if (motion === "no-preference") {
@@ -338,36 +414,53 @@ it.each(["no-preference", "reduce"] as const)(
   },
 );
 
-describe("城池待决策卷轴", () => {
-  it.each([
-    { kind: "PropertyAvailable" as const, action: "buy", scroll: T.buyScroll },
-    { kind: "OwnProperty" as const, action: "upgrade", scroll: T.upgradeScroll },
-  ])("金额表现清空后仍能通过%s卷轴完成城池决策", async ({ kind, action, scroll }) => {
-    const { el, engine, plant, snap } = startGame();
-    const tile = engine.board.tiles.find(
-      (t) => t.propertyId != null && engine.findOwner(t.propertyId) == null,
-    )!;
-    const propertyId = tile.propertyId!;
-    const price = engine.catalog.get(propertyId)!.purchasePrice;
-    plant({ kind: "setCash", seat: 0, cash: price + 1000 });
-    if (kind === "OwnProperty") plant({ kind: "grantProperty", seat: 0, propertyId, level: 1 });
-    plant({ kind: "armLanding", landing: { kind, propertyId } });
-    plant({ kind: "armPhase", turnPhase: "AwaitingDecision", activeIndex: 0 });
-    // 组件公共输入缝:金额表现允许独立更新,待决策载荷仍是引擎种出的真实上下文。
-    patchSeatView({
-      snapshot: { ...snap(), lastLandOutcomeKind: "Noop", lastLandOutcomeProperty: null },
-    });
-    await clock.advance(0);
-    expect(q(el, scroll) !== null).toBe(true);
-    const confirm = q(el, TESTIDS.actionButton(action))!;
-    expect(confirm.hasAttribute("disabled")).toBe(false);
-    click(confirm);
-    expect(snap().turnPhase).not.toBe("AwaitingDecision");
-    expect(snap().players[0].properties.find((h) => h.propertyId === propertyId)!.level).toBe(
-      kind === "OwnProperty" ? 2 : 1,
+it("购地卷轴按座位选项报价，点击后经单机房间扣款进驻", async () => {
+  setSnapPin(true);
+  try {
+    const controller = new LocalController(
+      MAP,
+      { seats: SEATS.slice(0, 2), seed: 2, mapId: "guanzhong", botStepMs: BOT_STEP_MS },
+      roomClock,
     );
-    expect(snap().players[0].cash).toBe(kind === "OwnProperty" ? price + 1000 : 1000);
-  });
+    setController(controller, guanzhongData);
+    const el = mount();
+    click(el.querySelector(TESTIDS.city(3))!);
+    click(docQ(TESTIDS.confirmCapitalOk)!);
+    await clock.advance(BOT_STEP_MS);
+    click(q(el, TESTIDS.actionbarPass)!);
+    await settle();
+    await clock.advance(AUTO_ROLL_DELAY_MS + 1);
+    const { snapshot, decisionOptions } = controller.seatView;
+    expect(snapshot.players[0].position).toBe(9);
+    expect(decisionOptions).toMatchObject({
+      kind: "landDecision",
+      landing: { propertyId: "prop-lushui", tileIndex: 9 },
+      options: [
+        { command: "buyProperty", cost: 1800 },
+        { command: "endDecision", cost: 0 },
+      ],
+    });
+    patchSeatView({
+      snapshot: {
+        ...snapshot,
+        choices: [],
+        lastLandOutcomeKind: "Noop",
+        lastLandOutcomeProperty: null,
+      },
+    });
+    expect(q(el, T.buyScroll)?.textContent).toContain(formatMoney(1800));
+    click(q(el, TESTIDS.actionButton("buy"))!);
+    await settle();
+    const settled = controller.seatView.snapshot;
+    expect(settled.players[0].cash).toBe(snapshot.players[0].cash - 1800);
+    expect(settled.players[0].properties).toContainEqual(
+      expect.objectContaining({ propertyId: "prop-lushui", level: 1, defense: 40 }),
+    );
+    expect(settled.activeIndex).toBe(1);
+    await finishExit(() => q(el, T.buyScroll), "成交后收起购地卷轴");
+  } finally {
+    setSnapPin(false);
+  }
 });
 
 describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
@@ -387,18 +480,21 @@ describe("招贤卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(docQ(T.heroPickDecline)?.textContent).toBe("跳过");
     const seekBookButton = () => docQ(TESTIDS.actionButton("seek-book"));
     expect(seekBookButton()?.textContent).toBe("求书");
-    const snapshot = snap();
+    const { decisionOptions } = useGameStore.getState().seatView!;
+    if (decisionOptions?.kind !== "recruitment") throw new Error("接线测试缺少本席招贤选项");
     patchSeatView({
-      snapshot: {
-        ...snapshot,
-        choices: snapshot.choices.map((option) =>
-          option.id === "seekBook" ? { ...option, label: "暂歇求书", available: false } : option,
+      decisionOptions: {
+        ...decisionOptions,
+        options: decisionOptions.options.map((option) =>
+          option.id === "seekBook"
+            ? { ...option, label: "暂歇求书", available: false, reason: "本次不可求书" }
+            : option,
         ),
       },
     });
     expect(seekBookButton()?.hasAttribute("disabled")).toBe(true);
     expect(seekBookButton()?.textContent).toBe("暂歇求书");
-    patchSeatView({ snapshot });
+    patchSeatView({ decisionOptions });
     const rows = snap().offeredHeroes;
     expect(rows).toHaveLength(3);
     for (let i = 0; i < rows.length; i++) {
@@ -478,6 +574,7 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     expect(docQ(T.treasureModeFair)!.textContent).toBe("公道买卖");
     expect(docQ(T.treasureModePremium)!.textContent).toBe("坐地起价");
     click(docQ(T.treasureModeFair)!);
+    expect(useGameStore.getState().seatView?.treasure?.mode).toBe("fair");
     expect(sounds).toEqual(["scrollOpen"]);
     const pick = () => docQ(T.treasurePick);
     expect(pick()).not.toBeNull();
@@ -496,6 +593,7 @@ describe("珍宝交涉(自 react-scrolls 迁入,#1317 批T3)", () => {
     // 点选=金描边上浮:aria-pressed 翻真 + 价签转「成交 · 至 N 两」
     click(item());
     click(item());
+    expect(useGameStore.getState().seatView?.treasure?.selectedTreasure?.id).toBe("seal");
     expect(sounds).toEqual(["scrollOpen", "jinnangSelect"]);
     expect(item().getAttribute("aria-pressed")).toBe("true");
     expect(item().textContent).toContain(`成交 · 至 ${formatMoney(guidePriceOf(3))}`);
@@ -708,6 +806,11 @@ describe("破产清算卷轴(自 react-scrolls 迁入,#1317 批T3)", () => {
     click(docQ(T.bankruptcyPrevious)!);
     expect(docQ(T.bankruptcyQuantity("qingnang"))!.textContent).toBe("1");
     expect(bookQuantity().textContent).toBe("1");
+    expect(useGameStore.getState().seatView?.bankruptcy?.selected).toEqual([
+      { kind: "treasure", id: "qingnang-10" },
+      { kind: "treasure", id: "skillbook-jixing" },
+      { kind: "treasure", id: "edict-16" },
+    ]);
     expect(engine.log.filter((line) => line.category === "cmd")).toHaveLength(commandCount);
     expect(snap().players[0].cash).toBe(100);
     expect(snap().players[0].treasures).toHaveLength(treasures.length);

@@ -103,9 +103,9 @@ export const EVENT_TIERS = {
   },
   // ── 城池族 ──
   capitalSelected: {
-    fold: "fold+calibration",
+    fold: "must-fold",
     fx: "presented",
-    why: "建城入册(占都/落位/Lv1 持有);建城扣费无 cashChanged,Setup 期现金不入折叠由开局校准覆盖(#386 注记)",
+    why: "按权威成交费用扣款，应用都城、落位和初始持有期。下一组选都候选沿用开局校准",
   },
   propertyBought: {
     fold: "must-fold",

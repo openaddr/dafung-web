@@ -1,143 +1,213 @@
-// 「你可」待决的房间协议覆盖:RoomRegistry + RecordingEndpoint + 内存持久化,不建 WS。
-// 上行经 applyCommandFromSeat 鉴权,下行经 assembleDownlinkShot 装配并裁剪私密信息。
-// 验证挂窗下行、非属主拒绝、属主应答落账及对端摘要/事件批收敛。
-// planter 只构造曹丕与标记前态,挂窗与应答均走公共命令(ADR-0065)。
-import { describe, it, expect } from "bun:test";
-import { RoomRegistry } from "@dafung/core/room/room";
-import type { SeatEndpoint } from "@dafung/core/room/room";
-import type { RoomPersistence } from "@dafung/core/room/room-persistence";
-import type { RoomRecord } from "@dafung/core/room/room-record";
-import { MAP } from "../../scripts/engine-helpers";
-import { armHero, armPhase, setStamina } from "@dafung/core/engine/planter";
+import { expect, it } from "bun:test";
+import { armHero } from "@dafung/core/engine/planter";
+import {
+  cmdMsg,
+  submissionMsg,
+  type EventBatchMsg,
+  type PlayerSubmission,
+  type ServerMsg,
+  type SubmissionResultMsg,
+} from "@dafung/core/protocol/wire";
+import { HeadlessPlayer } from "../../scripts/headless-player";
+import { openHeadlessTestRoom } from "./headless-player-room";
 
-class InMemoryPersistence implements RoomPersistence {
-  private readonly m = new Map<string, RoomRecord>();
-  save(rec: RoomRecord): void {
-    this.m.set(rec.roomId, rec);
-  }
-  load(roomId: string): RoomRecord | null {
-    return this.m.get(roomId) ?? null;
-  }
-  remove(roomId: string): void {
-    this.m.delete(roomId);
-  }
-  exists(roomId: string): boolean {
-    return this.m.has(roomId);
-  }
-  listIds(): string[] {
-    return [...this.m.keys()];
-  }
+type TestRoom = Awaited<ReturnType<typeof openHeadlessTestRoom>>;
+
+const isReceipt = (message: ServerMsg): message is SubmissionResultMsg =>
+  message.type === "submissionResult";
+
+async function connect(room: TestRoom, player: HeadlessPlayer) {
+  const socket = await room.socket(player.seat);
+  await player.connect(socket);
+  return socket;
 }
 
-/** 记录型端点(同 room-transport):收到的消息逐条入列,按类型检索。 */
-class RecordingEndpoint implements SeatEndpoint {
-  readonly sent: string[] = [];
-  private isOpen = true;
-  constructor(readonly seat: number) {}
-  get open(): boolean {
-    return this.isOpen;
-  }
-  send(data: string): void {
-    if (!this.isOpen) throw new Error("RecordingEndpoint 已断开");
-    this.sent.push(data);
-  }
-  byType(type: string): Record<string, unknown>[] {
-    return this.sent
-      .map((d) => JSON.parse(d) as Record<string, unknown>)
-      .filter((m) => m.type === type);
-  }
-  clear(): void {
-    this.sent.length = 0;
-  }
+async function readSkillAnswer(player: HeadlessPlayer) {
+  return player.readUntil(
+    (message): message is EventBatchMsg =>
+      message.type === "events" &&
+      message.events.some(({ kind }) => kind === "skillChoiceAnswered"),
+    "技能应答结算",
+  );
 }
 
-const broadcastOf = (reg: RoomRegistry, roomId: string) => () => reg.transportBroadcast(roomId);
-
-/** 双真人房:建房(host=座位 0)+ 入座(座位 1)+ 选图 + 开局 + 双端选都进 Playing。
- *  返回 registry、房号、双端点(已清首连摘要)。 */
-async function makeStartedRoom(seed = 42) {
-  const reg = new RoomRegistry(new InMemoryPersistence());
-  const created = reg.createRoom({
-    seatCount: 2,
-    botIdx: new Set(),
-    hostConfig: { seed },
-    guohao: "魏",
+it("放逐由属主草选并确认，越席和非法目标被拒，结算续接原出牌阶段", async () => {
+  const room = await openHeadlessTestRoom([], (engine) => {
+    armHero(engine, 1, "caopi", ["fangzhu"]);
+    engine.damageStamina(1, 70, 0);
   });
-  const { roomId, token } = { roomId: created.room.roomId, token: created.token };
-  const joined = reg.joinSeat(roomId, "蜀");
-  reg.setMap(roomId, "guanzhong", token, new Set(["guanzhong"]));
-  const ep0 = new RecordingEndpoint(0);
-  const ep1 = new RecordingEndpoint(1);
-  reg.connectSeat(roomId, 0, token, ep0);
-  reg.connectSeat(roomId, 1, joined.token, ep1);
-  const bc = broadcastOf(reg, roomId);
-  ep0.clear();
-  ep1.clear();
-  await reg.startGame(roomId, token, bc, () => MAP);
-  // 双真人各按候选落子(轮到谁谁落,经房间编排面 pickCapital)
-  let guard = 0;
-  while (reg.get(roomId)?.engine?.phase === "Setup" && guard++ < 10) {
-    const e = reg.get(roomId)!.engine!;
-    await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]!, bc);
+  const owner = new HeadlessPlayer(room.id, 1);
+  const actor = new HeadlessPlayer(room.id, 0);
+  try {
+    const [ownerSocket, actorSocket] = await Promise.all([
+      connect(room, owner),
+      connect(room, actor),
+    ]);
+    expect(actor.view.snapshot).toMatchObject({
+      activeIndex: 0,
+      decisionOwner: 1,
+      turnPhase: "AwaitingSkillChoice",
+    });
+    expect(owner.view.decisionPoint).toEqual(expect.any(String));
+    expect(owner.view.decisionOptions).toMatchObject({
+      kind: "skillChoice",
+      skillId: "fangzhu",
+      ownerSeat: 1,
+      fixedTargetSeat: null,
+      targets: [
+        { id: 0, label: "蜀", available: true },
+        { id: 1, label: "吴", available: false, reason: "不能指定自己" },
+        { id: 2, label: "魏", available: true },
+      ],
+    });
+    expect(actor.view.decisionPoint).toBeNull();
+    expect(actor.view.decisionOptions).toBeUndefined();
+    expect(actor.view.snapshot.choices).toEqual([]);
+
+    const decisionPoint = owner.view.decisionPoint!;
+    const cmd = { type: "respondSkillChoice", seat: 1, use: true, targetSeat: 2 } as const;
+    const request: PlayerSubmission = {
+      roomId: room.id,
+      seat: 1,
+      submissionId: "放逐",
+      decisionPoint,
+      cmd,
+    };
+    actorSocket.sendRaw(submissionMsg({ ...request, seat: 0, cmd: { ...cmd, seat: 0 } }));
+    expect(await actor.readUntil(isReceipt, "越席技能应答")).toMatchObject({
+      outcome: "rejected",
+      reasonCode: "wrongSeat",
+    });
+    ownerSocket.sendRaw(submissionMsg({ ...request, cmd: { ...cmd, targetSeat: 1 } }));
+    expect(await owner.readUntil(isReceipt, "非法技能目标")).toMatchObject({
+      outcome: "rejected",
+      reasonCode: "invalidCandidate",
+    });
+    ownerSocket.sendRaw(cmdMsg(cmd, 18));
+    expect(
+      await owner.readUntil((message) => message.type === "error", "旧技能应答入口"),
+    ).toMatchObject({
+      requestId: 18,
+      error: "请携带原决策点和提交编号提交此操作",
+    });
+    expect(owner.view.decisionPoint).toBe(decisionPoint);
+
+    expect(owner.act({ type: "confirm" })).toMatchObject({ status: "unavailable" });
+    expect(owner.act({ type: "toggleTarget", id: 2 })).toEqual({ status: "draft" });
+    expect(owner.view.snapshot.players[2].skipTurns).toBe(0);
+    expect(owner.act({ type: "confirm" })).toEqual({ status: "submitted" });
+    const accepted = await owner.readUntil(isReceipt, "放逐应答回执");
+    expect(accepted).toMatchObject({ outcome: "accepted" });
+    await room.advance(1);
+
+    for (const player of [owner, actor]) {
+      const settlement = await readSkillAnswer(player);
+      expect(settlement.events).toContainEqual(
+        expect.objectContaining({
+          kind: "skillChoiceAnswered",
+          skillId: "fangzhu",
+          targetSeat: 2,
+          skipTurns: 1,
+          remainingMarks: 0,
+          resumePhase: "AwaitingJinnang",
+        }),
+      );
+      expect(player.view.snapshot).toMatchObject({
+        activeIndex: 0,
+        turnPhase: "AwaitingJinnang",
+      });
+      expect(player.view.snapshot.players[2].skipTurns).toBe(1);
+    }
+    expect(actor.view.decisionOptions?.kind).toBe("playJinnang");
+
+    room.restart();
+    await ownerSocket.waitClosed(1000);
+    const restored = await connect(room, owner);
+    restored.sendRaw(
+      submissionMsg({ ...request, submissionId: accepted.submissionId }, accepted.requestId),
+    );
+    expect(await owner.readUntil(isReceipt, "恢复后重复应答回执")).toEqual(accepted);
+    restored.sendRaw(submissionMsg({ ...request, submissionId: "迟到的放逐" }));
+    expect(await owner.readUntil(isReceipt, "迟到技能应答")).toMatchObject({
+      outcome: "rejected",
+      reasonCode: "staleDecisionPoint",
+    });
+    expect(owner.view.snapshot.players[2].skipTurns).toBe(1);
+  } finally {
+    owner.close();
+    actor.close();
+    await room.close();
   }
-  expect(reg.get(roomId)?.engine?.phase).toBe("Playing");
-  return { reg, roomId, hostToken: token, ep0, ep1, bc };
-}
-
-/** 等传输面 flush(setTimeout(0) 合并拍)落地。 */
-const flushTick = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
-
-describe("「你可」待决联机对跑(#1377 AC8):房间编排 + 双真人端点", () => {
-  it("挂窗经传输面下行;非决策座位 403;应答经命令面上行落引擎,对端校准拍收敛到决议后状态", async () => {
-    const { reg, roomId, ep0, ep1, bc } = await makeStartedRoom(42);
-    const e = reg.get(roomId)!.engine!;
-
-    armPhase(e, { activeIndex: 0, turnPhase: "AwaitingJinnang" });
-    armHero(e, 0, "caopi", ["fangzhu"]);
-    setStamina(e, 0, 30); // 70 损失 ≥60:挂待决
-    expect(e.turnPhase).toBe("AwaitingSkillChoice");
-    ep0.clear();
-    ep1.clear();
-    reg.transportBroadcast(roomId); // 挂窗拍下行(事件批先行;校准窗不含本相位)
-    await flushTick();
-    expect(ep1.byType("events").length).toBeGreaterThanOrEqual(1); // 对端收到挂窗拍事件批
-
-    // ── 上行鉴权面:非决策座位替答=403 房间编排拒绝 ──
-    await expect(
-      reg.applyCommandFromSeat(roomId, 1, { type: "respondSkillChoice", seat: 1, use: false }, bc),
-    ).rejects.toThrow("未轮到该座位决策");
-
-    // ── 被测环:决策座位应答经协议面上行落引擎(发动:罚座位 1)──
-    ep1.clear();
-    await reg.applyCommandFromSeat(
-      roomId,
-      0,
-      { type: "respondSkillChoice", seat: 0, use: true, targetSeat: 1 },
-      bc,
-    );
-    // 发动落账后回到出牌阶段，下一回合才会消费这笔跳过。
-    expect(e.pendingSkillChoices).toHaveLength(0);
-    expect(e.players[1].skipTurns).toBe(1);
-    expect(e.turnPhase).toBe("AwaitingJinnang");
-
-    // ── 下行收敛面:对端在校准拍收到的摘要携带决议后状态 ──
-    await flushTick();
-    await flushTick();
-    const shots = ep1.byType("snapshot");
-    expect(shots.length).toBeGreaterThanOrEqual(1); // 校准拍(AwaitingJinnang 窗)整房摘要随行
-    const last = shots[shots.length - 1]!;
-    const players = last.players as {
-      heroes: { heroId: string; marks?: unknown }[];
-      skipTurns: number;
-    }[];
-    const caopiRow = players[0].heroes.find((h) => h.heroId === "caopi");
-    expect(caopiRow).toBeTruthy();
-    expect(caopiRow!.marks).toBeUndefined(); // 发动归零后空容器不产键(空态=规范缺省)
-    expect(last.pendingSkillChoices).toBeUndefined(); // 待决已清:键缺席
-    expect(last.turnPhase).not.toBe("AwaitingSkillChoice"); // 窗已收,相位续走
-    const events = ep1.byType("events").flatMap((m) => m.events as { kind: string }[]);
-    expect(events).toContainEqual(
-      expect.objectContaining({ kind: "skillChoiceAnswered", targetSeat: 1, skipTurns: 1 }),
-    );
-  });
 });
+
+it.each([
+  { label: "发动", intent: "confirm", resultTarget: 1, restTurns: 3 },
+  { label: "暂不发", intent: "pass", resultTarget: null, restTurns: 2 },
+] as const)(
+  "行殇锁定进入休整的目标，$label 后继续原出牌阶段",
+  async ({ intent, resultTarget, restTurns }) => {
+    const room = await openHeadlessTestRoom([], (engine) => {
+      armHero(engine, 2, "caopi", ["xingshang"]);
+      engine.damageStamina(1, 100, 0);
+    });
+    const owner = new HeadlessPlayer(room.id, 2);
+    const actor = new HeadlessPlayer(room.id, 0);
+    try {
+      const [socket] = await Promise.all([connect(room, owner), connect(room, actor)]);
+      expect(owner.view.skillChoice).toMatchObject({
+        decision: { skillId: "xingshang", fixedTargetSeat: 1 },
+        targets: null,
+        canConfirm: true,
+        canPass: true,
+      });
+      expect(actor.view.skillChoice).toBeNull();
+      expect(owner.view.snapshot.players[1]).toMatchObject({ skipTurns: 2, resting: true });
+      expect(owner.act({ type: "toggleTarget", id: 0 })).toMatchObject({ status: "unavailable" });
+      const decisionPoint = owner.view.decisionPoint!;
+      socket.sendRaw(
+        submissionMsg({
+          roomId: room.id,
+          seat: 2,
+          decisionPoint,
+          submissionId: "换掉行殇目标",
+          cmd: { type: "respondSkillChoice", seat: 2, use: true, targetSeat: 0 },
+        }),
+      );
+      expect(await owner.readUntil(isReceipt, "行殇目标替换拒绝")).toMatchObject({
+        outcome: "rejected",
+        reasonCode: "invalidCandidate",
+      });
+      expect(owner.view.decisionPoint).toBe(decisionPoint);
+      expect(owner.act({ type: intent })).toEqual({ status: "submitted" });
+      expect(await owner.readUntil(isReceipt, "行殇应答回执")).toMatchObject({
+        outcome: "accepted",
+      });
+      await room.advance(1);
+
+      for (const player of [owner, actor]) {
+        const settlement = await readSkillAnswer(player);
+        expect(settlement.events).toContainEqual(
+          expect.objectContaining({
+            kind: "skillChoiceAnswered",
+            skillId: "xingshang",
+            targetSeat: resultTarget,
+            resumePhase: "AwaitingJinnang",
+          }),
+        );
+        expect(player.view.snapshot).toMatchObject({
+          activeIndex: 0,
+          turnPhase: "AwaitingJinnang",
+        });
+        expect(player.view.snapshot.players[1]).toMatchObject({
+          skipTurns: restTurns,
+          resting: true,
+        });
+        expect(player.view.snapshot.players[0].skipTurns).toBe(0);
+      }
+    } finally {
+      owner.close();
+      actor.close();
+      await room.close();
+    }
+  },
+);

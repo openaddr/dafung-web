@@ -12,6 +12,7 @@ import { loadMap } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { applyPlant, type PlantOp } from "@dafung/core/engine/planter";
 import { heroSlotOf, skillMarksOf } from "@dafung/core/engine/roster";
+import { skillChoiceDecisionOf } from "@dafung/core/room/skill-choice-decisions";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import pkg from "../../package.json";
@@ -140,6 +141,8 @@ beforeAll(async () => {
   setController = registryMod.setController;
   const Base = ctrlMod.GameController;
   class WiringControllerImpl extends Base {
+    private decisionRevision = 0;
+
     constructor(private readonly e: GameEngine) {
       super();
     }
@@ -150,11 +153,24 @@ beforeAll(async () => {
       return 0;
     }
 
-    override dispatchCommand(cmd: GameCommand): void {
+    override dispatchCommand(cmd: GameCommand, decisionPoint?: string): void {
+      if (
+        cmd.type === "respondSkillChoice" &&
+        (decisionPoint === undefined || decisionPoint !== this.seatView.decisionPoint)
+      )
+        throw new Error("触发卡未提交原决策点");
       this.e.submitCommand(cmd); // 引擎统一命令口:校验全在,违例当场抛(零兜底)
-      this.sync(); // 基类状态桥:与生产同一出口(snapshot/interactive 同拍刷新)
+      this.resync();
     }
     resync(): void {
+      this.observeSeatDecision(
+        this.e.turnPhase === "AwaitingSkillChoice" && this.e.decisionOwner === this.mySeat
+          ? {
+              decisionPoint: String(++this.decisionRevision),
+              decisionOptions: skillChoiceDecisionOf(this.e),
+            }
+          : { decisionPoint: null },
+      );
       this.sync();
     }
   }
@@ -225,9 +241,12 @@ describe("触发卡交互链(#1378 AC1 呈现段,层④)", () => {
     const confirm = () => q(document, TESTIDS.skillChoiceConfirm)!;
     expect(confirm().hasAttribute("disabled")).toBe(true);
     click(chip(2));
+    const selected = () => useGameStore.getState().seatView?.skillChoice?.targets?.selected;
+    expect(selected()).toEqual([2]);
     expect(hasClass(chip(2), "picked")).toBe(true);
     expect(confirm().hasAttribute("disabled")).toBe(false);
     click(chip(2));
+    expect(selected()).toEqual([]);
     expect(hasClass(chip(2), "picked")).toBe(false);
     expect(confirm().hasAttribute("disabled")).toBe(true);
     // 选定发动后，选择窗收起，目标增加一次罚跳，标记归零。

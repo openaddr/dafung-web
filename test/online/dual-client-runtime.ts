@@ -6,7 +6,12 @@ import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import type { WebSocketLike } from "@app/net/reconnecting-socket";
 import { readSeatReplica } from "@dafung/core/protocol/seat-replica";
-import { cmdMsg, submissionMsg, type ServerMsg } from "@dafung/core/protocol/wire";
+import {
+  cmdMsg,
+  isLandDecisionCommand,
+  submissionMsg,
+  type ServerMsg,
+} from "@dafung/core/protocol/wire";
 import guanzhongData from "../../packages/core/maps/guanzhong.json" with { type: "json" };
 import type {
   DualClientObservation,
@@ -181,9 +186,16 @@ async function execute(operation: DualClientOperation): Promise<void> {
     case "startGame":
       await controller.startGame();
       return;
-    case "pickCapital":
-      controller.setupPickCapital(operation.tileIndex);
+    case "pickCapital": {
+      if (
+        controller.dispatchIntent({ type: "selectCapital", tileIndex: operation.tileIndex })
+          .status !== "draft"
+      )
+        throw new Error("候选城草选失败");
+      const confirmed = controller.dispatchIntent({ type: "confirm" });
+      if (confirmed.status !== "submitted") throw new Error("都城确认失败");
       return;
+    }
     case "declineJinnang": {
       const engine = controller.engine;
       if (
@@ -192,7 +204,8 @@ async function execute(operation: DualClientOperation): Promise<void> {
         engine.decisionOwner === controller.seat &&
         controller.interactive
       ) {
-        controller.dispatchCommand({ type: "useJinnang", cardId: null });
+        const result = controller.dispatchIntent({ type: "pass" });
+        if (result.status !== "submitted") throw new Error("结束出牌未提交");
       }
       return;
     }
@@ -220,9 +233,11 @@ async function execute(operation: DualClientOperation): Promise<void> {
       const socket = sockets.at(-1);
       if (!controller.sessionReady || socket === undefined || socket.readyState !== WebSocket.OPEN)
         throw new Error("当前会话未校准,不能发送公共命令");
-      // headless 决策/反应应答沿既有传输缝,生产编码与服务器座位鉴权均保留。
       const cmd = operation.command;
-      if (cmd.type === "respondReaction") {
+      if (isLandDecisionCommand(cmd)) {
+        const result = controller.dispatchIntent({ type: "chooseLand", command: cmd.type });
+        if (result.status !== "submitted") throw new Error("城池抉择未提交");
+      } else if (cmd.type === "respondReaction") {
         // 用原窗已交付的标识复验同窗重复与窗后迟到的权威拒绝。
         if (controller.seatView.reaction !== null && decisionPoint !== null) {
           lastReactionPoint = decisionPoint;

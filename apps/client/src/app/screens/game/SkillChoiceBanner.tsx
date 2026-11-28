@@ -5,7 +5,7 @@ import { TargetActionBar, TargetActionButton } from "./TargetActionBar";
 import { TESTIDS } from "./testids";
 import "./skill-choice-banner.css";
 
-/** 目标候选笺载荷(GameScreen 从快照 choices 派生,ADR-0013 唯一可用性口径)。 */
+/** 目标候选来自本席的共享交互视图。 */
 export interface SkillChoiceSeatOption {
   seat: number;
   label: string;
@@ -19,9 +19,9 @@ interface SkillChoiceBannerProps {
   /** 已选目标座位(null=未选;seats 非空时未选则发动钮禁用)。 */
   pickedSeat: number | null;
   onPickSeat: (seat: number) => void;
-  /** 发动可用性(行殇恒可;放逐=已选目标)。 */
   confirmEnabled: boolean;
   onConfirm: () => void;
+  declineEnabled: boolean;
   onDecline: () => void;
 }
 
@@ -33,6 +33,7 @@ export function SkillChoiceBanner({
   onPickSeat,
   confirmEnabled,
   onConfirm,
+  declineEnabled,
   onDecline,
 }: SkillChoiceBannerProps) {
   return (
@@ -58,7 +59,11 @@ export function SkillChoiceBanner({
               ))}
             </div>
           )}
-          <TargetActionButton data-testid={TESTIDS.skillChoiceDecline} onClick={onDecline}>
+          <TargetActionButton
+            data-testid={TESTIDS.skillChoiceDecline}
+            disabled={!declineEnabled}
+            onClick={onDecline}
+          >
             暂不发
           </TargetActionButton>
           <TargetActionButton

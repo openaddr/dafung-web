@@ -10,7 +10,6 @@
 import type { LoadedMap } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { GameEngine } from "@dafung/core/engine/authority";
-import type { GameCommand } from "@dafung/core/engine/authority";
 import { loadMapById } from "@dafung/core/engine/map-source";
 import type { GameArchiveIdentity } from "@app/game-diagnostic-record";
 import { finishGameDiagnostics, recordGameDiagnosticError } from "@app/game-diagnostics";
@@ -28,15 +27,9 @@ import { ReconnectingSocket, type ReconnectingSocketOptions } from "@app/net/rec
 import { stashEventBatch } from "@app/net/event-feed";
 // wire 协议编解码单源(#429):下行消息类型(ServerMsg)与上行编码从这里 import——
 // 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
-import {
-  autoPilotMsg,
-  pickCapitalMsg,
-  type GameLogMsg,
-  type ServerMsg,
-  type SnapshotMsg,
-} from "@dafung/core/protocol/wire";
+import type { PlayerCommand, GameLogMsg, ServerMsg, SnapshotMsg } from "@dafung/core/protocol/wire";
 import { foldEventBatch } from "@dafung/core/protocol/event-fold";
-import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
+import { appendSeatReplicaLog, hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { abandonAllMarches } from "@app/fx/useMarch";
 import { setController } from "./registry";
 import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
@@ -46,7 +39,6 @@ export type { RoomJoinReply };
 
 interface GameLogPrefix {
   identity: GameArchiveIdentity;
-  length: number;
   missing: boolean;
 }
 
@@ -72,8 +64,7 @@ export class OnlineController extends GameController {
   private ended = false;
   private roomId: string | null = null;
   private seatToken: string | null = null;
-  private outbox = new PlayerCommandOutbox();
-  /** 归档使用独立的权威日志前缀，水合副本的日志仍由既有状态通路维护。 */
+  /** 战报与归档共用座位副本中的公开日志前缀。 */
   private gameLog: GameLogPrefix | null = null;
   /** 当前占位引擎对应的地图 id(换图守卫:同图不重建)。 */
   private mapId: string | null;
@@ -89,9 +80,6 @@ export class OnlineController extends GameController {
    *  直译改随事件帧走(锚点就地捕获传 play),快照帧的 play 由消费游标去重不再消费
    *  新批——本字段保留给快照帧的既有兜路(空批校准帧等),不再承载跨帧交接。 */
   private pendingMarchAnchors: (number | null)[] | null = null;
-  /** 托管能力:联机支持(服务器 bot 代打;单机不支持)。 */
-  override readonly autopilotSupported = true;
-
   constructor(
     map: LoadedMap,
     mapId?: string | null,
@@ -120,8 +108,8 @@ export class OnlineController extends GameController {
     return this.connectionStatus === "open";
   }
 
-  protected override commandBlockReason(): string | null {
-    return this.sessionReady ? super.commandBlockReason() : "连接未就绪";
+  protected override commandBlockReason(command?: PlayerCommand): string | null {
+    return this.sessionReady ? super.commandBlockReason(command) : "连接未就绪";
   }
 
   private setConnectionStatus(status: NetConnection): void {
@@ -135,7 +123,7 @@ export class OnlineController extends GameController {
   }
   /** 我的座位托管中(netStore seats 广播回读,公式单源 myAutoPilotOn)。 */
   get autoPilotOn(): boolean {
-    return myAutoPilotOn(useNetStore.getState());
+    return this.autopilot === undefined ? myAutoPilotOn(useNetStore.getState()) : this.autopilot.on;
   }
 
   /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意;座位数随房间,缺省 2 座)。
@@ -153,8 +141,8 @@ export class OnlineController extends GameController {
   }
 
   // ─── 命令入口:发 WS,状态由服务器广播 snapshot 驱动 ───
-  dispatchCommand(cmd: GameCommand, decisionPoint = this.decisionPoint): void {
-    const reason = this.commandBlockReason();
+  dispatchCommand(cmd: PlayerCommand, decisionPoint?: string): void {
+    const reason = this.commandBlockReason(cmd);
     if (reason !== null) {
       this.observeBlockedCommand(cmd.type, reason);
       return;
@@ -167,55 +155,15 @@ export class OnlineController extends GameController {
     }
     const roomId = this.roomId;
     if (roomId === null) throw new Error("已连接的玩家缺少房间号");
-    this.pending = true;
-    // UI F3:pending 透传 netStore(HandPanel 读 netStore.pending 显示「行军中…」;
-    // 不给基类加 seam,联机/单机经同一 store 字段取态,单机恒 false)。
-    useNetStore.getState().setPending(true);
+    const point = this.commandPoint(cmd, decisionPoint);
+    if (cmd.type !== "setAutoPilot") {
+      this.pending = true;
+      useNetStore.getState().setPending(true);
+    }
     this.sendObservedCommand(cmd.type, (id) => {
-      sock.send(
-        this.outbox.encode(
-          cmd,
-          roomId,
-          this.seat,
-          this.engine.pendingJinnang?.cardId ?? null,
-          decisionPoint,
-          id,
-        ),
-      );
+      sock.send(this.outbox.encode(cmd, roomId, this.seat, point, id));
     });
     this.sync(); // 刷新 interactive(pending 期间锁操作)
-  }
-
-  /** 自助托管(spec: autopilot):发 WS 消息,生效状态从 seats 广播回读(无乐观更新)。 */
-  override setAutoPilot(on: boolean): void {
-    const sock = this.sock;
-    if (!this.sessionReady || !sock?.isOpen) {
-      this.observeBlockedCommand("autoPilot", "连接未就绪");
-      useGameStore.getState().pushHint("连接未就绪");
-      return;
-    }
-    this.sendObservedCommand("autoPilot", (id) => sock.send(autoPilotMsg(on, id)));
-  }
-
-  /** Setup(PickCapital)落子(L41 联机):发 WS {type:"pickCapital"}——轮次/候选校验
-   *  在服务器(room.pickCapital),生效靠广播快照(候选滚换/推进/进 Playing)。
-   *  与 dispatchCommand 同用 pending 防连点;托管中不发(服务器 bot 代选)。 */
-  override setupPickCapital(tileIndex: number): void {
-    const reason = this.sessionReady ? this.capitalPickBlockReason() : "连接未就绪";
-    if (reason !== null) {
-      this.observeBlockedCommand("pickCapital", reason);
-      return;
-    }
-    const sock = this.sock;
-    if (!sock?.isOpen) {
-      this.observeBlockedCommand("pickCapital", "连接未就绪");
-      useGameStore.getState().pushHint("连接未就绪");
-      return;
-    }
-    this.pending = true;
-    useNetStore.getState().setPending(true);
-    this.sendObservedCommand("pickCapital", (id) => sock.send(pickCapitalMsg(tileIndex, id)));
-    this.sync(); // pending 期间锁重复提交
   }
 
   // ─── REST(建房/加入/选图/开局;协议与旧 network-client 一致)──
@@ -256,6 +204,7 @@ export class OnlineController extends GameController {
   /** 从已收窄的入座回包取凭证并建立 WS;房间字段灌 netStore(大厅屏初渲染)。 */
   private adoptRoom(reply: RoomJoinReply): void {
     this.outbox = new PlayerCommandOutbox();
+    this.observeSeatDecision({ decisionPoint: null });
     this.roomId = reply.roomId;
     this.seat = reply.seat;
     this.seatToken = reply.seatToken;
@@ -290,7 +239,7 @@ export class OnlineController extends GameController {
     const previous = this.sock;
     this.sock = null;
     previous?.close();
-    this.forgetCommandRequests(this.outbox.requestId);
+    this.forgetCommandRequests(...this.outbox.requestIds);
     this.fx.dropStalledBatch();
     this.setConnectionStatus("connecting");
     this.sync();
@@ -312,7 +261,7 @@ export class OnlineController extends GameController {
       if (s === "open") {
         this.fx.resetEventFace();
       } else {
-        this.forgetCommandRequests(this.outbox.requestId);
+        this.forgetCommandRequests(...this.outbox.requestIds);
         this.fx.dropStalledBatch();
       }
       this.setConnectionStatus(s === "open" ? "calibrating" : s);
@@ -398,10 +347,10 @@ export class OnlineController extends GameController {
       this.mapLoad = null;
       if (this._engine.gameId !== msg.gameId) {
         finishGameDiagnostics(this);
-        this.forgetCommandRequests(this.outbox.requestId);
+        this.forgetCommandRequests(...this.outbox.requestIds);
       }
       const { type: _t, reactionTiming, ...snap } = msg;
-      this.decisionPoint = msg.decisionPoint;
+      this.observeSeatDecision(msg);
       // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
       // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
       // #386:同 tick 事件批已先行折叠推进 position,视觉停点改用折叠前捕获的锚点;
@@ -428,10 +377,10 @@ export class OnlineController extends GameController {
       this.checkRollSeal();
       this.sync({ reconnect: recovering });
       this.anchorGameLog(msg, receivedAt, receivedAtMonotonic);
-      const retry = this.outbox.unacknowledged;
-      if (recovering && retry !== null) {
+      const retries = this.outbox.unacknowledged;
+      if (recovering && retries.length > 0) {
         if (this.sock === null) throw new Error("重连摘要缺少原座连接");
-        this.sock.send(retry);
+        for (const retry of retries) this.sock.send(retry);
       }
       // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
       if (!this.enteredGame) {
@@ -464,7 +413,7 @@ export class OnlineController extends GameController {
       // 该窗口内唯一状态来源。
       const hydrated = this.enteredGame;
       if (hydrated) {
-        this.decisionPoint = msg.decisionPoint;
+        this.observeSeatDecision(msg);
         foldEventBatch(this._engine, msg.events);
         this.observeReactionTiming(msg.reactionTiming, receivedAtMonotonic);
       }
@@ -511,7 +460,7 @@ export class OnlineController extends GameController {
     this.sock = null;
     sock?.close();
     this.mapLoad = null;
-    this.forgetCommandRequests(this.outbox.requestId);
+    this.forgetCommandRequests(...this.outbox.requestIds);
     this.fx.dropStalledBatch();
     this.clearPending();
     this.connectionStatus = "failed";
@@ -523,7 +472,6 @@ export class OnlineController extends GameController {
     const identity: GameArchiveIdentity = { gameId: msg.gameId, mode: "online", mapId: msg.mapId };
     this.gameLog = {
       identity,
-      length: msg.log.length,
       missing: false,
     };
     this.observeAuthorityLog({
@@ -543,26 +491,27 @@ export class OnlineController extends GameController {
       return;
     }
     if (prefix.missing) return;
-    const expected = prefix.length;
-    if (!Number.isSafeInteger(msg.offset) || msg.offset < 0 || msg.offset > expected) {
+    let added: ReturnType<typeof appendSeatReplicaLog>;
+    try {
+      added = appendSeatReplicaLog(this._engine, msg);
+    } catch (error) {
       prefix.missing = true;
-      this.reportLogError(`联机日志断档，预期偏移 ${expected}，收到 ${msg.offset}`);
+      this.reportLogError((error as Error).message);
       return;
     }
-    const firstNew = expected - msg.offset;
-    if (firstNew >= msg.lines.length) return;
-    prefix.length = msg.offset + msg.lines.length;
-    const lines = firstNew === 0 ? msg.lines : msg.lines.slice(firstNew);
+    if (added === null) return;
+    const { offset, lines } = added;
     this.observeAuthorityLog({
       gameId: msg.gameId,
       at: receivedAtMonotonic,
       source: "tail",
-      offset: expected,
+      offset,
       count: lines.length,
     });
-    void archiveGameLogTail(prefix.identity, expected, lines, receivedAt).catch(
+    void archiveGameLogTail(prefix.identity, offset, lines, receivedAt).catch(
       this.reportArchiveFailure,
     );
+    this.sync();
   }
 
   private reportLogError(message: string): void {

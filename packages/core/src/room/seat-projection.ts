@@ -10,6 +10,7 @@
 // (个人项目,不考虑旧协议兼容;客户端 network-client.ts 同步改。)
 import type { GameCommand, GameEngine, TurnPhase } from "../engine/authority";
 import type { GameSnapshot } from "../engine/snapshot";
+import { capitalChoiceOf } from "../engine/setup-flow";
 import {
   COMMAND_WARNING_REASONS,
   isLogWarning,
@@ -22,12 +23,25 @@ import { EVENT_TIERS, type EventKind } from "../engine/event-tiers";
 import { HEROES } from "../engine/heroes";
 import { SKILLS } from "../engine/skills";
 import { createTreasureDeck, SKILL_BOOK_ID_PREFIX } from "../engine/treasures";
+import { bankruptcyDecisionOf } from "./bankruptcy-decisions";
+import { landDecisionOf } from "./land-decisions";
 import { seatDecisionPointOf } from "./player-submissions";
 import { reactionTimingOf } from "./reaction-deadline";
+import { recruitmentDecisionOf } from "./recruitment-decisions";
+import { heroDismissalOptionsOf, skillBookOptionsOf } from "./roster-decisions";
+import { skillChoiceDecisionOf } from "./skill-choice-decisions";
+import { treasureDecisionOf } from "./treasure-decisions";
 import type { RoomSession } from "./room";
+import { reactionChoicesForSeat } from "../protocol/reaction-choices";
 // 下行封装构造收口 wire.ts(#429):装配口只管形状与裁剪,序列化不另起炉灶。
 // (wire 对本模块/room 的引用全是 type 导入,构建期擦除,无运行时环。)
-import { encodeDownlink, eventsMsg, type GameLogMsg } from "../protocol/wire";
+import {
+  encodeDownlink,
+  eventsMsg,
+  type AutopilotDecision,
+  type DecisionOptions,
+  type GameLogMsg,
+} from "../protocol/wire";
 
 // ──────────────────────────── 纯视图(传输层与持久化都不参与)────────────────────────────
 /** 座位元数据:lobbyView/clientView 都从这里取(字段与原 server.ts 一致,客户端依赖)。
@@ -90,7 +104,7 @@ export type SeatSnapshot = Omit<GameSnapshot, "rngState" | "pendingReaction"> & 
   pendingReaction: Omit<PendingReaction, "payload"> | null;
 };
 
-/** 应答者可回读自己的选份，其他座位只见公告与应答进度。 */
+/** 应答者可回读自己的用牌位置与选份，其他座位只见公告与应答进度。 */
 export function projectSeatReaction(
   pending: SeatSnapshot["pendingReaction"],
   seat: number,
@@ -101,7 +115,7 @@ export function projectSeatReaction(
     view: redactReactionView(pending.view, seat),
     answers: pending.answers.map((answer) => {
       if (answer.seat === seat) return answer;
-      const { target: _target, ...announced } = answer;
+      const { target: _target, handIndex: _handIndex, ...announced } = answer;
       return announced;
     }),
   };
@@ -172,11 +186,10 @@ function projectLogCommand(cmd: LoggedCommand): Record<string, unknown> | null {
               }))
           : undefined,
       };
-    case "useJinnang":
-      // 选牌、选目标与结算走同一命令。公开面只记出牌公告和玩法结果。
-      return null;
     case "useHeroSkill":
-      return { type, cancel: cmd.cancel === true ? true : undefined };
+    case "useJinnang":
+      // 选中、选目标与结算走同一命令。公开战报记录宣布和结算结果。
+      return null;
     case "useBookSkill":
       return {
         type,
@@ -229,10 +242,8 @@ function projectGameLogLine(line: LogEvent): LogEvent | null {
     return { ...line, detail: line.detail.split(" heroes=")[0] };
   }
   if (line.category !== "system") return line;
-  if (line.detail.startsWith("jinnangCancel ")) return null;
-  if (line.detail.startsWith("heroSkillCancel ")) {
-    return { ...line, brief: `${line.player} 作罢主动技`, detail: line.detail.split(" skill=")[0] };
-  }
+  if (line.detail.startsWith("jinnangCancel ") || line.detail.startsWith("heroSkillCancel "))
+    return null;
   if (line.detail.startsWith("reactionWindow kind=jinnang ")) {
     const [announcement, queried] = line.detail.split(" queried=");
     const count = queried === "" ? 0 : queried.split("+").length;
@@ -370,7 +381,7 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat: numbe
  *    · jinnangDrawn 仅摸牌座位可见 cardIds，座位、张数和来源（含城格）公开。
  *    · jinnangTargetStepChanged 仅交付操作座位。
  *    · jinnangAnnounced 的牌面和目标公开，离手前的手牌位置仅发给出牌座位。
- *    · reactionAnswered 仅给应答者本人回读其按份应答选择的对象。
+ *    · reactionAnswered 只给持牌席回读所选份与实际扣牌位置。
  *    · reactionOpened 的 jinnang 窗——view.queriedBySeat 是 per-seat private 档(god-view
  *      全集 = 谁持识破诡计,#281/ADR-0016 同案)。裁剪口径=**身份匿名、数量保留**:
  *      接收座位在列保留自己座位,其余一律置换 ANON_SEAT。数量必须保留:折叠器
@@ -407,9 +418,21 @@ export function redactEvents(
         return announcement;
       }
       case "reactionAnswered": {
-        if (ev.seat === seat || ev.target === undefined) return ev;
-        const { target: _target, ...answer } = ev;
-        return answer;
+        const { handIndex, target, spentCards, ...answer } = ev;
+        return {
+          ...answer,
+          ...(ev.seat === seat && handIndex !== undefined ? { handIndex } : {}),
+          ...(ev.seat === seat && target !== undefined ? { target } : {}),
+          ...(spentCards === undefined
+            ? {}
+            : {
+                spentCards: spentCards.map((card) => {
+                  if (card.seat === seat) return card;
+                  const { handIndex: _handIndex, ...announced } = card;
+                  return announced;
+                }),
+              }),
+        };
       }
       // ── 透传族(全桌公开,原样)──
       case "gameStarted":
@@ -472,9 +495,60 @@ export function redactEvents(
 }
 
 // ──────────────────────────── 单拍下行装配(#431,发送总口单点执行体)────────────────────────────
+export interface SeatDecisionCursor {
+  decisionPoint: string | null;
+  autopilotDecisionPoint: string | null;
+}
+
 interface DownlinkShot {
   events: string | null;
-  decisionPoint: string | null;
+  decisionCursor: SeatDecisionCursor;
+}
+
+/** 已入座真人可以在对局期间切换本席托管，权限随实际开关转移而更新。 */
+export function autopilotDecisionOf(r: RoomSession, seat: number): AutopilotDecision | undefined {
+  const engine = r.engine;
+  if (
+    engine === null ||
+    engine.isOver ||
+    r.seats[seat]?.token == null ||
+    engine.players[seat].isBot
+  )
+    return undefined;
+  return {
+    decisionPoint: `${engine.gameId}/autopilot/${seat}/${r.autopilotRevisions[seat]}`,
+    on: r.autoPilot.has(seat),
+  };
+}
+
+function decisionOptionsOf(e: GameEngine, seat: number): DecisionOptions {
+  if (e.phase === "Setup") {
+    return {
+      kind: "pickCapital",
+      options: e.offeredCapitals.map((tileIndex) => {
+        const option = capitalChoiceOf(e, seat, tileIndex);
+        if (!("tileIndex" in option)) throw new Error(`选都候选 ${tileIndex}：${option.reason}`);
+        return option;
+      }),
+    };
+  }
+  if (e.turnPhase === "AwaitingJinnang") {
+    const skillBooks = skillBookOptionsOf(e);
+    return {
+      kind: "playJinnang",
+      choices: e.choicesFor(),
+      pendingJinnang: e.pendingJinnang,
+      pendingSkill: e.pendingSkill,
+      ...(skillBooks.length === 0 ? {} : { skillBooks }),
+    };
+  }
+  if (e.turnPhase === "AwaitingDecision") return landDecisionOf(e);
+  if (e.turnPhase === "AwaitingHeroPick") return recruitmentDecisionOf(e);
+  if (e.turnPhase === "AwaitingTreasureOwner") return treasureDecisionOf(e);
+  if (e.turnPhase === "AwaitingBankruptcySettle") return bankruptcyDecisionOf(e);
+  if (e.turnPhase === "AwaitingReaction") return reactionChoicesForSeat(e, seat);
+  if (e.turnPhase === "AwaitingSkillChoice") return skillChoiceDecisionOf(e);
+  return { kind: "heroDismissal" };
 }
 
 /** 单机和联机按接收座位装配同一种 JSON 下行。事件批携带当次授权，首连、重连和校准
@@ -492,7 +566,7 @@ export function assembleDownlinkShot(
   viewerSeat: number,
   batch: readonly GameEvent[],
   withSnapshot: false,
-  previousDecisionPoint?: string | null,
+  previousDecision?: SeatDecisionCursor,
 ): DownlinkShot & { snapshot: null; logCursor: null };
 export function assembleDownlinkShot(
   r: RoomSession,
@@ -500,7 +574,7 @@ export function assembleDownlinkShot(
   viewerSeat: number,
   batch: readonly GameEvent[],
   withSnapshot: boolean,
-  previousDecisionPoint?: string | null,
+  previousDecision?: SeatDecisionCursor,
 ): DownlinkShot & { snapshot: string | null; logCursor: GameLogCursor | null } {
   const e = r.engine;
   const view = e?.turnPhase === "AwaitingReaction" ? e.pendingReaction?.view : null;
@@ -512,21 +586,37 @@ export function assembleDownlinkShot(
       ? reactionTimingOf(r)
       : undefined;
   const decisionPoint = seatDecisionPointOf(r, viewerSeat);
+  let decisionOptions: DecisionOptions | undefined;
+  if (e !== null && decisionPoint !== null) {
+    const main = decisionOptionsOf(e, viewerSeat);
+    const heroDismissals =
+      e.phase === "Playing" && viewerSeat === e.activeIndex ? heroDismissalOptionsOf(e) : [];
+    decisionOptions = heroDismissals.length === 0 ? main : { ...main, heroDismissals };
+  }
+  const autopilot = autopilotDecisionOf(r, viewerSeat);
+  const decisionCursor = {
+    decisionPoint,
+    autopilotDecisionPoint: autopilot?.decisionPoint ?? null,
+  };
   const visibleEvents = redactEvents(batch, viewerSeat);
   // 房间元数据可单独改变本席的操作权，例如在原反应窗内收回托管。
   const decisionChanged =
-    previousDecisionPoint !== undefined && decisionPoint !== previousDecisionPoint;
+    previousDecision !== undefined &&
+    (decisionPoint !== previousDecision.decisionPoint ||
+      decisionCursor.autopilotDecisionPoint !== previousDecision.autopilotDecisionPoint);
   const events =
     visibleEvents.length > 0 || decisionChanged
-      ? eventsMsg(visibleEvents, reactionTiming, decisionPoint)
+      ? eventsMsg(visibleEvents, reactionTiming, decisionPoint, decisionOptions, autopilot)
       : null;
-  if (!withSnapshot) return { events, decisionPoint, snapshot: null, logCursor: null };
+  if (!withSnapshot) return { events, decisionCursor, snapshot: null, logCursor: null };
   const snapshot = clientView(r, onlineSeats, viewerSeat);
   return {
     events,
-    decisionPoint,
+    decisionCursor,
     snapshot: encodeDownlink(
-      snapshot.type === "snapshot" ? { ...snapshot, reactionTiming, decisionPoint } : snapshot,
+      snapshot.type === "snapshot"
+        ? { ...snapshot, reactionTiming, decisionPoint, decisionOptions, autopilot }
+        : snapshot,
     ),
     logCursor:
       snapshot.type === "snapshot"

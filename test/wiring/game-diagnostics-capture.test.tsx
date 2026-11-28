@@ -17,10 +17,20 @@ import { GameEngine } from "@dafung/core/engine/authority";
 import { loadMap, type MapData } from "@dafung/core/engine/board-loader";
 import { createDice } from "@dafung/core/engine/dice";
 import { armPhase, giveJinnang } from "@dafung/core/engine/planter";
+import { capitalChoiceOf } from "@dafung/core/engine/setup-flow";
+import {
+  reactionChoicesForSeat,
+  reactionQueriesSeat,
+} from "@dafung/core/protocol/reaction-choices";
 import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { assembleGameLogDelta, redactSnapshotForSeat } from "@dafung/core/room/seat-projection";
-import { encodeDownlink, type ReactionTiming, type ServerMsg } from "@dafung/core/protocol/wire";
+import {
+  encodeDownlink,
+  type InboundMsg,
+  type ReactionTiming,
+  type ServerMsg,
+} from "@dafung/core/protocol/wire";
 import pkg from "../../package.json";
 import rawGuanzhongData from "../../packages/core/maps/guanzhong.json";
 import { installControlledClock } from "./controlled-clock";
@@ -60,8 +70,11 @@ class BoundarySocket implements WebSocketLike {
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
   onmessage: ((event: { data: unknown }) => void) | null = null;
+  sent: string | null = null;
 
-  send(): void {}
+  send(frame: string): void {
+    this.sent = frame;
+  }
 
   close(): void {
     this.readyState = 3;
@@ -159,11 +172,43 @@ function snapshotOf(
   engine: GameEngine,
   reactionTiming?: ReactionTiming,
 ): Extract<ServerMsg, { type: "snapshot" }> {
+  const capital = engine.phase === "Setup" && engine.currentSetupPlayerIndex === 1;
+  const jinnang =
+    engine.phase === "Playing" &&
+    engine.turnPhase === "AwaitingJinnang" &&
+    engine.decisionOwner === 1;
+  const pending = engine.pendingReaction;
+  const asked = pending !== null && reactionQueriesSeat(pending.view, 1);
   return {
     type: "snapshot",
     ...ROOM,
     ...redactSnapshotForSeat(engine.snapshot(), 1),
-    decisionPoint: engine.pendingReaction ? `test/reaction/${engine.pendingReaction.seq}/1` : null,
+    decisionPoint: capital
+      ? "test/capital/1"
+      : asked
+        ? `test/reaction/${pending.seq}/1`
+        : jinnang
+          ? "test/jinnang/1"
+          : null,
+    decisionOptions: capital
+      ? {
+          kind: "pickCapital",
+          options: engine.offeredCapitals.map((tileIndex) => {
+            const option = capitalChoiceOf(engine, 1, tileIndex);
+            if (!("tileIndex" in option)) throw new Error(option.reason);
+            return option;
+          }),
+        }
+      : jinnang
+        ? {
+            kind: "playJinnang",
+            choices: engine.choicesFor(),
+            pendingJinnang: engine.pendingJinnang,
+            pendingSkill: engine.pendingSkill,
+          }
+        : asked
+          ? reactionChoicesForSeat(engine, 1)
+          : undefined,
     reactionTiming,
   };
 }
@@ -213,7 +258,9 @@ it("联机日志截止使用收包时钟，尾段和校准锚持续推进可信�
     socket.receive(tail);
     clock.mockReturnValue(receivedAt + 20);
     socket.receive(tail);
-    expect(useGameStore.getState().snapshot?.log).toEqual(opening.log);
+    const visibleLog = useGameStore.getState().snapshot;
+    expect(visibleLog?.log).toEqual([...opening.log, ...tail.lines]);
+    expect(visibleLog?.logCount).toBe(tail.offset + tail.lines.length);
     authority.logRoomEvent("离线记录", '{"type":"offline","seat":0}');
     authority.logRoomEvent("原座恢复记录", '{"type":"online","seat":0}');
     const end = tail.offset + tail.lines.length;
@@ -588,12 +635,20 @@ it("保存离场前的同局交互、报错和帧诊，另起一局各自可取"
   await act(async () => getAudio().play("cityConquest"));
 
   act(() => {
-    controller.dispatchCommand({ type: "useJinnang", cardId: null });
-    sockets[1]!.receive({
-      type: "error",
-      requestId: 1,
-      error: "令牌失效：token=seat-only-secret wss://diagnostics.test/ws",
+    const socket = sockets[1]!;
+    controller.dispatchCommand({ type: "useHeroSkill", heroId: "zhangxingcai", skillId: "leigu" });
+    if (socket.sent === null) throw new Error("主动技未发送");
+    const frame = JSON.parse(socket.sent) as InboundMsg;
+    if (frame.type !== "submit") throw new Error("主动技缺少座位提交");
+    socket.receive({
+      type: "submissionResult",
+      requestId: frame.requestId,
+      submissionId: frame.submission.submissionId,
+      outcome: "rejected",
+      reasonCode: "wrongSeat",
+      reason: "令牌失效：token=seat-only-secret wss://diagnostics.test/ws",
     });
+    controller.dispatchCommand({ type: "useJinnang", cardId: "横征暴敛", handIndex: 0 });
     useGameStore.getState().pushHint("出牌等待回包");
     window.dispatchEvent(
       new ErrorEvent("error", {
@@ -634,13 +689,14 @@ it("保存离场前的同局交互、报错和帧诊，另起一局各自可取"
   );
   expect(connections).toEqual(["closed", "gaveUp", "connecting", "calibrating", "open"]);
   expect(events?.filter((event) => event.kind === "command")).toEqual([
-    expect.objectContaining({ stage: "sent", command: "useJinnang", id: 1 }),
+    expect.objectContaining({ stage: "sent", command: "useHeroSkill", id: 1 }),
     expect.objectContaining({
       stage: "result",
       id: 1,
       outcome: "rejected",
       reason: expect.stringContaining("令牌失效"),
     }),
+    expect.objectContaining({ stage: "sent", command: "useJinnang", id: 2 }),
   ]);
   const conquest = events
     ?.filter((event) => event.kind === "audio")

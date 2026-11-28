@@ -33,6 +33,7 @@ import {
   learnSkillInSlot,
   rollGrantedSkills,
   skillBookLearners,
+  skillBookStudyBlocked,
   type HeroSlot,
 } from "./roster";
 import { grantHeroOrBooks } from "./recruitment";
@@ -315,6 +316,7 @@ export function resolveJinnang(
   if (cardId == null) {
     g.logEvent("system", p.guohao, `${p.guohao} 锦囊今不用`, `jinnangPass player=${p.id}`);
     g.turnPhase = "Roll";
+    emitGameEvent(g, userSeat, { kind: "jinnangPhaseResumed", turnPhase: "Roll" });
     return;
   }
   // 只给牌名的既有命令按从左到右的顺序出第一张同名牌。
@@ -732,7 +734,7 @@ export function settleJinnangExit(g: GameEngine, cancelledTwoStepTargets = false
  *  目标段子状态(pendingJinnang/pendingSkill)在场时=跨子状态误用,警告拒绝。 */
 export function resolveBookSkill(g: GameEngine, treasureId: string, heroId: string): void {
   if (!g.assertPhase("AwaitingJinnang", "resolveBookSkill")) return;
-  if (g.pendingJinnang || g.pendingSkill) {
+  if (skillBookStudyBlocked(g)) {
     g.warnCommand("targetStepMismatch", `目标段内收到用书命令:${treasureId}`);
     return;
   }

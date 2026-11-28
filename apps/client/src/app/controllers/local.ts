@@ -15,14 +15,15 @@
 // 自动起摇/反应窗定时器全部删除——单机与联机从此只差「传输在不在网上」。
 import type { LoadedMap } from "@dafung/core/engine/board-loader";
 import { GameEngine } from "@dafung/core/engine/authority";
-import type { GameCommand, SeatConfig } from "@dafung/core/engine/authority";
+import type { SeatConfig } from "@dafung/core/engine/authority";
 import { createDice } from "@dafung/core/engine/dice";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
-import { archiveEngineLog } from "@app/gameLogArchive";
+import type { GameArchiveIdentity } from "@app/game-diagnostic-record";
+import { archiveGameLog, archiveGameLogTail } from "@app/gameLogArchive";
 import { stashEventBatch } from "@app/net/event-feed";
 import { foldEventBatch } from "@dafung/core/protocol/event-fold";
-import { hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
+import { appendSeatReplicaLog, hydrateSeatReplica } from "@dafung/core/protocol/seat-replica";
 import { e2eBotStepMs, e2eReactionWindowMs } from "@app/fx/timings";
 import { createMemorySocketPair, type MemoryHostEnd, type SeatTransport } from "@app/net/transport";
 import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
@@ -35,13 +36,11 @@ import type { RoomRecord } from "@dafung/core/room/room-record";
 // wire 协议编解码单源(#429):上行编码(cmdMsg 等)+ 解析分发(dispatchInbound)、
 // 下行消息类型(ServerMsg)全部从这里 import,与联机 server.ts/online.ts 同一份。
 import {
-  autoPilotMsg,
   dispatchInbound,
   errorMsg,
-  pickCapitalMsg,
+  type PlayerCommand,
   type ServerMsg,
 } from "@dafung/core/protocol/wire";
-import { PlayerCommandOutbox } from "@dafung/core/protocol/player-command-outbox";
 import { GameController } from "./controller";
 
 /** 单机开局配置(房间通路):与联机 createRoom/hostConfig 同构。座位表只取
@@ -86,7 +85,6 @@ export class LocalController extends GameController {
   /** Worker 时钟(#399):看门狗/托管节拍挂 Worker,失焦照跑(后台节流免疫)。 */
   private readonly clock: WorkerClock;
   private readonly roomId: string;
-  private readonly outbox = new PlayerCommandOutbox();
   private readonly seatToken: string;
   /** 内存双工客户端端点(命令上行/消息下行的唯一通路;与联机 WS 传输同接口)。 */
   private readonly sock: SeatTransport;
@@ -102,14 +100,10 @@ export class LocalController extends GameController {
   protected override get mySeat(): number {
     return this.seat;
   }
-  override readonly autopilotSupported = true;
-
   constructor(map: LoadedMap, config: SoloRoomConfig, clockOverride?: WorkerClock) {
     super();
     const guohao = config.seats[0]?.guohao;
     const botIdx = new Set(config.seats.flatMap((s, i) => (s.isBot ? [i] : [])));
-    // ADR-0014 单机对局日志:registry 每次 persist(每手快照)后增量归档 IndexedDB——
-    // 挂在编排 persist 通道上,与旧锁步 sync() 的归档节奏同源(每手一次)。
     // Worker 时钟(#399):编排节拍(看门狗/托管步进)不随页面可见性漂移。
     // clockOverride:测试注入缝(#642 出口③假 clock),生产缺省自建真实 Worker 时钟。
     this.clock = clockOverride ?? createWorkerClock();
@@ -120,21 +114,14 @@ export class LocalController extends GameController {
     // #730 bot 步进配速(单机形态):解析链 = 显式注入(config.botStepMs,bun 单测
     // 传 0)→ e2e localStorage 键 → core BOT_STEP_MS(ADR-0061 产出端配速)。
     const botStepMs = config.botStepMs ?? e2eBotStepMs() ?? BOT_STEP_MS;
-    this.registry = new RoomRegistry(
-      new MemoryRoomPersistence(),
-      undefined,
-      (room) => {
-        if (room.engine) archiveEngineLog(room.engine);
-      },
-      {
-        clock: this.clock,
-        // #642 出口②:驱动链停摆作废窗口(单机 30s,core/timings 单源)。不经
-        // decisionTimeoutMs——后者单机保持缺省关,#118 human-turn 既有 stall 零变化。
-        stallAbortMs: STALL_ABORT_MS,
-        botStepMs,
-        ...(reactionWindowMs > 0 ? { reactionWindowMs } : {}),
-      },
-    );
+    this.registry = new RoomRegistry(new MemoryRoomPersistence(), undefined, undefined, {
+      clock: this.clock,
+      // #642 出口②:驱动链停摆作废窗口(单机 30s,core/timings 单源)。不经
+      // decisionTimeoutMs——后者单机保持缺省关,#118 human-turn 既有 stall 零变化。
+      stallAbortMs: STALL_ABORT_MS,
+      botStepMs,
+      ...(reactionWindowMs > 0 ? { reactionWindowMs } : {}),
+    });
     // #642 出口③:时钟挂死(worker 崩溃/内部异常)= 编排节拍永久不可靠 → 对局作废
     // 响亮终局,错误摘要进 abort reason 与对局日志(经房间 abortGame 常规 persist/下行)。
     // 终局拍显式同步直下(flushTransportNow):作废是单条终局转移,无合并可等,副本
@@ -219,7 +206,7 @@ export class LocalController extends GameController {
   /** 我的座位托管中(下行快照房间字段回读,与联机 seats 广播回读同路,无本地乐观态)。
    *  构造返回前首帧已同步水合,缺少座位信息是协议装配错误。 */
   override get autoPilotOn(): boolean {
-    return this.requireRoomSeat().autoPilot;
+    return this.autopilot === undefined ? this.requireRoomSeat().autoPilot : this.autopilot.on;
   }
 
   private requireRoomSeat(): NetSeatMeta {
@@ -230,45 +217,18 @@ export class LocalController extends GameController {
   }
 
   // ─── 命令入口(上行经内存双工,与联机 WS 同一条 wire 编码)───
-  dispatchCommand(cmd: GameCommand, decisionPoint = this.decisionPoint): void {
-    const reason = this.commandBlockReason();
+  dispatchCommand(cmd: PlayerCommand, decisionPoint?: string): void {
+    const reason = this.commandBlockReason(cmd);
     if (reason !== null) {
       this.observeBlockedCommand(cmd.type, reason);
       return;
     }
-    this.pending = true;
+    const point = this.commandPoint(cmd, decisionPoint);
+    if (cmd.type !== "setAutoPilot") this.pending = true;
     this.sendObservedCommand(cmd.type, (id) => {
-      this.sock.send(
-        this.outbox.encode(
-          cmd,
-          this.roomId,
-          this.seat,
-          this.engine.pendingJinnang?.cardId ?? null,
-          decisionPoint,
-          id,
-        ),
-      );
+      this.sock.send(this.outbox.encode(cmd, this.roomId, this.seat, point, id));
     });
     this.sync(); // 刷新 interactive(pending 期间锁操作)
-  }
-
-  /** Setup(PickCapital)落子:发 WS 同款 {type:"pickCapital"},轮次/候选校验在房间
-   *  编排(room.pickCapital),生效靠下行拍(候选滚换/推进/进 Playing)。相位字段读
-   *  水合副本;Setup 字段由共享校准窗的快照覆盖。 */
-  override setupPickCapital(tileIndex: number): void {
-    const reason = this.capitalPickBlockReason();
-    if (reason !== null) {
-      this.observeBlockedCommand("pickCapital", reason);
-      return;
-    }
-    this.pending = true;
-    this.sendObservedCommand("pickCapital", (id) => this.sock.send(pickCapitalMsg(tileIndex, id)));
-    this.sync();
-  }
-
-  /** 自助托管:发 {type:"autoPilot"},生效态从下行快照房间字段回读(无乐观更新,联机同构)。 */
-  override setAutoPilot(on: boolean): void {
-    this.sendObservedCommand("autoPilot", (id) => this.sock.send(autoPilotMsg(on, id)));
   }
 
   /** 销毁 = 进程内房间解散(看门狗/传输面残表随 dismissRoom 一并清)+ 端点关闭
@@ -276,10 +236,23 @@ export class LocalController extends GameController {
    *  同语义);基类退订行军会话订阅(#611)。 */
   override destroy(): void {
     super.destroy();
-    this.sock.close();
-    this.registry.dismissRoom(this.roomId, this.seatToken);
-    this.clock.dispose();
-    useNetStore.getState().resetEventFace();
+    this.enteredGame = false;
+    try {
+      this.registry.dismissRoom(this.roomId, this.seatToken);
+    } finally {
+      this.sock.close();
+      this.clock.dispose();
+      useNetStore.getState().resetEventFace();
+    }
+  }
+
+  private logIdentity(): GameArchiveIdentity {
+    const { gameId, mapId } = this._engine;
+    return { gameId, mode: "solo", mapId: mapId === "" ? null : mapId };
+  }
+
+  private reportArchiveFailure(error: unknown): void {
+    console.error("[logArchive] 单机日志归档失败:", error);
   }
 
   // ─── 下行消费(events 先行、整房摘要随后;与联机 OnlineController 同形,#1241)───
@@ -293,13 +266,23 @@ export class LocalController extends GameController {
     }
     if (msg.type === "snapshot") {
       const { type: _t, reactionTiming, ...snap } = msg;
-      this.decisionPoint = msg.decisionPoint;
+      this.observeSeatDecision(msg);
       // 转移前各座位棋子位置(行军锚定基准):hydrate 覆盖引擎态前捕获——反应窗余段
       // 行军按「视觉停点 → 落点」截短播用(与联机快照帧同口径)。
       const prePositions = this._engine.players.map((p) => p.position);
       this.applyRoomFields(msg.seats); // 托管态等房间字段单源下行(不再直查房间会话)
       // 水合无条件覆盖全部字段(校准锚,ADR-0020 决策 3):折叠漂移在此归零。
       hydrateSeatReplica(this._engine, snap);
+      this.observeAuthorityLog({
+        gameId: snap.gameId,
+        at: receivedAtMonotonic,
+        source: "snapshot",
+        offset: 0,
+        count: snap.logCount,
+      });
+      void archiveGameLog(this.logIdentity(), snap.log, Date.now()).catch(
+        this.reportArchiveFailure,
+      );
       this.observeReactionTiming(reactionTiming, receivedAtMonotonic);
       this.pending = this.outbox.waitingFor(this.decisionPoint);
       // 演出(#385):netStore 暂存的事件批经 SnapshotEffects 直译播放;本帧无批
@@ -322,7 +305,7 @@ export class LocalController extends GameController {
       // 首帧摘要随建连同步到达,此门正常恒开;保留同形门 = 消息处理与联机一处形制。
       const hydrated = this.enteredGame;
       if (hydrated) {
-        this.decisionPoint = msg.decisionPoint;
+        this.observeSeatDecision(msg);
         foldEventBatch(this._engine, msg.events);
         this.observeReactionTiming(msg.reactionTiming, receivedAtMonotonic);
       }
@@ -338,7 +321,23 @@ export class LocalController extends GameController {
       return;
     }
     if (msg.type === "dismissed") return; // 单机解散由 destroy 主动发起,无远端解散
-    if (msg.type === "gameLog") throw new Error("单机日志应由权威引擎直接归档");
+    if (msg.type === "gameLog") {
+      const added = appendSeatReplicaLog(this._engine, msg);
+      if (added === null) return;
+      const { offset, lines } = added;
+      this.observeAuthorityLog({
+        gameId: msg.gameId,
+        at: receivedAtMonotonic,
+        source: "tail",
+        offset,
+        count: lines.length,
+      });
+      void archiveGameLogTail(this.logIdentity(), offset, lines, Date.now()).catch(
+        this.reportArchiveFailure,
+      );
+      if (this.enteredGame) this.sync();
+      return;
+    }
     if (msg.type === "submissionResult") {
       if (!this.outbox.acknowledge(msg)) return;
       this.observeCommandResult(msg, receivedAtMonotonic);
@@ -375,10 +374,6 @@ export class LocalController extends GameController {
           this.registry.applyCommandFromSeat(this.roomId, this.seat, cmd, broadcast, report),
         submit: (submission) =>
           this.registry.submitFromSeat(this.roomId, this.seat, submission, broadcast),
-        pickCapital: (tileIndex, report) =>
-          this.registry.pickCapital(this.roomId, this.seat, tileIndex, broadcast, report),
-        setAutoPilot: (on, report) =>
-          this.registry.setAutoPilot(this.roomId, this.seat, on, broadcast, report),
       },
       { sendCommandResult: send },
     ).then((result) => {

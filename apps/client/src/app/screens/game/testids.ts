@@ -49,7 +49,7 @@ export const TESTIDS = {
   settingsDiagnostic: "settings-diagnostic",
   /** 回到主页行(弃局离屏:销毁控制器回 setup)。 */
   settingsHome: "settings-home",
-  /** Base UI Switch,经 useAutopilotOn 回读、controller.setAutoPilot 下发;操作本座托管。 */
+  /** 从座位视图回读，通过座位意图切换本席托管。 */
   settingsAutopilot: "settings-autopilot",
   /** 属性浮签内容件(Tip 组件的 Popup;长按/聚焦同签)。 */
   attrTip: "attr-tip",

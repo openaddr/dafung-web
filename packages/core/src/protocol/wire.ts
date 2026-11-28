@@ -5,7 +5,7 @@
 // 单机客户端和联机服务器共用。只导入包内的引擎和房间类型。
 //
 // 契约:
-// - 上行包括带决策点的玩家提交、普通游戏命令、选都和托管。dispatchInbound 一次完成
+// - 上行包括带决策点的玩家提交与普通游戏命令。dispatchInbound 一次完成
 //   解析 + 分发,**错误回报是返回值的一部分**(InboundResult),任何失败都不抛出到
 //   传输层之外——传输面(adapter)只负责把失败送到各自通道:WS = error 消息下行,
 //   内存 = pushHint(结构性失败在内存面属自身 bug,adapter 自行抛出,零兜底)。
@@ -14,9 +14,43 @@
 // - 穷尽纪律:dispatch 对 InboundMsg 穷尽 switch(新增消息类型漏分支 = 编译红,
 //   default 收 never),与 seat-projection redactEvents 同机器。
 import type { GameCommand } from "../engine/authority";
+import type { ChoiceOption } from "../engine/choices";
 import type { GameEvent } from "../engine/game-events";
+import type { PendingHeroSkill, PendingJinnang } from "../engine/jinnang-execution";
 import type { LogEvent } from "../engine/model";
+import type { CapitalOption } from "../engine/setup-flow";
+import type { ActiveSkillCommand } from "../room/active-skill-decisions";
+import {
+  isBankruptcyDecisionCommand,
+  type BankruptcyDecision,
+  type BankruptcyDecisionCommand,
+} from "../room/bankruptcy-decisions";
+import {
+  isLandDecisionCommand,
+  type LandDecision,
+  type LandDecisionCommand,
+} from "../room/land-decisions";
+import type { RecruitmentDecision } from "../room/recruitment-decisions";
+import type { HeroDismissalOption, SkillBookOption } from "../room/roster-decisions";
 import type { LobbyView, SeatSnapshot } from "../room/seat-projection";
+import type { SkillChoiceCommand, SkillChoiceDecision } from "../room/skill-choice-decisions";
+import type { TreasureDecision, TreasureOwnerCommand } from "../room/treasure-decisions";
+import type { ReactionDecision } from "./reaction-choices";
+
+export type { CapitalOption } from "../engine/setup-flow";
+export {
+  isLandDecisionCommand,
+  type LandDecisionCommand,
+  type LandDecisionOption,
+} from "../room/land-decisions";
+export type { RecruitmentOption } from "../room/recruitment-decisions";
+
+export type AutopilotCommand = { type: "setAutoPilot"; on: boolean };
+
+export type PlayerCommand =
+  | GameCommand
+  | { type: "pickCapital"; tileIndex: number }
+  | AutopilotCommand;
 
 /** 一次玩家提交始终携带首次操作时的座位和决策点。requestId 仅用于单次传输诊断。 */
 export interface PlayerSubmission {
@@ -24,13 +58,42 @@ export interface PlayerSubmission {
   seat: number;
   submissionId: string;
   decisionPoint: string;
-  cmd: Extract<GameCommand, { type: "useJinnang" | "respondReaction" }>;
+  cmd:
+    | Extract<
+        PlayerCommand,
+        {
+          type:
+            | "pickCapital"
+            | "useJinnang"
+            | "useBookSkill"
+            | "dismissHero"
+            | "respondReaction"
+            | "resolveHeroPick";
+        }
+      >
+    | LandDecisionCommand
+    | TreasureOwnerCommand
+    | BankruptcyDecisionCommand
+    | SkillChoiceCommand
+    | ActiveSkillCommand
+    | AutopilotCommand;
 }
 
 /** 没有公开日志行的操作仍有受理回执。 */
 type AcceptedCommand = { outcome: "accepted" } | { outcome: "accepted"; logOffset: number };
 
-export type PlayerSubmissionResult = AcceptedCommand | { outcome: "rejected"; reason: string };
+export interface PlayerSubmissionRejection {
+  outcome: "rejected";
+  reason: string;
+  reasonCode?:
+    | "wrongSeat"
+    | "staleDecisionPoint"
+    | "invalidCandidate"
+    | "insufficientFunds"
+    | "submissionIdConflict";
+}
+
+export type PlayerSubmissionResult = AcceptedCommand | PlayerSubmissionRejection;
 
 export type SubmissionResultMsg = {
   type: "submissionResult";
@@ -38,23 +101,27 @@ export type SubmissionResultMsg = {
   requestId?: number;
 } & PlayerSubmissionResult;
 
-export function requiresPlayerSubmission(
-  cmd: GameCommand,
-  pendingCardId: string | null,
-): cmd is PlayerSubmission["cmd"] {
+export function requiresPlayerSubmission(cmd: PlayerCommand): cmd is PlayerSubmission["cmd"] {
   return (
+    cmd.type === "pickCapital" ||
+    cmd.type === "setAutoPilot" ||
+    cmd.type === "useJinnang" ||
+    cmd.type === "useHeroSkill" ||
+    cmd.type === "useBookSkill" ||
+    cmd.type === "dismissHero" ||
     cmd.type === "respondReaction" ||
-    (cmd.type === "useJinnang" && (cmd.cardId === "连环计" || pendingCardId === "连环计"))
+    cmd.type === "respondSkillChoice" ||
+    cmd.type === "resolveHeroPick" ||
+    cmd.type === "resolveTreasureOwner" ||
+    isBankruptcyDecisionCommand(cmd) ||
+    isLandDecisionCommand(cmd)
   );
 }
 
 // ──────────────────────────── 上行:union + 编码 ────────────────────────────
-/** 上行消息(线上形状):autoPilot 只载开关(#580 速度分档已删,无归一)。 */
 export type InboundMsg = (
   | { type: "cmd"; cmd: GameCommand }
   | { type: "submit"; submission: PlayerSubmission }
-  | { type: "pickCapital"; tileIndex: number }
-  | { type: "autoPilot"; on: boolean }
 ) & { requestId?: number };
 
 /** 上行编码(客户端发送端单源;手写判别字面量 = 双写复辟)。 */
@@ -64,20 +131,47 @@ export function cmdMsg(cmd: GameCommand, requestId?: number): string {
 export function submissionMsg(submission: PlayerSubmission, requestId?: number): string {
   return JSON.stringify({ type: "submit", submission, requestId });
 }
-export function pickCapitalMsg(tileIndex: number, requestId?: number): string {
-  return JSON.stringify({ type: "pickCapital" as const, tileIndex, requestId });
-}
-export function autoPilotMsg(on: boolean, requestId?: number): string {
-  return JSON.stringify({ type: "autoPilot" as const, on, requestId });
-}
 
 // ──────────────────────────── 下行:union + 构造 ────────────────────────────
+export type JinnangDecisionOptions = {
+  kind: "playJinnang";
+  choices: readonly ChoiceOption[];
+  pendingJinnang: PendingJinnang | null;
+  pendingSkill: PendingHeroSkill | null;
+  /** 有技能书时按持有顺序交付，含暂不能研读的书。 */
+  skillBooks?: readonly SkillBookOption[];
+};
+
+export type DecisionOptions = (
+  | { kind: "pickCapital"; options: readonly CapitalOption[] }
+  | JinnangDecisionOptions
+  | LandDecision
+  | RecruitmentDecision
+  | TreasureDecision
+  | BankruptcyDecision
+  | ReactionDecision
+  | SkillChoiceDecision
+  | { kind: "heroDismissal" }
+) & { heroDismissals?: readonly HeroDismissalOption[] };
+
+/** 仅对有权切换托管的本席交付。修订独立于局内抉择。 */
+export interface AutopilotDecision {
+  decisionPoint: string;
+  on: boolean;
+}
+
+/** 选项随决策点只发给有权操作的座位。 */
+export interface SeatDecision {
+  decisionPoint: string | null;
+  decisionOptions?: DecisionOptions;
+  autopilot?: AutopilotDecision;
+}
+
 /** 事件批携带本席的操作权。只有授权变化时，events 可以为空。 */
-export interface EventBatchMsg {
+export interface EventBatchMsg extends SeatDecision {
   type: "events";
   events: GameEvent[];
   reactionTiming?: ReactionTiming;
-  decisionPoint: string | null;
 }
 
 /** 传输时刻的剩余时长，按权威窗号绑定。 */
@@ -119,8 +213,8 @@ export interface WireRoomFields {
 export type SnapshotMsg = {
   type: "snapshot";
   reactionTiming?: ReactionTiming;
-  decisionPoint: string | null;
 } & WireRoomFields &
+  SeatDecision &
   SeatSnapshot;
 
 /** 下行消息 union(线上形状单源;客户端 online.ts/local.ts 从此 import)。 */
@@ -140,8 +234,17 @@ export function eventsMsg(
   events: GameEvent[],
   reactionTiming?: ReactionTiming,
   decisionPoint: string | null = null,
+  decisionOptions?: DecisionOptions,
+  autopilot?: AutopilotDecision,
 ): string {
-  return encodeDownlink({ type: "events", events, reactionTiming, decisionPoint });
+  return encodeDownlink({
+    type: "events",
+    events,
+    reactionTiming,
+    decisionPoint,
+    decisionOptions,
+    autopilot,
+  });
 }
 /** 错误回报可按请求号配对。玩家提交的权威结果由 submissionResult 确认。 */
 export function errorMsg(error: string, requestId?: number): string {
@@ -162,8 +265,6 @@ export function encodeDownlink(msg: ServerMsg): string {
 export interface InboundOps {
   cmd(cmd: GameCommand, report?: ReportCommandProcessing): Promise<unknown> | unknown;
   submit?(submission: PlayerSubmission): Promise<PlayerSubmissionResult>;
-  pickCapital(tileIndex: number, report?: ReportCommandProcessing): Promise<unknown> | unknown;
-  setAutoPilot(on: boolean, report?: ReportCommandProcessing): Promise<unknown> | unknown;
 }
 
 /** 上行分发结果——错误回报是返回值的一部分,不抛到传输层之外:
@@ -198,9 +299,71 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
     !decisionPoint
   )
     return false;
+  if (cmd.type === "pickCapital") return Number.isSafeInteger(cmd.tileIndex);
+  if (cmd.type === "setAutoPilot")
+    return typeof cmd.on === "boolean" && Object.keys(cmd).length === 2;
+  if (isLandDecisionCommand(cmd)) return Object.keys(cmd).length === 1;
+  if (cmd.type === "resolveHeroPick")
+    return (
+      Object.keys(cmd).length === 2 &&
+      (Number.isSafeInteger(cmd.index) || cmd.action === "seekBook" || cmd.action === "skip")
+    );
+  if (cmd.type === "resolveTreasureOwner") {
+    const { action } = cmd;
+    if (!isRecord(action) || Object.keys(cmd).length !== 2) return false;
+    if (action.type === "skip") return Object.keys(action).length === 1;
+    return (
+      (action.type === "fair" || action.type === "premium") &&
+      typeof action.treasureId === "string" &&
+      action.treasureId.length > 0 &&
+      Object.keys(action).length === 2
+    );
+  }
+  if (cmd.type === "declareBankruptcy") return Object.keys(cmd).length === 1;
+  if (cmd.type === "confirmBankruptcySettle")
+    return (
+      Object.keys(cmd).length === 2 &&
+      Array.isArray(cmd.assets) &&
+      cmd.assets.every(
+        (asset: unknown) =>
+          isRecord(asset) &&
+          (asset.kind === "treasure" || asset.kind === "property") &&
+          typeof asset.id === "string" &&
+          asset.id.length > 0 &&
+          Object.keys(asset).length === 2,
+      )
+    );
+  if (cmd.type === "respondSkillChoice")
+    return (
+      Number.isSafeInteger(cmd.seat) &&
+      typeof cmd.use === "boolean" &&
+      (cmd.targetSeat === undefined || Number.isSafeInteger(cmd.targetSeat)) &&
+      Object.keys(cmd).length === (cmd.targetSeat === undefined ? 3 : 4)
+    );
+  if (cmd.type === "useHeroSkill")
+    return (
+      typeof cmd.heroId === "string" &&
+      cmd.heroId.length > 0 &&
+      typeof cmd.skillId === "string" &&
+      cmd.skillId.length > 0 &&
+      (cmd.targets === undefined ||
+        (Array.isArray(cmd.targets) && cmd.targets.every(Number.isSafeInteger))) &&
+      (cmd.cancel === undefined || typeof cmd.cancel === "boolean")
+    );
+  if (cmd.type === "useBookSkill")
+    return (
+      typeof cmd.treasureId === "string" &&
+      cmd.treasureId.length > 0 &&
+      typeof cmd.heroId === "string" &&
+      cmd.heroId.length > 0 &&
+      Object.keys(cmd).length === 3
+    );
+  if (cmd.type === "dismissHero")
+    return typeof cmd.heroId === "string" && cmd.heroId.length > 0 && Object.keys(cmd).length === 2;
   if (cmd.type === "useJinnang")
     return (
       (cmd.cardId === null || typeof cmd.cardId === "string") &&
+      (cmd.handIndex === undefined || Number.isSafeInteger(cmd.handIndex)) &&
       (cmd.targets === undefined ||
         (Array.isArray(cmd.targets) && cmd.targets.every(Number.isSafeInteger))) &&
       (cmd.cancel === undefined || typeof cmd.cancel === "boolean") &&
@@ -210,7 +373,10 @@ function isPlayerSubmission(value: unknown): value is PlayerSubmission {
     cmd.type === "respondReaction" &&
     Number.isSafeInteger(cmd.seat) &&
     typeof cmd.use === "boolean" &&
-    (cmd.cardId === undefined || typeof cmd.cardId === "string") &&
+    (cmd.use
+      ? typeof cmd.cardId === "string" && Number.isSafeInteger(cmd.handIndex)
+      : (cmd.cardId === undefined || typeof cmd.cardId === "string") &&
+        (cmd.handIndex === undefined || Number.isSafeInteger(cmd.handIndex))) &&
     (cmd.target === undefined ||
       (isRecord(cmd.target) &&
         (cmd.target.kind === "city" || cmd.target.kind === "seat") &&
@@ -233,12 +399,6 @@ function parseInboundMsg(m: unknown): InboundMsg | null {
   }
   if (r.type === "submit" && isPlayerSubmission(r.submission)) {
     return { type: "submit", submission: r.submission, requestId };
-  }
-  if (r.type === "pickCapital" && typeof r.tileIndex === "number") {
-    return { type: "pickCapital", tileIndex: r.tileIndex, requestId };
-  }
-  if (r.type === "autoPilot" && typeof r.on === "boolean") {
-    return { type: "autoPilot", on: r.on, requestId };
   }
   return null;
 }
@@ -294,12 +454,6 @@ export async function dispatchInbound(
       }
       case "cmd":
         await ops.cmd(msg.cmd, report);
-        break;
-      case "pickCapital":
-        await ops.pickCapital(msg.tileIndex, report);
-        break;
-      case "autoPilot":
-        await ops.setAutoPilot(msg.on, report);
         break;
       default: {
         // 穷尽机器:InboundMsg 新增成员漏分支 = 编译红(default 收 never)。

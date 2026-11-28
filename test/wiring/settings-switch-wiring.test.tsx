@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it, spyOn } from "bun:test";
+import { afterAll, beforeAll, expect, it } from "bun:test";
 import { AudioProvider } from "@app/fx/AudioProvider";
 import { setSnapPin } from "@app/fx/catchup";
 import { resetFxOrchestration } from "@app/fx/orchestrator";
@@ -77,10 +77,12 @@ it("音效和托管整行独立切换，单机在同一个设置弹层收回操�
       roomClock,
     );
     setController(controller, data);
-    controller.setupPickCapital(controller.engine.offeredCapitals[0]);
+    controller.dispatchCommand({
+      type: "pickCapital",
+      tileIndex: controller.engine.offeredCapitals[0],
+    });
     await clock.settle();
     expect(controller.interactive).toBe(true);
-    using setAutoPilot = spyOn(controller, "setAutoPilot");
 
     const noop = () => {};
     await act(async () => {
@@ -101,14 +103,13 @@ it("音效和托管整行独立切换，单机在同一个设置弹层收回操�
 
     act(() => findSwitchLabel(autopilot).click());
     await clock.settle();
-    expect(setAutoPilot.mock.calls).toEqual([[true]]);
     expect(controller.autoPilotOn).toBe(true);
     expect(autopilot.getAttribute("aria-checked")).toBe("true");
     expect(controller.interactive).toBe(false);
+    expect(controller.seatView.autopilotInteractive).toBe(true);
 
     act(() => autopilot.click());
     await clock.settle();
-    expect(setAutoPilot.mock.calls).toEqual([[true], [false]]);
     expect(controller.autoPilotOn).toBe(false);
     expect(autopilot.getAttribute("aria-checked")).toBe("false");
     expect(controller.interactive).toBe(true);

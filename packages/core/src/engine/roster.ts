@@ -118,6 +118,13 @@ export function skillBookLearners(player: { heroes: HeroSlot[] }, skillId: strin
   });
 }
 
+/** 研读占用出牌阶段的手牌段。已开始选目标时，先完成该步骤。 */
+export function skillBookStudyBlocked(
+  g: Pick<GameEngine, "pendingJinnang" | "pendingSkill">,
+): boolean {
+  return g.pendingJinnang !== null || g.pendingSkill !== null;
+}
+
 /** 学技入槽(#1146,用书学技的落账单点):按名将池声明序把 skillId 并入槽内 skillIds
  *  (槽内序恒池序——与授技同款,招贤所得/书学所得在槽内不可分辨);lastFired 不落键
  *  =照新授技同款(就绪、无冷却负债)。校验:槽在、池含此技、未习得——违反=命令与

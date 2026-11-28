@@ -91,7 +91,7 @@ function promptFor(
       return `${who} 出牌阶段:用锦囊(cmd {"type":"useJinnang","cardId":"<id>"};今不用 {"type":"useJinnang","cardId":null},牌 id 见 status.choices)${skill}`;
     }
     case "AwaitingReaction":
-      return `反应窗(cmd {"type":"respondReaction","seat":<n>,"use":<bool>,"cardId":"<id>"})。待应答座位和对象见 status.reaction。targets.requiresSelection 为 true 时，出牌须从公告选份并附 "target":{"kind":"city"|"seat","id":<n>}。`;
+      return `反应窗(cmd {"type":"respondReaction","seat":<n>,"use":false} 不出；用牌传 use:true、cardId 与 handIndex)。待应答座位和对象见 status.reaction。targets.requiresSelection 为 true 时，出牌须从公告选份并附 "target":{"kind":"city"|"seat","id":<n>}。`;
     case "AwaitingTreasureOwner":
       return `${decisionOwner ?? who} 城主抉择:公道买卖(fair <id>)/坐地起价(premium <id>)/跳过(tskip)`;
     case "AwaitingBankruptcySettle":

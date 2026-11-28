@@ -10,8 +10,8 @@
 //   POST /room/start {roomId,seatToken}    → host 开局:构造引擎(beginCapitalSelection 自动国号),
 //                                            停在 Setup·PickCapital(从当前至多三个候选中选都)
 //   POST /room/dismiss {roomId,seatToken}  → host 解散房间(广播 dismissed,断开所有连接)
-//   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} /
-//                                            {type:"pickCapital",tileIndex}(L41 选都),
+//   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} 或
+//                                            {type:"submit",submission:...}，
 //                                            上行一律以本连接座位名义(#454:cmd 校验
 //                                            提交者=决策归属,非归属 403 回执 error),
 //                                            收 snapshot(首连摘要/校准,#381 起按接收
@@ -62,6 +62,7 @@ import {
   lobbyView,
   seatMeta,
   type GameLogCursor,
+  type SeatDecisionCursor,
 } from "@dafung/core/room/seat-projection";
 import type { HostConfig } from "@dafung/core/room/room-record";
 import { loadExtensionPackages } from "./extension-loader";
@@ -230,13 +231,7 @@ function recordEvent(roomId: string, ev: Record<string, unknown>, includeInDebug
     console.warn(`[server] 事件落盘失败(${roomId}):`, (err as Error).message);
   }
   // 调试端点按房间码公开。原始操作、尚未确认的选都和反应席位只记服务器流水。
-  if (
-    !includeInDebug ||
-    ev.ev === "cmd" ||
-    ev.ev === "pick-capital" ||
-    ev.ev === "reaction-decline"
-  )
-    return;
+  if (!includeInDebug || ev.ev === "cmd" || ev.ev === "reaction-decline") return;
   const tail = eventTail.get(roomId) ?? [];
   tail.push(line);
   if (tail.length > TAIL_MAX) tail.shift();
@@ -287,18 +282,6 @@ const registry = new RoomRegistry(persistence, recordObservedRoomEvent, flushGam
   retentionWindowMs: RETENTION_WINDOW_MS,
   botStepMs: BOT_STEP_MS_EFFECTIVE,
 });
-const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
-  restoreGameLog(room);
-  // #388 恢复登记(#390 移交注记归口):恢复快照自带的当前批视为已下行(重启前已广播
-  // 过)——不登记的话,恢复后首次广播会把旧批当新批重发,客户端折叠二次落账。结算相位
-  // 基线同步登记(决策窗退出检测的起点)。
-  const e = room.engine;
-  if (e) {
-    eventBatches.seedSeen(room.roomId, e.gameEvents);
-    settledTurnPhase.set(room.roomId, e.turnPhase);
-  }
-});
-
 // ──────────────────────────── WS 句柄归传输层(ADR-0007 关键不变量 1)────────────────────────────
 // 房间 → 座位 → 当前 WebSocket。Room 模块不持有 WS,只有这里持有。
 // Bun 的 ServerWebSocket 以 data 携带座位标识和该连接的诊断日志游标。
@@ -306,7 +289,7 @@ export interface WsSeat {
   roomId: string;
   seat: number;
   logCursor: GameLogCursor;
-  decisionPoint: string | null;
+  decisions: SeatDecisionCursor;
 }
 type SeatSocket = import("bun").ServerWebSocket<WsSeat>;
 
@@ -335,7 +318,7 @@ function sendSeatSummary(room: RoomSession, online: Set<number>, ws: SeatSocket)
   // Bun.send 的 0 表示丢弃，-1 表示已排队。游标随已接受的下行推进。
   if (ws.send(shot.snapshot) !== 0) {
     ws.data.logCursor = shot.logCursor;
-    ws.data.decisionPoint = shot.decisionPoint;
+    ws.data.decisions = shot.decisionCursor;
   }
 }
 
@@ -417,10 +400,10 @@ function flushRoom(roomId: string): void {
   if (batch.length > 0 || !calibrate) {
     for (const ws of socketsOf(roomId).values()) {
       if (ws.readyState !== WebSocket.OPEN) continue;
-      const previousDecision = calibrate ? undefined : ws.data.decisionPoint;
+      const previousDecision = calibrate ? undefined : ws.data.decisions;
       const shot = assembleDownlinkShot(r, online, ws.data.seat, batch, false, previousDecision);
       if (shot.events !== null && ws.send(shot.events) !== 0) {
-        ws.data.decisionPoint = shot.decisionPoint;
+        ws.data.decisions = shot.decisionCursor;
       }
     }
   }
@@ -512,11 +495,11 @@ const HELP = {
       "入座 body:{roomId,guohao?} → {seat,seatToken,...lobby}(guohao=预设国号,重名开局时加方位前缀)",
     "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
     "POST /room/start":
-      "开局 body:{roomId,seatToken}(仅 host,需已选图;从当前至多三个候选中选都,WS pickCapital 落子)",
+      "开局 body:{roomId,seatToken}(仅 host,需已选图;从本席候选中通过 WS submit 选都)",
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/托管)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=":
-      "入座连接；连环计和反应应答发 {type:'submit',submission}，收 submissionResult；其余操作发 cmd/pickCapital/autoPilot",
+      "入座连接；协议化操作（含托管与收回）发 {type:'submit',submission}，收 submissionResult；其余操作发 cmd",
   },
   retention:
     "掉线座位保留窗口(#380):对局中断线的座位保留 RETENTION_WINDOW_MS(env 可调,默认 600000=10 分钟,0=关);" +
@@ -676,6 +659,20 @@ async function handle(req: Request): Promise<Response> {
   throw httpError(404, `未知路由:${path}`);
 }
 
+const restored = registry.restoreAll(
+  loadBuiltinMapById,
+  (room) => {
+    restoreGameLog(room);
+    // 恢复的当前批视作已交付。后续超时或托管推进从恢复的日志与结算相位继续。
+    const e = room.engine;
+    if (e) {
+      eventBatches.seedSeen(room.roomId, e.gameEvents);
+      settledTurnPhase.set(room.roomId, e.turnPhase);
+    }
+  },
+  (room) => broadcast(room.roomId),
+);
+
 // ──────────────────────────── WebSocket(升级在 fetch 里做,生命周期在 handlers)────────────────────────────
 // 编程内起缝(#1283 双端对跑层):导出 Bun.serve 句柄本身,不另设装配函数。判词:本文件
 // 的全部装配(registry/事件批通道/socket 表/落盘目录)是**进程单例长驻设计**——模块作用域
@@ -706,7 +703,12 @@ export const engineServer = Bun.serve<WsSeat>({
     }
     if (
       !srv.upgrade(req, {
-        data: { roomId, seat, logCursor: INITIAL_GAME_LOG_CURSOR, decisionPoint: null },
+        data: {
+          roomId,
+          seat,
+          logCursor: INITIAL_GAME_LOG_CURSOR,
+          decisions: { decisionPoint: null, autopilotDecisionPoint: null },
+        },
       })
     ) {
       return new Response("WebSocket upgrade failed", { status: 500 });
@@ -742,7 +744,7 @@ export const engineServer = Bun.serve<WsSeat>({
     },
     message(ws, raw) {
       const { roomId, seat } = ws.data;
-      // 上行解析+分发收口 wire.dispatchInbound(#429):三族消息一个本体,错误回报是
+      // 上行解析+分发收口 wire.dispatchInbound(#429):错误回报是
       // 返回值的一部分——传输面只负责把失败送到 WS 通道(error 消息下行,#428 口径
       // 全分支同款,漏 catch 无处藏身);观测流水在 ops 闭包内记(仅已识别形状,同旧)。
       void dispatchInbound(
@@ -761,7 +763,7 @@ export const engineServer = Bun.serve<WsSeat>({
             recordEvent(roomId, { ev: "cmd", seat, cmd: cmd.type });
             // #454:cmd 面座位鉴权——连接只能以本连接座位(seat)提交命令,非决策
             // 归属(非活跃玩家/非反应窗被询问者)403 拒绝并回执 error;校验在 room 层
-            // applyCommandFromSeat,与 pickCapital/autoPilot 座位校验同位同款。
+            // applyCommandFromSeat。
             return registry.applyCommandFromSeat(
               roomId,
               seat,
@@ -769,16 +771,6 @@ export const engineServer = Bun.serve<WsSeat>({
               () => broadcast(roomId),
               report,
             );
-          },
-          pickCapital: (tileIndex, report) => {
-            // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
-            recordEvent(roomId, { ev: "pick-capital", seat, tileIndex });
-            return registry.pickCapital(roomId, seat, tileIndex, () => broadcast(roomId), report);
-          },
-          setAutoPilot: (on, report) => {
-            // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
-            recordEvent(roomId, { ev: "ws-autopilot", seat, on });
-            return registry.setAutoPilot(roomId, seat, on, () => broadcast(roomId), report);
           },
         },
         {

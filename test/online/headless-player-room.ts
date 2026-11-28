@@ -1,7 +1,9 @@
+import { submitCapitalForSetup } from "./room-capitals";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createClock } from "@sinonjs/fake-timers";
+import type { GameEngine } from "@dafung/core/engine/authority";
 import { armPhase, giveJinnang, pinDice } from "@dafung/core/engine/planter";
 import { dispatchInbound, errorMsg, type SubmissionResultMsg } from "@dafung/core/protocol/wire";
 import { RoomRegistry } from "@dafung/core/room/room";
@@ -11,7 +13,10 @@ import { MAP } from "../../scripts/engine-helpers";
 import { OnlineClient } from "../../scripts/online-client";
 
 /** 测试房可控制时钟、写盘故障和回执送达，入座、裁决与恢复走房间公共入口。 */
-export async function openHeadlessTestRoom(guestHand: string[] = []) {
+export async function openHeadlessTestRoom(
+  guestHand: string[] = [],
+  prepare?: (engine: GameEngine) => void,
+) {
   const directory = mkdtempSync(join(tmpdir(), "dafung-headless-"));
   let time = createClock(10_000);
   const now = () => time.now;
@@ -49,12 +54,18 @@ export async function openHeadlessTestRoom(guestHand: string[] = []) {
   await registry.startGame(id, token, undefined, () => MAP);
   const engine = room.engine!;
   while (engine.phase === "Setup")
-    await registry.pickCapital(id, engine.currentSetupPlayerIndex, engine.offeredCapitals[0]);
+    await submitCapitalForSetup(
+      registry,
+      id,
+      engine.currentSetupPlayerIndex,
+      engine.offeredCapitals[0],
+    );
   giveJinnang(engine, 0, ["连环计", "火烧连营", "连环计"]);
   giveJinnang(engine, 1, guestHand);
   giveJinnang(engine, 2, []);
   pinDice(engine, "duel", [6, 1]);
   armPhase(engine, { phase: "Playing", turnPhase: "AwaitingJinnang", activeIndex: 0 });
+  prepare?.(engine);
 
   let holdReceipt: ((result: SubmissionResultMsg) => void) | null = null;
   type Connection = { seat: number; token: string; registry: RoomRegistry };
@@ -92,8 +103,6 @@ export async function openHeadlessTestRoom(guestHand: string[] = []) {
           {
             submit: (submission) => registry.submitFromSeat(id, seat, submission, broadcast),
             cmd: (cmd, report) => registry.applyCommandFromSeat(id, seat, cmd, broadcast, report),
-            pickCapital: (tile, report) => registry.pickCapital(id, seat, tile, broadcast, report),
-            setAutoPilot: (on, report) => registry.setAutoPilot(id, seat, on, broadcast, report),
           },
           {
             sendCommandResult(frame) {
@@ -148,7 +157,12 @@ export async function openHeadlessTestRoom(guestHand: string[] = []) {
       for (const peer of seats.values()) peer.close();
       time = createClock(time.now);
       registry = makeRegistry();
-      if (registry.restoreAll(() => MAP) !== 1) throw new Error("测试房重启后未恢复原房间");
+      const restored = registry.restoreAll(
+        () => MAP,
+        undefined,
+        (room) => registry.transportBroadcast(room.roomId),
+      );
+      if (restored !== 1) throw new Error("测试房重启后未恢复原房间");
     },
     async close() {
       await server.stop(true);

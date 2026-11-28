@@ -1,5 +1,4 @@
 // 组件收口:研读弹层复用 PileShell→ui/dialog，选将与固定底部操作走 Base UI Button。
-import { useState } from "react";
 import { Button } from "@base-ui/react/button";
 import { PileShell } from "./PileModal";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
@@ -14,10 +13,13 @@ interface SkillBookLearnModalProps {
   bookName: string;
   /** 书承载的技能。 */
   skillId: string;
-  /** 可学者(槽位序,core skillBookLearners 单源产出)。 */
+  /** 权威座位选项交付的可学者，按麾下顺序。 */
   learners: HeroSlot[];
+  learnerHeroId: string | null;
   locked: boolean;
-  onConfirm: (heroId: string) => void;
+  canConfirm: boolean;
+  onSelect: (heroId: string) => void;
+  onConfirm: () => void;
   onClose: () => void;
 }
 
@@ -25,13 +27,13 @@ export function SkillBookLearnModal({
   bookName,
   skillId,
   learners,
+  learnerHeroId,
   locked,
+  canConfirm,
+  onSelect,
   onConfirm,
   onClose,
 }: SkillBookLearnModalProps) {
-  const [pickedId, setPickedId] = useState<string | null>(null);
-  const picked = learners.find((slot) => slot.heroId === pickedId);
-  if (pickedId !== null && picked === undefined) setPickedId(null);
   const skillName = skillById(skillId).name;
   return (
     <PileShell
@@ -51,10 +53,8 @@ export function SkillBookLearnModal({
             type="button"
             data-testid={TESTIDS.bookLearnConfirm}
             className="skill-book-learn-confirm"
-            disabled={locked || picked === undefined}
-            onClick={() => {
-              if (!locked && picked !== undefined) onConfirm(picked.heroId);
-            }}
+            disabled={locked || !canConfirm}
+            onClick={onConfirm}
           >
             确认研读
           </Button>
@@ -68,9 +68,9 @@ export function SkillBookLearnModal({
             key={slot.heroId}
             data-testid={TESTIDS.bookLearnItem(slot.heroId)}
             aria-label={`令${heroById(slot.heroId).name}习得${skillName}`}
-            aria-pressed={slot.heroId === pickedId}
+            aria-pressed={slot.heroId === learnerHeroId}
             disabled={locked}
-            onClick={() => setPickedId(slot.heroId)}
+            onClick={() => onSelect(slot.heroId)}
             className="pile-hero-cell"
           >
             <HeroCardFace heroId={slot.heroId} skillIds={slot.skillIds} size="detail" />

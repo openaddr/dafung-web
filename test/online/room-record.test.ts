@@ -11,6 +11,7 @@ import type { RoomRecord } from "@dafung/core/room/room-record";
 import { RoomRegistry } from "@dafung/core/room/room";
 import type { RoomPersistence } from "@dafung/core/room/room-persistence";
 import { MAP } from "../../scripts/engine-helpers";
+import { submitCapitalForSetup } from "./room-capitals";
 import type { LoadedMap } from "@dafung/core/engine/board-loader";
 
 class InMemoryPersistence implements RoomPersistence {
@@ -56,7 +57,7 @@ async function recordWithSnapshot(): Promise<RoomRecord> {
   await reg.startGame(roomId, created.token, undefined, mapProvider);
   const e = () => reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e().phase === "Setup"; i++) {
-    await reg.pickCapital(roomId, e().currentSetupPlayerIndex, e().offeredCapitals[0]!);
+    await submitCapitalForSetup(reg, roomId, e().currentSetupPlayerIndex, e().offeredCapitals[0]!);
   }
   expect(e().phase).toBe("Playing");
   return persistence.load(roomId)!;

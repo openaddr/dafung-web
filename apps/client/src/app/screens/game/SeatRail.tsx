@@ -16,7 +16,7 @@ import { formatMoney } from "@dafung/core/engine/money";
 import { skillMarksOf } from "@dafung/core/engine/roster";
 import { isTriggerSkill, skillById } from "@dafung/core/engine/skills";
 import { playerColor, playerSealText, rgba } from "@dafung/core/engine/theme";
-import { useStablePlayers, type GameSnapshot, type SnapshotPlayer } from "@app/store/gameStore";
+import type { WarlordDetails } from "@dafung/core/protocol/seat-queries";
 import { useAutopilotOn, useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import { useDeltaFloat, DeltaFloats } from "./useDeltaFloat";
@@ -39,7 +39,7 @@ const FANGZHU_THRESHOLD = (() => {
 /** 放逐标记进度(#1378):麾下槽位技能标记容器读 fangzhu 计数(读口单源
  *  roster.skillMarksOf,未启技=0 规范缺省);无标记=不挂(攒怒中才在场)。
  *  ready=标记已达阈值(待决窗问挂起中),呈现档位供样式呼吸。 */
-function fangzhuMarkOf(p: SnapshotPlayer): { mark: number; ready: boolean } | null {
+function fangzhuMarkOf(p: WarlordDetails): { mark: number; ready: boolean } | null {
   let mark = 0;
   for (const slot of p.heroes) mark = Math.max(mark, skillMarksOf(slot, "fangzhu"));
   if (mark <= 0) return null;
@@ -64,33 +64,28 @@ const HAND_COUNT_CAP = 9;
 const handCountText = (count: number): string =>
   count > HAND_COUNT_CAP ? `${HAND_COUNT_CAP}+` : String(count);
 
-/** SeatCell 值等(#1140 渲染税,Tile #1023 链 A 同族):p 引用由 SeatRail 的
- *  useStablePlayers 保证「内容不变即引用不变」;target 槽对象每渲染重建,按字段比
- *  目标段换步或在途锁变化时，同步更新点击处理。 */
-function seatCellEqual(
-  a: {
-    p: SnapshotPlayer;
-    seat: number;
-    self: boolean;
-    active: boolean;
-    winner: boolean;
-    hosted: boolean;
-    target?: SeatTargetSlot;
-    onOpenOverview?: () => void;
-  },
-  b: {
-    p: SnapshotPlayer;
-    seat: number;
-    self: boolean;
-    active: boolean;
-    winner: boolean;
-    hosted: boolean;
-    target?: SeatTargetSlot;
-    onOpenOverview?: () => void;
-  },
-): boolean {
+interface SeatCellProps {
+  p: WarlordDetails;
+  seat: number;
+  self: boolean;
+  active: boolean;
+  winner: boolean;
+  hosted: boolean;
+  target?: SeatTargetSlot;
+  onOpenOverview?: () => void;
+}
+
+/** 只比较席位格展示的数据。位置和其他席位的资产变化可以独立更新。 */
+function seatCellEqual(a: SeatCellProps, b: SeatCellProps): boolean {
   return (
-    a.p === b.p &&
+    a.p.guohao === b.p.guohao &&
+    a.p.colorIndex === b.p.colorIndex &&
+    a.p.isBankrupt === b.p.isBankrupt &&
+    a.p.cash === b.p.cash &&
+    a.p.stamina === b.p.stamina &&
+    a.p.properties.length === b.p.properties.length &&
+    a.p.jinnangHandCount === b.p.jinnangHandCount &&
+    a.p.heroes === b.p.heroes &&
     a.seat === b.seat &&
     a.self === b.self &&
     a.active === b.active &&
@@ -116,16 +111,7 @@ const SeatCell = memo(function SeatCell({
   hosted,
   target,
   onOpenOverview,
-}: {
-  p: SnapshotPlayer;
-  seat: number;
-  self: boolean;
-  active: boolean;
-  winner: boolean;
-  hosted: boolean;
-  target?: SeatTargetSlot;
-  onOpenOverview?: () => void;
-}) {
+}: SeatCellProps) {
   const seatLabel = active ? `${p.guohao} · 当前回合` : p.guohao;
   if (target?.available === false && target.reason == null)
     throw new Error(`席位 ${seatLabel} 不可选，但缺少原因`);
@@ -270,8 +256,10 @@ const SeatCell = memo(function SeatCell({
 
 /** 全员按座序显示。selfSeat 是屏前身份，热座也独立于当前回合和决策视角。 */
 interface SeatRailProps {
-  snapshot: GameSnapshot;
+  warlords: readonly WarlordDetails[];
   selfSeat: number;
+  activeSeat: number | null;
+  winner: string | null;
   onOpenOverview: () => void;
   targets?: {
     bySeat: Map<number, SeatTargetState>;
@@ -281,10 +269,14 @@ interface SeatRailProps {
   };
 }
 
-export function SeatRail({ snapshot, selfSeat, onOpenOverview, targets }: SeatRailProps) {
-  // 席位行值等复用(#1140 渲染税):内容不变的席位元素引用稳定,SeatCell 的 memo
-  // 不再被每拍新对象打穿——整列从「随快照声明式重渲」收窄到「变的席才重渲」。
-  const players = useStablePlayers(snapshot.players);
+export function SeatRail({
+  warlords,
+  selfSeat,
+  activeSeat,
+  winner,
+  onOpenOverview,
+  targets,
+}: SeatRailProps) {
   // 托管常驻微标(#770)每席位取值,与 useAutopilotOn 同一双源分式:
   // 联机 = 座位广播全席位回读(seat-projection autoPilot,ADR-0028 单一开关——
   // 大厅座位列表同源),本座走 selfHosted 同值;单机 = 控制器本地标记(热座唯一
@@ -310,14 +302,14 @@ export function SeatRail({ snapshot, selfSeat, onOpenOverview, targets }: SeatRa
   return (
     <div data-testid={TESTIDS.seatRail} aria-label="诸侯席位" className="seat-rail">
       <div className="seatcol">
-        {players.map((p, seat) => (
+        {warlords.map((p, seat) => (
           <SeatCell
             key={p.id}
             p={p}
             seat={seat}
             self={seat === selfSeat}
-            active={snapshot.phase === "Playing" && seat === snapshot.activeIndex}
-            winner={Boolean(snapshot.isOver && snapshot.winner === p.id)}
+            active={seat === activeSeat}
+            winner={winner === p.id}
             hosted={hosted(seat)}
             target={targetSlot(seat)}
             onOpenOverview={targets == null ? onOpenOverview : undefined}

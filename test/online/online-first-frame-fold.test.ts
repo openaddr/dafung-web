@@ -40,6 +40,15 @@ function firstBatchCapitalSelected(): GameEvent[] {
       tileIndex: 0,
       propertyId: "prop-changan",
       cost: 2000,
+      holding: {
+        propertyId: "prop-changan",
+        group: "a",
+        level: 1,
+        maxLevel: 4,
+        defense: 40,
+        burning: null,
+        damageRanking: [],
+      },
     },
   ];
 }
@@ -120,7 +129,7 @@ describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
     const x = c as unknown as TestAccess;
     x.onMessage(guanzhongRoomSnapshot().msg); // 先水合(3 座)
     expect(x.enteredGame).toBe(true);
-    // 第二位真人落子:正常批照折(cash 不折、入册照常)
+    // 第二位真人落子，事件批直接折扣款与入册。
     expect(() =>
       x.onMessage({
         type: "events",
@@ -134,6 +143,15 @@ describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
             tileIndex: 3,
             propertyId: "prop-luoyang",
             cost: 2000,
+            holding: {
+              propertyId: "prop-luoyang",
+              group: "a",
+              level: 1,
+              maxLevel: 4,
+              defense: 40,
+              burning: null,
+              damageRanking: [],
+            },
           },
         ],
       }),

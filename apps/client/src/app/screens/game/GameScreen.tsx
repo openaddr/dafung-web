@@ -12,12 +12,14 @@ import { getController, getControllerContext } from "@app/controllers/registry";
 import type { GameController } from "@app/controllers/controller";
 import { returnHome } from "@app/screens/shared/return-home";
 import { OnlineController } from "@app/controllers/online";
-import type { Board } from "@dafung/core/engine/board";
-import type { GameCommand } from "@dafung/core/engine/authority";
 import type { SeatIntent, SeatInteractionView } from "@dafung/core/protocol/seat-interaction";
-import { skillBookLearners } from "@dafung/core/engine/roster";
+import {
+  readSeatBoard,
+  readSeatDetails,
+  readWarReport,
+  type SeatBoardMap,
+} from "@dafung/core/protocol/seat-queries";
 import { skillById } from "@dafung/core/engine/skills";
-import { isSkillBook } from "@dafung/core/engine/treasures";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
@@ -41,10 +43,9 @@ import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
 import { jinnangPlay } from "./jinnang-play";
-import { turnScope, useReactionPlay } from "./reaction-play";
-import { useReactionTargets } from "./target-selection";
+import { reactionDiagnostics, reactionPlay } from "./reaction-play";
 import { NoticeBanner } from "./NoticeBanner";
-import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
+import { WarReportDrawer } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
 import {
   DecisionScrollLayer,
@@ -53,7 +54,7 @@ import {
 } from "./scroll/DecisionScrollLayer";
 import { DialogPeekContext, DialogPeekInspection } from "@app/hooks/dialog-stack";
 import { RestoreGameDialog, useGameDialogPeek } from "./dialog-peek";
-import { selectableCapitalTiles, useCapitalPick } from "./useCapitalPick";
+import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
 import {
   ConnectionBanner,
@@ -100,7 +101,7 @@ export function GameScreen({ preparing, onFirstPaint }: GameEntryProps = {}) {
     <GameScreenLive
       key={seatView.snapshot.gameId}
       seatView={seatView}
-      board={context.board}
+      map={context}
       controller={controller}
       preparing={preparing}
       onFirstPaint={onFirstPaint}
@@ -159,13 +160,13 @@ function RotateHintOverlay() {
 /** 已开局主体;快照与静态地图由 GameScreen 门卫注入,所有对局 hooks 在此挂载。 */
 function GameScreenLive({
   seatView,
-  board,
+  map,
   controller,
   preparing,
   onFirstPaint,
 }: GameEntryProps & {
   seatView: SeatInteractionView<GameSnapshot>;
-  board: Board;
+  map: SeatBoardMap;
   controller: GameController;
 }) {
   const { snapshot, interactive, seat: viewSeat, autopilotOn, ownsJinnangPhase } = seatView;
@@ -186,14 +187,19 @@ function GameScreenLive({
   // 断线横幅与知会槽/hint/选都提示共用顶中区域,--conn-h 统一下发让位偏移。
   const connDown = useConnDown();
   const selfSeat = viewSeat;
-  // 内容不变时复用玩家引用,供棋盘宿主与手牌/藏品组件 memo;BoardView 只读其结构子集。
+  // 内容不变时复用座位状态和查询结果，供沙盘和查阅弹层共用。
   const players = useStablePlayers(snapshot.players);
+  const seatBoard = useMemo(() => readSeatBoard(players, map), [players, map]);
+  const { board } = map;
   // 挂载时已入座;座位缺位表示快照与座位表不一致,直取使接线错误暴露。
   const selfPlayer = players[selfSeat];
+  const { warlords, hand } = useMemo(() => readSeatDetails(players, selfSeat), [players, selfSeat]);
+  const activeSeat = snapshot.phase === "Playing" ? snapshot.activeIndex : null;
   const gameOver = snapshot.phase === "GameOver";
   const dialogPeek = useGameDialogPeek(!gameOver);
   const { peeking } = dialogPeek;
-  const decisionKey = decisionScrollIdentity(snapshot, viewSeat);
+  const decisionKey =
+    seatView.capital === null ? decisionScrollIdentity(snapshot, viewSeat) : seatView.decisionPoint;
   const [warlordsOpen, setWarlordsOpen] = useState(false);
   const [warlordsInspection, setWarlordsInspection] = useState(false);
   const openWarlords = useCallback(() => {
@@ -210,24 +216,23 @@ function GameScreenLive({
   // 设置弹层与战报抽屉开合态;战报从设置内打开
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [warReportOpen, setWarReportOpen] = useState(false);
-  // 战报未读账:本地已读游标=打开抽屉那一刻的战报条数,不进快照——联机/
-  // 恢复场景由既有日志通路自然重建(对局屏重挂=游标归零,存量全量记未读,金点即亮)。
-  const [warReadCount, setWarReadCount] = useState(0);
-  // log 由引擎原地 push,引用恒定;memo 依赖值语义 logCount,不能依赖 log 引用。
-  // 日志只增,长度变化即内容变化;换局/恢复重灌也更新计数。过滤单源为 warEntriesOf,
-  // 若其增加其他快照字段依赖,此处须同步调整。
-  const warTotal = useMemo(() => warEntriesOf(snapshot).length, [snapshot.logCount]);
-  // 游标越过总数 = 日志账本已换(换图重开一类):旧游标作废,现有条目全量记未读。
-  // 这是游标语义本身(日志只增,变短即新账本),非容错分支。
-  const warUnread = warReadCount > warTotal ? warTotal : warTotal - warReadCount;
+  // 摘要换日志引用，普通尾段推进公开行数；两者都可能改变当前战报。
+  const warReport = useMemo(() => readWarReport(snapshot.log), [snapshot.log, snapshot.logCount]);
+  const [warReadOffset, setWarReadOffset] = useState(-1);
+  const warUnread = useMemo(() => {
+    const readIndex = warReport.findIndex(({ offset }) => offset === warReadOffset);
+    return warReport.length - readIndex - 1;
+  }, [warReport, warReadOffset]);
   // null=随内容自动显隐;手动开/收只保持至下一次回合或决策窗边界。
   const [rackManualHidden, setRackManualHidden] = useState<boolean | null>(null);
   const [rackInspection, setRackInspection] = useState<RackInspection | null>(null);
   const closeRackInspection = useCallback(() => setRackInspection(null), []);
-  // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
-  // onTileClick 相位路由 + 详情/定都确认时序。
+  const act = useCallback(
+    (intent: SeatIntent) => controller.dispatchIntent(intent, seatView.decisionPoint),
+    [controller, seatView.decisionPoint],
+  );
   const { offeredCapitals, selectableTiles, onTileClick, tileDetail, inspection, closeInspection } =
-    useCapitalPick({ snapshot, readOnly: peeking });
+    useCapitalPick({ seatView, readOnly: peeking, act });
   useLayoutEffect(() => {
     if (!peeking) {
       closeInspection();
@@ -235,45 +240,16 @@ function GameScreenLive({
     }
   }, [peeking, closeInspection, closeWarlordsInspection]);
 
-  const dispatchCommand = useCallback(
-    (cmd: GameCommand) => controller.dispatchCommand(cmd),
-    [controller],
-  );
-  const act = useCallback(
-    (intent: SeatIntent) => controller.dispatchIntent(intent, seatView.decisionPoint),
-    [controller, seatView.decisionPoint],
-  );
   const jinnang = jinnangPlay(seatView, act);
   const {
     identity: reactionIdentity,
     scope: reactionScope,
     window: reaction,
-    readDiagnosticChoices,
-  } = useReactionPlay({
-    snapshot,
-    seat: selfSeat,
-    board,
-    autopilotOn,
-    choices: seatView.reaction,
-    respond: act,
-  });
-  const reactionTargets = useReactionTargets(
-    reaction?.targetStep ?? null,
-    seatView.reaction?.canRespond === true,
-  );
-  const jinnangTargets = jinnang?.targetStep ?? null;
-  const targetStep = jinnangTargets ?? reaction?.targetStep ?? null;
-  const targets = jinnangTargets ?? reactionTargets;
-  const pickTarget = (id: number) => {
-    if (jinnangTargets !== null) act({ type: "toggleTarget", id });
-    else reactionTargets.toggle(id);
-  };
-  const cityTargeting = targetStep?.domain === "city";
-  const seatTargeting = targetStep?.domain === "seat";
-  const showSeatReason = (seat: number, reason: string) => {
-    if (jinnangTargets !== null) pickTarget(seat);
-    else reactionTargets.reportUnavailable(players[seat].guohao, reason);
-  };
+  } = reactionPlay(seatView, board, act);
+  const targets = jinnang?.targetStep ?? reaction?.targetStep ?? null;
+  const pickTarget = (id: number) => act({ type: "toggleTarget", id });
+  const cityTargeting = targets?.domain === "city";
+  const seatTargeting = targets?.domain === "seat";
   const handleTileClick = (tileIndex: number) => {
     if (cityTargeting && !peeking) {
       pickTarget(tileIndex);
@@ -300,39 +276,42 @@ function GameScreenLive({
   }, []);
   const closeWarReport = useCallback(() => setWarReportOpen(false), []);
   const openWarReport = useCallback(() => {
-    // 打开抽屉即清账:条数取点击拍当下快照(getState 读,不闭包捕获渲染拍)。
-    setWarReadCount(warEntriesOf(useGameStore.getState().snapshot!).length);
+    setWarReadOffset(warReport.at(-1)?.offset ?? -1);
     setWarReportOpen(true);
-  }, []);
+  }, [warReport]);
 
-  const bookPlayScope = jinnang?.targetStep === null ? turnScope(snapshot) : null;
-  const bookPlayReady = interactive && !peeking && bookPlayScope !== null;
-  const playableBooks = useMemo(
-    () =>
-      bookPlayScope === null
-        ? []
-        : selfPlayer.treasures.flatMap((book) => {
-            if (!isSkillBook(book)) return [];
-            const learners = skillBookLearners(selfPlayer, book.skillId);
-            return learners.length > 0 ? [{ book, learners }] : [];
-          }),
-    [bookPlayScope, selfPlayer],
+  const { skillBookStudy, heroDismissal } = seatView;
+  const bookOptions = seatView.jinnang?.skillBooks;
+  const rackBooks = useMemo(() => {
+    if (bookOptions === undefined) return [];
+    const available = new Set(
+      bookOptions.filter(({ available }) => available).map(({ treasureId }) => treasureId),
+    );
+    return selfPlayer.treasures.filter(({ id }) => available.has(id));
+  }, [bookOptions, selfPlayer.treasures]);
+  const dismissal = useMemo(
+    () => ({ view: heroDismissal, interactive, act }),
+    [heroDismissal, interactive, act],
   );
-  const rackBooks = useMemo(() => playableBooks.map(({ book }) => book), [playableBooks]);
-  const [bookPick, setBookPick] = useState<{ bookId: string; scope: string } | null>(null);
-  const bookToRead =
-    bookPick !== null && bookPick.scope === bookPlayScope
-      ? playableBooks.find(({ book }) => book.id === bookPick.bookId)
-      : undefined;
-  useEffect(() => {
-    if (bookToRead === undefined && bookPick !== null) setBookPick(null);
-  }, [bookToRead, bookPick]);
+  const bookToRead = (() => {
+    if (skillBookStudy === null) return null;
+    const { treasureId, learnerHeroIds } = skillBookStudy.book;
+    const book = rackBooks.find(({ id }) => id === treasureId);
+    if (book === undefined) throw new Error(`研读选项缺少本席技能书 ${treasureId}`);
+    const learners = learnerHeroIds.map((heroId) => {
+      const slot = selfPlayer.heroes.find((hero) => hero.heroId === heroId);
+      if (slot === undefined) throw new Error(`研读选项缺少本席名将 ${heroId}`);
+      return slot;
+    });
+    return { name: book.name, learners };
+  })();
   const readDiagnosticDecisions = useCallback(
-    (state: GameSnapshot, seat: number, canAct: boolean) => ({
-      capitalChoices: selectableCapitalTiles(state, seat),
-      reaction: readDiagnosticChoices(state, seat, canAct),
+    (_state: GameSnapshot, _seat: number, canAct: boolean) => ({
+      capitalChoices:
+        controller.seatView.capital?.options.map((option) => option.tileIndex) ?? null,
+      reaction: reactionDiagnostics(controller.seatView.reaction, canAct),
     }),
-    [readDiagnosticChoices],
+    [controller],
   );
   useReactionReminder(
     reactionIdentity,
@@ -346,91 +325,40 @@ function GameScreenLive({
   }, [noticeOccupied]);
   const [playNudge, setPlayNudge] = useState(0);
 
-  // ── 「你可」选择闸窗态:快照 pendingSkillChoices 首问驱动 ──
-  // 相位单属主(decisionOwner=挂问属主,引擎 getter;interactive 经 canAct 主分支
-  // 已门控:决策方=本座×非 bot×未托管×演出落定)。真人经触发卡应答:发动(放逐
-  // 先点候选笺选目标;行殇目标既定直发)/暂不发,命令=respondSkillChoice(seat
-  // 显式携带,反应窗同款 selfSeat 通路)。非属主座位零渲染(公开信息=战报行);
-  // bot/托管座位由驱动链代答,不进窗态。快照 canonicalization:相位在窗而队列键
-  // 缺席 = 状态机 bug,`!` 直取当场炸出(零兜底,同 pendingReaction 口径)。
-  const skillWindowUp =
-    snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingSkillChoice";
-  const skillUp = interactive && skillWindowUp;
-  const skillPending = skillWindowUp ? snapshot.pendingSkillChoices![0] : null;
-  // 技定义按 id 查询 core/skills;choices 挂问时已保证触发技,非法 id 在 skillById 暴露。
-  const skillDef = skillPending != null ? skillById(skillPending.skillId) : null;
-  // 问身份(队列续问时区分前后两问:选中目标随问清空,组件 key 同源此串)。
-  const skillQuestionId =
-    skillPending != null
-      ? `${skillPending.skillId}:${skillPending.heroId}:${skillPending.subjectSeat}:${skillPending.targetSeat ?? "-"}`
-      : null;
-  // 目标段选中(候选笺首点选中/再点同笺取消;进新问即清空重选)。
-  const [skillTarget, setSkillTarget] = useState<number | null>(null);
-  useEffect(() => {
-    setSkillTarget(null);
-  }, [skillQuestionId]);
-  // 目标候选笺(ADR-0013 唯一口径=快照 choices:available 候选才入列;行殇目标
-  // 既定=免选,笺行不挂,文案带目标括注)。
-  const skillSeatOptions =
-    skillPending != null && skillPending.targetSeat == null
-      ? snapshot.choices.filter(
-          (o): o is (typeof snapshot.choices)[number] & { targetSeat: number } =>
-            o.targetSeat != null && o.available,
-        )
-      : [];
-  const skillText =
-    skillPending != null && skillDef != null
-      ? `${snapshot.players[skillPending.ownerSeat].guohao}「${skillDef.name}」可达发动条件${
-          skillPending.targetSeat != null
-            ? `,目标 ${snapshot.players[skillPending.targetSeat].guohao}`
-            : ""
-        }`
-      : "";
-  const skillBanner =
-    skillUp && skillPending != null && skillDef != null ? (
+  const { skillChoice } = seatView;
+  const rackSkillQuestionId = skillChoice === null ? null : seatView.decisionPoint;
+  const skillBanner = (() => {
+    if (skillChoice === null || !interactive) return null;
+    const { decision, targets, canConfirm, canPass } = skillChoice;
+    const { skillId, ownerSeat, fixedTargetSeat } = decision;
+    const targetText = fixedTargetSeat === null ? "" : `,目标 ${players[fixedTargetSeat].guohao}`;
+    const text = `${players[ownerSeat].guohao}「${skillById(skillId).name}」可达发动条件${targetText}`;
+    return (
       <SkillChoiceBanner
-        // key 挂问身份:队列续问(前后两问)即重挂,选中态随组件重置。
-        key={`skill-choice-${skillQuestionId}`}
-        text={skillText}
-        seats={skillSeatOptions.map((o) => ({
-          seat: o.targetSeat,
-          label: snapshot.players[o.targetSeat].guohao,
-        }))}
-        pickedSeat={skillTarget}
-        onPickSeat={(seat) => setSkillTarget((cur) => (cur === seat ? null : seat))} // 首点选中/再点取消
-        confirmEnabled={skillPending.targetSeat != null || skillTarget != null}
-        onConfirm={() => {
-          const target = skillPending.targetSeat ?? skillTarget;
-          if (target == null) return; // 放逐未选目标:确认钮禁用态,到不了这(自门控)
-          dispatchCommand({
-            type: "respondSkillChoice",
-            seat: selfSeat,
-            use: true,
-            targetSeat: target,
-          });
-        }}
-        onDecline={() =>
-          dispatchCommand({ type: "respondSkillChoice", seat: selfSeat, use: false })
-        }
+        key={rackSkillQuestionId}
+        text={text}
+        seats={targets?.available.map(({ id, label }) => ({ seat: id, label })) ?? []}
+        pickedSeat={targets?.selected[0] ?? null}
+        onPickSeat={(id) => act({ type: "toggleTarget", id })}
+        confirmEnabled={canConfirm}
+        onConfirm={() => act({ type: "confirm" })}
+        declineEnabled={canPass}
+        onDecline={() => act({ type: "pass" })}
       />
-    ) : null;
+    );
+  })();
 
   // 自动状态实时随内容变化;灰置锦囊仍算有内容,主动技只计实际在架的卡牌段选项。
   // 触发技继续由手牌架边缘承载；锦囊反应条独立置顶。
   const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
   const windowUp = noticeOccupied || skillBanner != null;
-  const hasRackContent =
-    selfPlayer.jinnangHand.length > 0 ||
-    jinnang?.hasSkillCards === true ||
-    playableBooks.length > 0;
+  const hasRackContent = hand.length > 0 || jinnang?.hasSkillCards === true || rackBooks.length > 0;
   const autoRackHidden = cityTargeting || !((myTurnUp || windowUp) && hasRackContent);
   const rackHidden = rackManualHidden === null ? autoRackHidden : rackManualHidden;
   const toggleRackHidden = useCallback(
     () => setRackManualHidden((manual) => !(manual === null ? autoRackHidden : manual)),
     [autoRackHidden],
   );
-  const rackSkillQuestionId =
-    skillWindowUp && snapshot.decisionOwner === selfSeat ? skillQuestionId : null;
   // 只在回合/本座实际窗态边界撤销手动控制;命令在途的交互锁不算关窗。
   useEffect(() => {
     setRackManualHidden(null);
@@ -453,16 +381,13 @@ function GameScreenLive({
     if (snapshot.phase !== "Setup" || snapshot.setupPhase !== "PickCapital") return null;
     const cur = snapshot.players[snapshot.currentSetupPlayerIndex];
     const pending = snapshot.players.filter((p) => p.capitalIndex < 0).length;
-    const myTurn =
-      snapshot.currentSetupPlayerIndex ===
-      (useNetStore.getState().roomId !== "" ? useNetStore.getState().mySeat : 0);
-    if (myTurn) return `轮到你定都:点选一座候选城(余 ${pending} 人未定)`;
+    if (seatView.capital !== null) return `轮到你定都:点选一座候选城(余 ${pending} 人未定)`;
     return `「${cur.guohao}」正在定都(尚余 ${pending} 人)…`;
   })();
 
   const jinnangAction = !peeking && jinnang != null ? jinnang.action : null;
   const jinnangActionCollapsed = rackHidden && jinnang?.targetStep === null;
-  const reactionAction = !peeking && reaction != null ? reaction.actionFor(reactionTargets) : null;
+  const reactionAction = !peeking && reaction !== null ? reaction.action : null;
   const showReactionAction = reactionAction != null;
   const decisionScrollInteractive = interactive && !peeking;
   const diagnosticCapital = diagnosticControl(
@@ -495,7 +420,7 @@ function GameScreenLive({
     },
     [controller, snapshot.gameId],
   );
-  const diagnosticTarget = preparing || peeking || targetStep === null ? null : targetStep.domain;
+  const diagnosticTarget = preparing || peeking || targets === null ? null : targets.domain;
   useLayoutEffect(
     () =>
       mountGameDiagnostics(controller, snapshot.gameId, VERSION, readDiagnosticDecisions, {
@@ -544,7 +469,8 @@ function GameScreenLive({
           {/* 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
           <ConnectionBanner onReconnect={reconnect} onExit={goHome} />
           <BoardView
-            players={players}
+            board={board}
+            seatBoard={seatBoard}
             onFirstPaint={onFirstPaint}
             /* 视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
             viewSeat={selfPlayer.id}
@@ -566,20 +492,19 @@ function GameScreenLive({
             pawnTargets={
               seatTargeting && !peeking
                 ? {
-                    available: new Set(targets.available.map((option) => players[option.id].id)),
-                    selected: new Set(targets.selected.map((seat) => players[seat].id)),
+                    available: new Set(
+                      targets.available.map((option) => seatBoard.seats[option.id].id),
+                    ),
+                    selected: new Set(targets.selected.map((seat) => seatBoard.seats[seat].id)),
                     locked: !interactive,
-                    onPick: (id) => pickTarget(players.findIndex((player) => player.id === id)),
+                    onPick: (id) =>
+                      pickTarget(seatBoard.seats.findIndex((player) => player.id === id)),
                   }
                 : undefined
             }
-            activeTileIndex={
-              snapshot.phase === "Playing" ? players[snapshot.activeIndex].position : null
-            }
+            activeTileIndex={activeSeat === null ? null : seatBoard.seats[activeSeat].position}
             /* 当前回合方:活跃棋子金呼吸环(与常驻回合胶囊双锚点「谁在打」) */
-            activePlayerId={
-              snapshot.phase === "Playing" ? players[snapshot.activeIndex].id : undefined
-            }
+            activePlayerId={activeSeat === null ? undefined : seatBoard.seats[activeSeat].id}
             isSetupPhase={snapshot.phase === "Setup"}
             skipTokenIds={marching}
           />
@@ -607,6 +532,7 @@ function GameScreenLive({
             {!preparing && (
               <DecisionScrollLayer
                 snapshot={snapshot}
+                seatBoard={seatBoard}
                 viewSeat={viewSeat}
                 interactive={decisionScrollInteractive}
                 decisionKey={decisionKey}
@@ -617,7 +543,12 @@ function GameScreenLive({
             )}
             {inspection !== null && (
               <DialogPeekInspection.Provider value={closeInspection}>
-                <TileDetail snapshot={snapshot} viewSeat={viewSeat} request={inspection} />
+                <TileDetail
+                  seatBoard={seatBoard}
+                  players={players}
+                  viewSeat={viewSeat}
+                  request={inspection}
+                />
               </DialogPeekInspection.Provider>
             )}
           </div>
@@ -640,9 +571,10 @@ function GameScreenLive({
         )}
         {!gameOver && warlordsOpen && (
           <WarlordsOverview
-            players={players}
+            warlords={warlords}
+            seatBoard={seatBoard}
             selfSeat={selfSeat}
-            activeSeat={snapshot.phase === "Playing" ? snapshot.activeIndex : null}
+            activeSeat={activeSeat}
             round={snapshot.round}
             onClose={closeWarlords}
           />
@@ -650,9 +582,10 @@ function GameScreenLive({
         {peeking && warlordsInspection && (
           <DialogPeekInspection.Provider value={closeWarlordsInspection}>
             <WarlordsOverview
-              players={players}
+              warlords={warlords}
+              seatBoard={seatBoard}
               selfSeat={selfSeat}
-              activeSeat={snapshot.phase === "Playing" ? snapshot.activeIndex : null}
+              activeSeat={activeSeat}
               round={snapshot.round}
               onClose={closeWarlordsInspection}
             />
@@ -668,16 +601,18 @@ function GameScreenLive({
           online={online}
         />
         <SeatRail
-          snapshot={snapshot}
+          warlords={warlords}
           selfSeat={selfSeat}
+          activeSeat={activeSeat}
+          winner={snapshot.isOver ? snapshot.winner : null}
           onOpenOverview={openWarlords}
           targets={
             seatTargeting && !peeking
               ? {
                   bySeat: new Map(
                     players.map((_, seat) => {
-                      const candidate = targetStep.candidates.find((choice) => choice.id === seat);
-                      const firstPick = targetStep.firstSeat?.id === seat;
+                      const candidate = targets.candidates.find((choice) => choice.id === seat);
+                      const firstPick = targets.firstSeat?.id === seat;
                       return [
                         seat,
                         {
@@ -694,7 +629,7 @@ function GameScreenLive({
                   ),
                   locked: !interactive,
                   onPick: pickTarget,
-                  onUnavailable: showSeatReason,
+                  onUnavailable: pickTarget,
                 }
               : undefined
           }
@@ -708,21 +643,18 @@ function GameScreenLive({
             autopilotOn={autopilotOn}
             showDiceFace={hasRackContent && !rackBannerOnly}
             children={
-              /* 手牌架使用稳定自局玩家,只承载牌面与窗态;banner-only 只渲横幅。 */
               <HandRack
                 key={`${selfSeat}:${selfPlayer.id}`}
-                player={selfPlayer}
+                hand={hand}
+                heroes={warlords[selfSeat].heroes}
                 nudgePulse={playNudge}
                 bannerOnly={rackBannerOnly}
                 detailKey={rackInspection?.kind === "jinnang" ? rackInspection.key : null}
                 onInspect={setRackInspection}
                 skillBooks={rackBooks}
                 onReadBook={
-                  bookPlayReady && bookPlayScope !== null && jinnang != null
-                    ? (bookId) => {
-                        jinnang.hand.onSelect(null);
-                        setBookPick({ bookId, scope: bookPlayScope });
-                      }
+                  interactive && !peeking
+                    ? (treasureId) => act({ type: "selectSkillBook", treasureId })
                     : undefined
                 }
                 junshi={jinnang?.hand}
@@ -739,18 +671,17 @@ function GameScreenLive({
         {!gameOver && rackInspection?.kind === "skill" && (
           <SkillGlossaryDialog target={rackInspection.target} onClose={closeRackInspection} />
         )}
-        {bookToRead !== undefined && (
+        {bookToRead !== null && skillBookStudy !== null && (
           <SkillBookLearnModal
-            bookName={bookToRead.book.name}
-            skillId={bookToRead.book.skillId}
+            bookName={bookToRead.name}
+            skillId={skillBookStudy.book.skillId}
             learners={bookToRead.learners}
-            locked={!bookPlayReady}
-            onConfirm={(heroId) => {
-              if (!bookPlayReady) return;
-              setBookPick(null);
-              dispatchCommand({ type: "useBookSkill", treasureId: bookToRead.book.id, heroId });
-            }}
-            onClose={() => setBookPick(null)}
+            learnerHeroId={skillBookStudy.learnerHeroId}
+            locked={!interactive || peeking}
+            canConfirm={skillBookStudy.canConfirm}
+            onSelect={(heroId) => act({ type: "selectBookLearner", heroId })}
+            onConfirm={() => act({ type: "confirm" })}
+            onClose={() => act({ type: "cancel" })}
           />
         )}
         {/* 锦囊钮控制牌架显隐,收架且有决策窗时呼吸提示;珍宝/名将弹层由 PileButtons 自持。 */}
@@ -762,16 +693,7 @@ function GameScreenLive({
             breathe={rackBreathe}
             nudgePulse={rackHidden ? playNudge : undefined}
             onToggleRack={toggleRackHidden}
-            dismissReady={
-              // 遣散窗口:本地决策+对局中+自己回合
-              interactive &&
-              snapshot.phase === "Playing" &&
-              snapshot.activeIndex === selfSeat &&
-              snapshot.turnPhase !== "AwaitingBankruptcySettle"
-            }
-            onDismiss={(heroId) => {
-              dispatchCommand({ type: "dismissHero", heroId });
-            }}
+            dismissal={dismissal}
           />
         )}
         {/* 设置弹层提供战报、托管、音效、诊断与回主页等入口。 */}
@@ -780,7 +702,9 @@ function GameScreenLive({
             onClose={closeSettings}
             onOpenWarReport={openWarReport}
             warReport={
-              warReportOpen && <WarReportDrawer snapshot={snapshot} onClose={closeWarReport} />
+              warReportOpen && (
+                <WarReportDrawer report={warReport} warlords={warlords} onClose={closeWarReport} />
+              )
             }
             onGoHome={goHome}
             onCaptureDiagnostic={checkpointGameDiagnostics}

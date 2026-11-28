@@ -506,6 +506,7 @@ describe("事件→动效映射表(合成批)", () => {
         tileIndex: cap,
         propertyId: capProp,
         cost: 100,
+        holding: e.players[0].properties[0],
       },
     ]);
     const capPos = e.board.positionOf(cap);

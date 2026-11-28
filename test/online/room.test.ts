@@ -6,6 +6,7 @@
 // (bun run test:slow),默认池 skip(skip 行可见)——托管全程骑局到终局 7.5s /
 // 观测事件开局托管 7.4s / 托管可撤销 7.3s / 托管单节拍不瞬通 7.2s / 托管单节拍节奏
 // 3.0s(实测 2026-10-30);其余 68 例轻,常驻默认池。
+import { submitCapitalForSetup } from "./room-capitals";
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry, RoomError } from "@dafung/core/room/room";
 import { seatDecisionPointOf } from "@dafung/core/room/player-submissions";
@@ -139,7 +140,7 @@ async function pickAllHumanCapitals(reg: RoomRegistry, roomId: string): Promise<
   for (let i = 0; i < 20 && e.phase === "Setup"; i++) {
     const cur = e.currentSetupPlayerIndex;
     if (cur < 0) break;
-    await reg.pickCapital(roomId, cur, e.offeredCapitals[0]);
+    await submitCapitalForSetup(reg, roomId, cur, e.offeredCapitals[0]);
   }
 }
 
@@ -176,7 +177,7 @@ async function playingRoom(
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = () => reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e().phase === "Setup"; i++)
-    await reg.pickCapital(roomId, e().currentSetupPlayerIndex, e().offeredCapitals[0]!);
+    await submitCapitalForSetup(reg, roomId, e().currentSetupPlayerIndex, e().offeredCapitals[0]!);
   expect(e().phase).toBe("Playing");
   return { roomId, token: created.token, guestToken };
 }
@@ -297,46 +298,7 @@ describe("RoomRegistry · 房间生命周期", () => {
   });
 });
 
-describe("RoomRegistry · 真人选都 pickCapital(L41)", () => {
-  it("非本轮候选城 → 400 且状态不变", async () => {
-    const { reg, roomId } = await startRoom();
-    const e = reg.get(roomId)!.engine!;
-    const cur = e.currentSetupPlayerIndex;
-    // 选一座「可作都城但不在三候选里」的城(快照契约:候选外一律拒)
-    const unoffered = e.board.tiles.find(
-      (t) =>
-        t.isCapitalEligible &&
-        !e.offeredCapitals.includes(t.index) &&
-        !e.takenCapitalIndices.has(t.index),
-    )!;
-    expect(unoffered).toBeTruthy();
-    const before = e.currentDraftIndex;
-    await expectRoomError(() => reg.pickCapital(roomId, cur, unoffered.index), 400);
-    expect(e.currentDraftIndex).toBe(before);
-    expect(e.players[cur].capitalIndex).toBe(-1);
-  });
-
-  it("未轮到该座位 → 403 且状态不变", async () => {
-    const { reg, roomId } = await startRoom({ seats: 3, bot: [2] });
-    const e = reg.get(roomId)!.engine!;
-    const cur = e.currentSetupPlayerIndex;
-    // 另一个真人座位(非当前选都位)提交
-    const other = e.players.findIndex((p, i) => i !== cur && !p.isBot);
-    expect(other).toBeGreaterThanOrEqual(0);
-    await expectRoomError(() => reg.pickCapital(roomId, other, e.offeredCapitals[0]), 403);
-    expect(e.players[other].capitalIndex).toBe(-1);
-  });
-
-  it("对局未开始 → 409;房间不存在 → 404;非选都阶段 → 409", async () => {
-    const reg = new RoomRegistry(new InMemoryPersistence());
-    const { room } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
-    await expectRoomError(() => reg.pickCapital(room.roomId, 0, 0), 409); // 未开局
-    await expectRoomError(() => reg.pickCapital("NOPE", 0, 0), 404);
-    const { reg: reg2, roomId } = await startRoom({ seats: 2, bot: [1] });
-    await pickAllHumanCapitals(reg2, roomId);
-    await expectRoomError(() => reg2.pickCapital(roomId, 0, 0), 409); // 已进 Playing
-  });
-
+describe("RoomRegistry · 真人选都提交", () => {
   it("候选内落子:扣建城费/定都/推进下一位(候选滚换)", async () => {
     const { reg, roomId } = await startRoom({ seats: 3, bot: [2] });
     const e = reg.get(roomId)!.engine!;
@@ -345,7 +307,7 @@ describe("RoomRegistry · 真人选都 pickCapital(L41)", () => {
     const buildCost = e.catalog.get(e.board.at(tileIdx).propertyId)!.buildCost;
     const cashBefore = e.players[cur].cash;
     let calls = 0;
-    await reg.pickCapital(roomId, cur, tileIdx, () => {
+    await submitCapitalForSetup(reg, roomId, cur, tileIdx, () => {
       calls++;
     });
     expect(calls).toBeGreaterThanOrEqual(1); // onUpdate 直播保留
@@ -371,7 +333,7 @@ describe("RoomRegistry · 真人选都 pickCapital(L41)", () => {
       const e = room.engine!;
       expect(e.phase).toBe("Setup");
       expect(e.currentSetupPlayerIndex).toBe(0); // 固定种子让房主先选、先行动
-      await reg.pickCapital(roomId, 0, e.offeredCapitals[0]);
+      await submitCapitalForSetup(reg, roomId, 0, e.offeredCapitals[0]);
       expect(e.phase).toBe("Playing");
       expect(e.activeIndex).toBe(0);
       expect(e.players.filter((p) => p.isBot)).toHaveLength(seatCount - 1);
@@ -961,39 +923,47 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     return { e, userSeat, victimSeat };
   }
 
-  it("非决策归属座位发命令 → 403,引擎不动", async () => {
+  it("非行动座位借用决策点提交遣散，名册和行动权保持", async () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
     await pickAllHumanCapitals(reg, roomId);
-    const e = reg.get(roomId)!.engine!;
-    const owner = e.decisionOwner;
+    const room = reg.get(roomId)!;
+    const e = room.engine!;
+    const owner = e.activeIndex;
     const other = owner === 0 ? 1 : 0;
-    await expectRoomError(
-      () => reg.applyCommandFromSeat(roomId, other, { type: "rollAndMove" }),
-      403,
-    );
-    expect(e.decisionOwner).toBe(owner); // 引擎状态未动
+    armHero(e, owner, "huatuo", ["zhenji"]);
+    armPhase(e, { turnPhase: "AwaitingJinnang" });
+    const decisionPoint = seatDecisionPointOf(room, owner);
+    if (decisionPoint === null) throw new Error("行动座位缺少出牌授权");
+    expect(
+      await reg.submitFromSeat(roomId, other, {
+        roomId,
+        seat: other,
+        submissionId: "越席遣散",
+        decisionPoint,
+        cmd: { type: "dismissHero", heroId: "huatuo" },
+      }),
+    ).toMatchObject({ outcome: "rejected", reasonCode: "wrongSeat" });
+    expect(e.decisionOwner).toBe(owner);
+    expect(e.players[owner].heroes.map(({ heroId }) => heroId)).toEqual(["huatuo"]);
   });
 
-  it("决策归属座位放行:rollAndMove 正常起摇", async () => {
-    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
-    await pickAllHumanCapitals(reg, roomId);
-    const e = reg.get(roomId)!.engine!;
-    await reg.applyCommandFromSeat(roomId, e.decisionOwner, { type: "rollAndMove" });
-    // 命令已达引擎:cmd 流记行(每回合开头都是锦囊相位,turnPhase 值会循环回原值,不作断言)
-    expect(e.log.some((l) => l.category === "cmd" && l.detail.includes('"rollAndMove"'))).toBe(
-      true,
-    );
-  });
-
-  it("Setup 期非当前选都位发命令 → 403", async () => {
+  it("选都授权不可提交遣散", async () => {
     const { reg, roomId } = await startRoom({ seats: 2, bot: [] });
-    const e = reg.get(roomId)!.engine!;
-    const cur = e.currentSetupPlayerIndex;
-    const other = cur === 0 ? 1 : 0;
-    await expectRoomError(
-      () => reg.applyCommandFromSeat(roomId, other, { type: "rollAndMove" }),
-      403,
-    );
+    const room = reg.get(roomId)!;
+    const e = room.engine!;
+    const seat = e.currentSetupPlayerIndex;
+    const decisionPoint = seatDecisionPointOf(room, seat);
+    if (decisionPoint === null) throw new Error("选都座位缺少授权");
+    expect(
+      await reg.submitFromSeat(roomId, seat, {
+        roomId,
+        seat,
+        submissionId: "选都期遣散",
+        decisionPoint,
+        cmd: { type: "dismissHero", heroId: "huatuo" },
+      }),
+    ).toMatchObject({ outcome: "rejected", reasonCode: "staleDecisionPoint" });
+    expect(e.currentSetupPlayerIndex).toBe(seat);
   });
 
   it("无身份座位(-1/越界)发命令 → 400", async () => {
@@ -1179,7 +1149,7 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
     await reg.startGame(roomId, created.token, undefined, testMapProvider);
     const e = reg.get(roomId)!.engine!;
     for (let i = 0; i < 20 && e.phase === "Setup"; i++)
-      await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]!);
+      await submitCapitalForSetup(reg, roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]!);
     expect(e.phase).toBe("Playing");
     // 注:decisionTimeoutMs>0 时链尾常驻武装 #118,不做事后时钟排干(排干即代开托管,
     // 旧行为的既有例);残留挂表由下一次链首 clear(bot-driver 链首撤 stall/autoRoll)

@@ -587,8 +587,9 @@ export class GameEngine {
     use: boolean,
     cardId?: string,
     target?: ReactionTarget,
+    handIndex?: number,
   ): string | void {
-    return respondReaction(this, seat, use, cardId, target);
+    return respondReaction(this, seat, use, cardId, target, handIndex);
   }
 
   /** 「你可」应答(#1377 公共入口,UI/bot 驱动器/托管代驾同走):薄委托 → choices.respondSkillChoice。 */
@@ -739,7 +740,7 @@ export class GameEngine {
         `${responder.guohao} 提交命令:${CMD_BRIEF[cmd.type]}`,
         JSON.stringify(cmd),
       );
-      return this.respondReaction(cmd.seat, cmd.use, cmd.cardId, cmd.target);
+      return this.respondReaction(cmd.seat, cmd.use, cmd.cardId, cmd.target, cmd.handIndex);
     }
     const issuer = this.players[this.decisionOwner];
     this.logEvent(
@@ -825,8 +826,8 @@ export class GameEngine {
   /** 房间层日志行(ADR-0014):把房间/控制器层的生命周期事件(托管开关/离线/解散/
    *  开局)写进对局日志(category "room")。brief 中文;detail 为机读 JSON——
    *  重放脚本据此动态调整「bot 驱动座位集」(autopilot 行与 room.seatControlled 同源)。 */
-  logRoomEvent(brief: string, detail: string): void {
-    this.logEvent("room", null, brief, detail);
+  logRoomEvent(brief: string, detail: string, loggedAt?: number): void {
+    this.logEvent("room", null, brief, detail, undefined, undefined, loggedAt);
   }
 
   logEvent(
@@ -836,9 +837,10 @@ export class GameEngine {
     detail: string,
     amount?: number,
     warning?: LogEvent["warning"],
+    loggedAt?: number,
   ): void {
     this.log.push({
-      ts: Date.now(),
+      ts: loggedAt ?? Date.now(),
       round: this.round,
       turn: this.turnNumber,
       player,

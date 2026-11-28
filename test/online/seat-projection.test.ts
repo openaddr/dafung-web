@@ -8,8 +8,10 @@
 //      询问集数量/自我成员一致、闭窗时机一致(数量保留的反证:清零会在首条应答误闭窗)、
 //      锦囊数量账在暗牌数组恒空(redacted 水合形态)下仍自洽。
 // 发送面接线(消息真实到达客户端)归 test/online/protocol-online.test.ts(ADR-0055)。
+import { submitCapitalForSetup } from "./room-capitals";
 import { describe, it, expect } from "bun:test";
 import {
+  assembleDownlinkShot,
   assembleGameLogDelta,
   redactEvents,
   clientView,
@@ -20,8 +22,13 @@ import { MAP } from "../../scripts/engine-helpers";
 import type { RoomPersistence } from "@dafung/core/room/room-persistence";
 import type { RoomRecord } from "@dafung/core/room/room-record";
 import type { LoadedMap } from "@dafung/core/engine/board-loader";
-import { GameEngine, type GameCommand, type SeatConfig } from "@dafung/core/engine/authority";
-import { cmdMsg, dispatchInbound } from "@dafung/core/protocol/wire";
+import { GameEngine, type SeatConfig } from "@dafung/core/engine/authority";
+import {
+  dispatchInbound,
+  submissionMsg,
+  type PlayerSubmission,
+  type PlayerSubmissionRejection,
+} from "@dafung/core/protocol/wire";
 import type { GameEvent, GameEventBody } from "@dafung/core/engine/game-events";
 import type { MovePath } from "@dafung/core/engine/board";
 import { createDice } from "@dafung/core/engine/dice";
@@ -90,7 +97,21 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
     },
   },
   { kind: "capitalHalt", tileIndex: 5, path: path(5) },
-  { kind: "capitalSelected", tileIndex: 2, propertyId: "chengdu", cost: 1000 },
+  {
+    kind: "capitalSelected",
+    tileIndex: 2,
+    propertyId: "chengdu",
+    cost: 1000,
+    holding: {
+      propertyId: "chengdu",
+      group: "a",
+      level: 1,
+      maxLevel: 4,
+      defense: 40,
+      burning: null,
+      damageRanking: [],
+    },
+  },
   { kind: "propertyBought", propertyId: "changangan", price: 4000 },
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "insufficient-cash" },
@@ -313,7 +334,7 @@ async function roomAtPlaying() {
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e.phase === "Setup"; i++)
-    await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
+    await submitCapitalForSetup(reg, roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
   // 保证 host 手牌有内容可断言(起手 1 张之外再补)
   e.drawJinnang(0, 2);
   return { reg, roomId, token: created.token };
@@ -397,44 +418,59 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
     expect(authority).toContain("queried=p1");
   });
 
-  it("编号回执和座位日志给出公开的权威拒绝理由", async () => {
+  it("座位提交返回公开的权威拒绝理由并保留局面与日志", async () => {
     const { reg, roomId, token } = await roomAtPlaying();
-    const game = reg.get(roomId)!.engine!;
+    const room = reg.get(roomId)!;
+    const game = room.engine!;
 
-    async function expectWarning(
-      cmd: GameCommand,
+    function unexpectedCommand(): never {
+      throw new Error("预期对局命令");
+    }
+
+    async function expectSubmissionRejection(
+      cmd: PlayerSubmission["cmd"],
       requestId: number,
+      reasonCode: PlayerSubmissionRejection["reasonCode"],
       reason: string,
-      detail: string,
-    ): Promise<string> {
+    ): Promise<void> {
       const seat = game.decisionOwner;
-      const offset = game.log.length;
+      const { decisionPoint } = assembleDownlinkShot(
+        room,
+        new Set(),
+        seat,
+        [],
+        false,
+      ).decisionCursor;
+      if (decisionPoint === null) throw new Error("拒绝用例缺少决策点");
+      const submissionId = `拒绝-${requestId}`;
+      const rawOffset = game.log.length;
+      const observer = 1 - seat;
+      const publicLog = redactSnapshotForSeat(game.snapshot(), observer).log;
       const receipts: unknown[] = [];
-      function unexpectedCommand(): never {
-        throw new Error("预期对局命令");
-      }
       const result = await dispatchInbound(
-        cmdMsg(cmd, requestId),
+        submissionMsg({ roomId, seat, submissionId, decisionPoint, cmd }, requestId),
         {
-          cmd: (message, report) =>
-            reg.applyCommandFromSeat(roomId, seat, message, undefined, report),
-          pickCapital: unexpectedCommand,
-          setAutoPilot: unexpectedCommand,
+          cmd: unexpectedCommand,
+          submit: (message) => reg.submitFromSeat(roomId, seat, message),
         },
         { sendCommandResult: (raw) => receipts.push(JSON.parse(raw) as unknown) },
       );
       expect(result).toEqual({ ok: true, requestId });
       expect(receipts).toEqual([
-        { type: "commandResult", requestId, outcome: "warning", reason, logOffset: offset + 1 },
+        {
+          type: "submissionResult",
+          requestId,
+          submissionId,
+          outcome: "rejected",
+          reasonCode,
+          reason,
+        },
       ]);
-      const projected = redactSnapshotForSeat(game.snapshot(), 1 - seat).log.slice(offset);
+      expect(game.log).toHaveLength(rawOffset);
+      expect(redactSnapshotForSeat(game.snapshot(), observer).log).toEqual(publicLog);
       expect(
-        assembleGameLogDelta(game, { rawOffset: offset, publicOffset: offset }, 15).message?.lines,
-      ).toEqual(projected);
-      expect(projected[1]).toMatchObject({ detail: `warn: ${reason}，原文见服务器日志` });
-      expect(projected[1]).not.toHaveProperty("warning");
-      expect(game.log[offset + 1].detail).toBe(detail);
-      return JSON.stringify(projected);
+        assembleGameLogDelta(game, { rawOffset, publicOffset: publicLog.length }, 15).message,
+      ).toBeNull();
     }
 
     try {
@@ -448,26 +484,21 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
       placePlayer(game, buyerSeat, game.tileIndexOfProperty(city.id));
       armPhase(game, { turnPhase: "AwaitingDecision" });
       armLanding(game, { kind: "PropertyAvailable", propertyId: city.id });
-      await expectWarning(
-        { type: "buyProperty" },
-        85,
-        "银两不足",
-        `warn: 购地 ${city.id} 失败（InsufficientFunds）`,
-      );
+      await expectSubmissionRejection({ type: "buyProperty" }, 85, "insufficientFunds", "银两不足");
       expect(game.findOwner(city.id)).toBeNull();
       expect(game.players[buyerSeat].cash).toBe(0);
-      expect(game.pendingLand).toBeNull();
-      expect(game.activeIndex).toBe(1 - buyerSeat);
-      expect(game.turnNumber).toBe(turnNumber + 1);
+      expect(game.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: city.id });
+      expect(game.activeIndex).toBe(buyerSeat);
+      expect(game.turnNumber).toBe(turnNumber);
 
       const seat = game.activeIndex;
       armHero(game, seat, "caopi", ["fangzhu"]);
       setStamina(game, seat, 30);
-      await expectWarning(
+      await expectSubmissionRejection(
         { type: "respondSkillChoice", seat, use: true, targetSeat: game.players.length },
         86,
-        "目标座位无效",
-        "warn: respondSkillChoice:目标座位无效",
+        "invalidCandidate",
+        "本次技能没有此候选目标",
       );
       expect(game.turnPhase).toBe("AwaitingSkillChoice");
       game.respondSkillChoice(seat, false);
@@ -475,13 +506,12 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
       const capitalId = game.board.at(game.activePlayer.capitalIndex).propertyId;
       if (capitalId === null) throw new Error("开局后缺少都城");
       armDebt(game, game.activePlayer.cash + 1, null);
-      const projected = await expectWarning(
+      await expectSubmissionRejection(
         { type: "confirmBankruptcySettle", assets: [{ kind: "property", id: capitalId }] },
         87,
+        "invalidCandidate",
         "都城不可变卖",
-        "warn: 清偿:都城不可变卖",
       );
-      expect(projected).not.toContain(capitalId);
       expect(game.turnPhase).toBe("AwaitingBankruptcySettle");
     } finally {
       reg.dismissRoom(roomId, token);
@@ -531,15 +561,13 @@ describe("clientView 带座位 · 摘要/校准投影复活(#381)", () => {
     expect(
       assembleGameLogDelta(game, { rawOffset: offset, publicOffset: offset }, 10).message?.lines,
     ).toEqual(projected);
-    expect(projected).toHaveLength(game.log.length - offset);
+    expect(projected).toHaveLength(game.log.length - offset - 2);
     expect(
       projected.filter((line) => line.category === "cmd").map((line) => JSON.parse(line.detail)),
     ).toEqual([
       { type: "pickCapital", seat, tileIndex },
       { type: "resolveTreasureOwner", action: { type: "fair", treasureId: "seal-1" } },
       { type: "resolveTreasureOwner", action: { type: "premium" } },
-      { type: "useHeroSkill" },
-      { type: "useHeroSkill" },
       { type: "useBookSkill", treasureId: "skillbook-leigu", heroId: "zhangxingcai" },
       {
         type: "confirmBankruptcySettle",
@@ -633,7 +661,8 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
           kind: "reactionAnswered",
           use: true,
           cardId: "识破诡计",
-          spentCards: [{ seat: 0, cardId: "识破诡计" }],
+          handIndex: 0,
+          spentCards: [{ seat: 0, cardId: "识破诡计", handIndex: 0 }],
         }),
         ev(0, {
           kind: "jinnangVoided",

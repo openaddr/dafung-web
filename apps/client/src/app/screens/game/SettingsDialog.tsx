@@ -13,9 +13,7 @@
 //     确认框走 danger 变体,不可逆侧不再吃墨钮主行动)。
 //   - 演出加速行:信息展示「标准」(原型原样;演出提速目前只有追帧自动档,无用户
 //     档位基建,不落假切换钮)。
-// #1097 收编(#1096 决议2):托管开关行迁入(音效行同款形制)——原 #701 单人格
-// 弹层托管行随格 tap 退役,开关接同一 ADR-0028 现役引擎通路(useAutopilotOn 回读 +
-// controller.setAutoPilot,行为=旧托管钮);仅自机语义不变(本弹层只属屏前真人)。
+// 托管开关使用本席控制权限和权威回读，沿用音效开关形制。
 import { Button } from "@base-ui/react/button";
 import { memo, useId, useState, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
@@ -23,7 +21,7 @@ import { Switch } from "@app/components/ui/switch";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { useAudio } from "@app/fx/AudioProvider";
 import { useGameStore } from "@app/store/gameStore";
-import { useAutopilotOn, useNetStore } from "@app/store/netStore";
+import { useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import {
   GameDiagnosticDialog,
@@ -49,11 +47,13 @@ function SettingsSwitchRow({
   label,
   testid,
   checked,
+  disabled,
   onCheckedChange,
 }: {
   label: string;
   testid: string;
   checked: boolean;
+  disabled?: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
   const controlId = useId();
@@ -69,6 +69,7 @@ function SettingsSwitchRow({
         className="z-1"
         data-testid={testid}
         checked={checked}
+        disabled={disabled}
         onCheckedChange={onCheckedChange}
       />
     </div>
@@ -84,11 +85,9 @@ export const SettingsDialog = memo(function SettingsDialog({
   onCaptureDiagnostic,
 }: SettingsDialogProps) {
   const audio = useAudio();
-  // 托管开关(#1097 收编):控制器模块级单源(弹层只在 GameScreenLive 门卫后可达,
-  // 缺上下文 = 接线 bug);托管态单源回读 useAutopilotOn(联机=座位广播,单机=
-  // 控制器本地标记),写走 setAutoPilot(ADR-0028 单一开关,与旧托管钮/弹层行同通路)。
   const controller = getController();
-  const autopilotOn = useAutopilotOn(controller);
+  const autopilot = useGameStore((s) => s.seatView?.autopilot);
+  const canChangeAutopilot = useGameStore((s) => s.seatView?.autopilotInteractive === true);
   // 回到主页弃局确认(#745 高1):弹层内唯一不可逆动作,裸奔退役——点行先落确认框,
   // 确认文案写明后果(单机=对局进度丢弃;联机=并退出房间);取消则设置弹层原样保留。
   const roomId = useNetStore((s) => s.roomId);
@@ -141,12 +140,13 @@ export const SettingsDialog = memo(function SettingsDialog({
               onCheckedChange={audio.toggleMuted}
             />
           )}
-          {controller?.autopilotSupported && (
+          {controller !== null && autopilot !== undefined && (
             <SettingsSwitchRow
               label="托管"
               testid={TESTIDS.settingsAutopilot}
-              checked={autopilotOn}
-              onCheckedChange={(next) => controller.setAutoPilot(next)}
+              checked={autopilot.on}
+              disabled={!canChangeAutopilot}
+              onCheckedChange={(next) => controller.setAutoPilot(next, autopilot.decisionPoint)}
             />
           )}
           {/* 演出加速:信息展示(原型原样「标准」;用户档位切换无基建,不落假钮) */}
